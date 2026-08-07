@@ -14,6 +14,8 @@ export interface UseImagePreviewReturn {
   translateX: Ref<number>
   translateY: Ref<number>
   fitMode: Ref<ImageFitMode>
+  flipH: Ref<boolean>
+  flipV: Ref<boolean>
   isDragging: Ref<boolean>
   imageLoaded: Ref<boolean>
 
@@ -27,6 +29,8 @@ export interface UseImagePreviewReturn {
   resetView: () => void
   rotateLeft: () => void
   rotateRight: () => void
+  flipHorizontal: () => void
+  flipVertical: () => void
   setFitMode: (mode: ImageFitMode) => void
   handleWheel: (e: WheelEvent) => void
   startDrag: (e: MouseEvent) => void
@@ -51,6 +55,8 @@ export function useImagePreview(options: UseImagePreviewOptions = {}): UseImageP
   const translateX = ref(0)
   const translateY = ref(0)
   const fitMode = ref<ImageFitMode>('contain')
+  const flipH = ref(false)
+  const flipV = ref(false)
   const isDragging = ref(false)
   const imageLoaded = ref(false)
 
@@ -65,27 +71,27 @@ export function useImagePreview(options: UseImagePreviewOptions = {}): UseImageP
     return Math.round(scale.value * 100) + '%'
   })
 
-  // Computed transform style
+  // Computed transform style.
+  // Order translate → scale → rotate so pan stays in screen space (translate
+  // is applied last to the point) regardless of zoom. Flip is folded into the
+  // scale terms (sx/sy carry the sign); `scale` itself stays a positive
+  // magnitude so the wheel-zoom cursor-anchoring math in handleWheel is
+  // unaffected by flipping.
   const transformStyle = computed((): Record<string, string> => {
-    const transforms: string[] = []
+    const s = scale.value
+    const sx = flipH.value ? -s : s
+    const sy = flipV.value ? -s : s
+    const r = rotation.value
+    const tx = translateX.value
+    const ty = translateY.value
 
-    if (scale.value !== 1) {
-      transforms.push(`scale(${scale.value})`)
-    }
+    const parts: string[] = []
+    if (tx !== 0 || ty !== 0) parts.push(`translate(${tx}px, ${ty}px)`)
+    if (sx !== 1 || sy !== 1) parts.push(`scale(${sx}, ${sy})`)
+    if (r !== 0) parts.push(`rotate(${r}deg)`)
 
-    if (rotation.value !== 0) {
-      transforms.push(`rotate(${rotation.value}deg)`)
-    }
-
-    if (translateX.value !== 0 || translateY.value !== 0) {
-      transforms.push(`translate(${translateX.value}px, ${translateY.value}px)`)
-    }
-
-    if (transforms.length === 0) {
-      return {}
-    }
-
-    return { transform: transforms.join(' ') }
+    if (parts.length === 0) return {}
+    return { transform: parts.join(' ') }
   })
 
   // Zoom in
@@ -109,6 +115,8 @@ export function useImagePreview(options: UseImagePreviewOptions = {}): UseImageP
     translateX.value = 0
     translateY.value = 0
     fitMode.value = 'contain'
+    flipH.value = false
+    flipV.value = false
   }
 
   // Rotate left (counter-clockwise)
@@ -119,6 +127,16 @@ export function useImagePreview(options: UseImagePreviewOptions = {}): UseImageP
   // Rotate right (clockwise)
   function rotateRight(): void {
     rotation.value = (rotation.value + 90) % 360
+  }
+
+  // Flip horizontally (mirror left/right)
+  function flipHorizontal(): void {
+    flipH.value = !flipH.value
+  }
+
+  // Flip vertically (mirror up/down)
+  function flipVertical(): void {
+    flipV.value = !flipV.value
   }
 
   // Set fit mode
@@ -206,6 +224,8 @@ export function useImagePreview(options: UseImagePreviewOptions = {}): UseImageP
     translateX,
     translateY,
     fitMode,
+    flipH,
+    flipV,
     isDragging,
     imageLoaded,
     displayScale,
@@ -215,6 +235,8 @@ export function useImagePreview(options: UseImagePreviewOptions = {}): UseImageP
     resetView,
     rotateLeft,
     rotateRight,
+    flipHorizontal,
+    flipVertical,
     setFitMode,
     handleWheel,
     startDrag,

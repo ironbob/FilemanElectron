@@ -97,6 +97,14 @@ interface DetectedMobileDevice {
   pairingStatus?: 'unpaired' | 'pairing' | 'paired'
 }
 
+// External Volume Types (mounted on the local filesystem, e.g. /Volumes/*)
+interface DetectedVolume {
+  id: string
+  name: string
+  mountPath: string
+  isRemovable: boolean
+}
+
 // ============ Device Capabilities ============
 
 interface DeviceCapabilities {
@@ -181,6 +189,8 @@ interface Window {
 
     // System Integration
     showInFolder: (path: string) => void
+    // Open a local directory in the system Terminal (macOS only; rejects on other platforms).
+    openInTerminal: (path: string) => Promise<void>
 
     // Events
     onDeviceChange: (callback: (devices: Device[]) => void) => () => void
@@ -210,6 +220,14 @@ interface Window {
       getCacheSize: () => Promise<number>
     }
 
+    // Native image decode — HEIC/HEIF + camera RAW → base64 JPEG via macOS sips.
+    // Used by the image browser for formats Chromium cannot render.
+    decodeNativeImage: (
+      deviceId: string,
+      filePath: string,
+      opts?: { maxDim?: number }
+    ) => Promise<{ buffer: string; mime: string }>
+
     // ZIP archive browsing (lazy – no full extraction)
     zip: {
       /** List immediate children of internalPath inside the ZIP (internalPath='' = root). */
@@ -228,6 +246,14 @@ interface Window {
       }>>
       /** Read and decompress a single ZIP entry. Returns base64-encoded bytes. */
       readEntry: (zipFilePath: string, entryPath: string) => Promise<string>
+    }
+
+    // External Volumes (mounted on local filesystem)
+    volumes: {
+      /** Snapshot of currently mounted external volumes. */
+      list: () => Promise<DetectedVolume[]>
+      /** Subscribe to volume mount/unmount changes. Returns an unsubscribe function. */
+      onChanged: (callback: (volumes: DetectedVolume[]) => void) => () => void
     }
   }
 }

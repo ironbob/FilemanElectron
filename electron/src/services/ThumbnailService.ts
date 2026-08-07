@@ -24,8 +24,12 @@ const THUMBNAIL_SIZES = {
   large: { width: 256, height: 256 },
 }
 
+// NOTE: must mirror the renderer-side image set in src/utils/fileTypes.ts
+// (extensionCategories.image). Kept physically separate because the main
+// process cannot import renderer-path modules under electron-vite.
 const SUPPORTED_IMAGE_FORMATS = new Set([
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'heic', 'heif', 'raw'
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'ico',
+  'heic', 'heif', 'dng', 'raw', 'arw', 'cr2', 'nef', 'orf', 'raf', 'sr2'
 ])
 
 const SUPPORTED_VIDEO_FORMATS = new Set([

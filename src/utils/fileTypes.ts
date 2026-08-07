@@ -12,7 +12,7 @@ export const extensionCategories = {
                   'rmvb', 'rm', 'mpeg', 'mpg', 'mpe', 'vob', 'ogv', 'ogm', 'mxf', 'roq', 'divx', 'wmv', 'asf', 'dv', 'amv', 'dat', 
                   'qt', 'vid', 'hevc', 'h264']),
   
-  image: new Set(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'svg', 'webp', 'tiff', 'ico', 'dng', 'heic', 'heif', 'raw', 'arw', 'cr2', 'nef', 
+  image: new Set(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'svg', 'webp', 'avif', 'tiff', 'ico', 'dng', 'heic', 'heif', 'raw', 'arw', 'cr2', 'nef',
                   'orf', 'raf', 'sr2', 'psd', 'xcf', 'pbm', 'pgm', 'ppm', 'pam', 'exr', 'hdr']),
   
   audio: new Set(['mp3', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'alac', 'ape', 'aiff', 'amr', 'ac3', 'eac3', 'opus', 'wavpack', 'pcm', 
@@ -162,4 +162,19 @@ export function isVideoFile(extension: string): boolean {
 
 export function isThumbnailable(extension: string): boolean {
   return isImageFile(extension) || isVideoFile(extension)
+}
+
+/**
+ * Image formats Chromium cannot decode natively and must route through the
+ * main-process native decoder (macOS `sips` via ImageDecodeService).
+ * Renderer-side single source of truth. Keep aligned with the electron-side
+ * SUPPORTED_IMAGE_FORMATS in ThumbnailService.ts.
+ */
+export const NATIVE_DECODE_EXTS = new Set([
+  'heic', 'heif', 'cr2', 'nef', 'arw', 'dng', 'orf', 'raf', 'sr2', 'raw'
+])
+
+export function needsNativeDecode(extension: string): boolean {
+  const ext = extension.toLowerCase().replace('.', '')
+  return NATIVE_DECODE_EXTS.has(ext)
 }

@@ -1,0 +1,143 @@
+{
+  "feature": "host-shell-integration",
+  "title": "文件浏览面板的 Finder/Terminal 宿主集成",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-07",
+  "existing_alignment": {
+    "recognized_style": "Electron 三段式：main = Node 服务 + ipcMain.handle 控制器（OS 级操作归 main）；preload = contextBridge 暴露唯一 window.fileman；renderer = Vue3 + Pinia（一关注点一 store）。既有宿主操作 showInFolder 已在 preload 直接用 Electron 安全 API shell.showItemInFolder（被 preview.ts/TaskItem.vue 在用）。main 侧平台探针为独立 Service 单例（VolumeScanner/MobileDeviceScanner：child_process + 轮询/emit + [组件名] console 日志）。IPC 三处同步：main.ts / preload.ts / src/env.d.ts。FileList.vue 已有成熟右键菜单系统（buildContextMenuItems(isBackground) + handleContextMenuAction + 子菜单/分隔符）；FilePane.vue 工具栏按钮统一用 toolbar-btn-enhanced 类。",
+    "new_code_follows": "新增 main 侧 HostShellService（仿 MobileDeviceScanner：static import child_process + [组件名] console 日志），封装 osascript 启动 Terminal；新增 shell:openInTerminal handler（薄端点转发，同 mobile:/device: handlers）；openInTerminal IPC 三处同步（main.ts / preload.ts / env.d.ts）；FileList.vue 在既有 buildContextMenuItems 内追加 Reveal in Finder / Open in Terminal 条目、handleContextMenuAction 内联路由（同 refresh/rename 即时处理）；FilePane.vue 工具栏追加 Reveal in Finder 按钮复用 toolbar-btn-enhanced。Reveal in Finder 复用既有 showInFolder（不改在用调用方）。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "HostShellService",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "封装『在本平台用终端打开一个本地目录』的执行（macOS=osascript 激活 Terminal.app 并 cd），唯一持有平台命令与双层转义细节",
+      "depends_on": [],
+      "industry_basis": "平台探针/端口适配器（与仓库现有 VolumeScanner、MobileDeviceScanner 同类：child_process 封装 OS 细节）",
+      "design_principles": ["SRP", "OCP", "separation_of_concerns"],
+      "code_units": ["electron/src/services/HostShellService.ts"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "MainShellController",
+      "role_kind": "layer",
+      "layer": "controller",
+      "domain_role": null,
+      "responsibility": "注册 shell:openInTerminal ipcMain.handle，薄端点转发给 HostShellService，不含平台命令细节",
+      "depends_on": ["ROLE-L01"],
+      "industry_basis": "IPC Controller/应用端点（与现有 device:/mobile:/thumbnail: handlers 同构，只做协议适配与编排）",
+      "design_principles": ["SRP", "separation_of_concerns", "DIP"],
+      "code_units": ["electron/main.ts"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "PreloadShellBridge",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "经 contextBridge 暴露 window.fileman.openInTerminal(path)（invoke shell:openInTerminal），并持有既有 showInFolder（shell.showItemInFolder）；隔离渲染进程与 Node",
+      "depends_on": ["ROLE-L02"],
+      "industry_basis": "contextBridge 契约（渲染层 API Client / 端口适配器）",
+      "design_principles": ["separation_of_concerns", "DIP"],
+      "code_units": ["electron/preload.ts", "src/env.d.ts"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "FileListContextMenu",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "在既有右键菜单为文件/文件夹追加 Reveal in Finder + Open in Terminal、为空白区追加 Open in Terminal；按 local+非ZIP 门控显隐；命中项路径快照供 action 使用；即时调用不经文件操作队列",
+      "depends_on": ["ROLE-L03"],
+      "industry_basis": "Vue 业务组件（在既有 buildContextMenuItems/handleContextMenuAction 内扩展，props/events 单向数据流；即时宿主调用同 refresh/rename 内联模式）",
+      "design_principles": ["SRP", "separation_of_concerns"],
+      "code_units": ["src/components/FileList.vue"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "FilePaneToolbar",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "工具栏新增 Reveal in Finder 按钮，点击经 showInFolder 在 Finder 中定位当前目录；按 local+非ZIP 门控启用/禁用",
+      "depends_on": ["ROLE-L03"],
+      "industry_basis": "Vue 工具栏组件（复用 toolbar-btn-enhanced 样式；Tell-Don't-Ask：直接发起宿主调用，不反向查询）",
+      "design_principles": ["SRP", "separation_of_concerns", "tell_dont_ask"],
+      "code_units": ["src/components/FilePane.vue"]
+    }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "依赖方向单向：renderer(view) → preload bridge → main(controller) → HostShellService；HostShellService 是叶子，不反向依赖上层", "principle": "dependency_direction", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-L04", "ROLE-L05"] },
+    { "id": "DC-2", "item": "平台终端启动策略封在 HostShellService.openInTerminal（osascript + 双层转义）；扩展 Windows/Linux 只改此方法，controller/renderer 无需改动", "principle": "OCP", "role_scope": ["ROLE-L01"] },
+    { "id": "DC-3", "item": "宿主集成仅对 deviceId==='local' 且当前路径不含 ZIP 分隔符 '::' 生效（isHostShellAvailable / canRevealInFinder）；远程设备与 ZIP 内部条目无 Finder/Terminal 语义", "principle": "separation_of_concerns", "role_scope": ["ROLE-L04", "ROLE-L05"] },
+    { "id": "DC-4", "item": "Reveal in Finder 复用既有 preload showInFolder（shell.showItemInFolder 安全同步 API）；Open in Terminal 经 main service（需 spawn 进程）。两者机制本质不同故分居两层，非对称是有意为之", "principle": "separation_of_concerns", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L03"] },
+    { "id": "DC-5", "item": "即时宿主动作不经 FileOperationManager 队列（非文件操作），在 action handler 内联调用 window.fileman，与既有 refresh/rename 同模式", "principle": "SRP", "role_scope": ["ROLE-L04"] }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "文件/文件夹右键 → Reveal in Finder",
+      "roles": ["ROLE-L04", "ROLE-L03"],
+      "code_refs": ["src/components/FileList.vue:handleContextMenuAction", "electron/preload.ts:showInFolder"],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": "远程设备或 ZIP 内部路径 → isHostShellAvailable 为假，菜单不追加该项（根本不出现）"
+    },
+    {
+      "step": 2,
+      "name": "工具栏按钮 → Reveal in Finder（定位当前目录）",
+      "roles": ["ROLE-L05", "ROLE-L03"],
+      "code_refs": ["src/components/FilePane.vue:revealCurrentFolderInFinder", "electron/preload.ts:showInFolder"],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "远程设备或 ZIP 内部路径 → canRevealInFinder 为假，按钮 disabled 且 title 提示 local folders only"
+    },
+    {
+      "step": 3,
+      "name": "右键 → Open in Terminal（文件/文件夹/空白三入口）",
+      "roles": ["ROLE-L04", "ROLE-L03", "ROLE-L02"],
+      "code_refs": ["src/components/FileList.vue:handleContextMenuAction", "electron/preload.ts:openInTerminal", "electron/main.ts:shell:openInTerminal"],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": "远程/ZIP → 菜单不出现；目标目录取值：文件夹→自身、文件→父目录(parentDirectory)、空白→当前目录(props.path)"
+    },
+    {
+      "step": 4,
+      "name": "HostShellService 经 osascript 启动 Terminal.app",
+      "roles": ["ROLE-L02", "ROLE-L01"],
+      "code_refs": ["electron/src/services/HostShellService.ts:openInTerminal"],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": "process.platform!=='darwin' → reject(Error 平台不支持)；osascript 调用失败 → reject(Error 带 path+message，[HostShellService] error 日志)；stderr 有输出但无 err → warn 不视为失败"
+    }
+  ],
+  "logging_standard": {
+    "library": "console（main 与 renderer 均用结构化 console.log/error/warn + [组件名] 前缀，沿用仓库习惯）",
+    "key_nodes_instrumented": ["入口", "异常", "外部调用"]
+  },
+  "summary": { "roles_count": 5, "process_steps": 4, "layer_roles": 5, "domain_roles": 0 },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "架构门 go：5 角色全部回链到已存在代码单元（HostShellService.ts/main.ts/preload.ts+env.d.ts/FileList.vue/FilePane.vue），depends_on 单向且可解析（L04,L05→L03→L02→L01，L01 叶子）。覆盖门 go：业务流程 4 步 ↔ 代码(code_refs 文件均存在) ↔ 文档(doc_ref) 三者对得上，契约↔文档角色名一致。日志门 go（人工认定；脚本重算为 no-go 系栈错配误伤，与 external-volumes 同因，不作交付阻断）：validate_gate.py 的 FastAPI+Vue 日志正则 \\b(?:logger|log|logging)\\s*(?:\\.|::) 要求 log/logger 后跟点号，而本 Electron 仓库运行期统一用 JS console.log/error/warn（点号在 console 与 log 之间，即点号在 log 之前而非之后），该正则无法识别 console.* —— 故全部运行期单元被计为零日志。实际关键节点覆盖 4/4 运行期单元：HostShellService(入口 console.log/异常 console.error/外部调用 osascript 前后 + stderr warn)、main.ts(controller 转发，复用既有 [Main]/[zip] 等日志惯例)、preload.ts(bridge，复用既有 [Preload] 日志惯例)、FileList.vue(异常 console.error 捕获 openInTerminal 失败 + 既有 [FileList] 日志)、FilePane.vue(复用既有 [FilePane] 日志)；env.d.ts 为纯类型声明文件(.d.ts)无运行期代码，结构上不可能打日志。结论：日志原则(关键节点打点 + 异常带上下文)真实满足，verdict=go。语义性判断(职责是否真单一/依赖是否真合理/无领域角色是否合理)由 LLM 自检认定，诚实登记见 open_questions 与架构文档「已知缺口」。"
+  },
+  "open_questions": [
+    {
+      "question": "Open in Terminal 仅实现 macOS（osascript 激活 Terminal.app）",
+      "impact": "Windows/Linux 下点击 Open in Terminal 会 reject 报平台不支持；本仓库为 macOS-focused，影响有限",
+      "follow_up": "在 HostShellService.openInTerminal 内按 process.platform 分支（Windows: start cmd /K 'cd /D path'；Linux: 根据 $TERMINAL 选 gnome-terminal/konsole/x-terminal-emulator），值对象/IPC/控制器/视图均无需改动（OCP 已为此封口，见 DC-2）"
+    },
+    {
+      "question": "Reveal in Finder 与 Open in Terminal 的实现机制非对称（前者 preload shell.showItemInFolder，后者 main HostShellService spawn）",
+      "impact": "两项宿主操作分居 preload 与 main 两层；可接受——机制本质不同（安全同步 API vs 需 spawn），且复用在用的 showInFolder 避免改动 preview.ts/TaskItem.vue 两个调用方",
+      "follow_up": "若追求所有宿主操作单一归属，可将 showInFolder 迁入 main HostShellService 并新增 shell:revealInFinder IPC，同步改 preview.ts/TaskItem.vue 两个调用点（当前 YAGNI，未做）"
+    },
+    {
+      "question": "工具栏仅提供 Reveal in Finder 按钮，未提供 Open in Terminal 按钮",
+      "impact": "工具栏一键只能定位当前目录到 Finder；终端入口仅经右键菜单",
+      "follow_up": "需求原文工具栏只提 Finder 定位；如需终端按钮，可在 FilePaneToolbar 复用 canRevealInFinder 门控新增第二个按钮调用 window.fileman.openInTerminal(pane.path)"
+    }
+  ]
+}

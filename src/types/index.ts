@@ -53,6 +53,8 @@ export interface Pane {
   viewMode: 'list' | 'grid' | 'columns'
   selectedFiles: string[]
   columns?: Column[]
+  /** Grid icon size (only applies when viewMode === 'grid'). */
+  gridSize?: 'xlarge' | 'large' | 'medium' | 'small'
 }
 
 export interface AppConfig {

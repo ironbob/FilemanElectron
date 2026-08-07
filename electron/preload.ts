@@ -127,6 +127,14 @@ export interface DetectedMobileDevice {
   pairingStatus?: 'unpaired' | 'pairing' | 'paired'
 }
 
+// External Volume Types (mounted on the local filesystem, e.g. /Volumes/*)
+export interface DetectedVolume {
+  id: string
+  name: string
+  mountPath: string
+  isRemovable: boolean
+}
+
 const filemanAPI = {
   // ============ System ============
   getHomeDir: () => ipcRenderer.invoke('system:getHomeDir'),
@@ -197,6 +205,9 @@ const filemanAPI = {
   showInFolder: (path: string) => {
     shell.showItemInFolder(path)
   },
+  // Open a local directory in the system Terminal (macOS: Terminal.app via osascript).
+  openInTerminal: (path: string): Promise<void> =>
+    ipcRenderer.invoke('shell:openInTerminal', path),
 
   // ============ File Operations ============
   createFileOperation: (params: CreateTaskParams) =>
@@ -249,11 +260,18 @@ const filemanAPI = {
 
   // ============ Thumbnail Operations ============
   thumbnail: {
-    get: (deviceId: string, filePath: string, size: number, mtime: string, thumbnailSize: 'small' | 'large') => 
+    get: (deviceId: string, filePath: string, size: number, mtime: string, thumbnailSize: 'small' | 'large') =>
       ipcRenderer.invoke('thumbnail:get', deviceId, filePath, size, mtime, thumbnailSize),
     clearCache: () => ipcRenderer.invoke('thumbnail:clearCache'),
     getCacheSize: () => ipcRenderer.invoke('thumbnail:getCacheSize'),
   },
+
+  // ============ Native Image Decode (HEIC/RAW → JPEG via macOS sips) ============
+  decodeNativeImage: (deviceId: string, filePath: string, opts?: { maxDim?: number }) =>
+    ipcRenderer.invoke('image:decodeNative', deviceId, filePath, opts) as Promise<{
+      buffer: string
+      mime: string
+    }>,
 
   // ============ ZIP browsing (lazy – no full extraction) ============
   zip: {
@@ -270,6 +288,21 @@ const filemanAPI = {
      */
     readEntry: (zipFilePath: string, entryPath: string): Promise<string> =>
       ipcRenderer.invoke('zip:readEntry', zipFilePath, entryPath),
+  },
+
+  // ============ External Volumes (mounted on local filesystem) ============
+  volumes: {
+    /** Snapshot of currently mounted external volumes. */
+    list: (): Promise<DetectedVolume[]> => ipcRenderer.invoke('volumes:list'),
+    /** Subscribe to volume mount/unmount changes. Returns an unsubscribe function. */
+    onChanged: (callback: (volumes: DetectedVolume[]) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, volumes: DetectedVolume[]) => {
+        console.log('[Preload] volumes:changed event received:', volumes.length)
+        callback(volumes)
+      }
+      ipcRenderer.on('volumes:changed', handler)
+      return () => ipcRenderer.removeListener('volumes:changed', handler)
+    },
   },
 }
 

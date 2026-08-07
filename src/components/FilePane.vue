@@ -85,9 +85,10 @@
           :key="mode.value"
           class="w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all cursor-pointer"
           :class="pane.viewMode === mode.value ? 'bg-accent-blue text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
-          :title="mode.label"
+          :title="mode.value === 'grid' ? `${mode.label} (right-click for sizes)` : mode.label"
           :aria-label="mode.label"
           @click="tabsStore.setViewMode(paneId, mode.value)"
+          @contextmenu.prevent="onViewButtonContextMenu(mode.value, $event)"
         >
           <component :is="mode.icon" class="w-3.5 h-3.5" />
         </button>
@@ -109,6 +110,20 @@
 
       <!-- Actions -->
       <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
+        <button
+          class="toolbar-btn-enhanced"
+          :disabled="!canRevealInFinder"
+          :title="canRevealInFinder ? 'Reveal in Finder' : 'Reveal in Finder (local folders only)'"
+          aria-label="Reveal in Finder"
+          @click="revealCurrentFolderInFinder"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h3l2 2h7a2 2 0 012 2v0" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v8a2 2 0 002 2h6" />
+            <circle cx="16" cy="15.5" r="2.5" stroke-width="2" />
+            <path stroke-linecap="round" stroke-width="2" d="M18 17.5l1.5 1.5" />
+          </svg>
+        </button>
         <button class="toolbar-btn-enhanced" title="New Folder" aria-label="New Folder" @click="handleOperation({ action: 'mkdir', files: [] })">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
@@ -131,6 +146,7 @@
         :device-id="pane.deviceId"
         :path="pane.path"
         :view-mode="pane.viewMode"
+        :grid-size="pane.gridSize"
         :selected-files="pane.selectedFiles"
         :search-query="searchQuery"
         @select="handleSelect"
@@ -158,6 +174,30 @@
       </template>
     </div>
 
+    <!-- Grid Size Menu (right-click on grid view button) -->
+    <template v-if="gridSizeMenu.visible">
+      <div
+        class="fixed inset-0 z-40"
+        @click="closeGridSizeMenu"
+        @contextmenu.prevent="closeGridSizeMenu"
+      ></div>
+      <div
+        class="fixed z-50 min-w-[170px] py-1 bg-bg-secondary border border-border rounded-lg shadow-lg animate-fade-in"
+        :style="{ left: gridSizeMenu.x + 'px', top: gridSizeMenu.y + 'px' }"
+      >
+        <div class="px-3 py-1 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Icon Size</div>
+        <div
+          v-for="opt in gridSizeOptions"
+          :key="opt.value"
+          class="flex items-center gap-2 px-3 py-1.5 text-sm text-text-primary hover:bg-accent-blue hover:text-white cursor-pointer transition-colors"
+          @click="chooseGridSize(opt.value)"
+        >
+          <span class="w-4 text-xs">{{ activeGridSize === opt.value ? '✓' : '' }}</span>
+          <span>{{ opt.label }}</span>
+        </div>
+      </div>
+    </template>
+
     <!-- Operation Dialog -->
     <RenameDialog
       v-if="renameDialog.visible"
@@ -177,6 +217,7 @@ import { useClipboardStore } from '@/stores/clipboard'
 import FileList from './FileList.vue'
 import InlinePreview from './preview/InlinePreview.vue'
 import RenameDialog from './dialogs/RenameDialog.vue'
+import { isImageFile } from '@/utils/fileTypes'
 import type { FileInfo } from '@/types'
 
 const props = defineProps<{
@@ -243,6 +284,21 @@ const pathSegments = computed(() => {
 const isInsideZip = computed(() => pane.value?.path.includes('::') ?? false)
 
 /**
+ * 宿主集成（Finder）是否可用：仅本地设备、且不在 ZIP 虚拟路径内。
+ * 远程设备与 ZIP 内部路径在本机 Finder 中无对应实体。
+ */
+const canRevealInFinder = computed(() => pane.value?.deviceId === 'local' && !isInsideZip.value)
+
+/** 工具栏按钮：在 Finder 中定位当前目录（shell.showItemInFolder 选中该目录于其父窗口）。 */
+function revealCurrentFolderInFinder() {
+  if (!canRevealInFinder.value) return
+  const currentPath = pane.value?.path
+  if (currentPath) {
+    window.fileman.showInFolder(currentPath)
+  }
+}
+
+/**
  * Returns true for the breadcrumb segment index that corresponds to the ZIP
  * file itself (the boundary between filesystem and archive internals).
  */
@@ -284,6 +340,37 @@ const viewModes = [
   { value: 'grid' as const, icon: GridIcon, label: 'Grid View' },
   { value: 'columns' as const, icon: ColumnsIcon, label: 'Columns View' }
 ]
+
+// ── 网格规格（大/中/小）：右击网格按钮弹出选择 ────────────────────────────────
+const gridSizeOptions = [
+  { value: 'xlarge' as const, label: 'Extra Large Icons' },
+  { value: 'large' as const, label: 'Large Icons' },
+  { value: 'medium' as const, label: 'Medium Icons' },
+  { value: 'small' as const, label: 'Small Icons' }
+]
+const gridSizeMenu = reactive({ visible: false, x: 0, y: 0 })
+const activeGridSize = computed(() => pane.value?.gridSize ?? 'large')
+
+function onViewButtonContextMenu(value: string, e: MouseEvent) {
+  // 仅网格按钮响应右键 → 弹出规格菜单
+  if (value !== 'grid') return
+  const menuW = 180
+  const menuH = 168
+  gridSizeMenu.x = Math.min(e.clientX, window.innerWidth - menuW)
+  gridSizeMenu.y = Math.min(e.clientY, window.innerHeight - menuH)
+  gridSizeMenu.visible = true
+}
+function closeGridSizeMenu() {
+  gridSizeMenu.visible = false
+}
+function chooseGridSize(size: 'xlarge' | 'large' | 'medium' | 'small') {
+  tabsStore.setGridSize(props.paneId, size)
+  // 选择规格即进入网格视图，让所选大/中/小立即生效
+  if (pane.value?.viewMode !== 'grid') {
+    tabsStore.setViewMode(props.paneId, 'grid')
+  }
+  closeGridSizeMenu()
+}
 
 function navigateToSegment(index: number) {
   if (!pane.value) return
@@ -356,7 +443,15 @@ function handlePreview(file: FileInfo) {
       tabsStore.navigatePane(props.paneId, virtualPath)
       return
     }
-    previewStore.openPreview(file, pane.value?.deviceId || 'local')
+    const deviceId = pane.value?.deviceId || 'local'
+    // Images (outside ZIPs) open the folder-aware image browser instead of the
+    // single-file preview tab. The sibling list comes from the pane's loaded
+    // files so prev/next can walk the folder.
+    if (isImageFile(file.extension || '') && !file.path.includes('::')) {
+      previewStore.openImageBrowser(file, deviceId, loadedFiles.value)
+      return
+    }
+    previewStore.openPreview(file, deviceId)
     previewStore.openFullscreen()
   }
 }

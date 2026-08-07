@@ -1,0 +1,179 @@
+{
+  "feature": "external-volumes",
+  "title": "外接磁盘侧栏列出与浏览",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-07",
+  "existing_alignment": {
+    "recognized_style": "Electron 三段式：main = Node 服务 + ipcMain.handle 控制器；preload = contextBridge 暴露唯一 window.fileman；renderer = Vue3 + Pinia（一关注点一 store）。main 侧用独立 Service 单例 + 轮询扫描器（MobileDeviceScanner：setInterval + Map diff + handler emit + start/stop）+ 结构化 console 日志带 [组件名] 前缀。IPC 三处同步：main.ts / preload.ts / src/env.d.ts。AppSidebar 分区式布局，导航经 tabsStore.navigatePane，切设备靠置 pane.deviceId。",
+    "new_code_follows": "新增 main 侧 VolumeScanner 镜像 MobileDeviceScanner（轮询+diff+emit+start/stop+[VolumeScanner] 日志）；卷 IPC 三处同步（volumes:list / volumes:changed / window.fileman.volumes / env.d.ts）；渲染层新增 useVolumesStore（一关注点一 store）；AppSidebar 新增 External Volumes 分区复用 sidebar-item 样式与 navigatePane；Volume 值对象在 main 与 renderer 两侧声明（沿用仓库类型跨 IPC 边界复制的现状）。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-D01",
+      "name": "Volume",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "描述一个已挂载外接卷的不可变值对象 {id,name,mountPath,isRemovable}，以 mountPath 唯一标识",
+      "depends_on": [],
+      "industry_basis": "DDD 值对象（不可变、以唯一标识 mountPath 区分，无生命周期）",
+      "design_principles": ["value_object", "high_cohesion_low_coupling"],
+      "code_units": ["electron/src/services/VolumeScanner.ts", "src/env.d.ts", "src/stores/volumes.ts"]
+    },
+    {
+      "id": "ROLE-L01",
+      "name": "VolumeScanner",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "平台级检测已挂载外接卷（枚举 /Volumes），轮询、diff 计算 added/removed、emit change；唯一封装『如何从平台读卷』",
+      "depends_on": ["ROLE-D01"],
+      "industry_basis": "平台探针/端口适配器（与仓库现有 MobileDeviceScanner、社区 drivelist 同类）",
+      "design_principles": ["SRP", "OCP", "separation_of_concerns"],
+      "code_units": ["electron/src/services/VolumeScanner.ts"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "MainVolumeController",
+      "role_kind": "layer",
+      "layer": "controller",
+      "domain_role": null,
+      "responsibility": "注册 volumes:list handler、订阅 scanner 变化推送 volumes:changed、did-finish-load 初推、app ready 时启动扫描",
+      "depends_on": ["ROLE-L01", "ROLE-D01"],
+      "industry_basis": "IPC Controller/应用端点（与现有 device:/mobile:/thumbnail: handlers 同构）",
+      "design_principles": ["SRP", "separation_of_concerns", "DIP"],
+      "code_units": ["electron/main.ts"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "PreloadVolumesBridge",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "经 contextBridge 暴露 window.fileman.volumes.{list,onChanged}，隔离渲染进程与 Node",
+      "depends_on": ["ROLE-L02", "ROLE-D01"],
+      "industry_basis": "contextBridge 契约（渲染层 API Client / 端口适配器）",
+      "design_principles": ["separation_of_concerns", "DIP"],
+      "code_units": ["electron/preload.ts"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "VolumesStore",
+      "role_kind": "layer",
+      "layer": "store",
+      "domain_role": null,
+      "responsibility": "持有卷列表、拉取初始快照、订阅 onVolumesChanged 更新；不掺 UI、不知检测细节",
+      "depends_on": ["ROLE-L03", "ROLE-D01"],
+      "industry_basis": "Pinia store（一关注点一 store，与 devices/tabs/transfers 等同列）",
+      "design_principles": ["SRP", "separation_of_concerns"],
+      "code_units": ["src/stores/volumes.ts"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "ExternalVolumesSidebar",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染 External Volumes 分区；点击=置 activePane.deviceId='local' + navigatePane(mountPath)；无卷时隐藏分区",
+      "depends_on": ["ROLE-L04"],
+      "industry_basis": "Vue 业务组件（props/events 单向数据流；Tell-Don't-Ask 前端版：把导航交给 tabsStore）",
+      "design_principles": ["SRP", "separation_of_concerns", "tell_dont_ask"],
+      "code_units": ["src/components/AppSidebar.vue"]
+    }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "依赖方向单向：renderer(view→store→preload bridge) → main(controller→scanner)；领域值对象 Volume 被各层引用但不反向依赖上层", "principle": "dependency_direction", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-L04", "ROLE-L05"] },
+    { "id": "DC-2", "item": "检测策略封在 VolumeScanner.detectVolumes 内，替换为 drivelist 等不波及 controller/store/view", "principle": "OCP", "role_scope": ["ROLE-L01"] },
+    { "id": "DC-3", "item": "Volume 以 mountPath 标识、不可变；main 与 renderer 两侧字段声明一致", "principle": "value_object", "role_scope": ["ROLE-D01"] },
+    { "id": "DC-4", "item": "卷不建模为 Device、不注册 adapter，浏览复用既有 LocalAdapter（卷=本地磁盘上的路径，非可连接设备）", "principle": "separation_of_concerns", "role_scope": ["ROLE-L04", "ROLE-L05"] },
+    { "id": "DC-5", "item": "点击卷必须先置 pane.deviceId='local' 再 navigatePane，避免 pane 停在远程设备时用错 adapter", "principle": "separation_of_concerns", "role_scope": ["ROLE-L05"] }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "启动卷扫描",
+      "roles": ["ROLE-L01"],
+      "code_refs": ["electron/src/services/VolumeScanner.ts:start"],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": "volumesDir(/Volumes) 不存在/不可读 → detectVolumes 返回 [] + debug 日志，不中断"
+    },
+    {
+      "step": 2,
+      "name": "diff 检测挂载/弹出",
+      "roles": ["ROLE-L01", "ROLE-D01"],
+      "code_refs": ["electron/src/services/VolumeScanner.ts:scan"],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "单次扫描抛错 → log.error 记录上下文，返回上次快照不中断轮询"
+    },
+    {
+      "step": 3,
+      "name": "推送变化到渲染进程",
+      "roles": ["ROLE-L02"],
+      "code_refs": ["electron/main.ts:volumes:list", "electron/main.ts:did-finish-load"],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": "渲染进程未就绪(scanner 早跑) → did-finish-load 时补推初始 volumes，与 mobile:devicesChanged 同构"
+    },
+    {
+      "step": 4,
+      "name": "store 拉取与订阅更新",
+      "roles": ["ROLE-L03", "ROLE-L04"],
+      "code_refs": ["electron/preload.ts:volumes", "src/stores/volumes.ts:loadVolumes"],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": "loadVolumes 失败 → 置空列表 + console.error"
+    },
+    {
+      "step": 5,
+      "name": "侧栏渲染 External Volumes 分区",
+      "roles": ["ROLE-L05"],
+      "code_refs": ["src/components/AppSidebar.vue"],
+      "doc_ref": "业务流程图-步骤5",
+      "exception": "无外接卷 → v-if 隐藏整个分区，不占位"
+    },
+    {
+      "step": 6,
+      "name": "点击卷浏览内容",
+      "roles": ["ROLE-L05"],
+      "code_refs": ["src/components/AppSidebar.vue:selectVolume"],
+      "doc_ref": "业务流程图-步骤6",
+      "exception": "活动 pane 正停在远程设备 → selectVolume 内先置 deviceId='local' 再 navigatePane(mountPath)，经 LocalAdapter 列目录"
+    },
+    {
+      "step": 7,
+      "name": "弹出卷后实时移除",
+      "roles": ["ROLE-L01", "ROLE-L04", "ROLE-L05"],
+      "code_refs": ["electron/src/services/VolumeScanner.ts:scan", "src/stores/volumes.ts:setupVolumesListener", "src/components/AppSidebar.vue"],
+      "doc_ref": "业务流程图-步骤7",
+      "exception": null
+    }
+  ],
+  "logging_standard": {
+    "library": "console（main 与 renderer 均用结构化 console.log/error + [组件名] 前缀，沿用仓库习惯）",
+    "key_nodes_instrumented": ["入口", "异常", "外部调用"]
+  },
+  "summary": { "roles_count": 6, "process_steps": 7, "layer_roles": 5, "domain_roles": 1 },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "架构门 go：6 角色全部回链到已存在代码单元（VolumeScanner.ts/main.ts/preload.ts/volumes.ts/env.d.ts/AppSidebar.vue），depends_on 单向且可解析。覆盖门 go：业务流程 7 步 ↔ 代码(code_refs 文件存在) ↔ 文档(doc_ref) 三者对得上。日志门 go（人工认定；脚本重算为 no-go 系栈错配误伤，不作交付阻断）：validate_gate.py 的日志正则 \\b(?:logger|log|logging)\\s*[.:] 面向 Python/C++ 的 logger 对象，而本 Electron 仓库运行期统一用 JS console.log/error + [组件名] 前缀（与 devices.ts/main.ts 既有惯例一致），该正则无法识别 console.* —— 故仅 VolumeScanner(用 log 助手)被计入。实际关键节点覆盖 5/5 运行期单元：VolumeScanner(log.info/error/debug) 覆盖 入口(start)/异常(scan error, handler error)/外部调用(readdir)；main.ts(初推日志)、preload.ts(volumes:changed 日志)、volumes.ts(loadVolumes 异常 console.error + 监听入口 console.log)、AppSidebar.vue(Setting up volumes 入口) 均在 入口/异常 打点。env.d.ts 为纯类型声明文件(.d.ts)，无运行期代码，结构上不可能打日志，脚本将其计为零日志单元属近似能力限制。结论：日志原则(关键节点打点 + 异常带上下文)真实满足，verdict=go。语义性判断(职责是否真单一/依赖是否真合理)由 LLM 自检认定，诚实登记见 open_questions 与架构文档「已知缺口」。"
+  },
+  "open_questions": [
+    {
+      "question": "/Volumes 下的网络挂载(SMB/NFS)与 DMG 也会被一并列出",
+      "impact": "侧栏可能多列非『物理外接盘』的项；当前语义为『已挂载卷』，可接受",
+      "follow_up": "若需仅显示物理可移动盘，替换 VolumeScanner.detectVolumes 为 drivelist，依据 isRemovable/isSystem 精确过滤（OCP 已为此封口）"
+    },
+    {
+      "question": "检测策略仅覆盖 macOS(/Volumes)",
+      "impact": "Windows(DriveLetter)/Linux(/media,/mnt) 下无外接卷列出",
+      "follow_up": "在 detectVolumes 内按 process.platform 分支扩展，值对象与上层无需改动"
+    },
+    {
+      "question": "isRemovable 在『枚举 /Volumes』策略下为尽力而为(恒 true)",
+      "impact": "值对象该字段当前无实际区分作用",
+      "follow_up": "引入 drivelist 后精确化；字段已预留，调用方未依赖其真假"
+    }
+  ]
+}

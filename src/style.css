@@ -213,6 +213,11 @@ html, body, #app {
   background-color: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Desktop app feel: disable the browser's native drag-to-select across all
+     UI chrome (sidebar, toolbar, tab bar, file list). Copyable/editable content
+     opts back in via the "Native Text Selection" section below. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* ========================================
@@ -252,6 +257,36 @@ html, body, #app {
 ::selection {
   background: var(--accent-blue);
   color: var(--text-selected);
+}
+
+/* ========================================
+   Native Text Selection (opt-in)
+   Native drag-to-select is disabled app-wide (see html, body, #app) so the
+   chrome behaves like a desktop app, not a web page. Re-enable it ONLY where
+   users genuinely need to edit or copy text. (user-select is inherited, so
+   setting it on a container is enough for its descendants.)
+   ======================================== */
+
+/* Editable fields must remain selectable / editable */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Readable / copyable rendered content (markdown, plain text, code blocks) */
+.markdown-body,
+pre,
+code {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Opt-in utility for any future copyable region */
+.select-text {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* ========================================

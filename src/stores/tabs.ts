@@ -16,7 +16,8 @@ function createDefaultPane(homePath: string = '/'): Pane {
     history: [homePath],
     historyIndex: 0,
     viewMode: 'list',
-    selectedFiles: []
+    selectedFiles: [],
+    gridSize: 'large'
   }
 }
 
@@ -236,6 +237,13 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  function setGridSize(paneId: string, size: Pane['gridSize']) {
+    const pane = findPane(paneId)
+    if (pane) {
+      pane.gridSize = size
+    }
+  }
+
   function setSelectedFiles(paneId: string, files: string[]) {
     const pane = findPane(paneId)
     if (pane) {
@@ -336,6 +344,7 @@ export const useTabsStore = defineStore('tabs', () => {
     goForward,
     goUp,
     setViewMode,
+    setGridSize,
     setSelectedFiles,
     setColumns,
     findPane,

@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
 import type { FileInfo } from '@/types'
-import type { PreviewTab, PreviewType } from '@/types/preview'
-import { getPreviewType, getMimeType } from '@/types/preview'
+import type { PreviewTab, PreviewType, ImageBrowserSession } from '@/types/preview'
+import { getPreviewType, getMimeType, IMAGE_PREVIEW_SIZE_LIMIT } from '@/types/preview'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewStore] ${message}`, ...args)
@@ -11,7 +11,7 @@ const log = (message: string, ...args: any[]) => {
 // File size limits
 const FILE_SIZE_LIMITS = {
   text: 10 * 1024 * 1024,  // 10MB for text files
-  image: 50 * 1024 * 1024, // 50MB for images
+  image: IMAGE_PREVIEW_SIZE_LIMIT, // 50MB for images
   video: 500 * 1024 * 1024, // 500MB for videos
   audio: 100 * 1024 * 1024, // 100MB for audio
   pdf: 100 * 1024 * 1024,   // 100MB for PDFs
@@ -55,6 +55,55 @@ export const usePreviewStore = defineStore('preview', () => {
   // Inline preview state
   const inlinePreviewFile = ref<FileInfo | null>(null)
   const inlinePreviewDeviceId = ref<string>('local')
+
+  // ── Image browser session ─────────────────────────────────────────────────
+  // Folder-aware, decoupled from the per-file tab system. Per-image load state
+  // (blobUrl/loading/error/EXIF/transforms) lives in the useImageBrowser
+  // composable; this only holds the stable browsing identity so prev/next just
+  // swap the index — no tab pile-up. Reassign .value (shallow) to notify.
+  const imageBrowser = shallowRef<ImageBrowserSession | null>(null)
+  const imageBrowserOpen = ref(false)
+  const imageBrowserCurrent = computed<FileInfo | null>(
+    () => (imageBrowser.value && imageBrowser.value.images[imageBrowser.value.index]) || null
+  )
+
+  function openImageBrowser(file: FileInfo, deviceId: string, images: FileInfo[]) {
+    const imageFiles = images.filter(f => !f.isDirectory && getPreviewType(f) === 'image')
+    const list = imageFiles.length > 0 ? imageFiles : [file]
+    const idx = Math.max(0, list.findIndex(f => f.path === file.path))
+    imageBrowser.value = { deviceId, images: list, index: idx }
+    imageBrowserOpen.value = true
+    log('Opened image browser:', list.length, 'images, index', idx)
+  }
+
+  function nextImage() {
+    const s = imageBrowser.value
+    if (s && s.index < s.images.length - 1) {
+      imageBrowser.value = { ...s, index: s.index + 1 }
+    }
+  }
+
+  function prevImage() {
+    const s = imageBrowser.value
+    if (s && s.index > 0) {
+      imageBrowser.value = { ...s, index: s.index - 1 }
+    }
+  }
+
+  function goToImage(index: number) {
+    const s = imageBrowser.value
+    if (!s) return
+    const clamped = Math.max(0, Math.min(index, s.images.length - 1))
+    imageBrowser.value = { ...s, index: clamped }
+  }
+
+  function closeImageBrowser() {
+    // Blob cleanup is owned by useImageBrowser (current blobUrl + preload
+    // cache); it revokes them on unmount when imageBrowserOpen flips to false.
+    imageBrowser.value = null
+    imageBrowserOpen.value = false
+    log('Closed image browser')
+  }
 
   const activeTab = computed(() => {
     if (!activeTabId.value) return null
@@ -110,6 +159,14 @@ export const usePreviewStore = defineStore('preview', () => {
     // Text files are loaded directly by PreviewTextContent; skip binary read here.
     if (tab.type === 'text') {
       log('Skipping store read for text tab — PreviewTextContent handles it')
+      return
+    }
+
+    // Enforce size cap (previously only logged in openPreview, never blocked).
+    const sizeCheck = checkFileSize(tab.file, tab.type)
+    if (!sizeCheck.allowed) {
+      tab.error = `File exceeds the ${sizeCheck.limit} preview limit`
+      log('File size exceeds limit, aborting load:', tab.file.name, '>', sizeCheck.limit)
       return
     }
 
@@ -349,5 +406,13 @@ export const usePreviewStore = defineStore('preview', () => {
     toggleFullscreen,
     openFullscreen,
     closeFullscreen,
+    imageBrowser,
+    imageBrowserOpen,
+    imageBrowserCurrent,
+    openImageBrowser,
+    nextImage,
+    prevImage,
+    goToImage,
+    closeImageBrowser,
   }
 })

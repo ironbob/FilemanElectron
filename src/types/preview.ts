@@ -1,4 +1,5 @@
 import type { FileInfo } from './index'
+import { isImageFile } from '@/utils/fileTypes'
 
 export type PreviewType = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'zip' | 'unknown'
 
@@ -6,6 +7,9 @@ export type PreviewType = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'zip' |
 export type TextRenderMode = 'source' | 'rendered'
 export type TextFileType = 'markdown' | 'json' | 'xml' | 'html' | 'code' | 'plaintext'
 export type ImageFitMode = 'contain' | 'cover' | 'actual'
+
+/** Max bytes for an in-app image preview (enforced by the preview store + image browser). */
+export const IMAGE_PREVIEW_SIZE_LIMIT = 50 * 1024 * 1024
 
 export interface PreviewTab {
   id: string
@@ -17,6 +21,20 @@ export interface PreviewTab {
   mediaMetadata?: MediaMetadata
   isModified?: boolean
   originalContent?: string
+  /** Set when the file failed to load (e.g. exceeded size cap). */
+  error?: string
+}
+
+/**
+ * Folder-aware image browser session. The per-image load state (blobUrl,
+ * loading, error, EXIF, transforms) lives in the useImageBrowser composable,
+ * NOT here — this object only holds the stable browsing identity so it can be
+ * swapped cheaply on each prev/next without piling up preview tabs.
+ */
+export interface ImageBrowserSession {
+  deviceId: string
+  images: FileInfo[]
+  index: number
 }
 
 export interface MediaMetadata {
@@ -43,7 +61,6 @@ export function getPreviewType(file: FileInfo): PreviewType {
 
   const ext = file.extension?.toLowerCase().replace('.', '') || ''
 
-  const imageExts = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'dng', 'heic', 'heif', 'raw'])
   const videoExts = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'rmvb', '3gp', 'ts', 'mts', 'm2ts'])
   const audioExts = new Set(['mp3', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'alac', 'ape', 'aiff', 'amr', 'wav', 'opus'])
   const textExts = new Set([
@@ -58,7 +75,7 @@ export function getPreviewType(file: FileInfo): PreviewType {
 
   const zipExts = new Set(['zip', 'jar', 'war', 'ear', 'apk', 'ipa', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'epub', 'cbz'])
 
-  if (imageExts.has(ext)) return 'image'
+  if (isImageFile(ext)) return 'image'
   if (videoExts.has(ext)) return 'video'
   if (audioExts.has(ext)) return 'audio'
   if (ext === 'pdf') return 'pdf'
@@ -76,6 +93,7 @@ export function getMimeType(ext: string): string {
     '.png': 'image/png',
     '.gif': 'image/gif',
     '.webp': 'image/webp',
+    '.avif': 'image/avif',
     '.bmp': 'image/bmp',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',

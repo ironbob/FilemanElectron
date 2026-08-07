@@ -1,7 +1,7 @@
 <template>
   <Transition name="preview-fade">
     <div
-      v-if="previewStore.isFullscreen && previewStore.tabs.length > 0"
+      v-if="previewStore.isFullscreen && previewStore.tabs.length > 0 && !previewStore.imageBrowserOpen"
       class="absolute inset-0 z-50 flex flex-col bg-bg-primary"
     >
       <!-- Header with close button -->
@@ -48,7 +48,7 @@
           v-else-if="activeTab?.type === 'image'"
           :file="activeTab.file"
           :device-id="activeTab.deviceId"
-          @open-in-full="() => {}"
+          @open-in-full="openImageFullscreen"
         />
         <PreviewVideoContent
           v-else-if="activeTab?.type === 'video'"
@@ -122,6 +122,12 @@ function handleCloseTab(tabId: string) {
 function handleSwitchTab(tabId: string) {
   log('Switching to tab:', tabId)
   previewStore.setActiveTab(tabId)
+}
+
+function openImageFullscreen() {
+  if (activeTab.value) {
+    previewStore.openImageBrowser(activeTab.value.file, activeTab.value.deviceId, [activeTab.value.file])
+  }
 }
 
 function handleContextMenuAction(action: string, tabId: string) {

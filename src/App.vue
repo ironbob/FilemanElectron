@@ -57,7 +57,18 @@
     <!-- Main Content -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
-      <AppSidebar class="w-52 flex-shrink-0 border-r border-border" />
+      <AppSidebar
+        class="flex-shrink-0 overflow-hidden"
+        :style="{ width: sidebarWidth + 'px' }"
+      />
+
+      <!-- Sidebar Resize Handle -->
+      <div
+        class="w-1 bg-border hover:bg-accent-blue cursor-col-resize flex-shrink-0 transition-colors"
+        :class="{ 'bg-accent-blue': isSidebarResizing }"
+        title="Drag to resize sidebar"
+        @mousedown="startSidebarResize"
+      ></div>
 
       <!-- Main Area -->
       <div class="flex-1 flex flex-col overflow-hidden bg-bg-primary relative">
@@ -100,6 +111,8 @@
 
         <!-- Fullscreen Preview (covers tab bar + file panes, keeps sidebar visible) -->
         <PreviewFullscreen />
+        <!-- Image browser overlay (folder-aware viewer; supersedes PreviewFullscreen for images) -->
+        <ImageBrowserOverlay />
       </div>
     </div>
 
@@ -139,6 +152,7 @@ import AppTabBar from './components/AppTabBar.vue'
 import FilePane from './components/FilePane.vue'
 import FileOperationPanel from './components/FileOperationPanel.vue'
 import PreviewFullscreen from './components/preview/PreviewFullscreen.vue'
+import ImageBrowserOverlay from './components/preview/ImageBrowserOverlay.vue'
 import SettingsDialog from './components/dialogs/SettingsDialog.vue'
 import DirCompareView from './components/compare/DirCompareView.vue'
 import FileDiffView from './components/compare/FileDiffView.vue'
@@ -156,6 +170,14 @@ const fileOpsStore = useFileOperationsStore()
 const theme = ref<'light' | 'dark'>('dark')
 const showSettingsDialog = ref(false)
 
+// Sidebar resize (persisted). Default matches the original fixed w-52 (208px).
+const SIDEBAR_DEFAULT_WIDTH = 208
+const SIDEBAR_MIN_WIDTH = 160
+const SIDEBAR_MAX_WIDTH = 480
+const SIDEBAR_WIDTH_KEY = 'fileman-sidebar-width'
+const sidebarWidth = ref(SIDEBAR_DEFAULT_WIDTH)
+const isSidebarResizing = ref(false)
+
 // Load theme from storage
 onMounted(() => {
   const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
@@ -169,11 +191,43 @@ onMounted(() => {
 
   // Initialize file operations store
   fileOpsStore.initialize()
+
+  // Restore sidebar width
+  const savedSidebarWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+  if (savedSidebarWidth >= SIDEBAR_MIN_WIDTH) {
+    sidebarWidth.value = Math.min(SIDEBAR_MAX_WIDTH, savedSidebarWidth)
+  }
 })
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
   localStorage.setItem('theme', theme.value)
+}
+
+// Resize sidebar via the divider handle (mirrors FilePane's preview resize).
+function startSidebarResize(event: MouseEvent) {
+  isSidebarResizing.value = true
+  event.preventDefault()
+
+  const startX = event.clientX
+  const startWidth = sidebarWidth.value
+
+  function onMouseMove(e: MouseEvent) {
+    if (!isSidebarResizing.value) return
+    // Sidebar is on the left: dragging right (clientX increases) widens it.
+    const diff = e.clientX - startX
+    sidebarWidth.value = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, startWidth + diff))
+  }
+
+  function onMouseUp() {
+    isSidebarResizing.value = false
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
 }
 
 const activeTab = computed(() => tabsStore.activeTab)
@@ -248,7 +302,9 @@ function handleDrop(event: DragEvent, targetPaneId: string) {
 // capture phase and return `true` to consume ESC — this handler (bubble phase) is
 // automatically skipped when a child has already handled the key.
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && previewStore.tabs.length > 0) {
+  // Image browser handles its own Esc via useKeyInterceptor (capture phase);
+  // skip here to avoid double-handling while it is open.
+  if (e.key === 'Escape' && previewStore.tabs.length > 0 && !previewStore.imageBrowserOpen) {
     // First close fullscreen, then close all tabs
     if (previewStore.isFullscreen) {
       previewStore.closeFullscreen()

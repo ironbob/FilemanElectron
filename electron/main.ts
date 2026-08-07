@@ -6,7 +6,10 @@ import { CredentialService } from './src/services/CredentialService'
 import { DeviceManager, type Device, type DeviceConfig, type Credentials, type DetectedDevice } from './src/services/DeviceManager'
 import { FileOperationManager, type FileOperationTask, type CreateTaskParams } from './src/services/FileOperationManager'
 import { ThumbnailService } from './src/services/ThumbnailService'
+import { ImageDecodeService } from './src/services/ImageDecodeService'
 import { ZipService } from './src/services/ZipService'
+import { VolumeScanner } from './src/services/VolumeScanner'
+import { HostShellService } from './src/services/HostShellService'
 
 const isDev = !app.isPackaged
 
@@ -16,7 +19,10 @@ const credentialService = new CredentialService()
 const deviceManager = new DeviceManager(configService, credentialService)
 const fileOperationManager = new FileOperationManager()
 const thumbnailService = new ThumbnailService()
+const imageDecodeService = new ImageDecodeService(deviceManager)
 const zipService = new ZipService()
+const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
+const hostShellService = new HostShellService()
 
 /** Separator used for virtual ZIP paths: "<zipFilePath>::<innerPath>" */
 const ZIP_PATH_SEP = '::'
@@ -61,6 +67,13 @@ function createWindow(): void {
       console.log('[Main] Pushing initial mobile devices to renderer:', currentMobileDevices.length)
       mainWindow.webContents.send('mobile:devicesChanged', currentMobileDevices)
     }
+
+    // Push current external volumes state as well (scanner may have run early).
+    const currentVolumes = volumeScanner.getVolumes()
+    if (currentVolumes.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+      console.log('[Main] Pushing initial volumes to renderer:', currentVolumes.length)
+      mainWindow.webContents.send('volumes:changed', currentVolumes)
+    }
   })
 
   mainWindow.webContents.openDevTools({ mode: 'right' })
@@ -77,6 +90,15 @@ function createWindow(): void {
 
 ipcMain.handle('system:getHomeDir', () => {
   return os.homedir()
+})
+
+// ============ Host Shell Integration IPC Handlers ============
+// 「在终端中打开」：spawn 系统终端（macOS=osascript Terminal.app）。
+// 「在 Finder 中显示」不走此 handler —— 它复用 preload 的 shell.showItemInFolder
+// （Electron 安全同步 API，已被 preview/TaskItem 在用）。两者机制不同，故分离。
+
+ipcMain.handle('shell:openInTerminal', async (_, dirPath: string): Promise<void> => {
+  return hostShellService.openInTerminal(dirPath)
 })
 
 // ============ Config IPC Handlers ============
@@ -373,10 +395,45 @@ ipcMain.handle('thumbnail:getCacheSize', async () => {
   return thumbnailService.getCacheSize()
 })
 
+// ============ Native Image Decode IPC Handlers ============
+// HEIC/HEIF + camera RAW → JPEG raster via macOS `sips`. Used by the image
+// browser for formats Chromium cannot render. Returns base64 (matches fs:readFile).
+
+ipcMain.handle('image:decodeNative', async (
+  _,
+  deviceId: string,
+  filePath: string,
+  opts?: { maxDim?: number }
+) => {
+  const result = await imageDecodeService.decodeToRaster(deviceId, filePath, opts)
+  return result // { buffer: string(base64), mime: 'image/jpeg' }
+})
+
+// ============ External Volumes IPC Handlers ============
+
+/**
+ * 已挂载的外接卷列表（快照）。首次拉取用；后续变化由 volumes:changed 推送。
+ */
+ipcMain.handle('volumes:list', () => {
+  return volumeScanner.getVolumes()
+})
+
+/**
+ * 扫描到卷变化（挂载/弹出）→ 推送给渲染进程。
+ * 与 mobile:devicesChanged 同构。
+ */
+volumeScanner.onVolumeChange((volumes) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('volumes:changed', volumes)
+  }
+})
+
 // ============ App Lifecycle ============
 
 app.whenReady().then(() => {
   createWindow()
+  // 启动外接卷扫描（窗口创建后开始轮询）
+  volumeScanner.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
