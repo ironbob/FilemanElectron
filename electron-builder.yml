@@ -1,0 +1,49 @@
+# electron-builder config for the macOS DMG.
+# Run via: npm run dist:mac   (or bash scripts/build-dmg.sh)
+# Docs: https://www.electron.build/configuration/mac
+
+appId: com.fileman.electron
+productName: Fileman
+copyright: Copyright © 2026 wangtianbao
+
+directories:
+  output: dist
+  buildResources: build
+
+# Ship only the compiled output + manifest. electron-builder always adds the
+# (pruned) production node_modules on top, so native deps (sharp, ssh2,
+# ffmpeg-static) come along automatically.
+files:
+  - out/**/*
+  - package.json
+  - "!**/.DS_Store"
+
+asar: true
+# Native binaries must live on real disk, not inside app.asar.
+asarUnpack:
+  - "**/*.node"
+  - "**/*.dylib"
+  - "**/ffmpeg-static/**"
+  - "**/@img/**"
+
+# All native deps here are N-API prebuilt (sharp), pure-JS (ssh2), or plain
+# binaries (ffmpeg-static) — none need compiling against Electron's ABI, so
+# skip the rebuild step (faster, no Xcode toolchain required at pack time).
+npmRebuild: false
+
+mac:
+  category: public.app-category.utilities
+  icon: build/icon.icns
+  # Build for host arch only (faster, smaller). For a universal DMG, replace
+  # the list below with:  target: [dmg]  and add  arch: [universal]
+  target:
+    - dmg
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  title: ${productName}-${version}
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  contents:
+    - { x: 130, y: 220 }
+    - { x: 410, y: 220, type: link, path: /Applications }

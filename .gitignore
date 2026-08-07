@@ -6,6 +6,10 @@ out/
 dist/
 *.tsbuildinfo
 
+# Packaging (electron-builder) — generated app icon + iconset
+build/icon.icns
+build/icon.iconset/
+
 # IDE
 .idea/
 .vscode/

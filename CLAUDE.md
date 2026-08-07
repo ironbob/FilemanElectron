@@ -15,10 +15,12 @@ npm run dev        # electron-vite dev — launches Vite dev server (5173) + Ele
 npm run build      # electron-vite build — emits to out/ (main, preload, renderer)
 npm run preview    # electron-vite preview — run against the built out/ output
 npm run typecheck  # vue-tsc --noEmit — the ONLY static check in this repo
+npm run dist:mac   # build + package a macOS DMG into dist/ (see scripts/build-dmg.sh)
+npm run icon       # regenerate the placeholder build/icon.icns from icons/ic_computer.svg
 ```
 
 - There is **no test suite** and **no linter/formatter configured**. `npm run typecheck` is the sole pre-flight check.
-- There is **no app-packaging step** (no electron-builder/forge config). `build` only produces runnable output in `out/`; `preview` runs it.
+- **Packaging uses `electron-builder`** (config in `electron-builder.yml`, orchestrated by `scripts/build-dmg.sh`). It ships only `out/` + `package.json` + pruned prod `node_modules`, asar-packs the app, unpacks native binaries (`sharp`, `ssh2`, `ffmpeg-static`), and emits an **unsigned** DMG (`CSC_IDENTITY_AUTO_DISCOVERY=false` — override to sign). Native-dep rebuild is disabled (`npmRebuild: false`) since all are N-API prebuilt or pure-JS. The app icon (`build/icon.icns`) is a generated placeholder; drop a hand-made one to override.
 - Dev loads `process.env.ELECTRON_RENDERER_URL || http://localhost:5173`.
 
 ## Architecture
