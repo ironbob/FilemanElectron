@@ -1,0 +1,50 @@
+{
+  "name": "fileman-electron",
+  "version": "0.1.0",
+  "description": "Cross-device file manager for macOS",
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@alenaksu/json-viewer": "^2.1.2",
+    "dompurify": "^3.3.3",
+    "electron-store": "^8.1.0",
+    "fflate": "^0.8.2",
+    "ffmpeg-static": "^5.3.0",
+    "fs-extra": "^11.2.0",
+    "highlight.js": "^11.11.1",
+    "marked": "^17.0.4",
+    "marked-highlight": "^2.2.3",
+    "mon": "^0.0.8",
+    "monaco-editor": "0.44.0",
+    "pdfjs-dist": "^5.5.207",
+    "pinia": "^2.1.7",
+    "sharp": "^0.34.5",
+    "ssh2": "^1.17.0",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0",
+    "vue-virtual-scroller": "^2.0.0-beta.8"
+  },
+  "devDependencies": {
+    "@electron-toolkit/utils": "^3.0.0",
+    "@types/dompurify": "^3.0.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.11.24",
+    "@types/sharp": "^0.31.1",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.18",
+    "electron": "^29.1.0",
+    "electron-vite": "^2.0.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.5",
+    "vue-tsc": "^2.0.6"
+  }
+}

@@ -1,0 +1,58 @@
+import { resolve } from 'path'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  main: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'electron/main.ts')
+        },
+        external: [
+          // Optional native dependencies - will be loaded at runtime if available
+          '@aozp/smb2',
+          'smb2',
+          'ssh2',
+          'adbkit'
+        ]
+      }
+    },
+    resolve: {
+      alias: {
+        '@': resolve(__dirname, 'electron/src')
+      }
+    }
+  },
+  preload: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'electron/preload.ts')
+        },
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].js'
+        }
+      }
+    }
+  },
+  renderer: {
+    root: resolve(__dirname, '.'),
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'index.html')
+        }
+      }
+    },
+    resolve: {
+      alias: {
+        '@': resolve(__dirname, 'src')
+      }
+    },
+    plugins: [vue()]
+  }
+})

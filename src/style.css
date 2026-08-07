@@ -1,0 +1,959 @@
+/* Monaco Editor codicons icon font (required for find widget, etc.) */
+@import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   Theme Variables - macOS Finder Inspired (Vibrant)
+   ======================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* Base Colors - 更鲜亮的 macOS 风格 */
+  --bg-primary: #1e1e2e;        /* 主背景 - 深蓝紫调 */
+  --bg-secondary: #252538;      /* 次级背景 - 稍亮的蓝紫 */
+  --bg-tertiary: #2d2d44;       /* 三级背景 - 输入框等 */
+  --bg-sidebar: #1a1a28;        /* 侧边栏 - 深色背景 */
+  --bg-toolbar: #252538;        /* 工具栏 */
+  --bg-statusbar: #1a1a28;      /* 状态栏 */
+  --bg-selected: #0a84ff;       /* 选中状态 - macOS 系统蓝 */
+  --bg-hover: rgba(255, 255, 255, 0.06);  /* 悬停 - 半透明白 */
+  --bg-active: rgba(255, 255, 255, 0.1);  /* 激活状态 */
+
+  /* Text Colors - 鲜亮的文字 */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;    /* 紫灰色调次要文字 */
+  --text-tertiary: #6e6e8a;     /* 三级文字 */
+  --text-selected: #ffffff;
+  --text-accent: #0a84ff;       /* 强调文字 - 系统蓝 */
+
+  /* Border Colors - 更细腻的边框 */
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.04);
+  --border-focus: #0a84ff;
+
+  /* Accent Colors - 更鲜亮的 macOS 风格色彩 */
+  --accent-blue: #0a84ff;       /* macOS 系统蓝 */
+  --accent-blue-hover: #3399ff; /* 悬停时更亮 */
+  --accent-blue-active: #0066cc;
+  --accent-purple: #c084fc;     /* 紫色 - 更亮 */
+  --accent-pink: #ff5a7f;       /* 粉色 - 更鲜艳 */
+  --accent-red: #ff4d4d;        /* 红色 - 更亮 */
+  --accent-orange: #ffaa33;     /* 橙色 - 更温暖 */
+  --accent-yellow: #ffd60a;     /* 黄色 - 明亮 */
+  --accent-green: #32d74b;      /* 绿色 - 更鲜亮 */
+  --accent-teal: #5ac8fa;       /* 青色 - 明亮 */
+  --accent-indigo: #6366f1;     /* 靛蓝 - 更亮 */
+  --accent-cyan: #00d9ff;       /* 青色 - 新增 */
+
+  /* Sidebar Icon Colors - 彩色图标系统 */
+  --sidebar-icon-airdrop: #00d9ff;    /* AirDrop - 青色 */
+  --sidebar-icon-recents: #0a84ff;    /* 最近使用 - 蓝色 */
+  --sidebar-icon-apps: #ff5a7f;       /* 应用程序 - 粉色 */
+  --sidebar-icon-desktop: #6366f1;    /* 桌面 - 靛蓝 */
+  --sidebar-icon-documents: #ffaa33;  /* 文稿 - 橙色 */
+  --sidebar-icon-downloads: #32d74b;  /* 下载 - 绿色 */
+  --sidebar-icon-home: #c084fc;       /* 主页 - 紫色 */
+  --sidebar-icon-pictures: #32d74b;   /* 图片 - 绿色 */
+  --sidebar-icon-movies: #ff4d4d;     /* 影片 - 红色 */
+  --sidebar-icon-music: #c084fc;      /* 音乐 - 紫色 */
+
+  /* Icon Colors - 文件类型图标颜色 */
+  --icon-folder: #5ac8fa;       /* 文件夹 - 亮青色 */
+  --icon-document: #a0a0b8;     /* 文档 - 灰色 */
+  --icon-image: #32d74b;        /* 图片 - 鲜绿 */
+  --icon-video: #ff4d4d;        /* 视频 - 鲜红 */
+  --icon-audio: #c084fc;        /* 音频 - 亮紫 */
+  --icon-code: #0a84ff;         /* 代码 - 蓝色 */
+  --icon-archive: #ffaa33;      /* 压缩包 - 橙色 */
+
+  /* Legacy compatibility */
+  --danger-red: #ff4d4d;
+  --warning-yellow: #ffd60a;
+  --success-green: #32d74b;
+
+  /* Shadows - 更柔和更有层次感的阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3), 0 4px 6px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 20px rgba(10, 132, 255, 0.4);  /* 蓝色光晕效果 */
+  --shadow-glow-green: 0 0 20px rgba(50, 215, 75, 0.3);
+  --shadow-glow-purple: 0 0 20px rgba(192, 132, 252, 0.3);
+
+  /* Glassmorphism - 毛玻璃效果 */
+  --glass-bg: rgba(30, 30, 46, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(20px);
+
+  /* Scrollbar - 更细腻的滚动条 */
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  /* Z-Index Scale */
+  --z-base: 0;
+  --z-sidebar: 10;
+  --z-dropdown: 20;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 100;
+}
+
+/* Light Theme - 明亮模式配色 (Vibrant) */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Base Colors - 鲜亮的明亮模式 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f7;
+  --bg-tertiary: #e8e8ed;
+  --bg-sidebar: #f5f5f7;
+  --bg-toolbar: #f5f5f7;
+  --bg-statusbar: #f5f5f7;
+  --bg-selected: #007aff;       /* iOS/Mac 系统蓝 */
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+
+  /* Text Colors */
+  --text-primary: #1d1d1f;
+  --text-secondary: #3c3c43;
+  --text-tertiary: #8e8e93;
+  --text-selected: #ffffff;
+  --text-accent: #007aff;
+
+  /* Border Colors */
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-light: rgba(0, 0, 0, 0.04);
+  --border-focus: #007aff;
+
+  /* Accent Colors - 明亮模式鲜亮色彩 */
+  --accent-blue: #007aff;
+  --accent-blue-hover: #3399ff;
+  --accent-blue-active: #004999;
+  --accent-purple: #af52de;
+  --accent-pink: #ff375f;
+  --accent-red: #ff3b30;
+  --accent-orange: #ff9500;
+  --accent-yellow: #ffcc00;
+  --accent-green: #34c759;
+  --accent-teal: #5ac8fa;
+  --accent-indigo: #5856d6;
+  --accent-cyan: #00c7ff;
+
+  /* Sidebar Icon Colors - 明亮模式 */
+  --sidebar-icon-airdrop: #00c7ff;
+  --sidebar-icon-recents: #007aff;
+  --sidebar-icon-apps: #ff375f;
+  --sidebar-icon-desktop: #5856d6;
+  --sidebar-icon-documents: #ff9500;
+  --sidebar-icon-downloads: #34c759;
+  --sidebar-icon-home: #af52de;
+  --sidebar-icon-pictures: #34c759;
+  --sidebar-icon-movies: #ff3b30;
+  --sidebar-icon-music: #af52de;
+
+  /* Icon Colors - 明亮模式 */
+  --icon-folder: #5ac8fa;
+  --icon-document: #8e8e93;
+  --icon-image: #34c759;
+  --icon-video: #ff3b30;
+  --icon-audio: #af52de;
+  --icon-code: #007aff;
+  --icon-archive: #ff9500;
+
+  /* Legacy compatibility */
+  --danger-red: #ff3b30;
+  --warning-yellow: #ffcc00;
+  --success-green: #34c759;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 20px rgba(0, 122, 255, 0.25);
+  --shadow-glow-green: 0 0 20px rgba(52, 199, 89, 0.2);
+  --shadow-glow-purple: 0 0 20px rgba(175, 82, 222, 0.2);
+
+  /* Glassmorphism - 明亮模式毛玻璃 */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-blur: blur(20px);
+
+  /* Scrollbar */
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+
+  /* Z-Index Scale */
+  --z-base: 0;
+  --z-sidebar: 10;
+  --z-dropdown: 20;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 100;
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   Scrollbar Styling (macOS style)
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ========================================
+   Selection
+   ======================================== */
+
+::selection {
+  background: var(--accent-blue);
+  color: var(--text-selected);
+}
+
+/* ========================================
+   Form Elements
+   ======================================== */
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="number"] {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.2);
+}
+
+input[type="text"]::placeholder,
+input[type="search"]::placeholder {
+  color: var(--text-tertiary);
+}
+
+select {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+select:focus {
+  border-color: var(--border-focus);
+}
+
+button {
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ========================================
+   Button Styles
+   ======================================== */
+
+.btn-primary {
+  background-color: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-blue-hover);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 14px;
+  transition: background-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-hover);
+}
+
+/* ========================================
+   Toolbar Button
+   ======================================== */
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+
+.toolbar-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+.toolbar-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-btn.active {
+  background-color: var(--bg-active);
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Context Menu
+   ======================================== */
+
+.context-menu {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  min-width: 180px;
+  z-index: 1000;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.context-menu-item:hover {
+  background-color: var(--accent-blue);
+  color: white;
+}
+
+.context-menu-item .shortcut {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  margin-left: 20px;
+}
+
+.context-menu-item:hover .shortcut {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 4px 8px;
+}
+
+/* ========================================
+   Dialog/Modal
+   ======================================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background-color: var(--bg-secondary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 20px;
+  min-width: 300px;
+  max-width: 500px;
+}
+
+.modal-header {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Animation
+   ======================================== */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.2s ease;
+}
+
+/* ========================================
+   Reduced Motion Support
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-fade-in,
+  .animate-slide-in {
+    animation: none;
+  }
+}
+
+/* ========================================
+   Markdown Body Styles
+   ======================================== */
+
+.markdown-body {
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.markdown-body h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.markdown-body h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.markdown-body h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.markdown-body h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.markdown-body h5,
+.markdown-body h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.markdown-body p {
+  margin-bottom: 1rem;
+}
+
+.markdown-body a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-body li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-body ul li {
+  list-style-type: disc;
+}
+
+.markdown-body ol li {
+  list-style-type: decimal;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid var(--accent-blue);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  background-color: var(--bg-tertiary);
+  padding: 0.5rem 1rem;
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 1.5rem 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.markdown-body th {
+  background-color: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+.markdown-body tr:nth-child(even) {
+  background-color: var(--bg-tertiary);
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+/* ========================================
+   Highlight.js Theme - Dark
+   ======================================== */
+
+.hljs {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-addition {
+  color: #ff7b72;
+}
+
+.hljs-number,
+.hljs-string,
+.hljs-meta .hljs-meta-string,
+.hljs-literal,
+.hljs-doctag,
+.hljs-regexp {
+  color: #a5d6ff;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-attribute {
+  color: #ffa657;
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number {
+  color: #79c0ff;
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: #79c0ff;
+}
+
+.hljs-built_in,
+.hljs-deletion {
+  color: #ffa198;
+}
+
+.hljs-addition {
+  color: #56d364;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-code .hljs-comment {
+  color: #8b949e;
+}
+
+.hljs-formula {
+  color: #c9d0dc;
+}
+
+.hljs-function .hljs-keyword {
+  color: #d2a8ff;
+}
+
+.hljs-params {
+  color: #ffa657;
+}
+
+.hljs-property,
+.hljs-class .hljs-title {
+  color: #7ee787;
+}
+
+.hljs-tag {
+  color: var(--text-secondary);
+}
+
+.hljs-name,
+.hljs-attr {
+  color: #79c0ff;
+}
+
+.hljs-string {
+  color: #a5d6ff;
+}
+
+/* ========================================
+   Code Block Styles
+   ======================================== */
+
+.markdown-body pre {
+  background-color: var(--bg-primary);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.markdown-body code {
+  background-color: var(--bg-tertiary);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  color: #ff7b72;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.markdown-body pre code {
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Sidebar Styles - macOS Finder Inspired
+   ======================================== */
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-item-inactive {
+  color: var(--text-primary);
+}
+
+.sidebar-item-inactive:hover {
+  background-color: var(--bg-hover);
+}
+
+.sidebar-item-active {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, #0066cc 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
+}
+
+.sidebar-item-active .sidebar-icon {
+  color: white !important;
+}
+
+/* Sidebar icon colors */
+.sidebar-icon {
+  transition: transform 0.15s ease;
+}
+
+.sidebar-item:hover .sidebar-icon {
+  transform: scale(1.05);
+}
+
+/* ========================================
+   Glassmorphism Effects
+   ======================================== */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ========================================
+   Toolbar Styles - Enhanced
+   ======================================== */
+
+.toolbar-btn-enhanced {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.toolbar-btn-enhanced:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.toolbar-btn-enhanced:active {
+  transform: translateY(0);
+}
+
+.toolbar-btn-enhanced:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.toolbar-btn-enhanced.active {
+  background: linear-gradient(135deg, var(--bg-active) 0%, var(--bg-hover) 100%);
+  color: var(--accent-blue);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ========================================
+   Status Bar - Enhanced
+   ======================================== */
+
+.status-bar {
+  background: linear-gradient(180deg, var(--bg-statusbar) 0%, rgba(26, 26, 40, 0.95) 100%);
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ========================================
+   Glow Effects
+   ======================================== */
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(50, 215, 75, 0.25);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(192, 132, 252, 0.25);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 10px rgba(10, 132, 255, 0.5);
+}
+
+/* ========================================
+   Selection Highlight
+   ======================================== */
+
+.selection-glow {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, #0066cc 100%);
+  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.5), 0 4px 12px rgba(10, 132, 255, 0.25);
+}
+
+/* ========================================
+   File Item Styles
+   ======================================== */
+
+.file-item {
+  transition: all 0.12s ease;
+}
+
+.file-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.file-item-selected {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.15) 0%, rgba(0, 102, 204, 0.1) 100%);
+  border: 1px solid rgba(10, 132, 255, 0.3);
+}
+
+/* Folder icon color enhancement */
+.folder-icon {
+  color: var(--icon-folder);
+  filter: drop-shadow(0 1px 2px rgba(90, 200, 250, 0.2));
+}
+
+/* Image icon color enhancement */
+.image-icon {
+  color: var(--icon-image);
+  filter: drop-shadow(0 1px 2px rgba(50, 215, 75, 0.2));
+}
+
+/* Video icon color enhancement */
+.video-icon {
+  color: var(--icon-video);
+  filter: drop-shadow(0 1px 2px rgba(255, 77, 77, 0.2));
+}
+
+/* Audio icon color enhancement */
+.audio-icon {
+  color: var(--icon-audio);
+  filter: drop-shadow(0 1px 2px rgba(192, 132, 252, 0.2));
+}
