@@ -70,6 +70,24 @@
       </div>
     </div>
 
+    <!-- External Volumes Section (mounted on local filesystem, e.g. /Volumes/*) -->
+    <div v-if="volumesStore.volumes.length > 0" class="py-3 border-t border-border">
+      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">External Volumes</div>
+      <div class="space-y-0.5 px-2">
+        <div
+          v-for="volume in volumesStore.volumes"
+          :key="volume.id"
+          class="sidebar-item"
+          :class="isActivePath(volume.mountPath) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
+          :title="volume.mountPath"
+          @click="selectVolume(volume)"
+        >
+          <component :is="VolumeDriveIcon" class="w-5 h-5 flex-shrink-0 sidebar-icon text-[#5ac8fa]" />
+          <span class="text-[13px] truncate flex-1 font-medium">{{ volume.name }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Mobile Devices Section -->
     <div class="py-3 border-t border-border">
       <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Mobile Devices</div>
@@ -154,9 +172,9 @@
       </div>
     </div>
 
-    <!-- Favorites Section -->
+    <!-- Places (system locations: Home / Desktop / ...) -->
     <div class="py-3 border-t border-border flex-1 overflow-auto">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Favorites</div>
+      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Places</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="fav in favorites"
@@ -169,8 +187,33 @@
           <span class="text-[13px] truncate font-medium">{{ fav.name }}</span>
         </div>
       </div>
-      <div v-if="favorites.length === 0" class="px-4 py-2 text-sm text-text-tertiary text-center">
-        No favorites yet
+
+      <!-- Favorites (user bookmarks, device-scoped) -->
+      <div class="px-4 mt-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Favorites</div>
+      <div class="space-y-0.5 px-2">
+        <div
+          v-for="item in favoritesStore.favorites"
+          :key="item.deviceId + '::' + item.path"
+          class="sidebar-item group"
+          :class="isActiveFavorite(item) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
+          :title="item.path"
+          @click="selectFavorite(item)"
+        >
+          <component :is="StarIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
+          <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
+          <button
+            class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
+            title="移除收藏"
+            @click.stop="removeFavorite(item)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div v-if="favoritesStore.favorites.length === 0" class="px-4 py-2 text-xs text-text-tertiary">
+          右键文件夹可添加收藏
+        </div>
       </div>
     </div>
 
@@ -211,12 +254,18 @@ import { ref, reactive, h, onMounted, computed, watch, markRaw } from 'vue'
 import { useDevicesStore } from '@/stores/devices'
 import { useTabsStore } from '@/stores/tabs'
 import { usePreviewStore } from '@/stores/preview'
+import { useVolumesStore } from '@/stores/volumes'
+import { useFavoritesStore } from '@/stores/favorites'
 import DeviceDialog from './dialogs/DeviceDialog.vue'
 import type { Device, DetectedMobileDevice } from '@/stores/devices'
+import type { Volume } from '@/stores/volumes'
+import type { Favorite } from '@/types'
 
 const devicesStore = useDevicesStore()
 const tabsStore = useTabsStore()
 const previewStore = usePreviewStore()
+const volumesStore = useVolumesStore()
+const favoritesStore = useFavoritesStore()
 
 const showAddDeviceMenu = ref(false)
 
@@ -277,6 +326,15 @@ const ApplicationIcon = {
   }
 }
 
+// 用户收藏夹条目图标（金色书签）
+const StarIcon = {
+  render() {
+    return h('svg', { class: 'w-5 h-5', fill: 'currentColor', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '1.5', d: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z' })
+    ])
+  }
+}
+
 // Default favorites with SVG icon components and colors
 const favorites = ref<Array<{ name: string; path: string; icon: any; iconColor: string }>>([])
 
@@ -300,11 +358,16 @@ async function loadFavorites() {
 
 onMounted(() => {
   loadFavorites()
+  favoritesStore.load()
   // Set up mobile device listener
   console.log('[AppSidebar] Setting up mobile device listener')
   devicesStore.setupMobileDeviceListener()
   // Check if libimobiledevice is installed
   devicesStore.checkLibimobiledeviceInstalled()
+  // Load external volumes + subscribe to mount/unmount changes
+  console.log('[AppSidebar] Setting up volumes')
+  volumesStore.loadVolumes()
+  volumesStore.setupVolumesListener()
 })
 
 // Watch for mobile device changes
@@ -349,6 +412,16 @@ const IosIcon = {
   render() {
     return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
       h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z' })
+    ])
+  }
+}
+
+// 外接磁盘图标（侧栏 External Volumes 分区用）
+const VolumeDriveIcon = {
+  render() {
+    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h9l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V6z' }),
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8 6v3h4V6M8 18v-6h8v6' })
     ])
   }
 }
@@ -409,6 +482,46 @@ function navigateTo(path: string) {
   }
   if (tabsStore.activePane) {
     tabsStore.navigatePane(tabsStore.activePane.id, path)
+  }
+}
+
+/**
+ * 收藏夹是设备相关的（deviceId + path）。切换时把活动窗格的设备一并切到
+ * 收藏项所属设备，再导航到路径。若该远程设备未连接，listFiles 会失败——
+ * 用户需先在侧栏连接它（与 selectMobileDevice/selectVolume 的既有行为一致）。
+ */
+function isActiveFavorite(fav: Favorite): boolean {
+  const p = tabsStore.activePane
+  return !!p && p.deviceId === fav.deviceId && p.path === fav.path
+}
+
+function selectFavorite(fav: Favorite) {
+  if (previewStore.isFullscreen) {
+    previewStore.closeFullscreen()
+  }
+  const pane = tabsStore.activePane
+  if (!pane) return
+  pane.deviceId = fav.deviceId
+  tabsStore.navigatePane(pane.id, fav.path)
+}
+
+function removeFavorite(fav: Favorite) {
+  favoritesStore.remove(fav.deviceId, fav.path)
+}
+
+/**
+ * 选择一个外接卷：卷是本地路径，必须先把 pane 切到 local 设备，再导航到挂载点，
+ * 否则当 pane 停在远程设备上时会用错 adapter。
+ */
+function selectVolume(volume: Volume) {
+  // Exit fullscreen preview when navigating to a volume
+  if (previewStore.isFullscreen) {
+    previewStore.closeFullscreen()
+  }
+  const pane = tabsStore.activePane
+  if (pane) {
+    pane.deviceId = 'local'
+    tabsStore.navigatePane(pane.id, volume.mountPath)
   }
 }
 

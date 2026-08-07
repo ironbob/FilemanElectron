@@ -66,18 +66,18 @@
       </RecycleScroller>
     </template>
 
-    <!-- Grid View: 按行分组虚拟滚动 -->
+    <!-- Grid View: 按行分组虚拟滚动（支持大/中/小三档） -->
     <RecycleScroller
       v-else-if="viewMode === 'grid'"
       class="flex-1 min-h-0 px-4 pt-4"
       :items="gridRows"
-      :item-size="GRID_ROW_HEIGHT + GRID_ROW_GAP"
+      :item-size="gridCfg.rowHeight + gridCfg.rowGap"
       key-field="key"
       v-slot="{ item: row }"
     >
       <div
-        class="grid gap-x-8 gap-y-8"
-        :style="{ gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`, height: GRID_ROW_HEIGHT + 'px' }"
+        class="grid"
+        :style="{ gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`, height: gridCfg.rowHeight + 'px', columnGap: gridCfg.rowGap + 'px', rowGap: gridCfg.rowGap + 'px' }"
       >
         <div
           v-for="file in row.files"
@@ -90,18 +90,17 @@
           @dragstart="handleDragStart(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
-          <div class="w-20 h-20 flex items-center justify-center rounded-md mb-2 flex-shrink-0 overflow-hidden bg-bg-tertiary/50">
+          <div :class="['flex items-center justify-center rounded-md mb-2 flex-shrink-0 overflow-hidden bg-bg-tertiary/50', gridCfg.thumbClass]">
             <img
-              v-if="getThumbnailUrl(file, 'large')"
-              :src="getThumbnailUrl(file, 'large')!"
+              v-if="getThumbnailUrl(file, gridCfg.thumbKey)"
+              :src="getThumbnailUrl(file, gridCfg.thumbKey)!"
               class="w-full h-full object-cover"
-              @error="thumbnailUrls.delete(`${file.path}:large`)"
+              @error="thumbnailUrls.delete(`${file.path}:${gridCfg.thumbKey}`)"
             />
-            <component v-else :is="getFileIconComponent(file)" class="w-16 h-16" />
+            <component v-else :is="getFileIconComponent(file)" :class="gridCfg.iconClass" />
           </div>
           <span
-            class="text-sm text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors"
-            :class="isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary'"
+            :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary']"
           >
             {{ file.name }}
           </span>
@@ -228,6 +227,7 @@ import type { DeviceCapabilities } from '@/types/fileOperation'
 import { useDevicesStore } from '@/stores/devices'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { useTabsStore } from '@/stores/tabs'
+import { useFavoritesStore } from '@/stores/favorites'
 import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -239,6 +239,7 @@ const props = defineProps<{
   viewMode: 'list' | 'grid' | 'columns'
   selectedFiles: string[]
   searchQuery?: string
+  gridSize?: 'xlarge' | 'large' | 'medium' | 'small'
 }>()
 
 const emit = defineEmits<{
@@ -252,6 +253,7 @@ const emit = defineEmits<{
 const devicesStore = useDevicesStore()
 const thumbnailStore = useThumbnailStore()
 const tabsStore = useTabsStore()
+const favoritesStore = useFavoritesStore()
 
 const files = ref<FileInfo[]>([])
 const loading = ref(false)
@@ -360,21 +362,38 @@ const filteredFiles = computed(() => {
 // ── 虚拟滚动配置 ──────────────────────────────────────────────────────────────
 // List View: 每行固定高度 = py-2(16px) + text-base行高(24px) = 40px
 const LIST_ITEM_HEIGHT = 40
-// Grid View: 单项高度 = p-2(16px) + h-20(80px) + mb-2(8px) + 文本约44px = 148px，取150px
-const GRID_ROW_HEIGHT = 150
-// 网格行间距（对应 gap-y-5 = 20px）
-const GRID_ROW_GAP = 20
+
+// Grid View: 三档网格规格（大/中/小）。每档定义单元格宽度、行高、间距、
+// 缩略图/图标/文件名字号，以及请求哪一档缩略图。'large' 与历史单档网格一致。
+type GridSize = 'xlarge' | 'large' | 'medium' | 'small'
+const GRID_SIZES: Record<GridSize, {
+  itemWidth: number
+  rowHeight: number
+  rowGap: number
+  thumbClass: string
+  iconClass: string
+  nameClass: string
+  thumbKey: 'small' | 'large'
+}> = {
+  xlarge: { itemWidth: 168, rowHeight: 196, rowGap: 24, thumbClass: 'w-28 h-28', iconClass: 'w-24 h-24', nameClass: 'text-base',   thumbKey: 'large' },
+  large: { itemWidth: 130, rowHeight: 150, rowGap: 20, thumbClass: 'w-20 h-20', iconClass: 'w-16 h-16', nameClass: 'text-sm',     thumbKey: 'large' },
+  medium: { itemWidth: 104, rowHeight: 120, rowGap: 16, thumbClass: 'w-14 h-14', iconClass: 'w-12 h-12', nameClass: 'text-[13px]', thumbKey: 'small' },
+  small: { itemWidth: 84,  rowHeight: 96,  rowGap: 12, thumbClass: 'w-10 h-10', iconClass: 'w-8 h-8',   nameClass: 'text-xs',     thumbKey: 'small' }
+}
 
 // 容器宽度追踪（供网格列数计算）
 const containerRef = ref<HTMLElement | null>(null)
 const containerWidth = ref(800)
 let resizeObserver: ResizeObserver | null = null
 
-// 计算网格列数，匹配 CSS: grid-cols-[repeat(auto-fill,minmax(130px,1fr))]
-// p-4 两侧 = 32px; gap-x-5 = 20px; minItemWidth = 130px
-const itemsPerRow = computed(() =>
-  Math.max(1, Math.floor((containerWidth.value - 32 + 20) / (130 + 20)))
-)
+// 当前生效的网格规格（默认 large，兼容历史未持久化的 pane）
+const gridCfg = computed(() => GRID_SIZES[props.gridSize ?? 'large'])
+
+// 计算网格列数：容器宽 - p-4 两侧 32px，按当前规格的 itemWidth + rowGap 排布
+const itemsPerRow = computed(() => {
+  const { itemWidth, rowGap } = gridCfg.value
+  return Math.max(1, Math.floor((containerWidth.value - 32 + rowGap) / (itemWidth + rowGap)))
+})
 
 // 将 filteredFiles 按行分组，供 RecycleScroller 使用
 const gridRows = computed(() => {
@@ -983,6 +1002,16 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     if (caps?.canWrite) {
       items.push({ label: 'Paste', action: 'paste', shortcut: '⌘V' })
     }
+
+    // 收藏当前文件夹（本地/远程均可，含 ZIP 内部路径）
+    items.push({ label: '---', action: '__divider__' })
+    items.push({ label: '添加到收藏夹', action: 'add-favorite-current' })
+
+    // 宿主集成：在终端打开当前目录（仅本地、非 ZIP）
+    if (isHostShellAvailable()) {
+      items.push({ label: '---', action: '__divider__' })
+      items.push({ label: 'Open in Terminal', action: 'open-in-terminal' })
+    }
   } else {
     // File/folder context menu
     items.push({ label: 'Open', action: 'open' })
@@ -1037,6 +1066,19 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
         items.push({ label: '对比目录', action: 'compare-dirs', shortcut: '⌘⇧D' })
       }
     }
+
+    // 收藏夹：右键命中的是文件夹时可收藏（本地/远程均可）
+    if (contextMenuTargetFile.value?.isDirectory) {
+      items.push({ label: '---', action: '__divider__' })
+      items.push({ label: '添加到收藏夹', action: 'add-favorite' })
+    }
+
+    // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
+    if (isHostShellAvailable()) {
+      items.push({ label: '---', action: '__divider__' })
+      items.push({ label: 'Reveal in Finder', action: 'reveal-in-finder' })
+      items.push({ label: 'Open in Terminal', action: 'open-in-terminal' })
+    }
   }
 
   return items
@@ -1044,9 +1086,27 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
 
 // 上下文菜单打开时对选中文件的快照，防止 mouseup 清空选中后 action 拿不到文件
 const contextMenuSelectedFiles = ref<string[]>([])
+// 右键命中的具体文件（reveal/terminal 针对它）；空白菜单时为 null（terminal 改用当前目录）
+const contextMenuTargetFile = ref<FileInfo | null>(null)
+
+/**
+ * 宿主集成（Finder/Terminal）是否可用：仅本地设备、且当前目录不在 ZIP 虚拟路径内。
+ * 远程设备(SMB/SSH/Android/iOS)与 ZIP 内部条目在本机无 Finder/Terminal 语义。
+ */
+function isHostShellAvailable(): boolean {
+  return props.deviceId === 'local' && !isZipVirtualPath(props.path)
+}
+
+/** POSIX 父目录：/a/b -> /a；/a -> /。仅用于 host-shell（已门控排除 zip 路径）。 */
+function parentDirectory(p: string): string {
+  const i = p.lastIndexOf('/')
+  return i <= 0 ? '/' : p.slice(0, i)
+}
 
 function showContextMenu(event: MouseEvent) {
   contextMenuSelectedFiles.value = [...props.selectedFiles]
+  // 空白右键：terminal 目标为当前目录
+  contextMenuTargetFile.value = null
   contextMenu.visible = true
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
@@ -1060,6 +1120,8 @@ function showFileContextMenu(event: MouseEvent, file: FileInfo) {
   } else {
     contextMenuSelectedFiles.value = [...props.selectedFiles]
   }
+  // 文件/文件夹右键：reveal/terminal 针对命中的这一项
+  contextMenuTargetFile.value = file
 
   contextMenu.visible = true
   contextMenu.x = event.clientX
@@ -1135,8 +1197,48 @@ function handleContextMenuAction(action: string) {
     return
   }
 
+  // 宿主集成（即时调用，不经文件操作队列）：在 Finder 中显示
+  if (action === 'reveal-in-finder') {
+    const target = contextMenuTargetFile.value?.path
+    if (target) {
+      window.fileman.showInFolder(target)
+    } else {
+      console.warn('[FileList] reveal-in-finder: no target file (background menu should not show this action)')
+    }
+    return
+  }
+
+  // 宿主集成：在终端打开。文件菜单→文件夹进其内部 / 文件进其所在目录；空白菜单→当前目录
+  if (action === 'open-in-terminal') {
+    const file = contextMenuTargetFile.value
+    const dir = file
+      ? (file.isDirectory ? file.path : parentDirectory(file.path))
+      : props.path
+    window.fileman.openInTerminal(dir).catch(err => {
+      console.error('[FileList] openInTerminal failed for', dir, err)
+    })
+    return
+  }
+
   if (action === 'compare-dirs') {
     emit('operation', { action: 'compare-dirs', files: contextMenuSelectedFiles.value })
+    return
+  }
+
+  // 收藏夹：收藏右键命中的文件夹
+  if (action === 'add-favorite') {
+    const file = contextMenuTargetFile.value
+    if (file && file.isDirectory) {
+      favoritesStore.add({ deviceId: props.deviceId, path: file.path, name: file.name })
+    }
+    return
+  }
+
+  // 收藏夹：收藏当前目录（空白菜单）
+  if (action === 'add-favorite-current') {
+    const segs = props.path.split('/').filter(Boolean)
+    const name = segs.length > 0 ? segs[segs.length - 1] : (props.path || '/')
+    favoritesStore.add({ deviceId: props.deviceId, path: props.path, name })
     return
   }
 
