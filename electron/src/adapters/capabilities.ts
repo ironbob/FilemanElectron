@@ -24,6 +24,9 @@ export interface DeviceCapabilities {
   readonly canMoveFrom: boolean      // Can be source for cross-device move
   readonly canMoveTo: boolean        // Can be target for cross-device move
 
+  // Streaming (large-file transfer without full buffering)
+  readonly canStream: boolean        // Supports openReadStream/openWriteStream
+
   // Limitations
   readonly maxFileSize?: number      // Maximum file size in bytes (undefined = unlimited)
   readonly readonlyPaths?: string[]  // Paths that are read-only
@@ -47,6 +50,7 @@ export const LOCAL_CAPABILITIES: DeviceCapabilities = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
+  canStream: true,      // fs.createReadStream/WriteStream
 }
 
 export const SMB_CAPABILITIES: DeviceCapabilities = {
@@ -64,6 +68,7 @@ export const SMB_CAPABILITIES: DeviceCapabilities = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
+  canStream: false,     // @aozp/smb2 stream support TBD → buffer fallback
 }
 
 export const SSH_CAPABILITIES: DeviceCapabilities = {
@@ -81,6 +86,7 @@ export const SSH_CAPABILITIES: DeviceCapabilities = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
+  canStream: true,      // ssh2 sftp createReadStream/WriteStream
 }
 
 export const ANDROID_CAPABILITIES: DeviceCapabilities = {
@@ -98,6 +104,7 @@ export const ANDROID_CAPABILITIES: DeviceCapabilities = {
   canCopyTo: true,      // Can push files
   canMoveFrom: true,    // Pull + delete
   canMoveTo: true,      // Push + delete source
+  canStream: true,      // adbkit pull/push transfer streams
   // Some Android directories are read-only without root
   readonlyPaths: ['/system', '/vendor', '/product', '/data/app'],
 }
@@ -117,6 +124,7 @@ export const IOS_CAPABILITIES: DeviceCapabilities = {
   canCopyTo: true,      // Can push to specific locations
   canMoveFrom: true,    // Pull + delete
   canMoveTo: true,      // Push + delete source
+  canStream: false,     // AFC has no usable stream CLI → buffer fallback
   // iOS is heavily restricted
   readonlyPaths: ['/'],
   maxFileSize: 2 * 1024 * 1024 * 1024, // 2GB typical limit for app sandbox

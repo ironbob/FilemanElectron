@@ -1,5 +1,6 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { ToolPathResolver } from './ToolPathResolver'
 
 const execAsync = promisify(exec)
 
@@ -201,9 +202,15 @@ export class MobileDeviceScanner {
    * Check if ADB is installed
    */
   async checkAdbInstalled(): Promise<boolean> {
+    // 打包内 adb 优先(生产态);开发态回退 $PATH。
+    const bundled = ToolPathResolver.getAdbPath()
+    if (bundled) {
+      log.debug('adb resolved (bundled):', bundled)
+      return true
+    }
     try {
       const { stdout, stderr } = await execAsync('which adb')
-      log.debug('adb path:', stdout.trim() || 'not found', stderr ? `stderr: ${stderr}` : '')
+      log.debug('adb path ($PATH):', stdout.trim() || 'not found', stderr ? `stderr: ${stderr}` : '')
       return !!stdout.trim()
     } catch (error) {
       log.debug('ADB check failed:', error)
@@ -219,7 +226,7 @@ export class MobileDeviceScanner {
 
     try {
       // log.debug('Executing: adb devices -l')
-      const { stdout, stderr } = await execAsync('adb devices -l')
+      const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`)
 
       // log.debug('ADB command stdout:', JSON.stringify(stdout))
       if (stderr) {

@@ -1,25 +1,64 @@
 import * as path from 'path'
+import { app } from 'electron'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { IOS_CAPABILITIES, type DeviceCapabilities } from './capabilities'
+import type { AfcEntry, AfcStat } from '../../../native/iosafc'
 
-// Note: iOS support requires libimobiledevice or similar
-// This is a basic implementation that can be extended with:
-// - libimobiledevice (via node-ffi or native addon)
-// - idevicepair, ideviceinfo, ifuse command-line tools
-// For now, this provides the structure for iOS file operations
+// L02(ios) · iOSAdapter (driven adapter, hexagonal)
+//
+// 通过本地 N-API addon(native/iosafc)调用 libimobiledevice 的 AFC + lockdown C API,
+// 浏览/读写 iOS AFC 沙盒。替代旧实现里那个并不存在的 `idevicefs` CLI。
+//
+// 设计:
+//  - 不走 CLI、不依赖 macFUSE:addon 直接 link libimobiledevice,可随 app 打包(.node + dylib)。
+//  - 缓冲读写(IOS_CAPABILITIES.canStream=false);AFC 无通用搜索 → search 抛"不支持"。
+//  - 配对校验在 connect 完成(未配对/未信任 → 明确错误);发起配对经 pair() 暴露,供后续 IPC/渲染层调用。
+//
+// ⚠ 未真机验证(需构建 addon + 真机回归,见 native/iosafc/README.md)。
 
-interface iOSConfig {
-  deviceId?: string
+type IosAfcAddon = typeof import('../../../native/iosafc')
+
+let addonCache: IosAfcAddon | null = null
+
+/**
+ * 动态加载原生 addon。用计算路径 require,避免被 rollup 静态打包。
+ * 候选:打包态 app 资源目录、开发态源码树若干相对深度。
+ */
+function loadAddon(): IosAfcAddon {
+  if (addonCache) return addonCache
+  const candidates: string[] = []
+  // 开发态:源码树 native/iosafc(index.js → build/Release/iosafc.node)。
+  try { candidates.push(path.join(app.getAppPath(), 'native', 'iosafc')) } catch { /* 主进程外无 app */ }
+  for (const up of ['..', '..', '..', '..', '../../../']) {
+    candidates.push(path.join(__dirname, up, 'native', 'iosafc'))
+  }
+  // 打包态:Resources/ios-native/iosafc.node(经 bundle-ios-dylibs.sh 落地 + extraResources 打包)。
+  try { candidates.push(path.join(process.resourcesPath, 'ios-native', 'iosafc.node')) } catch { /* dev 无 resourcesPath 目标 */ }
+  try { candidates.push(path.join(app.getAppPath(), 'native', 'iosafc', 'build', 'Release', 'iosafc.node')) } catch { /* */ }
+  for (const c of candidates) {
+    try {
+      // 动态字符串 require —— 不让 bundler 解析。
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      addonCache = require(c) as IosAfcAddon
+      return addonCache
+    } catch {
+      /* 继续尝试下一个候选 */
+    }
+  }
+  throw new Error(
+    'iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。'
+  )
 }
 
 export class iOSAdapter implements IFileSystemAdapter {
   readonly type = 'ios'
   readonly deviceId: string
   readonly name: string
-  private config: iOSConfig
+  private config: { deviceId?: string }
+  private handle: number | null = null
   private connected = false
 
-  constructor(deviceId: string, name: string, config: iOSConfig = {}) {
+  constructor(deviceId: string, name: string, config: { deviceId?: string } = {}) {
     this.deviceId = deviceId
     this.name = name
     this.config = config
@@ -29,43 +68,32 @@ export class iOSAdapter implements IFileSystemAdapter {
     return IOS_CAPABILITIES
   }
 
+  /** 设备 id 形如 "ios:<udid>";libimobiledevice 需要裸 udid。 */
+  private udid(): string {
+    const raw = this.config.deviceId ?? this.deviceId
+    return raw.startsWith('ios:') ? raw.slice(4) : raw
+  }
+
   async connect(): Promise<void> {
-    // For real implementation, use libimobiledevice or similar
-    // Example using ideviceinfo command:
-    // const { exec } = require('child_process')
-    // const result = await exec('ideviceinfo')
-    // Parse result to verify connection
-
-    // For now, we'll implement a basic version that checks for device
     try {
-      const { exec } = await import('child_process')
-      const { promisify } = await import('util')
-      const execAsync = promisify(exec)
-
-      // Check if device is paired
-      const { stdout } = await execAsync('ideviceinfo -k DeviceName 2>/dev/null || echo ""')
-      const deviceName = stdout.trim()
-
-      if (!deviceName) {
-        throw new Error('No iOS device found. Please connect your device and trust this computer.')
-      }
-
+      const afc = loadAddon()
+      // 仅校验配对;未配对/未信任 → 抛明确错误(渲染层显示"待配对",发起配对走 pair())。
+      const handle = afc.connect(this.udid(), false)
+      this.handle = handle
       this.connected = true
+      console.log(`[iOSAdapter] connected: udid=${this.udid()}`)
     } catch (error) {
       this.connected = false
-      if (error instanceof Error && error.message.includes('ideviceinfo')) {
-        throw new Error(
-          'iOS support requires libimobiledevice. Install with:\n' +
-          '  macOS: brew install libimobiledevice\n' +
-          '  Linux: sudo apt-get install libimobiledevice-dev\n' +
-          '  Windows: Download from https://libimobiledevice.org/'
-        )
-      }
+      this.handle = null
       throw error
     }
   }
 
   async disconnect(): Promise<void> {
+    if (this.handle !== null) {
+      try { loadAddon().disconnect(this.handle) } catch { /* 忽略 */ }
+    }
+    this.handle = null
     this.connected = false
   }
 
@@ -73,191 +101,150 @@ export class iOSAdapter implements IFileSystemAdapter {
     return this.connected
   }
 
-  private ensureConnected(): void {
-    if (!this.connected) {
-      throw new Error('iOS device not connected')
-    }
+  /** 发起配对(触发设备端"信任此电脑");供后续 IPC 调用,完成后重试 connect。 */
+  async pair(): Promise<boolean> {
+    return loadAddon().pair(this.udid())
   }
 
+  private h(): number {
+    if (!this.connected || this.handle === null) throw new Error('iOS 设备未连接')
+    return this.handle
+  }
+
+  // ============ 文件系统操作 ============
+
   async list(dirPath: string): Promise<FileInfo[]> {
-    this.ensureConnected()
-
-    const files: FileInfo[] = []
-
-    try {
-      const { exec } = await import('child_process')
-      const { promisify } = await import('util')
-      const execAsync = promisify(exec)
-
-      // Use ifuse or idevicefs to list files
-      // For AFC (Apple File Conduit) access:
-      const { stdout } = await execAsync(
-        `idevicefs ls "${dirPath}" 2>/dev/null || echo ""`
-      )
-
-      const lines = stdout.trim().split('\n')
-      for (const line of lines) {
-        if (!line.trim()) continue
-
-        const parts = line.trim().split(/\s+/)
-        if (parts.length < 4) continue
-
-        const isDirectory = line.startsWith('d')
-        const name = parts.slice(3).join(' ')
-
-        if (name === '.' || name === '..') continue
-
-        const fullPath = path.join(dirPath, name)
-
-        files.push({
-          name,
-          path: fullPath,
-          isDirectory,
-          isFile: !isDirectory,
-          size: parseInt(parts[2], 10) || 0,
-          modifiedTime: new Date().toISOString(),
-          extension: !isDirectory ? path.extname(name).toLowerCase() : undefined
-        })
-      }
-    } catch (error) {
-      console.error('iOS list error:', error)
-    }
-
+    const entries = loadAddon().list(this.h(), dirPath)
+    const files: FileInfo[] = entries.map(e => this.toFileInfo(dirPath, e))
     return files.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1
-      }
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
       return a.name.localeCompare(b.name)
     })
   }
 
+  async stat(targetPath: string): Promise<FileStats> {
+    const s = loadAddon().stat(this.h(), targetPath)
+    return {
+      size: s.size,
+      isDirectory: s.isDirectory,
+      isFile: !s.isDirectory,
+      modifiedTime: new Date(s.mtime).toISOString(),
+      createdTime: new Date(s.mtime).toISOString(),
+      mode: 0,
+    }
+  }
+
   async mkdir(dirPath: string): Promise<void> {
-    this.ensureConnected()
-
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    await execAsync(`idevicefs mkdir "${dirPath}"`)
+    loadAddon().mkdir(this.h(), dirPath)
   }
 
   async rmdir(dirPath: string, recursive?: boolean): Promise<void> {
-    this.ensureConnected()
-
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
     if (recursive) {
-      await execAsync(`idevicefs rm -r "${dirPath}"`)
-    } else {
-      await execAsync(`idevicefs rmdir "${dirPath}"`)
+      // AFC remove_path 行为依实现而异;递归删除先清空子项再删本目录,稳妥。
+      let entries: AfcEntry[] = []
+      try { entries = loadAddon().list(this.h(), dirPath) } catch { /* 空目录或不存在 */ }
+      for (const e of entries) {
+        const child = joinPosix(dirPath, e.name)
+        if (e.isDirectory) await this.rmdir(child, true)
+        else loadAddon().remove(this.h(), child)
+      }
     }
-  }
-
-  async readFile(filePath: string): Promise<Buffer> {
-    this.ensureConnected()
-
-    const fs = await import('fs-extra')
-    const os = await import('os')
-    const tempPath = path.join(os.tmpdir(), `fileman_ios_${Date.now()}`)
-
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    try {
-      // Pull file from device to temp location
-      await execAsync(`idevicefs pull "${filePath}" "${tempPath}"`)
-      const content = await fs.readFile(tempPath)
-      return content
-    } finally {
-      await fs.remove(tempPath)
-    }
-  }
-
-  async writeFile(filePath: string, data: Buffer): Promise<void> {
-    this.ensureConnected()
-
-    const fs = await import('fs-extra')
-    const os = await import('os')
-    const tempPath = path.join(os.tmpdir(), `fileman_ios_${Date.now()}`)
-
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    try {
-      // Write to temp file then push to device
-      await fs.writeFile(tempPath, data)
-      await execAsync(`idevicefs push "${tempPath}" "${filePath}"`)
-    } finally {
-      await fs.remove(tempPath)
-    }
+    loadAddon().remove(this.h(), dirPath)
   }
 
   async delete(targetPath: string): Promise<void> {
-    this.ensureConnected()
-
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    await execAsync(`idevicefs rm "${targetPath}"`)
+    loadAddon().remove(this.h(), targetPath)
   }
 
   async rename(oldPath: string, newPath: string): Promise<void> {
-    this.ensureConnected()
-
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    await execAsync(`idevicefs mv "${oldPath}" "${newPath}"`)
+    loadAddon().rename(this.h(), oldPath, newPath)
   }
 
   async copy(srcPath: string, dstPath: string): Promise<void> {
-    // iOS AFC doesn't support native copy
-    // Read and write instead
+    // AFC 无原生 copy;读源写目标(缓冲)。
     const content = await this.readFile(srcPath)
     await this.writeFile(dstPath, content)
   }
 
-  async stat(targetPath: string): Promise<FileStats> {
-    this.ensureConnected()
+  async readFile(filePath: string): Promise<Buffer> {
+    return loadAddon().readFile(this.h(), filePath)
+  }
 
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    try {
-      const { stdout } = await execAsync(`idevicefs stat "${targetPath}"`)
-      // Parse stat output
-      return {
-        size: 0,
-        isDirectory: false,
-        isFile: true,
-        modifiedTime: new Date().toISOString(),
-        createdTime: new Date().toISOString(),
-        mode: 0
-      }
-    } catch {
-      throw new Error(`File not found: ${targetPath}`)
-    }
+  async writeFile(filePath: string, data: Buffer): Promise<void> {
+    loadAddon().writeFile(this.h(), filePath, data)
   }
 
   async exists(targetPath: string): Promise<boolean> {
-    try {
-      await this.stat(targetPath)
-      return true
-    } catch {
-      return false
-    }
+    try { await this.stat(targetPath); return true } catch { return false }
   }
 
-  async search(dirPath: string, query: SearchQuery): Promise<FileInfo[]> {
-    // iOS AFC doesn't support search natively
-    // Would need to implement recursive listing
-    throw new Error('Search is not supported on iOS devices')
+  async search(_dirPath: string, _query: SearchQuery): Promise<FileInfo[]> {
+    // AFC 无通用搜索能力(IOS_CAPABILITIES.canSearch=false)。
+    throw new Error('iOS 设备不支持搜索(AFC 无通用搜索)')
   }
+
+  // ============ 内部工具 ============
+
+  private toFileInfo(dirPath: string, e: AfcEntry): FileInfo {
+    return {
+      name: e.name,
+      path: joinPosix(dirPath, e.name),
+      isDirectory: e.isDirectory,
+      isFile: !e.isDirectory,
+      size: e.size,
+      modifiedTime: new Date(e.mtime).toISOString(),
+      extension: !e.isDirectory ? path.extname(e.name).toLowerCase() : undefined,
+    }
+  }
+}
+
+function joinPosix(dir: string, name: string): string {
+  if (dir.endsWith('/')) return dir + name
+  return dir === '' ? `/${name}` : `${dir}/${name}`
+}
+
+function udidFromId(id: string): string {
+  return id.startsWith('ios:') ? id.slice(4) : id
+}
+
+/**
+ * 完整配对流程(供 IPC `device:pair` 调用,设备未连接也可用):
+ *  1. addon.pair(udid) —— 发起配对,设备端弹"信任此电脑"(立即返回,不等用户操作)。
+ *  2. 轮询 addon.isPaired(udid)(每 1.5s)—— 用户在设备上点信任+输密码后变 true,或超时。
+ *
+ * 这是"完整配对生命周期"的发起侧;扫描器(MobileDeviceScanner)的周期轮询会在
+ * 配对成功后把设备 pairingStatus 更新为 paired,渲染层据此自动转可浏览。
+ */
+export async function pairIosDevice(
+  deviceId: string,
+  timeoutMs = 60000
+): Promise<{ success: boolean; error?: string }> {
+  const udid = udidFromId(deviceId)
+
+  let addon: IosAfcAddon
+  try {
+    addon = loadAddon()
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+
+  try {
+    const initiated = addon.pair(udid) // 触发设备端信任弹窗(立即返回)
+    if (!initiated) {
+      return { success: false, error: '发起配对失败 —— 请确认设备已解锁、已插稳' }
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    try {
+      if (addon.isPaired(udid)) return { success: true }
+    } catch {
+      /* validate 偶发失败,继续轮询 */
+    }
+  }
+  return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' }
 }

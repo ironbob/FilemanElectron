@@ -4,7 +4,7 @@ import { LocalAdapter } from '../adapters/LocalAdapter'
 import { AndroidAdapter } from '../adapters/AndroidAdapter'
 import { SMBAdapter } from '../adapters/SMBAdapter'
 import { SSHAdapter } from '../adapters/SSHAdapter'
-import { iOSAdapter } from '../adapters/iOSAdapter'
+import { iOSAdapter, pairIosDevice } from '../adapters/iOSAdapter'
 import type { IFileSystemAdapter, FileInfo, FileStats, SearchQuery } from '../adapters/types'
 import type { DeviceCapabilities } from '../adapters/capabilities'
 import { LOCAL_CAPABILITIES } from '../adapters/capabilities'
@@ -380,6 +380,21 @@ export class DeviceManager {
   }
 
   /**
+   * 发起配对(仅 iOS;完整生命周期:发起 → 设备端信任 → 校验)。
+   * 非 iOS 设备不支持配对。
+   */
+  async pairDevice(deviceId: string): Promise<{ success: boolean; error?: string }> {
+    const device = this.devices.get(deviceId)
+    if (!device) {
+      throw new Error(`Device not found: ${deviceId}`)
+    }
+    if (device.type !== 'ios') {
+      return { success: false, error: '该设备类型无需/不支持配对' }
+    }
+    return pairIosDevice(deviceId)
+  }
+
+  /**
    * Register a device change handler
    */
   onDeviceChange(handler: DeviceEventHandler): () => void {
@@ -528,6 +543,7 @@ export class DeviceManager {
           canCopyTo: true,
           canMoveFrom: true,
           canMoveTo: true,
+          canStream: false, // 连接后由具体适配器的 capability 覆盖
         }
     }
   }

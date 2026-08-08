@@ -27,14 +27,25 @@ else
   [[ -f out/main/index.js ]] || { echo "    out/ is missing — run without --no-build first." >&2; exit 1; }
 fi
 
-echo "==> [2/3] Ensure app icon (build/icon.icns)"
+echo "==> [2/4] Ensure app icon (build/icon.icns)"
 if [[ -f build/icon.icns ]]; then
   echo "    exists; keeping it (delete it to regenerate the placeholder)"
 else
   node scripts/generate-icon.mjs
 fi
 
-echo "==> [3/3] Package DMG (electron-builder --mac)"
+echo "==> [3/4] Bundle iOS native addon + libimobiledevice dylib chain (optional)"
+# iOS 是可选阶段2;addon 未构建时跳过(打一个空 build/ios-native 占位,electron-builder 不会因此失败)。
+ADDON_NODE="native/iosafc/build/Release/iosafc.node"
+if [[ -f "$ADDON_NODE" ]]; then
+  bash scripts/bundle-ios-dylibs.sh
+else
+  echo "    iOS addon 未构建($ADDON_NODE 不存在)→ 本次 DMG 不含 iOS 支持。"
+  echo "    如需 iOS:先 scripts/install-ios-deps.sh,再 npm run build:native,然后重新 dist:mac。"
+  mkdir -p build/ios-native
+fi
+
+echo "==> [4/4] Package DMG (electron-builder --mac)"
 # Default to an UNSIGNED build. electron-builder otherwise auto-discovers a
 # signing identity; on this machine the "Apple Development" cert is duplicated
 # in the keychain (ambiguous) and can't notarize for general distribution

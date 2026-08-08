@@ -46,6 +46,7 @@ export interface DeviceCapabilities {
   readonly canCopyTo: boolean
   readonly canMoveFrom: boolean
   readonly canMoveTo: boolean
+  readonly canStream: boolean
   readonly maxFileSize?: number
   readonly readonlyPaths?: string[]
   readonly hiddenPaths?: string[]
@@ -152,6 +153,8 @@ const filemanAPI = {
   removeDevice: (deviceId: string) => ipcRenderer.invoke('device:remove', deviceId),
   connectDevice: (deviceId: string) => ipcRenderer.invoke('device:connect', deviceId),
   disconnectDevice: (deviceId: string) => ipcRenderer.invoke('device:disconnect', deviceId),
+  pairDevice: (deviceId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('device:pair', deviceId),
   hasCredentials: (deviceId: string) => ipcRenderer.invoke('device:hasCredentials', deviceId),
   getDeviceCapabilities: (deviceId: string): Promise<DeviceCapabilities> =>
     ipcRenderer.invoke('device:getCapabilities', deviceId),

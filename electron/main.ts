@@ -157,6 +157,11 @@ ipcMain.handle('device:canTransferBetween', (_, sourceDeviceId: string, targetDe
   return deviceManager.canTransferBetween(sourceDeviceId, targetDeviceId, operation)
 })
 
+// 发起 iOS 配对(完整生命周期:发起 → 设备端信任 → 校验,见 iOSAdapter.pairIosDevice)
+ipcMain.handle('device:pair', async (_, deviceId: string): Promise<{ success: boolean; error?: string }> => {
+  return deviceManager.pairDevice(deviceId)
+})
+
 // ============ File System IPC Handlers (with deviceId routing) ============
 
 ipcMain.handle('fs:list', async (_, deviceId: string, path: string) => {

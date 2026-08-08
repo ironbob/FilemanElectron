@@ -26,6 +26,20 @@ asarUnpack:
   - "**/ffmpeg-static/**"
   - "**/@img/**"
 
+# Bundled mobile CLI tools — drop the macOS `adb` binary at build/tools/adb
+# before running `npm run dist:mac`. It lands at Contents/Resources/adb and is
+# resolved at runtime by ToolPathResolver (replaces the $PATH lookup). Per
+# project decision, license compliance for bundled tools is out of scope.
+extraResources:
+  - from: build/tools/adb
+    to: adb
+    filter: ["**/*"]
+  # iOS native addon + bundled libimobiledevice dylib chain (populated by
+  # scripts/bundle-ios-dylibs.sh; empty dir if iOS addon not built → iOS disabled).
+  - from: build/ios-native
+    to: ios-native
+    filter: ["**/*"]
+
 # All native deps here are N-API prebuilt (sharp), pure-JS (ssh2), or plain
 # binaries (ffmpeg-static) — none need compiling against Electron's ABI, so
 # skip the rebuild step (faster, no Xcode toolchain required at pack time).

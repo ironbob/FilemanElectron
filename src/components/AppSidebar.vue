@@ -125,6 +125,17 @@
               ✓ Paired
             </span>
           </span>
+          <!-- iOS 未配对:发起配对按钮(凑齐完整配对生命周期:发起→设备信任→校验) -->
+          <button
+            v-if="device.type === 'ios' && device.pairingStatus === 'unpaired' && !isPairing(device.id)"
+            class="ml-1 px-1.5 py-0.5 text-xs text-white bg-accent-blue hover:bg-accent-blue/80 rounded"
+            title="发起配对(设备上会弹出『信任此电脑』)"
+            @click.stop="pairMobileDevice(device.id)"
+          >配对</button>
+          <span
+            v-if="isPairing(device.id)"
+            class="ml-1 px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded animate-pulse"
+          >配对中…</span>
           <!-- Auto-connect indicator -->
           <span
             v-if="devicesStore.isAutoConnectDevice(device.id)"
@@ -584,6 +595,31 @@ async function connectMobileDevice(deviceId: string) {
     await devicesStore.connectDevice(deviceId)
   } catch (error) {
     console.error('Failed to connect mobile device:', error)
+  }
+}
+
+// ============ iOS 配对发起(完整配对生命周期) ============
+// 配对中设备集合(数组重赋值保响应式);成功后扫描器下个周期把 pairingStatus 翻成 paired,UI 自动转可浏览。
+const pairingDeviceIds = ref<string[]>([])
+function isPairing(deviceId: string): boolean {
+  return pairingDeviceIds.value.includes(deviceId)
+}
+
+async function pairMobileDevice(deviceId: string) {
+  pairingDeviceIds.value = [...pairingDeviceIds.value, deviceId]
+  try {
+    const result = await window.fileman.pairDevice(deviceId)
+    if (!result.success) {
+      console.error('[AppSidebar] 配对失败:', result.error)
+      // 简单反馈:失败时短暂 alert(后续可接 toast)
+      alert(`配对失败:${result.error || '未知原因'}`)
+    }
+    // 成功无需手动刷新 —— 扫描器轮询会把设备 pairingStatus 更新为 paired。
+  } catch (error) {
+    console.error('[AppSidebar] 配对异常:', error)
+    alert(`配对异常:${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    pairingDeviceIds.value = pairingDeviceIds.value.filter(id => id !== deviceId)
   }
 }
 

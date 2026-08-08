@@ -1,6 +1,7 @@
 import fs from 'fs-extra'
 import path from 'path'
 import os from 'os'
+import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { LOCAL_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 
@@ -96,6 +97,15 @@ export class LocalAdapter implements IFileSystemAdapter {
   async copy(srcPath: string, dstPath: string): Promise<void> {
     await fs.ensureDir(path.dirname(dstPath))
     await fs.copy(srcPath, dstPath)
+  }
+
+  async openReadStream(filePath: string): Promise<Readable> {
+    return fs.createReadStream(filePath)
+  }
+
+  async openWriteStream(filePath: string): Promise<Writable> {
+    await fs.ensureDir(path.dirname(filePath))
+    return fs.createWriteStream(filePath)
   }
 
   async stat(targetPath: string): Promise<FileStats> {

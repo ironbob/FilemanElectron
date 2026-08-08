@@ -15,7 +15,8 @@ export default defineConfig({
           '@aozp/smb2',
           'smb2',
           'ssh2',
-          'adbkit'
+          'adbkit',
+          '@devicefarmer/adbkit'
         ]
       }
     },

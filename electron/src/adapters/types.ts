@@ -1,3 +1,4 @@
+import type { Readable, Writable } from 'stream'
 import type { DeviceCapabilities } from './capabilities'
 
 export interface FileInfo {
@@ -53,4 +54,16 @@ export interface IFileSystemAdapter {
   stat(path: string): Promise<FileStats>
   exists(path: string): Promise<boolean>
   search(path: string, query: SearchQuery): Promise<FileInfo[]>
+
+  /**
+   * Streaming access (optional). Adapters that support it set `canStream: true`
+   * in their capabilities. Used by StreamTransfer for large-file cross-device
+   * copy without buffering the whole file in memory.
+   *
+   * Why optional + capability-gated (ISP): callers check `canStream` before
+   * calling, so adapters that can't stream (SMB/iOS) are not forced to implement
+   * these — they fall back to the buffer-based readFile/writeFile path.
+   */
+  openReadStream?(path: string): Promise<Readable>
+  openWriteStream?(path: string): Promise<Writable>
 }

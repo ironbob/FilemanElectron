@@ -1,4 +1,5 @@
 import * as path from 'path'
+import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { SSH_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 
@@ -204,6 +205,16 @@ export class SSHAdapter implements IFileSystemAdapter {
   async copy(srcPath: string, dstPath: string): Promise<void> {
     const content = await this.readFile(srcPath)
     await this.writeFile(dstPath, content)
+  }
+
+  async openReadStream(filePath: string): Promise<Readable> {
+    this.ensureConnected()
+    return this.sftp.createReadStream(filePath)
+  }
+
+  async openWriteStream(filePath: string): Promise<Writable> {
+    this.ensureConnected()
+    return this.sftp.createWriteStream(filePath)
   }
 
   async stat(targetPath: string): Promise<FileStats> {

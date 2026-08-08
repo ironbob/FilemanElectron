@@ -122,6 +122,7 @@ interface DeviceCapabilities {
   readonly canCopyTo: boolean
   readonly canMoveFrom: boolean
   readonly canMoveTo: boolean
+  readonly canStream: boolean
   readonly maxFileSize?: number
   readonly readonlyPaths?: string[]
   readonly hiddenPaths?: string[]
@@ -145,6 +146,7 @@ interface Window {
     removeDevice: (deviceId: string) => Promise<void>
     connectDevice: (deviceId: string) => Promise<void>
     disconnectDevice: (deviceId: string) => Promise<void>
+    pairDevice: (deviceId: string) => Promise<{ success: boolean; error?: string }>
     hasCredentials: (deviceId: string) => Promise<boolean>
     getDeviceCapabilities: (deviceId: string) => Promise<DeviceCapabilities>
     canTransferBetween: (sourceDeviceId: string, targetDeviceId: string, operation: 'copy' | 'move') => Promise<boolean>
