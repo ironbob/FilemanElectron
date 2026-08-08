@@ -10,6 +10,12 @@ dist/
 build/icon.icns
 build/icon.iconset/
 
+# Bundled iOS native addon + libimobiledevice dylib chain (scripts/bundle-ios-dylibs.sh output)
+build/ios-native/
+
+# Native addon (node-gyp) build output
+native/iosafc/build/
+
 # IDE
 .idea/
 .vscode/

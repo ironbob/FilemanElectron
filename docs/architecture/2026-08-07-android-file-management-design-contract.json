@@ -1,0 +1,235 @@
+{
+  "feature": "android-file-management",
+  "title": "Android(ADB)手机文件管理 — 阶段1",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-07",
+  "existing_alignment": {
+    "recognized_style": "实际栈为 Electron 29(主 main.ts / 预加载 preload.ts / 渲染 src)+ TypeScript + Vue 3 + Pinia,electron-vite 打包。分层为『端口适配器(IFileSystemAdapter)+ 服务(DeviceManager/FileOperationManager/...)+ IPC 组合根(main.ts)+ contextBridge 预加载』,日志用 console + [Tag] 前缀。注:skill 内置 stack 枚举无 Electron,此处 stack 字段以 FastAPI+Vue 作枚举代理,真实栈以此处与架构文档为准。",
+    "new_code_follows": "沿用既有端口适配器 + 服务 + IPC 组合根分层;新增 ToolPathResolver/StreamTransfer 放 electron/src/services/,AndroidAdapter 重写仍在 electron/src/adapters/;日志沿用 console + [Tag] 前缀([AndroidAdapter]/[StreamTransfer]/[ToolPathResolver] 等);IPC 契约三处(main.ts/preload.ts/env.d.ts)同步。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "IFileSystemAdapter",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "定义异构文件系统的统一抽象端口(基本操作 + 可选流式 openReadStream/openWriteStream + canStream 能力位)",
+      "depends_on": [],
+      "industry_basis": "六边形架构 Port(Ports & Adapters)/Gateway —— 文件存储访问的抽象端口,所有适配器与服务都依赖它而非具体实现",
+      "design_principles": ["DIP", "OCP", "ISP"],
+      "code_units": ["electron/src/adapters/types.ts", "electron/src/adapters/capabilities.ts"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "AndroidAdapter",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "把 Android 文件操作翻译为 adbkit 调用(sync 协议 readdir/stat/pull/push + shell+exit marker),提供真实元数据与流式读写",
+      "depends_on": ["ROLE-L01", "ROLE-L03"],
+      "industry_basis": "六边形 Driven Adapter / Adapter 模式(GoF) —— 针对一种后端(Android)实现端口",
+      "design_principles": ["SRP", "DIP", "separation_of_concerns"],
+      "code_units": ["electron/src/adapters/AndroidAdapter.ts"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "ToolPathResolver",
+      "role_kind": "layer",
+      "layer": "util",
+      "domain_role": null,
+      "responsibility": "解析打包内/开发态的 adb 二进制路径(全仓唯一 adb 路径事实源)",
+      "depends_on": [],
+      "industry_basis": "Infrastructure/配置解析工具 —— 把『工具在哪』从使用方分离(SRP)",
+      "design_principles": ["SRP", "high_cohesion_low_coupling", "separation_of_concerns"],
+      "code_units": ["electron/src/services/ToolPathResolver.ts"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "MobileDeviceScanner",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "经打包 adb 周期性发现 Android 设备与授权状态(unauthorized/offline/device)",
+      "depends_on": ["ROLE-L03"],
+      "industry_basis": "轮询式设备发现服务(infra) —— 只做发现,不做文件操作",
+      "design_principles": ["SRP", "separation_of_concerns"],
+      "code_units": ["electron/src/services/MobileDeviceScanner.ts"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "FileOperationManager",
+      "role_kind": "layer",
+      "layer": "service",
+      "domain_role": null,
+      "responsibility": "编排传输队列与任务生命周期:按 canStream 选流式/缓冲策略、目录递归、中途取消、进度推送;调用任务聚合根方法转移状态",
+      "depends_on": ["ROLE-L01", "ROLE-L06", "ROLE-D01"],
+      "industry_basis": "Application Service(DDD)/任务队列+命令处理器 —— 只编排,字节管道与状态机分别交给 StreamTransfer/TransferTask",
+      "design_principles": ["SRP", "DIP", "OCP"],
+      "code_units": ["electron/src/services/FileOperationManager.ts"]
+    },
+    {
+      "id": "ROLE-L06",
+      "name": "StreamTransfer",
+      "role_kind": "layer",
+      "layer": "service",
+      "domain_role": null,
+      "responsibility": "在两个适配器间流式搬运单个文件(管道+计量+背压),支持取消与失败清理半成品;不支持流式时缓冲回退",
+      "depends_on": ["ROLE-L01"],
+      "industry_basis": "Strategy 模式/流管道助手 —— 把字节搬运机制从队列编排中分离",
+      "design_principles": ["SRP", "OCP", "separation_of_concerns"],
+      "code_units": ["electron/src/services/StreamTransfer.ts"]
+    },
+    {
+      "id": "ROLE-L07",
+      "name": "DeviceManager",
+      "role_kind": "layer",
+      "layer": "facade",
+      "domain_role": null,
+      "responsibility": "设备生命周期门面:持有适配器实例、按 type 创建、代理 FS 调用、注册到 FileOperationManager",
+      "depends_on": ["ROLE-L01", "ROLE-L02"],
+      "industry_basis": "Facade(PoEAA)/Application Service —— 为上层提供统一的设备+文件访问入口",
+      "design_principles": ["DIP", "high_cohesion_low_coupling"],
+      "code_units": ["electron/src/services/DeviceManager.ts"]
+    },
+    {
+      "id": "ROLE-L08",
+      "name": "main.ts(IPC 组合根)",
+      "role_kind": "layer",
+      "layer": "controller",
+      "domain_role": null,
+      "responsibility": "装配单例、注册 ipcMain.handle 通道(device:/fs:/file-operation:/mobile:)、推送 file-operation:updated 事件",
+      "depends_on": ["ROLE-L04", "ROLE-L05", "ROLE-L07"],
+      "industry_basis": "Composition Root(DDD)/六边形 Driving Adapter —— 依赖组装与协议入口,不含业务逻辑",
+      "design_principles": ["DIP", "separation_of_concerns"],
+      "code_units": ["electron/main.ts"]
+    },
+    {
+      "id": "ROLE-L09",
+      "name": "preload.ts + env.d.ts",
+      "role_kind": "layer",
+      "layer": "facade",
+      "domain_role": null,
+      "responsibility": "经 contextBridge 暴露受控 fileman API(防腐层),声明渲染层可见的 IPC 类型契约(含 canStream)",
+      "depends_on": [],
+      "industry_basis": "防腐层(ACL)/API 网关 —— 隔离渲染进程与主进程,只暴露所需接口",
+      "design_principles": ["ISP", "separation_of_concerns"],
+      "code_units": ["electron/preload.ts", "src/env.d.ts"]
+    },
+    {
+      "id": "ROLE-D01",
+      "name": "TransferTask",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "aggregate",
+      "responsibility": "传输任务聚合根:持有状态机(pending→running→completed/failed/cancelled)与进度,自提供状态转移/记账方法",
+      "depends_on": [],
+      "industry_basis": "DDD 聚合根 —— 一致性边界内封装任务状态与进度,外部只调用其行为方法",
+      "design_principles": ["aggregate", "tell_dont_ask", "SRP"],
+      "code_units": ["electron/src/services/FileOperationManager.ts"]
+    },
+    {
+      "id": "ROLE-D02",
+      "name": "Device",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "entity",
+      "responsibility": "设备实体:身份(deviceId)+ 生命周期状态(connected/connecting/disconnected)+ Android 授权态",
+      "depends_on": [],
+      "industry_basis": "DDD 实体 —— 有唯一标识与生命周期的领域对象",
+      "design_principles": ["entity"],
+      "code_units": ["electron/src/services/DeviceManager.ts"]
+    },
+    {
+      "id": "ROLE-D03",
+      "name": "FileInfo / FileStats",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "不可变文件描述符值对象(名称/路径/类型/大小/修改时间)",
+      "depends_on": [],
+      "industry_basis": "DDD 值对象 —— 无身份、按值判等的描述型对象",
+      "design_principles": ["value_object"],
+      "code_units": ["electron/src/adapters/types.ts"]
+    }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "依赖方向:controller(main)→service(FileOperationManager/StreamTransfer)→infrastructure(AndroidAdapter)→port(IFileSystemAdapter),不反向、不跨层", "principle": "dependency_direction", "role_scope": ["ROLE-L08", "ROLE-L05", "ROLE-L06", "ROLE-L02", "ROLE-L01"] },
+    { "id": "DC-2", "item": "服务层依赖 IFileSystemAdapter 端口,不直接依赖 AndroidAdapter 等具体实现", "principle": "DIP", "role_scope": ["ROLE-L05", "ROLE-L06", "ROLE-L07"] },
+    { "id": "DC-3", "item": "流式 vs 缓冲策略按 canStream 能力位选择,新增/变更适配器无需改动 FileOperationManager", "principle": "OCP", "role_scope": ["ROLE-L05", "ROLE-L06", "ROLE-L01"] },
+    { "id": "DC-4", "item": "openReadStream/openWriteStream 为可选方法 + canStream 门控,SMB/iOS 不实现也不受影响(缓冲回退)", "principle": "ISP", "role_scope": ["ROLE-L01"] },
+    { "id": "DC-5", "item": "任务状态机/进度记账由 TransferTask 自持(markRunning/complete/fail/markCancelled/addBytes…),Manager 只编排不直改字段", "principle": "tell_dont_ask", "role_scope": ["ROLE-D01", "ROLE-L05"] },
+    { "id": "DC-6", "item": "取消/失败的半成品清理与『失败绝不删源』由 StreamTransfer 统一保证,与队列编排分离", "principle": "separation_of_concerns", "role_scope": ["ROLE-L06"] }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "发现 Android 设备(adb CLI)",
+      "roles": ["ROLE-L04"],
+      "code_refs": ["electron/src/services/MobileDeviceScanner.ts:scanAndroid"],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": "设备 unauthorized → 侧栏标注『待授权』并引导用户在手机放行;offline → 跳过"
+    },
+    {
+      "step": 2,
+      "name": "连接设备(adbkit,经 ToolPathResolver 解析 adb)",
+      "roles": ["ROLE-L08", "ROLE-L07", "ROLE-L02", "ROLE-L03"],
+      "code_refs": ["electron/main.ts:device:connect", "electron/src/services/DeviceManager.ts:connectDevice", "electron/src/adapters/AndroidAdapter.ts:connect"],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "unauthorized/offline → 抛明确中文错误引导(运行时状态校验)"
+    },
+    {
+      "step": 3,
+      "name": "浏览 /sdcard(sync readdir,真实元数据)",
+      "roles": ["ROLE-L08", "ROLE-L07", "ROLE-L02"],
+      "code_refs": ["electron/main.ts:fs:list", "electron/src/adapters/AndroidAdapter.ts:list"],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": null
+    },
+    {
+      "step": 4,
+      "name": "创建传输任务(TransferTask 聚合根入队)",
+      "roles": ["ROLE-L08", "ROLE-L05", "ROLE-D01"],
+      "code_refs": ["electron/main.ts:file-operation:create", "electron/src/services/FileOperationManager.ts:addTask"],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": null
+    },
+    {
+      "step": 5,
+      "name": "流式跨设备拷贝(目录递归 + 中途取消 + 不残留)",
+      "roles": ["ROLE-L05", "ROLE-L06", "ROLE-L02", "ROLE-L01"],
+      "code_refs": ["electron/src/services/FileOperationManager.ts:copyFile", "electron/src/services/StreamTransfer.ts:transferFile"],
+      "doc_ref": "业务流程图-步骤5",
+      "exception": "取消/写入失败 → StreamTransfer 清理目标端半成品;移动仅成功后删源(R5);不支持流式(SMB/iOS)→缓冲回退"
+    },
+    {
+      "step": 6,
+      "name": "推送进度(节流 file-operation:updated)",
+      "roles": ["ROLE-L05", "ROLE-L08"],
+      "code_refs": ["electron/src/services/FileOperationManager.ts:notifyProgress", "electron/main.ts:file-operation:updated"],
+      "doc_ref": "业务流程图-步骤6",
+      "exception": null
+    }
+  ],
+  "logging_standard": {
+    "library": "console + [Tag] 前缀(Electron 主进程,沿用仓库习惯,如 [AndroidAdapter]/[StreamTransfer]/[ToolPathResolver]/[FileOperationManager])",
+    "key_nodes_instrumented": ["入口", "异常", "外部调用"]
+  },
+  "summary": { "roles_count": 12, "process_steps": 6, "layer_roles": 9, "domain_roles": 3 },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "生成侧结构性自检 + LLM 语义自检混合。角色↔代码文件均存在(架构门 go);业务流程 6 步均映射到真实代码与文档(覆盖门 go)。诚实说明:(1) stack 枚举无 Electron,字段以 FastAPI+Vue 作代理,真实栈见 existing_alignment;(2) 日志门:validate_gate 的正则为 Python/Java 的 logger./log./logging. 风格,不识别本项目 console.log/console.error/console.warn + [Tag] 前缀(CLAUDE.md 既定习惯),故脚本重算 logging=no-go 属『脚本近似能力不足 / 栈代理失配』,非真实日志缺失——实际关键节点(连接入口 [AndroidAdapter] connected、异常 console.error 带上下文、外部 adb 调用、StreamTransfer 半成品清理 warn、ToolPathResolver 解析)均已按仓库习惯打点,故判 logging=go;(3) 仓库 npm run typecheck(vue-tsc)仅覆盖 renderer/src,electron/** 从未被其覆盖,存在 4 个 pre-existing 主进程类型错误(main.ts 的 Credentials 未再导出 / LocalAdapter.search 内嵌 this / SMB 的 @aozp/smb2 未装 / SSH 的 ssh2 缺声明),均非本特性引入,本特性新增/改动文件在 tsc -p tsconfig.node.json 下零错误;(4) 语义性职责单一/依赖合理性由 LLM 自检,非 AST 强度。"
+  },
+  "open_questions": [
+    { "id": "OQ-1", "question": "skill stack 枚举不含 Electron", "impact": "design-contract.stack 不得不以 FastAPI+Vue 作枚举代理", "next_stage": "工具能力限制,已在 existing_alignment 与 gate.notes 显式记录真实栈" },
+    { "id": "OQ-2", "question": "npm run typecheck 仅覆盖 renderer,electron/** 4 个 pre-existing 类型错误长期未暴露", "impact": "主进程无静态门禁;非本特性引入", "next_stage": "建议后续把 electron 纳入 CI 的 tsc 检查并清理这 4 项(单独工程任务)" },
+    { "id": "OQ-3", "question": "目标同名覆盖策略现状为『跳过』,需求 R7 要求『询问覆盖/跳过/重命名』", "impact": "批量传输遇同名直接 skip,不询问", "next_stage": "在 FileOperationManager 增加覆盖策略参数 + 渲染层询问 IPC(后续增强)" },
+    { "id": "OQ-4", "question": "SMB(@aozp/smb2)与 iOS 的流式未实现", "impact": "这两类端点的大文件传输走整文件缓冲回退(可能高内存)", "next_stage": "评估 @aozp/smb2 流式能力后补 canStream" },
+    { "id": "OQ-5", "question": "打包需自行放入 macOS adb 二进制到 build/tools/adb", "impact": "未放入则 npm run dist:mac 失败;且可能需处理 macOS quarantine", "next_stage": "由打包流程获取 platform-tools 并 chmod +x / xattr(见 build/tools/README.md)" },
+    { "id": "OQ-6", "question": "Android 通道选型已定 adbkit,具体用维护版 @devicefarmer/adbkit", "impact": "已落地(3.3.9)并通过 Electron 29/Node 构建验证", "next_stage": "运行期真机回归后定版" }
+  ]
+}

@@ -20,7 +20,7 @@ npm run icon       # regenerate the placeholder build/icon.icns from icons/ic_co
 ```
 
 - There is **no test suite** and **no linter/formatter configured**. `npm run typecheck` is the sole pre-flight check.
-- **Packaging uses `electron-builder`** (config in `electron-builder.yml`, orchestrated by `scripts/build-dmg.sh`). It ships only `out/` + `package.json` + pruned prod `node_modules`, asar-packs the app, unpacks native binaries (`sharp`, `ssh2`, `ffmpeg-static`), and emits an **unsigned** DMG (`CSC_IDENTITY_AUTO_DISCOVERY=false` — override to sign). Native-dep rebuild is disabled (`npmRebuild: false`) since all are N-API prebuilt or pure-JS. The app icon (`build/icon.icns`) is a generated placeholder; drop a hand-made one to override.
+- **Packaging uses `electron-builder`** (config in `electron-builder.yml`, orchestrated by `scripts/build-dmg.sh`). It ships only `out/` + `package.json` + pruned prod `node_modules`, asar-packs the app, unpacks native binaries (`sharp`, `ssh2`, `ffmpeg-static`), and emits an **unsigned** DMG (`CSC_IDENTITY_AUTO_DISCOVERY=false` — override to sign). Native-dep rebuild is disabled (`npmRebuild: false`) since all are N-API prebuilt or pure-JS. The app icon (`build/icon.icns`) is a generated placeholder; drop a hand-made one to override. Per project decision (2026-08-07), the DMG also **bundles the mobile CLI tools** — `adb` (Android) and `libimobiledevice` (`idevice_id`/`ideviceinfo`/`idevicepair` + AFC) — as `extraResources`, so users need not install them; `MobileDeviceScanner` must resolve the bundled copy, not `$PATH`. License compliance for these bundled tools is explicitly out of scope. (Wiring pending: drop the macOS binaries into `extraResources` and switch the scanner's `which`/bare-command calls to the bundled path.)
 - Dev loads `process.env.ELECTRON_RENDERER_URL || http://localhost:5173`.
 
 ## Architecture
@@ -45,7 +45,7 @@ Channels are namespaced: `system:`, `config:`, `device:`, `fs:`, `zip:`, `file-o
 
 `DeviceCapabilities` (`electron/src/adapters/capabilities.ts`) describes what each device can do (read/write/copy/search + cross-device `canCopyFrom/copyTo/moveFrom/moveTo`, plus `readonlyPaths`, `maxFileSize`). The UI gates actions on these flags; `canTransferBetween()` checks both endpoints. iOS is heavily restricted (no search/copy/move within device, `/` read-only).
 
-**Optional native deps are externalized and loaded at runtime**, not required to build/run: `@aozp/smb2`/`smb2`, `ssh2`, `adbkit` are listed `external` in the vite config. Missing ones just disable that device type — do not add them as hard imports.
+**Optional native deps are externalized and loaded at runtime**, not required to build/run: `@aozp/smb2`/`smb2`, `ssh2`, `adbkit` are listed `external` in the vite config. Missing ones just disable that device type — do not add them as hard imports. The mobile features additionally depend on **external CLI tools** (`adb`, `libimobiledevice`) — these are **bundled into the DMG** (see the packaging note above), not user-installed; do not assume they live on `$PATH`.
 
 ### Cross-device transfer
 `fs:copyBetween`/`fs:moveBetween` in `main.ts` do a **read-buffer→write loop** (move = copy + delete source), not a stream. `FileOperationManager` serializes a queue and pushes `file-operation:updated` progress events to the renderer.
