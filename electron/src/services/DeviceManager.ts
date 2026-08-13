@@ -95,6 +95,22 @@ export class DeviceManager {
       removed
     })
 
+    // 先同步仍在线的设备元数据。iOS 的 pairingStatus 可在同一 USB 会话中
+    // 由 unpaired 变为 paired（或被撤销），不能只在首次发现时写入。
+    let metadataChanged = false
+    for (const detected of devices) {
+      const existing = this.devices.get(detected.id)
+      if (existing) {
+        metadataChanged = metadataChanged ||
+          existing.name !== detected.name ||
+          existing.model !== detected.model ||
+          existing.pairingStatus !== detected.pairingStatus
+        existing.name = detected.name
+        existing.model = detected.model
+        existing.pairingStatus = detected.pairingStatus
+      }
+    }
+
     // Process new devices
     for (const device of added) {
       console.log('[DeviceManager] Processing new device:', device.id, device.name)
@@ -109,6 +125,8 @@ export class DeviceManager {
         name: device.name,
         status: shouldAutoConnect ? 'connecting' : 'disconnected',
         rootPath: '/',
+        pairingStatus: device.pairingStatus,
+        model: device.model,
         config: {
           id: device.id,
           type: device.type,
@@ -125,8 +143,8 @@ export class DeviceManager {
     }
 
     // Notify handlers if any devices were added
-    if (added.length > 0) {
-      console.log('[DeviceManager] Notifying handlers of new devices')
+    if (added.length > 0 || metadataChanged) {
+      console.log('[DeviceManager] Notifying handlers of mobile device updates')
       this.notifyHandlers()
     }
 

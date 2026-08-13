@@ -254,13 +254,13 @@ ipcMain.handle('fs:copyBetween', async (
   dstDeviceId: string,
   dstPath: string
 ) => {
-  // For cross-device copy, we need to read from source and write to destination
-  for (const srcPath of srcPaths) {
-    const buffer = await deviceManager.readFile(srcDeviceId, srcPath)
-    const fileName = srcPath.split('/').pop() || 'file'
-    const targetPath = join(dstPath, fileName)
-    await deviceManager.writeFile(dstDeviceId, targetPath, buffer)
-  }
+  await fileOperationManager.addTaskAndWait({
+    type: 'copy',
+    sourceDeviceId: srcDeviceId,
+    sourcePaths: srcPaths,
+    targetDeviceId: dstDeviceId,
+    targetPath: dstPath
+  })
 })
 
 ipcMain.handle('fs:moveBetween', async (
@@ -270,14 +270,13 @@ ipcMain.handle('fs:moveBetween', async (
   dstDeviceId: string,
   dstPath: string
 ) => {
-  // For cross-device move: copy then delete source
-  for (const srcPath of srcPaths) {
-    const buffer = await deviceManager.readFile(srcDeviceId, srcPath)
-    const fileName = srcPath.split('/').pop() || 'file'
-    const targetPath = join(dstPath, fileName)
-    await deviceManager.writeFile(dstDeviceId, targetPath, buffer)
-    await deviceManager.delete(srcDeviceId, srcPath)
-  }
+  await fileOperationManager.addTaskAndWait({
+    type: 'move',
+    sourceDeviceId: srcDeviceId,
+    sourcePaths: srcPaths,
+    targetDeviceId: dstDeviceId,
+    targetPath: dstPath
+  })
 })
 
 // ============ File Operation IPC Handlers ============

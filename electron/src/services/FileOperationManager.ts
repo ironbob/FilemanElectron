@@ -161,6 +161,7 @@ export class FileOperationManager {
   private mainWindow: BrowserWindow | null = null
   private maxHistorySize = 100
   private lastProgressNotifyAt = 0
+  private completionWaiters = new Map<string, (task: FileOperationTask) => void>()
 
   registerAdapter(deviceId: string, adapter: IFileSystemAdapter): void {
     this.adapters.set(deviceId, adapter)
@@ -219,6 +220,7 @@ export class FileOperationManager {
       this.currentTask = null
       if (completedTask) {
         this.addToHistory(completedTask)
+        this.resolveCompletion(completedTask)
       }
       this.processQueue()
     }
@@ -276,7 +278,7 @@ export class FileOperationManager {
     for (const sourcePath of task.sourcePaths) {
       if (this.cancelled) return
       try {
-        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter, false)
+        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter++, false)
       } catch (error) {
         if (error instanceof CancelledError) return
         throw error
@@ -322,7 +324,7 @@ export class FileOperationManager {
     for (const sourcePath of task.sourcePaths) {
       if (this.cancelled) return
       try {
-        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter, true)
+        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter++, true)
       } catch (error) {
         if (error instanceof CancelledError) return
         throw error
@@ -339,23 +341,23 @@ export class FileOperationManager {
     targetDir: string,
     nextIndex: () => number,
     move: boolean
-  ): Promise<void> {
+  ): Promise<boolean> {
     let isDir = false
     try {
       isDir = (await source.stat(sourcePath)).isDirectory
     } catch {
       // 取不到属性 → 按失败记录,跳过。
       task.recordItem({ sourcePath, status: 'failed', error: '无法读取源路径属性' })
-      return
+      return false
     }
 
     const name = posixBaseName(sourcePath)
     const dst = joinPosix(targetDir, name)
 
     if (isDir) {
-      await this.copyTree(task, source, sourcePath, target, dst, nextIndex, move)
+      return this.copyTree(task, source, sourcePath, target, dst, nextIndex, move)
     } else {
-      await this.copyFile(task, source, sourcePath, target, dst, nextIndex, move)
+      return this.copyFile(task, source, sourcePath, target, dst, nextIndex, move)
     }
   }
 
@@ -368,12 +370,19 @@ export class FileOperationManager {
     dstDir: string,
     nextIndex: () => number,
     move: boolean
-  ): Promise<void> {
-    // 确保目标目录存在(已存在则忽略)。
+  ): Promise<boolean> {
+    // 确保目标目录存在。只有“已存在且本身为目录”才可继续；不能把权限或
+    // 同名文件错误吞掉后继续移动源目录。
     try {
-      await target.mkdir(dstDir)
-    } catch {
-      /* 可能已存在 */
+      if (await target.exists(dstDir)) {
+        const targetStat = await target.stat(dstDir)
+        if (!targetStat.isDirectory) throw new Error(`目标路径不是目录: ${dstDir}`)
+      } else {
+        await target.mkdir(dstDir)
+      }
+    } catch (error) {
+      task.recordItem({ sourcePath: srcDir, targetPath: dstDir, status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      return false
     }
 
     let entries: Awaited<ReturnType<IFileSystemAdapter['list']>> = []
@@ -381,34 +390,38 @@ export class FileOperationManager {
       entries = await source.list(srcDir)
     } catch (error) {
       task.recordItem({ sourcePath: srcDir, status: 'failed', error: error instanceof Error ? error.message : String(error) })
-      return
+      return false
     }
 
-    let failures = 0
+    let copiedCompletely = true
     for (const entry of entries) {
-      if (this.cancelled) return
+      if (this.cancelled) return false
       const childSrc = joinPosix(srcDir, entry.name)
       const childDst = joinPosix(dstDir, entry.name)
       try {
+        let copied: boolean
         if (entry.isDirectory) {
-          await this.copyTree(task, source, childSrc, target, childDst, nextIndex, move)
+          copied = await this.copyTree(task, source, childSrc, target, childDst, nextIndex, move)
         } else {
-          await this.copyFile(task, source, childSrc, target, childDst, nextIndex, move)
+          copied = await this.copyFile(task, source, childSrc, target, childDst, nextIndex, move)
         }
+        copiedCompletely = copiedCompletely && copied
       } catch (error) {
-        if (error instanceof CancelledError) return
-        failures++
+        if (error instanceof CancelledError) return false
+        copiedCompletely = false
       }
     }
 
-    // R5:移动目录时,仅当本层无失败才删源目录(避免丢失未传成功的子项)。
-    if (move && failures === 0 && !this.cancelled) {
+    // R5:移动目录时，仅当整个子树均完成且未取消才删源目录。
+    if (move && copiedCompletely && !this.cancelled) {
       try {
         await source.delete(srcDir)
       } catch (error) {
         console.warn(`[FileOperationManager] failed to remove moved source dir ${srcDir}:`, error)
+        return false
       }
     }
+    return copiedCompletely
   }
 
   /** 拷贝单个文件(流式优先,缓冲回退)。move=true 时成功/跳过后删源。 */
@@ -420,7 +433,7 @@ export class FileOperationManager {
     dstPath: string,
     nextIndex: () => number,
     move: boolean
-  ): Promise<void> {
+  ): Promise<boolean> {
     const name = posixBaseName(srcPath)
     const index = nextIndex()
     task.setCurrentFile(name, index)
@@ -433,11 +446,9 @@ export class FileOperationManager {
       if (await target.exists(dstPath)) {
         item.status = 'skipped'
         task.recordItem(item)
-        // 移动语义:目标已有该文件 → 可安全删源。
-        if (move) {
-          try { await source.delete(srcPath) } catch { /* 忽略 */ }
-        }
-        return
+        // 冲突策略为 skip 时必须保留源文件；不能把“目标已存在”当成已验证的
+        // 同一内容，否则移动会造成数据丢失。
+        return false
       }
 
       const startBytes = task.progress.bytesTransferred
@@ -459,6 +470,7 @@ export class FileOperationManager {
       if (move) {
         await source.delete(srcPath)
       }
+      return true
     } catch (error) {
       if (error instanceof CancelledError) {
         // 中断当前文件;由上层根据 this.cancelled 标记任务为 cancelled。
@@ -468,6 +480,7 @@ export class FileOperationManager {
       item.error = error instanceof Error ? error.message : String(error)
       task.recordItem(item)
       // 继续其它文件(与既有行为一致)。
+      return false
     }
   }
 
@@ -612,7 +625,15 @@ export class FileOperationManager {
     if (this.currentTask?.id === taskId) {
       this.cancelled = true
     } else {
+      const queuedTask = this.queue.find(t => t.id === taskId)
       this.queue = this.queue.filter(t => t.id !== taskId)
+      if (queuedTask) {
+        queuedTask.markCancelled()
+        this.addToHistory(queuedTask)
+        this.notifyTaskUpdate(queuedTask)
+        this.resolveCompletion(queuedTask)
+        return
+      }
       const historyIndex = this.history.findIndex(t => t.id === taskId)
       if (historyIndex > -1) {
         this.history[historyIndex].status = 'cancelled'
@@ -654,6 +675,26 @@ export class FileOperationManager {
 
   clearHistory(): void {
     this.history = []
+  }
+
+  /** 兼容旧 IPC：仍通过同一队列执行并等待完成，避免绕过取消、验证与清理。 */
+  async addTaskAndWait(params: CreateTaskParams): Promise<FileOperationTask> {
+    const task = await this.addTask(params)
+    return this.waitForCompletion(task.id)
+  }
+
+  private waitForCompletion(taskId: string): Promise<FileOperationTask> {
+    const completed = this.history.find(task => task.id === taskId)
+    if (completed) return Promise.resolve(completed)
+    return new Promise(resolve => this.completionWaiters.set(taskId, resolve))
+  }
+
+  private resolveCompletion(task: FileOperationTask): void {
+    const resolve = this.completionWaiters.get(task.id)
+    if (resolve) {
+      this.completionWaiters.delete(task.id)
+      resolve(task)
+    }
   }
 
   private addToHistory(task: TransferTask): void {

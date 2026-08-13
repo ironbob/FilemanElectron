@@ -125,8 +125,10 @@ export const IOS_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,    // Pull + delete
   canMoveTo: true,      // Push + delete source
   canStream: false,     // AFC has no usable stream CLI → buffer fallback
-  // iOS is heavily restricted
-  readonlyPaths: ['/'],
+  // AFC itself is the sandbox boundary. Do not mark `/` read-only here: doing
+  // so makes every write/delete action unavailable in the UI even when AFC
+  // grants access to a writable container. Unsupported paths are rejected by
+  // the device and surfaced with context by iOSAdapter.
   maxFileSize: 2 * 1024 * 1024 * 1024, // 2GB typical limit for app sandbox
 }
 

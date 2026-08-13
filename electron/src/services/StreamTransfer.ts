@@ -90,6 +90,7 @@ export class StreamTransfer {
       await new Promise<void>((resolve, reject) => {
         pipeline(src!, meter, dst!, (err) => (err ? reject(err) : resolve()))
       })
+      await this.verifyTargetSize(target, dstPath, bytesTransferred)
       return bytesTransferred
     } catch (error) {
       // R4:取消/失败 → 删除目标端半成品,不残留。
@@ -119,6 +120,7 @@ export class StreamTransfer {
 
     try {
       await target.writeFile(dstPath, content)
+      await this.verifyTargetSize(target, dstPath, content.length)
     } catch (error) {
       // R4:写入失败 → 清理半成品。
       await this.safeDeletePartial(target, dstPath)
@@ -138,6 +140,23 @@ export class StreamTransfer {
       }
     } catch (cleanupError) {
       console.error(`[StreamTransfer] failed to clean partial target ${dstPath}:`, cleanupError)
+    }
+  }
+
+  /**
+   * 复制成功的最小验证：目标必须是同等字节数的文件。移动操作依赖此不变量，
+   * 因而只有该检查通过后 FileOperationManager 才会删除源文件。
+   */
+  private static async verifyTargetSize(
+    target: IFileSystemAdapter,
+    dstPath: string,
+    expectedBytes: number
+  ): Promise<void> {
+    const stat = await target.stat(dstPath)
+    if (!stat.isFile || stat.size !== expectedBytes) {
+      throw new Error(
+        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat.size} 字节`
+      )
     }
   }
 }

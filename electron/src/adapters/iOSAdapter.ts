@@ -108,6 +108,14 @@ export class iOSAdapter implements IFileSystemAdapter {
 
   private h(): number {
     if (!this.connected || this.handle === null) throw new Error('iOS 设备未连接')
+    // 配对可能在长连接期间被用户撤回。每个 AFC 操作前重新校验，避免让旧 handle
+    // 静默失败或继续被误认为可用。
+    if (!loadAddon().isPaired(this.udid())) {
+      try { loadAddon().disconnect(this.handle) } catch { /* 会话可能已被设备关闭 */ }
+      this.handle = null
+      this.connected = false
+      throw new Error('iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。')
+    }
     return this.handle
   }
 
@@ -171,7 +179,16 @@ export class iOSAdapter implements IFileSystemAdapter {
   }
 
   async writeFile(filePath: string, data: Buffer): Promise<void> {
-    loadAddon().writeFile(this.h(), filePath, data)
+    const maxFileSize = this.getCapabilities().maxFileSize
+    if (maxFileSize !== undefined && data.length > maxFileSize) {
+      throw new Error(`iOS AFC 单文件上限为 ${maxFileSize} 字节，无法写入: ${filePath}`)
+    }
+    try {
+      loadAddon().writeFile(this.h(), filePath, data)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`iOS AFC 无法写入 ${filePath}；该位置可能不允许写入或父目录不存在。${message}`)
+    }
   }
 
   async exists(targetPath: string): Promise<boolean> {

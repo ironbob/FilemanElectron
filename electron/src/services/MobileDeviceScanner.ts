@@ -141,14 +141,21 @@ export class MobileDeviceScanner {
       log.info('Devices removed:', removed)
     }
 
-    // Update current devices
+    // 配对状态、设备名称等会在同一 USB 会话中变化。它们没有 added/removed
+    // 事件，但仍必须推送给 DeviceManager/renderer。
+    const changed = devices.some(device => {
+      const previous = this.currentDevices.get(device.id)
+      return !!previous && !sameDetectedDevice(previous, device)
+    })
+
+    // Update current devices after comparing with the previous snapshot.
     this.currentDevices.clear()
     for (const device of devices) {
       this.currentDevices.set(device.id, device)
     }
 
     // Notify handlers
-    if (added.length > 0 || removed.length > 0) {
+    if (added.length > 0 || removed.length > 0 || changed) {
       // log.debug('Notifying handlers of device changes')
       this.notifyHandlers(devices, added, removed)
     }
@@ -434,4 +441,12 @@ export class MobileDeviceScanner {
   isAdbAvailable(): boolean | null {
     return this.adbAvailable
   }
+}
+
+function sameDetectedDevice(a: DetectedDevice, b: DetectedDevice): boolean {
+  return a.id === b.id &&
+    a.type === b.type &&
+    a.name === b.name &&
+    a.model === b.model &&
+    a.pairingStatus === b.pairingStatus
 }

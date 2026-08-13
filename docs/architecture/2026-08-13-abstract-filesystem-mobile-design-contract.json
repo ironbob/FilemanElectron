@@ -1,0 +1,202 @@
+{
+  "feature": "abstract-filesystem-mobile",
+  "title": "多设备抽象文件系统 — Android 与 iOS 适配",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-13",
+  "existing_alignment": {
+    "recognized_style": "实际栈为 Electron 29 主进程 TypeScript、Vue 3 与 Pinia，以及 iOS AFC 的 C++ N-API addon。仓库采用 IFileSystemAdapter 端口、设备/传输服务、main.ts IPC 组合根和 contextBridge 边界；运行期日志沿用 console + [组件名] 前缀。stack 字段使用 FastAPI+Vue 仅为 skill 枚举代理。",
+    "new_code_follows": "沿用 adapters/、services/、main.ts 的职责划分；Android 与 iOS 保持各自协议翻译在适配器内，跨设备搬运统一经过 FileOperationManager 与 StreamTransfer；日志继续使用 [AndroidAdapter]、[FileOperationManager]、[MobileDeviceScanner] 等带上下文的 console 输出。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "IFileSystemAdapter",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "定义多设备文件系统的最小统一端口，并将流式访问保持为能力门控的可选扩展。",
+      "depends_on": ["ROLE-D01", "ROLE-D03"],
+      "industry_basis": "Ports and Adapters Port / Gateway：上层通过稳定文件系统端口访问多种后端。",
+      "design_principles": ["DIP", "OCP", "ISP"],
+      "code_units": ["electron/src/adapters/types.ts", "electron/src/adapters/capabilities.ts"]
+    },
+    {
+      "id": "ROLE-D01",
+      "name": "DeviceCapabilities",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "描述一个设备端口可读取、写入、搜索、流式及跨设备传输的能力边界。",
+      "depends_on": [],
+      "industry_basis": "DDD 值对象：以无身份的能力集合表达设备契约。",
+      "design_principles": ["value_object", "ISP"],
+      "code_units": ["electron/src/adapters/capabilities.ts"]
+    },
+    {
+      "id": "ROLE-D02",
+      "name": "TransferTask",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "aggregate",
+      "responsibility": "封装传输队列项的状态转移、进度和单项结果，维护移动任务的生命周期一致性。",
+      "depends_on": [],
+      "industry_basis": "DDD 聚合根：传输状态机作为一致性边界，对外只暴露行为方法。",
+      "design_principles": ["aggregate", "tell_dont_ask", "SRP"],
+      "code_units": ["electron/src/services/FileOperationManager.ts"]
+    },
+    {
+      "id": "ROLE-D03",
+      "name": "FileInfo / FileStats",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "描述跨设备统一的文件名称、路径、类型、大小和时间元数据。",
+      "depends_on": [],
+      "industry_basis": "DDD 值对象：文件元数据无独立身份，按字段在进程边界间传递。",
+      "design_principles": ["value_object", "separation_of_concerns"],
+      "code_units": ["electron/src/adapters/types.ts"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "AndroidAdapter",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "将统一端口操作映射为 ADB sync、shell 与 pull/push 流，并返回真实文件元数据。",
+      "depends_on": ["ROLE-L01", "ROLE-L04"],
+      "industry_basis": "GoF Adapter / Hexagonal Driven Adapter：将 Android ADB 协议隔离在一个端口实现内。",
+      "design_principles": ["SRP", "DIP", "separation_of_concerns"],
+      "code_units": ["electron/src/adapters/AndroidAdapter.ts"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "iOSAdapter",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "将统一端口操作映射为 AFC addon 调用，并在每次操作前校验配对与写入大小边界。",
+      "depends_on": ["ROLE-L01", "ROLE-L05"],
+      "industry_basis": "GoF Adapter / Anti-Corruption Layer：隔离 AFC 与 libimobiledevice 的原生细节。",
+      "design_principles": ["SRP", "DIP", "separation_of_concerns"],
+      "code_units": ["electron/src/adapters/iOSAdapter.ts"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "ToolPathResolver",
+      "role_kind": "layer",
+      "layer": "util",
+      "domain_role": null,
+      "responsibility": "解析开发态或打包态 adb 可执行文件路径，作为 Android 工具位置的唯一来源。",
+      "depends_on": [],
+      "industry_basis": "Infrastructure configuration resolver：把运行时工具定位从协议使用方中分离。",
+      "design_principles": ["SRP", "high_cohesion_low_coupling", "separation_of_concerns"],
+      "code_units": ["electron/src/services/ToolPathResolver.ts"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "iOS AFC Native Bridge",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "持有 AFC 会话和 libimobiledevice 资源，并以整数 handle 向 TypeScript 暴露受控原生操作。",
+      "depends_on": ["ROLE-D03"],
+      "industry_basis": "Native gateway / Foreign Function Adapter：封装 C++ 资源释放顺序和 Node 边界。",
+      "design_principles": ["SRP", "ISP", "separation_of_concerns"],
+      "code_units": ["native/iosafc/iosafc.cpp", "native/iosafc/index.d.ts"]
+    },
+    {
+      "id": "ROLE-L06",
+      "name": "MobileDeviceScanner",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "扫描 Android/iOS 设备并在插拔、授权或 iOS 配对状态变化时通知设备层。",
+      "depends_on": ["ROLE-L04"],
+      "industry_basis": "Infrastructure polling monitor：用快照差异向应用层报告外部设备状态。",
+      "design_principles": ["SRP", "separation_of_concerns"],
+      "code_units": ["electron/src/services/MobileDeviceScanner.ts"]
+    },
+    {
+      "id": "ROLE-L07",
+      "name": "DeviceManager",
+      "role_kind": "layer",
+      "layer": "facade",
+      "domain_role": null,
+      "responsibility": "管理设备生命周期、同步检测元数据、按设备类型创建适配器并代理统一文件操作。",
+      "depends_on": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-L06"],
+      "industry_basis": "Facade / Application Service：为 IPC 上层提供统一的设备与文件系统入口。",
+      "design_principles": ["DIP", "SRP", "high_cohesion_low_coupling"],
+      "code_units": ["electron/src/services/DeviceManager.ts"]
+    },
+    {
+      "id": "ROLE-L08",
+      "name": "StreamTransfer",
+      "role_kind": "layer",
+      "layer": "service",
+      "domain_role": null,
+      "responsibility": "在两个端口之间传输单文件、计量进度、检查取消并在异常时清理目标半成品。",
+      "depends_on": ["ROLE-L01"],
+      "industry_basis": "Strategy / Pipe-and-Filter：将流式与缓冲传输策略从队列编排中分离。",
+      "design_principles": ["SRP", "OCP", "separation_of_concerns"],
+      "code_units": ["electron/src/services/StreamTransfer.ts"]
+    },
+    {
+      "id": "ROLE-L09",
+      "name": "FileOperationManager",
+      "role_kind": "layer",
+      "layer": "service",
+      "domain_role": null,
+      "responsibility": "编排复制、移动、目录递归、冲突跳过、进度推送与任务完成等待，并只在目标校验通过后删除源。",
+      "depends_on": ["ROLE-L01", "ROLE-L08", "ROLE-D02"],
+      "industry_basis": "DDD Application Service / command queue：协调端口和任务聚合而不承载协议细节。",
+      "design_principles": ["SRP", "DIP", "OCP", "tell_dont_ask"],
+      "code_units": ["electron/src/services/FileOperationManager.ts"]
+    },
+    {
+      "id": "ROLE-L10",
+      "name": "main.ts IPC Composition Root",
+      "role_kind": "layer",
+      "layer": "controller",
+      "domain_role": null,
+      "responsibility": "装配设备和传输服务，并让新旧跨设备 IPC 都进入同一传输队列。",
+      "depends_on": ["ROLE-L07", "ROLE-L09"],
+      "industry_basis": "Composition Root / Driving Adapter：集中协议入口和依赖组装，不实现文件传输规则。",
+      "design_principles": ["DIP", "SRP", "dependency_direction"],
+      "code_units": ["electron/main.ts"]
+    }
+  ],
+  "design_contract_checks": [
+    {"id": "DC-1", "item": "调用方只依赖 IFileSystemAdapter 和 DeviceCapabilities，不直接依赖 Android 或 iOS 的协议实现。", "principle": "DIP", "role_scope": ["ROLE-L01", "ROLE-L07", "ROLE-L08", "ROLE-L09"]},
+    {"id": "DC-2", "item": "新增本地、SSH、SMB 或新设备适配器只实现端口和能力，不修改传输编排。", "principle": "OCP", "role_scope": ["ROLE-L01", "ROLE-L08", "ROLE-L09"]},
+    {"id": "DC-3", "item": "Android ADB、iOS AFC、工具路径与设备扫描各自保持在单一基础设施角色中。", "principle": "separation_of_concerns", "role_scope": ["ROLE-L02", "ROLE-L03", "ROLE-L04", "ROLE-L05", "ROLE-L06"]},
+    {"id": "DC-4", "item": "跨设备移动只有在目标端写入完成并通过 size 校验后才删除源；跳过冲突和目录子项失败均保留源。", "principle": "tell_dont_ask", "role_scope": ["ROLE-L08", "ROLE-L09", "ROLE-D02"]},
+    {"id": "DC-5", "item": "iOS 每次 AFC 文件操作先重验配对，失效时关闭会话并返回可诊断错误。", "principle": "SRP", "role_scope": ["ROLE-L03", "ROLE-L05"]},
+    {"id": "DC-6", "item": "旧 fs:copyBetween 与 fs:moveBetween 不得自行读缓冲和删源，必须委托 FileOperationManager。", "principle": "dependency_direction", "role_scope": ["ROLE-L09", "ROLE-L10"]}
+  ],
+  "business_process": [
+    {"step": 1, "name": "扫描并同步手机状态", "roles": ["ROLE-L06", "ROLE-L07"], "code_refs": ["electron/src/services/MobileDeviceScanner.ts:scan", "electron/src/services/DeviceManager.ts:handleMobileDeviceDiscovered"], "doc_ref": "业务流程图-步骤1", "exception": "ADB 未授权、设备离线或 iOS 未配对时保留可诊断状态而不建立可用文件会话。"},
+    {"step": 2, "name": "按设备类型建立统一端口", "roles": ["ROLE-L07", "ROLE-L02", "ROLE-L03", "ROLE-L04", "ROLE-L05"], "code_refs": ["electron/src/services/DeviceManager.ts:createAdapter", "electron/src/adapters/AndroidAdapter.ts:connect", "electron/src/adapters/iOSAdapter.ts:connect"], "doc_ref": "业务流程图-步骤2", "exception": "Android 未授权或 iOS 信任失效时适配器拒绝连接并给出原因。"},
+    {"step": 3, "name": "执行统一文件操作", "roles": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-D01", "ROLE-D03"], "code_refs": ["electron/src/adapters/types.ts", "electron/src/adapters/AndroidAdapter.ts:list", "electron/src/adapters/iOSAdapter.ts:writeFile"], "doc_ref": "业务流程图-步骤3", "exception": "iOS AFC 写入路径不被设备允许、父目录不存在或文件超过能力上限时返回带路径的错误。"},
+    {"step": 4, "name": "创建传输聚合并排队", "roles": ["ROLE-L09", "ROLE-D02"], "code_refs": ["electron/src/services/FileOperationManager.ts:addTask", "electron/src/services/FileOperationManager.ts:executeTask"], "doc_ref": "业务流程图-步骤4", "exception": "源或目标适配器未注册时任务失败，不执行任何删除。"},
+    {"step": 5, "name": "复制、校验并按需移动", "roles": ["ROLE-L09", "ROLE-L08", "ROLE-L01"], "code_refs": ["electron/src/services/FileOperationManager.ts:copyFile", "electron/src/services/FileOperationManager.ts:copyTree", "electron/src/services/StreamTransfer.ts:transferFile"], "doc_ref": "业务流程图-步骤5", "exception": "取消、传输失败或目标 size 校验失败时清理目标半成品并保留源；同名跳过时也保留源。"},
+    {"step": 6, "name": "兼容入口委托统一队列", "roles": ["ROLE-L10", "ROLE-L09"], "code_refs": ["electron/main.ts:fs:copyBetween", "electron/main.ts:fs:moveBetween", "electron/src/services/FileOperationManager.ts:addTaskAndWait"], "doc_ref": "业务流程图-步骤6", "exception": "旧 IPC 入口不再绕过进度、取消、校验或半成品清理。"}
+  ],
+  "logging_standard": {
+    "library": "Electron 主进程 console.log/warn/error + [组件名] 前缀；C++ addon 仅将错误转换为 N-API 异常。",
+    "key_nodes_instrumented": ["入口", "异常", "外部调用"]
+  },
+  "summary": {"roles_count": 13, "process_steps": 6, "layer_roles": 10, "domain_roles": 3},
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "结构性复核确认所有角色与流程均回链到现有代码文件，依赖 id 可解析。辅助日志脚本只识别 FastAPI/C++ 风格的 logger 或 spdlog 关键字，不能正确识别本仓库既定的 console + [组件名] 运行期日志，故其重算结果会将若干纯类型或 console 单元视为零日志；这属于枚举代理与正则近似限制。人工复核确认 Android、扫描器、设备管理与传输异常路径均保留上下文日志。职责单一、依赖方向和移动安全性属于辅助校验未覆盖的语义项，已按代码人工复核。"
+  },
+  "open_questions": [
+    {"question": "AFC 端不支持流式读写", "impact": "涉及 iOS 的大文件传输会走受 maxFileSize 约束的缓冲回退，内存占用高于 Android/SSH 流式路径。", "next_stage": "在原生 bridge 增加 AFC 分块读写流接口，再将 iOS canStream 改为 true。"},
+    {"question": "跨设备同名冲突当前采用 skip", "impact": "移动任务会保留源端，避免数据丢失，但未提供询问覆盖或重命名策略。", "next_stage": "在 FileOperationManager 的任务参数中引入明确冲突策略，并由 renderer 提供决策界面。"},
+    {"question": "移动设备真机回归尚未在本工作区执行", "impact": "ADB 授权、AFC 权限和实际设备目录限制仍需在连接的 Android/iPhone 上验证。", "next_stage": "使用 USB 真机完成浏览、复制、取消、拔线和撤销信任的回归记录。"}
+  ]
+}
