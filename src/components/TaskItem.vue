@@ -138,6 +138,36 @@
       Completed in {{ formatDuration(task.startedAt, task.completedAt) }}
     </div>
 
+    <!-- Source / destination: retain endpoint context while the task is running and in history. -->
+    <div v-if="primarySourcePath || destinationPath" class="mb-2 space-y-1.5 text-xs">
+      <div v-if="primarySourcePath" class="flex items-center gap-2 min-w-0">
+        <span class="w-16 shrink-0 text-text-tertiary">Source</span>
+        <span class="min-w-0 flex-1 truncate text-text-secondary" :title="primarySourcePath">
+          {{ endpointLabel(sourceDeviceId, primarySourcePath) }}
+        </span>
+        <button
+          class="shrink-0 text-accent-blue hover:underline cursor-pointer"
+          :title="`Locate source: ${primarySourcePath}`"
+          @click="locateEndpoint('source', sourceDeviceId, primarySourcePath)"
+        >
+          Locate
+        </button>
+      </div>
+      <div v-if="destinationPath" class="flex items-center gap-2 min-w-0">
+        <span class="w-16 shrink-0 text-text-tertiary">Destination</span>
+        <span class="min-w-0 flex-1 truncate text-text-secondary" :title="destinationPath">
+          {{ endpointLabel(destinationDeviceId, destinationPath) }}
+        </span>
+        <button
+          class="shrink-0 text-accent-blue hover:underline cursor-pointer"
+          :title="`Locate destination: ${destinationPath}`"
+          @click="locateEndpoint('destination', destinationDeviceId, destinationPath)"
+        >
+          Locate
+        </button>
+      </div>
+    </div>
+
     <!-- Actions -->
     <div class="flex items-center gap-2 pt-2 border-t border-border">
       <button
@@ -159,14 +189,7 @@
         class="px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover rounded transition-colors cursor-pointer"
         @click="showInFolder(firstResultPath)"
       >
-        Open in Finder
-      </button>
-      <button
-        v-if="task.status === 'completed' && firstResultPath"
-        class="px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover rounded transition-colors cursor-pointer"
-        @click="$emit('locate', firstResultPath)"
-      >
-        Locate
+        Open copied item in Finder
       </button>
     </div>
   </div>
@@ -180,10 +203,10 @@ const props = defineProps<{
   task: FileOperationTask
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'cancel', taskId: string): void
   (e: 'retry', taskId: string): void
-  (e: 'locate', path: string): void
+  (e: 'locate', endpoint: { kind: 'source' | 'destination'; deviceId: string; path: string }): void
 }>()
 
 const showErrorDetails = ref(false)
@@ -193,8 +216,12 @@ const progressPercent = computed(() => {
   return Math.round((props.task.progress.bytesTransferred / props.task.progress.totalBytes) * 100)
 })
 
+const primarySourcePath = computed(() => props.task.sourcePaths[0] || '')
+const sourceDeviceId = computed(() => props.task.sourceDeviceId)
+const destinationPath = computed(() => props.task.targetPath || '')
+const destinationDeviceId = computed(() => props.task.targetDeviceId || props.task.sourceDeviceId)
 const firstResultPath = computed(() => {
-  const success = props.task.progress.itemResults.find(r => r.status === 'success')
+  const success = props.task.progress.itemResults.find(result => result.status === 'success')
   return success?.targetPath
 })
 
@@ -306,7 +333,19 @@ function getTypeLabel(type: FileOperationType): string {
   return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
 }
 
- function showInFolder(path: string): void {
+function endpointLabel(deviceId: string, path: string): string {
+  return `${deviceId === 'local' ? 'Local' : deviceId} · ${path}`
+}
+
+function locateEndpoint(kind: 'source' | 'destination', deviceId: string, path: string): void {
+  if (deviceId === 'local') {
+    window.fileman.showInFolder(path)
+    return
+  }
+  emit('locate', { kind, deviceId, path })
+}
+
+function showInFolder(path: string): void {
   window.fileman.showInFolder(path)
- }
+}
 </script>

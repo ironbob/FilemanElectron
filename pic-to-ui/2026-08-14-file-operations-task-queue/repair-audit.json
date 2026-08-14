@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "mode": "repair",
+    "target_screen": "文件操作底部任务面板",
+    "reference_screenshots": ["text-ui/DESC-01-file-operation-task-queue.txt"],
+    "implementation_root": ".",
+    "baseline": {
+      "status": "unavailable",
+      "reason": "本任务只有经用户确认的口述文本图；工程没有配置 Electron 截图测试，未提供当前面板截图。"
+    }
+  },
+  "mismatches": [
+    {
+      "id": "MISMATCH-01",
+      "category": "entry",
+      "priority": "P0",
+      "target_ids": ["N4", "ENTRY-01", "ENTRY-02", "DIM-01"],
+      "screenshot_evidence": "DESC-01:任务项需显示本地源/目标位置，并分别提供定位源位置与定位目标位置。",
+      "current_evidence": "src/components/TaskItem.vue:20-58 只显示任务类型、数量与进度；157-170 仅为已完成任务提供单个目标 Locate，未展示源/目标路径。",
+      "diagnosis": "FileOperationTask 已携带 sourceDeviceId/sourcePaths/targetDeviceId/targetPath，但 TaskItem 未把这些字段渲染为端点行；既有 locate 事件在 FileOperationPanel 中只关闭面板，未上传给 App 路由。",
+      "current_code_anchor": {"file": "src/components/TaskItem.vue", "widget": "firstResultPath"},
+      "status": "resolved",
+      "resolution": {
+        "summary": "任务项渲染源与目标端点及各自 Locate 入口；本地路径调用 Finder 定位，非本地路径经面板转发至主窗口的既有文件窗格导航。",
+        "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "locateEndpoint"}
+      },
+      "verification": {
+        "method": "static_inspection",
+        "result": "matched",
+        "evidence": "TaskItem.vue 的 primarySourcePath/destinationPath 与 locateEndpoint 覆盖端点显示和本地 Finder 定位；FileOperationPanel.vue 转发 locate；App.vue 的 handleTaskEndpointLocate 导航远端端点。npm run typecheck 与 npm run build 均 exit 0。"
+      }
+    }
+  ]
+}

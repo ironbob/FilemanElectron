@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "mode": "repair",
+    "target_screen": "文件操作底部任务面板",
+    "stage": "pre_code",
+    "revision": 1,
+    "user_forced_arch_first": false
+  },
+  "estimate": {
+    "production_files": 3,
+    "change_size": "small",
+    "ui_only": false,
+    "logic_change": "local_wiring"
+  },
+  "evidence": [
+    "repair-audit.json: MISMATCH-01 的根因限于 TaskItem 未渲染端点，以及既有 locate 事件未上传至 App。",
+    "src/types/fileOperation.ts: FileOperationTask 已含 sourceDeviceId/sourcePaths/targetDeviceId/targetPath，不需要新增数据模型或 IPC。",
+    "src/App.vue 与 src/stores/tabs.ts 已有窗格导航和设备切换能力；本次只连接现有能力。"
+  ],
+  "risk_flags": {
+    "navigation_change": false,
+    "state_ownership_change": false,
+    "data_flow_change": false,
+    "api_or_persistence_change": false,
+    "new_dependency": false,
+    "cross_layer_change": false,
+    "shared_component_or_token_change": false,
+    "multiple_screens": false,
+    "architecture_role_change": false
+  },
+  "decision": {
+    "path": "direct_ui",
+    "rationale": "三个现有 Vue 组件内的局部 UI 与既有事件连接；不修改队列执行、IPC、任务状态或共享数据模型。"
+  }
+}

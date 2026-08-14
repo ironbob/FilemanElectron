@@ -1,0 +1,42 @@
+{
+  "meta": {"mode": "repair", "report": "report.md"},
+  "gates": [
+    {"name": "text-ui-confirmation", "status": "passed", "evidence": "validate_text_ui.py --phase confirmed passed; user message on 2026-08-14: 确认。"},
+    {"name": "blueprint", "status": "passed", "evidence": "validate_blueprint.py passed with the confirmed text UI contract."},
+    {"name": "repair-audit", "status": "passed", "evidence": "validate_repair.py --phase audit passed with MISMATCH-01 open before editing."},
+    {"name": "coding-path", "status": "passed", "evidence": "change-assessment revision 1 selected direct_ui and the three-file implementation matched the assessed scope."},
+    {"name": "delivery", "status": "passed", "evidence": "validate_delivery.py passed; both endpoint actions and every structure node have real code anchors."},
+    {"name": "repair-closure", "status": "passed", "evidence": "validate_repair.py --phase closure passed; MISMATCH-01 has code and behavior verification evidence."}
+  ],
+  "render_diff": {
+    "status": "unavailable",
+    "reason": "未提供任务面板截图，工程也没有配置可复用的 Electron 截图运行器；本次不把静态检查表述为视觉像素匹配。",
+    "result": "unverified",
+    "flag_ids": ["VISUAL-01"]
+  },
+  "self_check": [
+    {"dimension": "structure", "status": "passed", "evidence": "App.vue、FileOperationPanel.vue 和 TaskItem.vue 的既有层级被保留，端点行嵌入任务卡片。"},
+    {"dimension": "entries", "status": "passed", "evidence": "源和目标 Locate 均调用 locateEndpoint；本地调用 showInFolder，远端事件上传到 App 进行窗格导航。"},
+    {"dimension": "dimensions", "status": "flagged", "evidence": "端点行使用现有紧凑间距，但没有截图可量取比例。", "flag_ids": ["DIM-01"]},
+    {"dimension": "style", "status": "flagged", "evidence": "复用了现有文字和链接样式，但无 before/after 图像可进行视觉对比。", "flag_ids": ["VISUAL-01"]},
+    {"dimension": "icons", "status": "passed", "evidence": "本次不新增或替换图标；现有任务类型图标保持不变。"},
+    {"dimension": "states", "status": "passed", "evidence": "端点行不依赖 completed 状态，运行中与已完成任务均显示；已完成任务保留原有 Open copied item in Finder 操作。"},
+    {"dimension": "a11y", "status": "passed", "evidence": "两个 Locate 按钮均具有含完整路径的 title，路径文本也提供 title 以显示被截断内容。"}
+  ],
+  "proportion_check": {
+    "reference_viewport": {"width_px": 1, "height_px": 1},
+    "rendered_viewport": {"width_px": 1, "height_px": 1},
+    "items": [
+      {"dimension_id": "DIM-01", "reference": {"numerator_px": 1, "denominator_px": 1}, "rendered": {"numerator_px": 1, "denominator_px": 1}, "deviation_pct": 0, "tolerance_pct": 5, "status": "unverified", "evidence": "Schema sentinel only: no visual reference or rendered screenshot exists, so no actual spacing ratio is asserted.", "flag_ids": ["DIM-01"]}
+    ]
+  },
+  "tests": [
+    {"command": "npm run typecheck", "result": "passed", "evidence": "exit 0"},
+    {"command": "npm run build", "result": "passed", "evidence": "exit 0"}
+  ],
+  "flags": [
+    {"id": "DIM-01", "priority": "P1", "reason": "没有截图基准，无法量取端点行相对于任务卡片的间距比例。", "next_action": "在固定窗口尺寸下截取运行中任务并量取端点行与进度区间距。"},
+    {"id": "VISUAL-01", "priority": "P1", "reason": "没有可比的当前/修复后任务面板截图，视觉差异未验证。", "next_action": "运行应用并保存同尺寸的运行中、排队和完成任务截图后进行对比。"}
+  ],
+  "waivers": []
+}

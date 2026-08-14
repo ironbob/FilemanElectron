@@ -119,6 +119,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'locate', endpoint: { kind: 'source' | 'destination'; deviceId: string; path: string }): void
 }>()
 
 const fileOpsStore = useFileOperationsStore()
@@ -165,10 +166,8 @@ async function handleRetry(taskId: string) {
   await fileOpsStore.retryTask(taskId)
 }
 
-function handleLocate(_path: string) {
-  emit('close')
-  // The parent component should handle the locate event to navigate to the path
-  fileOpsStore.hidePanel()
+function handleLocate(endpoint: { kind: 'source' | 'destination'; deviceId: string; path: string }) {
+  emit('locate', endpoint)
 }
 
 function clearHistory() {

@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "mode": "repair",
+    "platform": "macOS desktop",
+    "framework": "Electron + Vue 3",
+    "screen_job": "让用户在不中断文件操作的情况下查看任务源与目标，并分别定位到对应位置。",
+    "scope": "single_screen",
+    "source_inputs": [{"id": "DESC-01", "type": "verbal"}],
+    "text_ui_guard": {
+      "manifest": "text-ui-manifest.json",
+      "result": "user_confirmed",
+      "confirmed_input_ids": ["DESC-01"],
+      "confirmation_evidence": "用户消息（2026-08-14）：确认"
+    }
+  },
+  "structure_skeleton": {
+    "node_id": "N1",
+    "kind": "screen",
+    "children": [
+      {
+        "node_id": "N2",
+        "kind": "task_panel",
+        "children": [
+          {
+            "node_id": "N3",
+            "kind": "card",
+            "children": [{"node_id": "N4", "kind": "endpoint_locator_rows"}]
+          }
+        ]
+      }
+    ]
+  },
+  "entries": [
+    {"id": "ENTRY-01", "kind": "button", "semantic": "定位任务源位置", "input_anchor": "DESC-01:正在复制任务项的源位置行"},
+    {"id": "ENTRY-02", "kind": "button", "semantic": "定位任务目标位置", "input_anchor": "DESC-01:正在复制任务项的目标位置行"}
+  ],
+  "icons": [],
+  "key_dimensions": [
+    {"id": "DIM-01", "what": "spacing", "ratio_note": "源与目标定位行位于任务卡片进度信息之后、操作区之前，使用现有卡片的紧凑文本层级；口述未提供可量取像素比例。"}
+  ],
+  "states": [
+    {"id": "STATE-01", "kind": "running", "source": "input", "input_anchor": "DESC-01:正在复制任务项"},
+    {"id": "STATE-02", "kind": "completed", "source": "input", "input_anchor": "DESC-01:已完成任务项"}
+  ],
+  "bitmaps": [],
+  "empty_reasons": {
+    "icons": "本次只补齐既有任务条目的路径信息与定位入口；确认口述中的复制图标由现有任务类型图标承担，未要求新增或替换图标资源。"
+  }
+}

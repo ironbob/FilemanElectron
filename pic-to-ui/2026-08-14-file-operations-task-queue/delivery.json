@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "architecture_guard": {
+      "mode": "direct_ui",
+      "assessment": "change-assessment.json",
+      "assessment_revision": 1,
+      "implementation_owner": "pic-to-ui",
+      "result": "passed",
+      "validation_evidence": "validate_change_assessment.py passed; actual implementation stayed within TaskItem.vue, FileOperationPanel.vue, and App.vue."
+    },
+    "change_scope": {
+      "assessment_revision": 1,
+      "production_files": [
+        "src/components/TaskItem.vue",
+        "src/components/FileOperationPanel.vue",
+        "src/App.vue"
+      ]
+    }
+  },
+  "entries": [
+    {"entry_id": "ENTRY-01", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "locateEndpoint"}},
+    {"entry_id": "ENTRY-02", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "locateEndpoint"}}
+  ],
+  "icons": [],
+  "structure_nodes": [
+    {"node_id": "N1", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "FileOperationPanel"}},
+    {"node_id": "N2", "status": "delivered", "code_anchor": {"file": "src/components/FileOperationPanel.vue", "widget": "TaskItem"}},
+    {"node_id": "N3", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "primarySourcePath"}},
+    {"node_id": "N4", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "destinationPath"}}
+  ],
+  "dimensions": [
+    {"dimension_id": "DIM-01", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "space-y-1.5"}}
+  ],
+  "states": [
+    {"state_id": "STATE-01", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "task.status === 'running'"}},
+    {"state_id": "STATE-02", "status": "delivered", "code_anchor": {"file": "src/components/TaskItem.vue", "widget": "task.status === 'completed'"}}
+  ]
+}

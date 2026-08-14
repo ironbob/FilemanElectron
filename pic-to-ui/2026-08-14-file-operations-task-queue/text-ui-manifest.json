@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "screen": "文件操作任务队列",
+    "input_mode": "verbal",
+    "input_count": 1,
+    "text_ui_count": 1
+  },
+  "inputs": [
+    {
+      "id": "DESC-01",
+      "input_type": "verbal",
+      "verbal_input": "审查app，当前对于文件操作，比如复制，是耗时的。当前是否提供了任务对列以及相应的ui交互。对于文件操作，给出合理的交互。如果没有，则使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 设计交互。\n\n任务的item，需要能定位源和目的地。特别是local的情况。",
+      "state_label": "file-operation-task-queue",
+      "text_ui_file": "text-ui/DESC-01-file-operation-task-queue.txt",
+      "revision": 2,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "用户消息（2026-08-14）：“确认”"
+      }
+    }
+  ]
+}

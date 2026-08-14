@@ -134,6 +134,7 @@
     <FileOperationPanel
       :visible="fileOpsStore.isPanelVisible"
       @close="fileOpsStore.hidePanel()"
+      @locate="handleTaskEndpointLocate"
     />
 
     <!-- Settings Dialog -->
@@ -160,6 +161,7 @@ import { useTabsStore } from './stores/tabs'
 import { useDevicesStore } from './stores/devices'
 import { useFileOperationsStore } from './stores/fileOperations'
 import { usePreviewStore } from './stores/preview'
+import { getParentPath } from './utils/path'
 
 const log = console
 const previewStore = usePreviewStore()
@@ -319,6 +321,24 @@ async function handleDrop(event: DragEvent, targetPaneId: string) {
       }
       return
     }
+  }
+}
+
+function handleTaskEndpointLocate(endpoint: { kind: 'source' | 'destination'; deviceId: string; path: string }) {
+  const existingTab = tabsStore.tabs.find(tab => tab.panes.some(pane => pane.deviceId === endpoint.deviceId))
+  if (existingTab) tabsStore.setActiveTab(existingTab.id)
+
+  const targetPane = existingTab?.panes.find(pane => pane.deviceId === endpoint.deviceId) || tabsStore.activePane
+  if (!targetPane) return
+
+  if (targetPane.deviceId !== endpoint.deviceId) {
+    tabsStore.setPaneDevice(targetPane.id, endpoint.deviceId)
+  }
+
+  const directory = endpoint.kind === 'source' ? getParentPath(endpoint.path) : endpoint.path
+  tabsStore.navigatePane(targetPane.id, directory)
+  if (endpoint.kind === 'source') {
+    tabsStore.setSelectedFiles(targetPane.id, [endpoint.path])
   }
 }
 
