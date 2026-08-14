@@ -1,4 +1,5 @@
 import * as path from 'path'
+import { createRequire } from 'module'
 import { Readable, Writable, PassThrough } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { ANDROID_CAPABILITIES, type DeviceCapabilities } from './capabilities'
@@ -16,8 +17,13 @@ import { ToolPathResolver } from '../services/ToolPathResolver'
 // adbkit 经 adb server 工作;adb 二进制路径由 ToolPathResolver 解析(打包内或 $PATH)。
 //
 // Externalized dep —— vite config 把 @devicefarmer/adbkit 列为 external,运行时从 node_modules 加载。
-import adbkit from '@devicefarmer/adbkit'
 import type { Client, DeviceClient } from '@devicefarmer/adbkit'
+
+// `@devicefarmer/adbkit` is CommonJS. With an externalized ESM Electron main
+// bundle, a default import resolves to the CommonJS module namespace instead of
+// the Adb class, leaving `createClient` undefined. Load its real default export
+// through Node's CommonJS interop boundary instead.
+const adbkit = createRequire(import.meta.url)('@devicefarmer/adbkit').default as typeof import('@devicefarmer/adbkit').default
 
 interface AndroidConfig {
   deviceId?: string // adb serial

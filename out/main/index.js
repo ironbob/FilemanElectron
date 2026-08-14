@@ -4,9 +4,9 @@ import * as path from "path";
 import path__default, { join } from "path";
 import Store from "electron-store";
 import fs$1 from "fs-extra";
+import { createRequire } from "module";
 import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
 import * as fs from "fs";
-import adbkit from "@devicefarmer/adbkit";
 import SMB2 from "@marsaud/smb2";
 import { createClient } from "webdav";
 import { exec, execFile } from "child_process";
@@ -461,6 +461,7 @@ class ToolPathResolver {
     this.cachedAdb = void 0;
   }
 }
+const adbkit = createRequire(import.meta.url)("@devicefarmer/adbkit").default;
 const EXIT_MARKER = "__FMLEXIT__";
 class AndroidAdapter {
   constructor(deviceId, name, config = {}) {
