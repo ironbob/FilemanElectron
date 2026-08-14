@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "mode": "repair",
+    "target_screen": "文件夹对比主屏（DirCompareView）",
+    "reference_screenshots": [
+      "text-ui/DESC-01-default-results.txt",
+      "text-ui/DESC-02-filtered-results.txt",
+      "text-ui/DESC-03-content-verifying.txt",
+      "text-ui/DESC-04-copy-confirmation.txt"
+    ],
+    "implementation_root": ".",
+    "baseline": {
+      "status": "unavailable",
+      "reason": "目标依据为用户确认的口述文本图而非像素截图；现有 Electron 对比页没有可直接启动四个目标状态的 preview、fixture 或 screenshot test，且需交互选择真实设备与路径。本审计仅使用静态代码证据，不声明任何视觉项已匹配。"
+    },
+    "post_code_review": "2026-08-14 静态复核：实现已覆盖跨设备读取、验证 IPC、复制确认、状态文字、过滤摘要和文件类型图标。由于没有可注入的四态真实设备 fixture，以下 visual 结论保留为静态对照。"
+  },
+  "mismatches": [
+    {
+      "id": "MISMATCH-01",
+      "category": "structure",
+      "priority": "P0",
+      "target_ids": ["N03", "N04", "N04L", "N04R", "E01", "E05", "I01", "I03", "I07"],
+      "screenshot_evidence": "DESC-01：工具栏含返回父级与交换；左右来源头均明确显示‘左/右 + 设备名 + 完整根路径’。",
+      "current_evidence": "src/components/compare/DirCompareView.vue:8-40 仅接入现有工具栏并在 Path Headers 显示两个根路径；src/components/compare/DirCompareToolbar.vue:1-148 无返回父级、交换两侧和设备来源控件。",
+      "diagnosis": "现有页面结构围绕 v1 同设备目录比较设计，来源头未接设备显示数据，工具栏也没有交换会话两侧或父级导航入口。",
+      "current_code_anchor": {
+        "file": "src/components/compare/DirCompareView.vue",
+        "widget": "DirCompareToolbar"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-02",
+      "category": "state",
+      "priority": "P0",
+      "target_ids": ["N04", "N06", "S01"],
+      "screenshot_evidence": "DESC-01 与 PRD 跨来源场景：左右来源可属于不同设备，结果必须对应各自设备与路径。",
+      "current_evidence": "src/components/compare/useDirCompare.ts:49-60 的 compareDirectories 只接收一个 deviceId；refresh 与 toggleExpand 均只传 session.leftDeviceId，右侧 listFiles 因而错误使用左设备。",
+      "diagnosis": "目录扫描函数的数据契约只建模单个设备，导致 rightDeviceId 虽存在于会话类型中却未进入比较数据流。",
+      "current_code_anchor": {
+        "file": "src/components/compare/useDirCompare.ts",
+        "widget": "compareDirectories"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-03",
+      "category": "state",
+      "priority": "P0",
+      "target_ids": ["S01", "S05", "I10", "I20", "N06R"],
+      "screenshot_evidence": "DESC-01：快速比较相同项必须标为‘元数据相同 · 内容未验证’；DESC-03：只有完成内容验证后才可标‘内容相同’。",
+      "current_evidence": "src/components/compare/useDirCompare.ts:16-45 将名称、大小或时间规则命中的条目统一返回 equal；src/types/index.ts:93-99 只有一个 equal 状态，无法区分元数据相同与内容已验证相同。",
+      "diagnosis": "当前 CompareStatus 数据模型把快速比较结论和内容验证结论合并为 equal，无法表达可信度层级并会产生‘假相同’语义。",
+      "current_code_anchor": {
+        "file": "src/components/compare/useDirCompare.ts",
+        "widget": "determineStatus"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-04",
+      "category": "entry",
+      "priority": "P0",
+      "target_ids": ["N08", "E04", "E13", "E14", "S03", "S05", "I02", "I19", "I20", "I21", "I22"],
+      "screenshot_evidence": "DESC-03：主屏可启动与取消渐进式内容验证，并同时展示已完成、进行中、等待、失败以及单项重试。",
+      "current_evidence": "src/components/compare/DirCompareToolbar.vue 的 emits 和模板没有内容验证命令；src/components/compare/useDirCompare.ts 只执行元数据比较，没有验证队列、进度、取消或重试状态。",
+      "diagnosis": "现有 renderer 状态与文件访问契约均未建模流式内容验证任务，这不是增加一个按钮即可完成的局部 UI 缺口。",
+      "current_code_anchor": {
+        "file": "src/components/compare/useDirCompare.ts",
+        "widget": "useDirCompare"
+      },
+      "status": "partial"
+    },
+    {
+      "id": "MISMATCH-05",
+      "category": "state",
+      "priority": "P0",
+      "target_ids": ["S05", "I22", "N07"],
+      "screenshot_evidence": "DESC-03：读取失败以错误图标、失败文字与重试入口保留在列表中；状态栏汇总失败数量。",
+      "current_evidence": "src/components/compare/useDirCompare.ts:57-60 对两侧 listFiles 错误直接 catch 为 []，读取失败会被转换成空目录或整侧孤立项；CompareStats 也没有 failed 字段。",
+      "diagnosis": "错误在数据源边界被吞掉，结果树失去失败侧、路径与原因，UI 不可能渲染可理解的失败态或单项重试。",
+      "current_code_anchor": {
+        "file": "src/components/compare/useDirCompare.ts",
+        "widget": "window.fileman.listFiles"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-06",
+      "category": "entry",
+      "priority": "P0",
+      "target_ids": ["N09", "E15", "E16", "E17", "E18", "E19", "S04", "I23", "I24"],
+      "screenshot_evidence": "DESC-04：复制 4 项到右侧前必须用确认浮层说明来源、目标、方向、新增/覆盖/合并数量、冲突策略、条目路径和隐藏项范围。",
+      "current_evidence": "src/components/compare/DirCompareView.vue:468-479 的 copySelectionToRight/Left 直接逐项创建复制任务，没有确认态、影响预检、冲突数量或路径审阅入口。",
+      "diagnosis": "复制入口直接耦合任务提交，缺少‘计划预检 → 用户确认 → 执行’状态机与冲突策略数据，因此无法安全呈现批量操作范围。",
+      "current_code_anchor": {
+        "file": "src/components/compare/DirCompareView.vue",
+        "widget": "copySelectionToRight"
+      },
+      "status": "partial"
+    },
+    {
+      "id": "MISMATCH-07",
+      "category": "entry",
+      "priority": "P0",
+      "target_ids": ["N05", "N07", "E03", "E09", "S02", "I18"],
+      "screenshot_evidence": "DESC-02：‘仅差异’同时保留内容不同、仅左侧和仅右侧，顶部持续显示过滤摘要、隐藏 80 项及一键清除，底栏显示当前 17/总计 97。",
+      "current_evidence": "src/components/compare/DirCompareToolbar.vue:173-197 的 diff 预设只启用 showDifferent，排除了 left-only/right-only；DirCompareView 没有过滤摘要区；DirCompareStatusBar 只显示各状态和总计，没有当前显示、隐藏数量或清除入口。",
+      "diagnosis": "当前过滤模型把‘差异’和‘孤立’拆成互斥预设，且未计算隐藏数量，导致 UI 无法持续说明过滤范围并与确认状态语义不一致。",
+      "current_code_anchor": {
+        "file": "src/components/compare/DirCompareToolbar.vue",
+        "widget": "setFilter"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-08",
+      "category": "icon",
+      "priority": "P0",
+      "target_ids": ["N06R", "I10", "I12", "I14", "I16", "I17", "I19", "I20", "I21", "I22"],
+      "screenshot_evidence": "DESC-01 与 DESC-03：中央状态必须同时使用语义图标和完整文字，例如‘内容不同’‘仅左侧’‘元数据相同 · 内容未验证’‘正在比较’‘读取失败’。",
+      "current_evidence": "src/components/compare/DirCompareView.vue:135-140 的状态列仅渲染 statusSymbol；statusSymbol 返回 =、≠、◀、▶ 字符，且 left-newer 与 left-only、right-newer 与 right-only 共用相同符号。",
+      "diagnosis": "状态单元格被固定为 56px 符号列，状态渲染契约只有字符映射，没有语义文字或可区分的图标资源，信息依赖颜色与符号推断。",
+      "current_code_anchor": {
+        "file": "src/components/compare/DirCompareView.vue",
+        "widget": "statusSymbol"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-09",
+      "category": "state",
+      "priority": "P1",
+      "target_ids": ["N07", "S02", "S03", "S04"],
+      "screenshot_evidence": "DESC-01 至 DESC-04：底栏随状态汇总内容不同、仅左右、内容相同、元数据相同、隐藏、失败、验证进度及当前选择范围。",
+      "current_evidence": "src/components/compare/DirCompareStatusBar.vue:1-30 仅接受 CompareStats，固定展示差异、仅左、仅右、相同和总计；src/components/compare/useDirCompare.ts:96-126 的统计模型没有隐藏、失败、验证或选择字段。",
+      "diagnosis": "状态栏的输入契约只覆盖旧版六类比较结果，不接收过滤可见数、验证任务或选择上下文，无法响应四个确认状态。",
+      "current_code_anchor": {
+        "file": "src/components/compare/DirCompareStatusBar.vue",
+        "widget": "CompareStats"
+      },
+      "status": "implemented"
+    },
+    {
+      "id": "MISMATCH-10",
+      "category": "icon",
+      "priority": "P1",
+      "target_ids": ["I07", "I09", "I11", "I13", "I15"],
+      "screenshot_evidence": "DESC-01：来源使用设备图标，目录、文本文件、图片文件和通用文件使用对应类型图标。",
+      "current_evidence": "src/components/compare/DirCompareView.vue 的 fileIcon 仅在 FolderIcon 与通用 FileIcon 之间切换；来源头使用文件夹轮廓而非设备语义，未区分文本与图片。",
+      "diagnosis": "当前图标映射只按 directory 布尔值分流，未复用工程文件类型识别与设备类型资源，导致关键对象类别在列表中不可辨识。",
+      "current_code_anchor": {
+        "file": "src/components/compare/DirCompareView.vue",
+        "widget": "fileIcon"
+      },
+      "status": "partial"
+    }
+  ]
+}

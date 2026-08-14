@@ -1,0 +1,148 @@
+{
+  "meta": {
+    "mode": "repair",
+    "platform": "macOS desktop",
+    "framework": "Electron 29 + Vue 3 + TypeScript + Pinia",
+    "screen_job": "在一个文件夹对比主屏中建立左右来源的镜像差异列表，让用户能筛选、逐项验证内容、导航差异，并在明确影响范围后执行方向性复制。",
+    "scope": "single_screen",
+    "source_inputs": [
+      { "id": "DESC-01", "type": "verbal" },
+      { "id": "DESC-02", "type": "verbal" },
+      { "id": "DESC-03", "type": "verbal" },
+      { "id": "DESC-04", "type": "verbal" }
+    ],
+    "text_ui_guard": {
+      "manifest": "text-ui-manifest.json",
+      "result": "user_confirmed",
+      "confirmed_input_ids": ["DESC-01", "DESC-02", "DESC-03", "DESC-04"],
+      "confirmation_evidence": "用户消息（2026-08-14）：确认全部"
+    }
+  },
+  "structure_skeleton": {
+    "node_id": "N01",
+    "kind": "screen",
+    "semantic": "文件夹对比主屏",
+    "children": [
+      {
+        "node_id": "N02",
+        "kind": "tab_context",
+        "semantic": "左目录名与右目录名组成的当前对比标签"
+      },
+      {
+        "node_id": "N03",
+        "kind": "command_toolbar",
+        "semantic": "返回、比较规则、过滤、内容验证、交换、差异导航和刷新命令区"
+      },
+      {
+        "node_id": "N04",
+        "kind": "source_header_pair",
+        "semantic": "对称展示左右设备名与根路径",
+        "children": [
+          { "node_id": "N04L", "kind": "source_header", "semantic": "左侧来源" },
+          { "node_id": "N04R", "kind": "source_header", "semantic": "右侧来源" }
+        ]
+      },
+      {
+        "node_id": "N05",
+        "kind": "filter_summary",
+        "semantic": "过滤生效时持续展示过滤条件、隐藏数量和清除入口"
+      },
+      {
+        "node_id": "N06",
+        "kind": "mirrored_compare_grid",
+        "semantic": "左右名称、大小、修改时间列与中央状态语义组成的主结果区",
+        "children": [
+          { "node_id": "N06H", "kind": "column_header_row", "semantic": "左右镜像列标题" },
+          {
+            "node_id": "N06L",
+            "kind": "virtual_result_list",
+            "semantic": "可滚动且可多选的对比结果",
+            "children": [
+              { "node_id": "N06R", "kind": "compare_row", "semantic": "左条目、中央状态、右条目的语义行" }
+            ]
+          }
+        ]
+      },
+      {
+        "node_id": "N07",
+        "kind": "status_footer",
+        "semantic": "当前显示、选择、各结果数量、隐藏数量、验证进度和失败数量汇总"
+      },
+      {
+        "node_id": "N08",
+        "kind": "verification_progress_band",
+        "semantic": "内容验证时展示进度、完成数和取消入口"
+      },
+      {
+        "node_id": "N09",
+        "kind": "copy_confirmation_overlay",
+        "semantic": "批量复制前展示来源、目标、方向、影响范围、冲突策略和最终确认"
+      }
+    ]
+  },
+  "entries": [
+    { "id": "E01", "kind": "button", "semantic": "返回父级目录", "input_anchor": "DESC-01 [icon:return-parent]" },
+    { "id": "E02", "kind": "menu", "semantic": "切换快速比较规则", "input_anchor": "DESC-01 [快速比较 ▾]" },
+    { "id": "E03", "kind": "filter_control", "semantic": "选择全部或仅差异等过滤条件", "input_anchor": "DESC-02 [过滤：仅差异 ×]" },
+    { "id": "E04", "kind": "button", "semantic": "启动内容验证", "input_anchor": "DESC-01 [icon:verify] 内容验证" },
+    { "id": "E05", "kind": "button", "semantic": "交换左右来源", "input_anchor": "DESC-01 [icon:swap]" },
+    { "id": "E06", "kind": "button", "semantic": "定位上一处差异", "input_anchor": "DESC-01 [icon:prev] 上一差异" },
+    { "id": "E07", "kind": "button", "semantic": "定位下一处差异", "input_anchor": "DESC-01 [icon:next] 下一差异" },
+    { "id": "E08", "kind": "button", "semantic": "重新载入当前对比", "input_anchor": "DESC-01 [icon:reload]" },
+    { "id": "E09", "kind": "button", "semantic": "清除当前过滤并显示全部", "input_anchor": "DESC-02 [清除过滤器，显示全部]" },
+    { "id": "E10", "kind": "row_disclosure", "semantic": "展开或折叠目录行", "input_anchor": "DESC-01 双击目录展开/折叠" },
+    { "id": "E11", "kind": "row_open", "semantic": "打开成对文本或图片的子比较", "input_anchor": "DESC-01 双击成对文本/图片进入对应子比较" },
+    { "id": "E12", "kind": "row_selection", "semantic": "选择一个或多个当前可见条目", "input_anchor": "DESC-04 4 个可见条目保持选中高亮" },
+    { "id": "E13", "kind": "button", "semantic": "取消正在进行的内容验证并保留已完成结果", "input_anchor": "DESC-03 [取消验证]" },
+    { "id": "E14", "kind": "button", "semantic": "重试单个读取失败的内容验证", "input_anchor": "DESC-03 读取失败 · [重试]" },
+    { "id": "E15", "kind": "copy_action", "semantic": "将显式选中的可见条目复制到右侧", "input_anchor": "DESC-04 [icon:copy-right] 复制 4 项到右侧" },
+    { "id": "E16", "kind": "conflict_control", "semantic": "为同名冲突选择询问、覆盖、跳过或保留两者策略", "input_anchor": "DESC-04 冲突处理" },
+    { "id": "E17", "kind": "button", "semantic": "查看被复制条目及各自目标路径", "input_anchor": "DESC-04 [查看 4 个条目与目标路径]" },
+    { "id": "E18", "kind": "button", "semantic": "取消批量复制确认", "input_anchor": "DESC-04 [取消]" },
+    { "id": "E19", "kind": "primary_button", "semantic": "确认并继续复制到右侧", "input_anchor": "DESC-04 [继续复制到右侧]" }
+  ],
+  "icons": [
+    { "id": "I01", "semantic": "返回父级", "input_anchor": "DESC-01 [icon:return-parent]" },
+    { "id": "I02", "semantic": "内容验证", "input_anchor": "DESC-01 [icon:verify]" },
+    { "id": "I03", "semantic": "交换左右", "input_anchor": "DESC-01 [icon:swap]" },
+    { "id": "I04", "semantic": "上一差异", "input_anchor": "DESC-01 [icon:prev]" },
+    { "id": "I05", "semantic": "下一差异", "input_anchor": "DESC-01 [icon:next]" },
+    { "id": "I06", "semantic": "重新载入", "input_anchor": "DESC-01 [icon:reload]" },
+    { "id": "I07", "semantic": "设备", "input_anchor": "DESC-01 [icon:device]" },
+    { "id": "I08", "semantic": "目录展开", "input_anchor": "DESC-01 [icon:expand]" },
+    { "id": "I09", "semantic": "文件夹", "input_anchor": "DESC-01 [icon:folder]" },
+    { "id": "I10", "semantic": "元数据相同但内容未验证", "input_anchor": "DESC-01 [icon:metadata-equal]" },
+    { "id": "I11", "semantic": "文本文件", "input_anchor": "DESC-01 [icon:text-file]" },
+    { "id": "I12", "semantic": "内容不同", "input_anchor": "DESC-01 [icon:different]" },
+    { "id": "I13", "semantic": "图片文件", "input_anchor": "DESC-01 [icon:image-file]" },
+    { "id": "I14", "semantic": "左侧较新", "input_anchor": "DESC-01 [icon:left-newer]" },
+    { "id": "I15", "semantic": "通用文件", "input_anchor": "DESC-01 [icon:file]" },
+    { "id": "I16", "semantic": "仅左侧存在", "input_anchor": "DESC-01 [icon:left-only]" },
+    { "id": "I17", "semantic": "仅右侧存在", "input_anchor": "DESC-01 [icon:right-only]" },
+    { "id": "I18", "semantic": "过滤条件生效", "input_anchor": "DESC-02 [icon:filter]" },
+    { "id": "I19", "semantic": "处理中", "input_anchor": "DESC-03 [icon:spinner]" },
+    { "id": "I20", "semantic": "内容相同", "input_anchor": "DESC-03 [icon:content-equal]" },
+    { "id": "I21", "semantic": "等待内容验证", "input_anchor": "DESC-03 [icon:pending]" },
+    { "id": "I22", "semantic": "读取或验证失败", "input_anchor": "DESC-03 [icon:error]" },
+    { "id": "I23", "semantic": "复制到右侧", "input_anchor": "DESC-04 [icon:copy-right]" },
+    { "id": "I24", "semantic": "冲突警告", "input_anchor": "DESC-04 [icon:warning]" }
+  ],
+  "key_dimensions": [
+    { "id": "D01", "what": "左右来源栏与列表数据区", "ratio_note": "左右两侧保持 1:1 镜像宽度，中央状态桥接区明显窄于任一文件信息侧；来自已确认文本结构，无像素基线。" },
+    { "id": "D02", "what": "主结果区与上下命令区", "ratio_note": "可滚动结果列表占据绝大部分垂直空间，标签、工具栏、来源头和状态栏均为紧凑单行或双行区；来自已确认文本结构，无像素基线。" },
+    { "id": "D03", "what": "名称、大小、修改时间列", "ratio_note": "每侧名称列最宽，大小列最窄，修改时间列居中；具体比例需要在现有窗口适配中验证。" },
+    { "id": "D04", "what": "验证进度带", "ratio_note": "嵌入命令区并保持单行进度信息，不挤压左右来源栏；宽度优先保障完成数、百分比和取消入口可见。" },
+    { "id": "D05", "what": "复制确认浮层", "ratio_note": "居中覆盖主列表，宽度约为工作区的一半至三分之二，背景列表仍可辨识但不可交互；具体形式在模态框或系统 Sheet 中择一。" },
+    { "id": "D06", "what": "结果行密度", "ratio_note": "采用桌面文件管理器的紧凑行高，同时容纳文件名主行和中央状态文字；需以现有字号与可点击面积共同校准。" }
+  ],
+  "states": [
+    { "id": "S01", "kind": "default_results", "source": "input", "input_anchor": "DESC-01 默认结果态" },
+    { "id": "S02", "kind": "filtered_results", "source": "input", "input_anchor": "DESC-02 ‘仅差异’过滤态" },
+    { "id": "S03", "kind": "content_verifying", "source": "input", "input_anchor": "DESC-03 内容验证进行中" },
+    { "id": "S04", "kind": "copy_confirmation", "source": "input", "input_anchor": "DESC-04 批量复制到右侧确认浮层" },
+    { "id": "S05", "kind": "verification_item_equal_running_pending_failed", "source": "input", "input_anchor": "DESC-03 已完成、进行中、等待和失败同时出现在列表" },
+    { "id": "S06", "kind": "visible_multi_selection", "source": "input", "input_anchor": "DESC-04 4 个可见条目保持选中高亮" }
+  ],
+  "bitmaps": [],
+  "empty_reasons": {}
+}

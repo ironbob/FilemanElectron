@@ -9,7 +9,12 @@
       :rule="localSession.rule"
       :filter="localSession.filter"
       :is-loading="isLoading"
+      :is-verifying="isVerifying"
       @refresh="refresh"
+      @go-parent="goParent"
+      @swap-sides="swapSides"
+      @verify="verifySelection"
+      @cancel-verify="cancelVerification"
       @expand-all="expandAll"
       @collapse-all="collapseAll"
       @next-diff="goNextDiff(scrollToIndex)"
@@ -27,15 +32,15 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
-        <span class="truncate">{{ localSession.leftRootPath }}</span>
+        <span class="truncate">{{ leftDeviceName }} · {{ localSession.leftRootPath }}</span>
       </div>
-      <div class="w-14 flex-shrink-0 border-x border-border" />
+      <div class="w-28 flex-shrink-0 border-x border-border" />
       <div class="flex-1 min-w-0 px-4 py-1.5 flex items-center gap-1.5 text-text-secondary font-medium truncate">
         <svg class="w-3.5 h-3.5 flex-shrink-0 text-accent-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
-        <span class="truncate">{{ localSession.rightRootPath }}</span>
+        <span class="truncate">{{ rightDeviceName }} · {{ localSession.rightRootPath }}</span>
       </div>
     </div>
 
@@ -46,7 +51,7 @@
         <span class="w-16 text-right flex-shrink-0">大小</span>
         <span class="w-28 text-right flex-shrink-0">修改时间</span>
       </div>
-      <div class="w-14 flex-shrink-0 text-center border-x border-border/50 self-stretch flex items-center justify-center">
+      <div class="w-28 flex-shrink-0 text-center border-x border-border/50 self-stretch flex items-center justify-center">
         状态
       </div>
       <div class="flex-1 min-w-0 flex items-center gap-2 px-4">
@@ -54,6 +59,12 @@
         <span class="w-16 text-right flex-shrink-0">大小</span>
         <span class="w-28 text-right flex-shrink-0">修改时间</span>
       </div>
+    </div>
+
+    <div v-if="filterActive" class="flex items-center gap-2 border-b border-border bg-accent-blue/10 px-4 py-1.5 text-xs text-text-secondary">
+      <svg class="h-3.5 w-3.5 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18l-7 8v5l-4 3v-8L3 4z" /></svg>
+      <span>已过滤：显示 {{ stats.visible }} 项，隐藏 {{ stats.hidden }} 项</span>
+      <button class="ml-1 text-accent-blue hover:underline" @click="clearFilter">清除过滤</button>
     </div>
 
     <!-- Loading State (initial) -->
@@ -133,10 +144,17 @@
         </div>
 
         <!-- Status Column -->
-        <div class="w-14 flex-shrink-0 flex items-center justify-center border-x border-border/30 h-full">
-          <span class="text-base font-bold leading-none" :class="statusTextClass(entry.status)">
-            {{ statusSymbol(entry.status) }}
+        <div class="w-28 flex-shrink-0 flex items-center justify-center gap-1.5 border-x border-border/30 h-full px-1">
+          <span class="flex-shrink-0 text-xs font-medium leading-none" :class="statusTextClass(displayStatus(entry))" :title="statusLabel(displayStatus(entry))">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path v-if="isEqualStatus(displayStatus(entry))" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12l4 4L19 6" />
+              <path v-else-if="displayStatus(entry) === 'left-only'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 6l-6 6 6 6M9 12h10" />
+              <path v-else-if="displayStatus(entry) === 'right-only'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l6 6-6 6m5-6H5" />
+              <path v-else-if="displayStatus(entry) === 'verifying'" stroke-linecap="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.36-6.36l-2.12 2.12M7.76 16.24l-2.12 2.12m12.72 0l-2.12-2.12M7.76 7.76L5.64 5.64" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7l10 10M17 7L7 17" />
+            </svg>
           </span>
+          <span class="min-w-0 truncate text-[11px]" :class="statusTextClass(displayStatus(entry))">{{ statusLabel(displayStatus(entry)) }}</span>
         </div>
 
         <!-- Right Side -->
@@ -166,7 +184,14 @@
       </div>
     </RecycleScroller>
 
-    <DirCompareStatusBar :stats="stats" />
+    <DirCompareStatusBar :stats="stats" :selected-count="selectedPaths.size" :verification-progress="verificationProgress" />
+
+    <DirCompareCopyDialog
+      v-if="copyPlan"
+      :plan="copyPlan"
+      @cancel="copyPlan = null"
+      @confirm="executeCopyPlan"
+    />
 
     <!-- Context Menu -->
     <div
@@ -194,12 +219,15 @@
 import { ref, reactive, computed, onMounted, onUnmounted, h, type Component } from 'vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import type { DirCompareSession, CompareEntry, CompareStatus, CompareRule } from '@/types'
+import type { DirCompareSession, CompareEntry, CompareStatus, CompareRule, CopyConflictStrategy, DirCompareCopyPlan } from '@/types'
 import { useDirCompare } from './useDirCompare'
+import { buildCopyPlan, displayStatus } from './compareDomain'
 import { useFileOperationsStore } from '@/stores/fileOperations'
 import DirCompareToolbar from './DirCompareToolbar.vue'
 import DirCompareStatusBar from './DirCompareStatusBar.vue'
 import { useTabsStore } from '@/stores/tabs'
+import { useDevicesStore } from '@/stores/devices'
+import DirCompareCopyDialog from './DirCompareCopyDialog.vue'
 
 const props = defineProps<{
   session: DirCompareSession
@@ -207,6 +235,7 @@ const props = defineProps<{
 
 const fileOpsStore = useFileOperationsStore()
 const tabsStore = useTabsStore()
+const devicesStore = useDevicesStore()
 
 // Local reactive copy of session so filter/rule changes don't mutate the store's Tab
 const localSession = reactive<DirCompareSession>({ ...props.session, filter: { ...props.session.filter } })
@@ -216,6 +245,8 @@ const sessionRef = computed(() => localSession as DirCompareSession)
 const {
   flatEntries,
   isLoading,
+  isVerifying,
+  verificationProgress,
   stats,
   refresh,
   toggleExpand,
@@ -224,8 +255,16 @@ const {
   goNextDiff,
   goPrevDiff,
   currentDiffIndex,
-  rootEntries
+  rootEntries,
+  dataRevision,
+  verifyContent,
+  cancelVerification,
+  dispose
 } = useDirCompare(sessionRef)
+
+const leftDeviceName = computed(() => devicesStore.getDevice(localSession.leftDeviceId)?.name ?? '左侧设备')
+const rightDeviceName = computed(() => devicesStore.getDevice(localSession.rightDeviceId)?.name ?? '右侧设备')
+const filterActive = computed(() => !(localSession.filter.showEqual && localSession.filter.showDifferent && localSession.filter.showLeftOnly && localSession.filter.showRightOnly))
 
 const allEntriesCount = computed(() => rootEntries.value.length)
 
@@ -293,6 +332,38 @@ async function onRuleChange(rule: CompareRule) {
   await refresh()
 }
 
+function clearFilter() {
+  localSession.filter = { showEqual: true, showDifferent: true, showLeftOnly: true, showRightOnly: true }
+}
+
+async function verifySelection() {
+  const selected = getSelectedEntries()
+  await verifyContent(selected.length ? selected : flatEntries.value.filter(entry => !entry.isDirectory))
+}
+
+async function goParent() {
+  const parent = (path: string) => {
+    const normalized = path.replace(/\/+$/, '')
+    const index = normalized.lastIndexOf('/')
+    return index > 0 ? normalized.slice(0, index) : normalized || '/'
+  }
+  const nextLeft = parent(localSession.leftRootPath)
+  const nextRight = parent(localSession.rightRootPath)
+  if (nextLeft === localSession.leftRootPath && nextRight === localSession.rightRootPath) return
+  localSession.leftRootPath = nextLeft
+  localSession.rightRootPath = nextRight
+  selectedPaths.clear()
+  await refresh()
+}
+
+async function swapSides() {
+  await cancelVerification()
+  ;[localSession.leftDeviceId, localSession.rightDeviceId] = [localSession.rightDeviceId, localSession.leftDeviceId]
+  ;[localSession.leftRootPath, localSession.rightRootPath] = [localSession.rightRootPath, localSession.leftRootPath]
+  selectedPaths.clear()
+  await refresh()
+}
+
 // ── Row styling ───────────────────────────────────────────────────────────────
 function rowClass(entry: CompareEntry, index: number): string[] {
   const classes: string[] = []
@@ -308,7 +379,7 @@ function leftSideBg(entry: CompareEntry): string {
   if (isSelected(entry)) return ''
   if (entry.status === 'left-only') return 'bg-orange-500/20'
   if (entry.status === 'right-only') return 'bg-bg-primary/0'
-  if (entry.status === 'different') return 'bg-red-500/20'
+  if (displayStatus(entry) === 'different' || displayStatus(entry) === 'verification-failed') return 'bg-red-500/20'
   if (entry.status === 'left-newer' || entry.status === 'right-newer') return 'bg-blue-500/15'
   return ''
 }
@@ -317,31 +388,45 @@ function rightSideBg(entry: CompareEntry): string {
   if (isSelected(entry)) return ''
   if (entry.status === 'right-only') return 'bg-orange-500/20'
   if (entry.status === 'left-only') return 'bg-bg-primary/0'
-  if (entry.status === 'different') return 'bg-red-500/20'
+  if (displayStatus(entry) === 'different' || displayStatus(entry) === 'verification-failed') return 'bg-red-500/20'
   if (entry.status === 'left-newer' || entry.status === 'right-newer') return 'bg-blue-500/15'
   return ''
 }
 
 function statusTextClass(status: CompareStatus): string {
   switch (status) {
-    case 'equal':       return 'text-text-tertiary'
+    case 'metadata-equal': return 'text-text-tertiary'
+    case 'content-equal': return 'text-green-400'
     case 'different':   return 'text-red-400'
     case 'left-newer':  return 'text-blue-400'
     case 'right-newer': return 'text-blue-400'
     case 'left-only':   return 'text-orange-400'
     case 'right-only':  return 'text-orange-400'
+    case 'verifying': return 'text-blue-400 animate-pulse'
+    case 'verification-failed':
+    case 'uncomparable': return 'text-orange-400'
+    case 'type-mismatch': return 'text-red-400'
   }
 }
 
-function statusSymbol(status: CompareStatus): string {
+function statusLabel(status: CompareStatus): string {
   switch (status) {
-    case 'equal':       return '='
-    case 'different':   return '≠'
-    case 'left-newer':  return '◀'
-    case 'right-newer': return '▶'
-    case 'left-only':   return '◀'
-    case 'right-only':  return '▶'
+    case 'metadata-equal': return '元数据相同'
+    case 'content-equal': return '内容相同'
+    case 'different': return '内容不同'
+    case 'left-newer': return '左侧较新'
+    case 'right-newer': return '右侧较新'
+    case 'left-only': return '仅左侧'
+    case 'right-only': return '仅右侧'
+    case 'type-mismatch': return '类型不同'
+    case 'verifying': return '正在校验'
+    case 'verification-failed': return '校验失败'
+    case 'uncomparable': return '无法比较'
   }
+}
+
+function isEqualStatus(status: CompareStatus) {
+  return status === 'metadata-equal' || status === 'content-equal'
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -358,11 +443,29 @@ const FileIcon: Component = {
     ])
   }
 }
+const TextFileIcon: Component = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'text-blue-400' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 4h10v16H7zM9 9h6m-6 3h6m-6 3h4' })
+    ])
+  }
+}
+const ImageFileIcon: Component = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'text-purple-400' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 5h16v14H4zM8 10h.01M5 17l5-5 3 3 2-2 4 4' })
+    ])
+  }
+}
 
 function fileIcon(entry: CompareEntry, side: 'left' | 'right'): Component {
   const fi = side === 'left' ? entry.left : entry.right
   if (!fi && !entry.isDirectory) return FileIcon
-  return entry.isDirectory ? FolderIcon : FileIcon
+  if (entry.isDirectory) return FolderIcon
+  const extension = fi?.extension?.toLowerCase() ?? fi?.name.split('.').pop()?.toLowerCase() ?? ''
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic'].includes(extension.replace('.', ''))) return ImageFileIcon
+  if (['txt', 'md', 'json', 'xml', 'yaml', 'yml', 'ts', 'js', 'vue', 'css', 'html', 'py', 'java', 'swift'].includes(extension.replace('.', ''))) return TextFileIcon
+  return FileIcon
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -410,6 +513,7 @@ function showContextMenu(event: MouseEvent, entry: CompareEntry) {
   const canRight = !!entry.right
 
   ctxMenu.items = [
+    { label: entry.verification?.status === 'failed' ? '重试内容校验' : '校验内容', action: 'verify', entry, disabled: !entry.left || !entry.right || entry.isDirectory },
     { label: '复制到右侧', action: 'copy-right', entry, disabled: !canLeft  },
     { label: '复制到左侧', action: 'copy-left',  entry, disabled: !canRight },
     { label: '---', action: '__divider__' },
@@ -429,8 +533,9 @@ async function handleCtxAction(action: string, entry?: CompareEntry) {
   if (!entry) return
 
   switch (action) {
-    case 'copy-right': await copySingleToRight(entry); break
-    case 'copy-left':  await copySingleToLeft(entry);  break
+    case 'verify': await verifyContent([entry]); break
+    case 'copy-right': openCopyPlan('left-to-right'); break
+    case 'copy-left':  openCopyPlan('right-to-left');  break
     case 'delete-left':  await deleteSide(entry, 'left');  break
     case 'delete-right': await deleteSide(entry, 'right'); break
     case 'delete-both':  await deleteSide(entry, 'both');  break
@@ -443,40 +548,39 @@ function getSelectedEntries(): CompareEntry[] {
   return flatEntries.value.filter(e => selectedPaths.has(e.relativePath))
 }
 
-async function copySingleToRight(entry: CompareEntry) {
-  if (!entry.left) return
-  const destDir = dirOf(localSession.rightRootPath, entry.relativePath)
-  await fileOpsStore.createCopyTask(
-    localSession.leftDeviceId, [entry.left.path],
-    localSession.rightDeviceId, destDir
-  )
-  fileOpsStore.showPanel()
-  scheduleRefresh()
+const copyPlan = ref<DirCompareCopyPlan | null>(null)
+
+function openCopyPlan(direction: DirCompareCopyPlan['direction']) {
+  copyPlan.value = buildCopyPlan({
+    direction, entries: rootEntries.value, visibleEntries: flatEntries.value,
+    filterActive: !(localSession.filter.showEqual && localSession.filter.showDifferent && localSession.filter.showLeftOnly && localSession.filter.showRightOnly),
+    selectedPaths,
+    leftDeviceId: localSession.leftDeviceId, leftRootPath: localSession.leftRootPath,
+    rightDeviceId: localSession.rightDeviceId, rightRootPath: localSession.rightRootPath,
+    revision: dataRevision.value
+  })
 }
 
-async function copySingleToLeft(entry: CompareEntry) {
-  if (!entry.right) return
-  const destDir = dirOf(localSession.leftRootPath, entry.relativePath)
-  await fileOpsStore.createCopyTask(
-    localSession.rightDeviceId, [entry.right.path],
-    localSession.leftDeviceId, destDir
-  )
-  fileOpsStore.showPanel()
+async function executeCopyPlan(strategy: Exclude<CopyConflictStrategy, 'ask'>) {
+  const plan = copyPlan.value
+  if (!plan || plan.revision !== dataRevision.value) {
+    copyPlan.value = null
+    return
+  }
+  for (const item of plan.items) {
+    await fileOpsStore.createCopyTask(item.sourceDeviceId, [item.sourcePath], item.targetDeviceId, item.targetDirectory, strategy)
+  }
+  copyPlan.value = null
+  if (plan.items.length) fileOpsStore.showPanel()
   scheduleRefresh()
 }
 
 async function copySelectionToRight() {
-  const entries = getSelectedEntries().filter(e => e.left)
-  for (const entry of entries) {
-    await copySingleToRight(entry)
-  }
+  openCopyPlan('left-to-right')
 }
 
 async function copySelectionToLeft() {
-  const entries = getSelectedEntries().filter(e => e.right)
-  for (const entry of entries) {
-    await copySingleToLeft(entry)
-  }
+  openCopyPlan('right-to-left')
 }
 
 async function deleteSide(entry: CompareEntry, side: 'left' | 'right' | 'both') {
@@ -493,13 +597,6 @@ async function deleteSide(entry: CompareEntry, side: 'left' | 'right' | 'both') 
   }
   fileOpsStore.showPanel()
   scheduleRefresh()
-}
-
-/** Returns the parent directory path on the given root for a relative path */
-function dirOf(root: string, relativePath: string): string {
-  const lastSlash = relativePath.lastIndexOf('/')
-  if (lastSlash === -1) return root
-  return `${root}/${relativePath.substring(0, lastSlash)}`
 }
 
 // ── Auto-refresh after operations ────────────────────────────────────────────
@@ -529,6 +626,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', hideContextMenu)
   if (refreshTimer) clearTimeout(refreshTimer)
+  dispose()
 })
 </script>
 

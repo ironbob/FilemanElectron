@@ -1,0 +1,113 @@
+{
+  "feature": "built-in-directory-compare",
+  "title": "内置文件夹对比与内容校验",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-14",
+  "existing_alignment": {
+    "recognized_style": "Electron 主进程以 service 和 ipcMain handler 承载设备 I/O，preload 暴露 window.fileman，renderer 使用 Vue 3 Composition API、Pinia 与局部 composable；文件复制继续由 fileOperations Store 进入既有队列。",
+    "new_code_follows": "目录树和筛选状态留在 renderer 的 useDirCompare，内容哈希仅在 Main 的 ContentVerificationService 执行；复制继续调用既有 fileOperations Store，不新增依赖或第二个文件操作队列。"
+  },
+  "interaction_confirmation": {
+    "proposal_revision": 1,
+    "profile_selection": {
+      "status": "user_selected",
+      "selected_profile": "standard",
+      "source": "user_message",
+      "evidence": "用户回复：使用standard。"
+    },
+    "design_confirmation": {
+      "status": "user_confirmed",
+      "confirmed_candidate": "ALT-1",
+      "confirmed_revision": 1,
+      "source": "later_user_message",
+      "evidence": "方案展示后的用户回复：确认，按1编码；后续再次确认“确认按1编码”。"
+    }
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {"name": "cross_device_correctness", "priority": "high", "scenario": "左右目录属于不同设备时，刷新和展开仍分别使用其真实 deviceId。", "acceptance": "每次 listFiles 都传入左右各自 deviceId；读取失败显示来源和路径，不能当作空目录。"},
+      {"name": "content_safety", "priority": "high", "scenario": "用户校验远程大文件内容时，渲染进程不接收文件字节且可以取消。", "acceptance": "Main 对支持流的 adapter 使用 SHA-256 流读取；无流设备只在 32 MB 内缓冲，超限返回明确失败。"},
+      {"name": "operation_safety", "priority": "high", "scenario": "用户复制筛选后的选中项时遇到冲突或未扫描目录。", "acceptance": "确认框展示冲突策略；未展开目录递归复制被阻止；实际写入仍经 FileOperationManager 队列。"},
+      {"name": "state_clarity", "priority": "medium", "scenario": "用户区分元数据相同、内容已校验相同、校验失败和单侧存在。", "acceptance": "CompareEntry 使用独立 verification 状态，状态栏和行状态不将未校验项标为内容相同。"}
+    ],
+    "candidates": [
+      {"id": "ALT-1", "summary": "renderer 保存目录对比会话和树，Main 提供逐对流式内容校验，复制预检在 renderer 构建计划后交给既有队列。", "strengths": ["与既有 Electron IPC、DeviceManager 和 Pinia 队列边界一致", "文件字节不越过 preload 到 renderer", "状态集中在 useDirCompare，视图保留交互组合职责"], "weaknesses": ["需要同步维护 main、preload、env 三处 IPC 契约", "目录懒加载使递归复制必须显式阻断未扫描后代"], "risks": ["远程 adapter 可能不支持流", "进度事件与刷新并发可能使旧会话结果过期"]},
+      {"id": "ALT-2", "summary": "将完整目录树和内容读取都放在 Main，并把已组合行列表推送至 renderer。", "strengths": ["主进程可集中处理设备 I/O", "renderer 代码较少"], "weaknesses": ["主进程需持有每个窗口的 UI 树和筛选状态", "会将交互状态与 I/O 服务耦合"], "risks": ["窗口销毁和多标签生命周期复杂", "难以复用现有 renderer 选择和过滤机制"]}
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "ALT-1 同时满足跨设备正确性、内容安全和操作安全：DeviceManager/adapter 继续在 Main 处理字节，renderer 仅拥有会话和可见选择，既有复制队列仍是唯一写入路径。",
+    "top_down_check": "从用户流程拆为：双侧读取、懒加载展开、选择内容校验、接收每对结果、构建复制计划、用户确认、进入传输队列；每步都有唯一状态所有者和错误边界。",
+    "bottom_up_check": "现有 DeviceManager 已按 deviceId 提供 adapter，adapter 已定义可选 openReadStream，preload/window.fileman 已是 IPC 边界，fileOperations Store 已提供带 conflictStrategy 的 createCopyTask。",
+    "risk_spikes": [
+      {"question": "现有 adapter 是否可在不传输文件字节到 renderer 的前提下支持大文件校验？", "method": "检查 IFileSystemAdapter 的 canStream/openReadStream 契约并实现 SHA-256 for-await 流读取。", "result": "接口具备可选流能力；服务对无流 adapter 设置 32 MB 缓冲上限并返回可见失败。", "status": "passed"}
+    ],
+    "review": {"mode": "user", "reviewer": "用户", "findings": "用户选择 standard 并在方案展示后确认 ALT-1 按方案编码。", "disposition": "按 ALT-1 实现并执行架构门复核。"}
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Electron renderer",
+    "current_patterns": ["Direct View", "Redux/Store"],
+    "target_patterns": ["MVVM", "Redux/Store"],
+    "state_management": "tabs Store 拥有可持久化 DirCompareSession；useDirCompare 拥有目录树、加载、验证任务和可见过滤；DirCompareView 仅拥有短生命周期选择、菜单和确认框；fileOperations Store 拥有写入任务。",
+    "view_model_policy": "required",
+    "mvvm_suitability": "suitable",
+    "migration_impact": "medium",
+    "impact_scope": ["src/components/compare/DirCompareView.vue", "src/components/compare/useDirCompare.ts", "src/types/index.ts", "electron/main.ts", "electron/preload.ts", "src/env.d.ts"],
+    "migration_confirmation": "not_required",
+    "decision_reason": "该屏存在异步读取、可取消流式任务、筛选、选择和状态派生；useDirCompare 作为 Feature ViewModel 将这些状态与模板隔离。现有页面局部引入，未替换全局 UI 架构。"
+  },
+  "roles": [
+    {"id": "ROLE-L01", "name": "DirCompareView", "role_kind": "layer", "layer": "view", "domain_role": null, "responsibility": "呈现双侧目录行并编排选择、导航、确认框和快捷键交互。", "hidden_secret": "局部选择集合、上下文菜单位置和确认框可见性。", "change_triggers": ["目录对比布局变化", "工具栏交互变化"], "data_owned": "仅组件生命周期内的 selectedPaths、菜单和 copyPlan。", "depends_on": ["ROLE-L02", "ROLE-D01", "ROLE-L05"], "industry_basis": "Vue Composition API 容器组件与单向 props/events 模式。", "design_principles": ["SRP", "separation_of_concerns"], "code_units": ["src/components/compare/DirCompareView.vue", "src/components/compare/DirCompareCopyDialog.vue"]},
+    {"id": "ROLE-L02", "name": "DirectoryCompareViewModel", "role_kind": "layer", "layer": "view_model", "domain_role": null, "responsibility": "维护目录树、筛选结果、懒加载和内容验证任务状态。", "hidden_secret": "左右设备路径路由、验证事件订阅和取消后的状态复位。", "change_triggers": ["比较规则变化", "验证进度协议变化", "目录读取错误策略变化"], "data_owned": "rootEntries、加载状态、验证进度、dataRevision 和差异导航索引。", "depends_on": ["ROLE-D01", "ROLE-L04"], "industry_basis": "Vue Feature ViewModel/composable 模式。", "design_principles": ["SRP", "information_hiding", "defensive_design"], "code_units": ["src/components/compare/useDirCompare.ts"]},
+    {"id": "ROLE-D01", "name": "CompareDomainPolicy", "role_kind": "domain", "layer": "domain", "domain_role": "domain_service", "responsibility": "推导比较状态、可见集合、统计、验证结果和复制计划。", "hidden_secret": "元数据相同与内容相同的语义区分，以及未扫描目录不能递归复制的不变量。", "change_triggers": ["比较状态语义变化", "筛选规则变化", "复制预检规则变化"], "data_owned": "无持久状态；输入条目到输出条目和计划的纯函数规则。", "depends_on": [], "industry_basis": "领域服务与纯函数策略对象惯例。", "design_principles": ["domain_service", "high_cohesion_low_coupling", "defensive_design"], "code_units": ["src/components/compare/compareDomain.ts"]},
+    {"id": "ROLE-L03", "name": "ContentVerificationService", "role_kind": "layer", "layer": "service", "domain_role": null, "responsibility": "在 Main 逐对读取并哈希文件，发布可取消的内容验证进度。", "hidden_secret": "流/缓冲选择、32 MB 上限、任务流销毁和每会话单任务规则。", "change_triggers": ["adapter 流能力变化", "哈希算法变化", "取消协议变化"], "data_owned": "活动验证任务、会话到任务映射和活跃 Readable 集合。", "depends_on": [], "industry_basis": "Node.js 流式服务与后台任务协作模式。", "design_principles": ["SRP", "information_hiding", "defensive_design"], "code_units": ["electron/src/services/ContentVerificationService.ts"]},
+    {"id": "ROLE-L04", "name": "DirectoryCompareIPC", "role_kind": "layer", "layer": "facade", "domain_role": null, "responsibility": "将受限的 renderer 验证请求映射到 Main 服务并转发元数据事件。", "hidden_secret": "ipcMain sender 生命周期和 preload/window.fileman 契约。", "change_triggers": ["IPC 通道变化", "验证 DTO 变化", "窗口销毁处理变化"], "data_owned": "无持久业务状态；持有服务单例并在 sender 存活时转发事件。", "depends_on": ["ROLE-L03"], "industry_basis": "Electron contextBridge 与 IPC facade 模式。", "design_principles": ["DIP", "separation_of_concerns", "information_hiding"], "code_units": ["electron/main.ts"]},
+    {"id": "ROLE-L05", "name": "FileOperationQueueStore", "role_kind": "layer", "layer": "store", "domain_role": null, "responsibility": "将已确认复制项排入既有文件操作队列并暴露任务反馈。", "hidden_secret": "冲突策略到 FileOperationTask 的映射和异步队列状态。", "change_triggers": ["文件操作任务参数变化", "冲突策略变化"], "data_owned": "活动和历史文件操作任务及任务面板可见性。", "depends_on": [], "industry_basis": "Pinia application store 模式。", "design_principles": ["SRP", "information_hiding"], "code_units": ["src/stores/fileOperations.ts"]}
+  ],
+  "interfaces": [
+    {"id": "IFC-1", "name": "DirectoryCompareViewModel.refresh", "provider": "ROLE-L02", "consumers": ["ROLE-L01"], "input": "DirCompareSession 的左右 deviceId、根路径和比较规则。", "output": "CompareEntry 根树或包含 side/device/path 的错误行。", "preconditions": ["左右会话标识和根路径非空。"], "postconditions": ["左右 listFiles 分别使用其 deviceId；失败不会被转换为空目录或相同结果。"], "invariants": ["CompareEntry 的 relativePath 在当前树中唯一。", "未校验的 metadata-equal 不表示 content-equal。"], "errors": ["目录读取失败记录 console.warn 并创建可见失败条目；调用方可刷新重试。"], "data_ownership": "ViewModel 独占 rootEntries 和任务状态，View 只读取。", "transaction": "not_applicable", "concurrency": "刷新先取消当前验证；异步读取完成后替换根树。"},
+    {"id": "IFC-2", "name": "DirectoryCompareIPC.startContentVerification", "provider": "ROLE-L04", "consumers": ["ROLE-L02"], "input": "sessionId 与包含左右设备、路径和大小的内容对数组。", "output": "taskId、total 和 compare:verification-progress 元数据事件。", "preconditions": ["每对包含左右文件路径；renderer 不传递或接收文件字节。"], "postconditions": ["每个完成对产生 content-equal、content-different 或 failed 状态。"], "invariants": ["同一会话仅一个活跃任务。", "取消不把待处理项标记为相同。"], "errors": ["未连接设备、无流超限或读取失败被转为单对 failed 事件和可读消息。"], "data_ownership": "Main 服务拥有任务和流，renderer 只拥有结果投影。", "transaction": "not_applicable", "concurrency": "每会话启动新任务前取消旧任务；任务内逐对串行以避免远程设备饱和。"},
+    {"id": "IFC-3", "name": "CompareDomainPolicy.buildCopyPlan", "provider": "ROLE-D01", "consumers": ["ROLE-L01", "ROLE-L05"], "input": "可见选择、目录树、左右设备根路径、方向与 dataRevision。", "output": "不可变复制项、被阻断目录和冲突策略占位。", "preconditions": ["选择来自当前可见行；来源侧文件存在。"], "postconditions": ["每个复制项有真实源 deviceId/path 和目标目录；未展开目录进入 blockedItems。"], "invariants": ["计划 revision 必须等于提交时 dataRevision。", "不会因为过滤隐藏后代而递归复制目录。"], "errors": ["revision 过期时 View 丢弃计划并要求重新打开确认框。"], "data_ownership": "计划是一次确认操作的快照；队列任务仍由 FileOperationQueueStore 所有。", "transaction": "队列负责实际文件写入事务；计划构建无副作用。", "concurrency": "每次确认只按计划快照创建任务；刷新会使旧 revision 失效。"}
+  ],
+  "design_contract_checks": [
+    {"id": "DC-1", "item": "左右目录读取必须分别传入 leftDeviceId 与 rightDeviceId，读取失败保留为可见错误。", "principle": "defensive_design", "role_scope": ["ROLE-L02"]},
+    {"id": "DC-2", "item": "内容字节只能由 Main service 消费，IPC 只传递任务和进度元数据。", "principle": "separation_of_concerns", "role_scope": ["ROLE-L03", "ROLE-L04"]},
+    {"id": "DC-3", "item": "metadata-equal、content-equal、failed 和未比较状态必须独立建模。", "principle": "information_hiding", "role_scope": ["ROLE-D01", "ROLE-L02"]},
+    {"id": "DC-4", "item": "复制前计划只接受当前可见选择，未展开目录递归复制必须被阻断。", "principle": "defensive_design", "role_scope": ["ROLE-D01", "ROLE-L01"]},
+    {"id": "DC-5", "item": "确认后的复制继续通过 fileOperations Store 创建队列任务，View 不直接写文件。", "principle": "dependency_direction", "role_scope": ["ROLE-L01", "ROLE-L05"]}
+  ],
+  "business_process": [
+    {"step": 1, "name": "跨设备读取与显示目录", "roles": ["ROLE-L01", "ROLE-L02", "ROLE-D01"], "code_refs": ["src/components/compare/useDirCompare.ts:refresh", "src/components/compare/compareDomain.ts:makeEntries"], "doc_ref": "业务流程图-步骤1", "exception": "任一侧读取失败时显示失败条目，已有另一侧结果标记为无法比较。"},
+    {"step": 2, "name": "启动并接收内容校验", "roles": ["ROLE-L02", "ROLE-L04", "ROLE-L03"], "code_refs": ["src/components/compare/useDirCompare.ts:verifyContent", "electron/main.ts:compare:verify:start", "electron/src/services/ContentVerificationService.ts:start"], "doc_ref": "业务流程图-步骤2", "exception": "设备未连接、无流超限或读取失败时只失败对应文件对；用户可取消任务。"},
+    {"step": 3, "name": "生成复制预检并请求确认", "roles": ["ROLE-L01", "ROLE-D01"], "code_refs": ["src/components/compare/DirCompareView.vue:openCopyPlan", "src/components/compare/compareDomain.ts:buildCopyPlan"], "doc_ref": "业务流程图-步骤3", "exception": "未展开目录含未知后代时加入 blockedItems，确认按钮不递归该目录。"},
+    {"step": 4, "name": "提交确认后的复制队列", "roles": ["ROLE-L01", "ROLE-L05"], "code_refs": ["src/components/compare/DirCompareView.vue:executeCopyPlan", "src/stores/fileOperations.ts:createCopyTask"], "doc_ref": "业务流程图-步骤4", "exception": "计划 revision 过期则取消提交；队列失败保留源文件并显示既有任务错误。"}
+  ],
+  "logging_standard": {"library": "browser console / Node console", "key_nodes_instrumented": ["入口", "异常", "外部调用"]},
+  "verification": {
+    "commands": [
+      {"command": "npm run typecheck", "result": "通过", "evidence": "2026-08-14 exit 0，vue-tsc --noEmit 无诊断。", "status": "passed"},
+      {"command": "npm run build", "result": "通过", "evidence": "2026-08-14 exit 0，electron-vite build 完成 main、preload 和 renderer bundle。", "status": "passed"},
+      {"command": "git diff --check", "result": "通过", "evidence": "2026-08-14 exit 0，无空白错误。", "status": "passed"}
+    ],
+    "checks": [
+      {"target": "跨设备目录读取", "method": "static_check", "evidence": "useDirCompare.ts:refresh 与 toggleExpand 分别传 localSession.leftDeviceId/rightDeviceId 到 compareDirectories。", "status": "passed"},
+      {"target": "内容字节隔离", "method": "manual_review", "evidence": "ContentVerificationService.ts 使用 adapter stream/readFile 并只由 electron/main.ts 发送进度对象；preload 不暴露字节读取接口。", "status": "passed"},
+      {"target": "复制预检不变量", "method": "static_check", "evidence": "compareDomain.ts:buildCopyPlan 将未加载目录写入 blockedItems，DirCompareCopyDialog 显示阻断提示，DirCompareView.ts 按 revision 提交。", "status": "passed"},
+      {"target": "校验取消状态", "method": "manual_review", "evidence": "ContentVerificationService.ts:cancel 销毁活跃流；useDirCompare.ts:cancelVerification 将 queued/verifying 状态复位为 not-requested。", "status": "passed"}
+    ],
+    "unverified": [
+      {"item": "真实 SMB、SSH、WebDAV、Android 与 iOS 设备上的流能力、取消延迟和 32 MB 无流失败提示。", "impact": "静态与生产构建不能证明每个实际设备 adapter 的网络时序。", "follow_up": "在连接的各类设备上执行一大一小文件校验、取消和失败重试手动验收。"}
+    ]
+  },
+  "summary": {"roles_count": 6, "interfaces_count": 3, "process_steps": 4, "verification_checks": 4, "layer_roles": 5, "domain_roles": 1},
+  "gate": {
+    "architecture": "go", "logging": "go", "coverage": "go", "verification": "go", "verdict": "go",
+    "issues": [
+      {"gate": "verification", "severity": "minor", "role_or_step": "external adapters", "problem": "真实远程和移动设备的流能力及取消时序没有自动化设备级证据。", "evidence": "verification.unverified 中已登记设备手动验收范围。"}
+    ],
+    "notes": "架构门基于实际代码文件、流程锚点、日志结构、类型检查和生产构建复核。设备级网络流验证未自动化，降低该部分运行时置信度但不改变已实现的边界与失败契约。"
+  },
+  "open_questions": [
+    {"question": "各连接设备的 adapter 是否稳定声明 canStream，并能在网络阻塞时及时响应 destroy。", "impact": "不同协议设备的内容校验耗时和取消反馈可能不同。", "next_stage": "设备联调阶段记录每类 adapter 的流支持矩阵和实际取消延迟。"}
+  ]
+}

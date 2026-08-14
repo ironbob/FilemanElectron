@@ -352,7 +352,8 @@ export const useTabsStore = defineStore('tabs', () => {
       rightDeviceId,
       right,
     }
-    const statusPrefix = status === 'equal' ? '=' : status === 'left-only' || status === 'right-only' ? '◇' : '≠'
+    const statusPrefix = status === 'metadata-equal' || status === 'content-equal'
+      ? '=' : status === 'left-only' || status === 'right-only' ? '◇' : '≠'
     const tab: Tab = {
       id: generateId(),
       title: `${statusPrefix} ${fileName}`,

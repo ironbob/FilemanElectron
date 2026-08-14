@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "screen": "文件夹对比主屏",
+    "input_mode": "verbal",
+    "input_count": 4,
+    "text_ui_count": 4,
+    "scope_note": "单屏及其可见交互态；文本和图片子比较屏不在本轮",
+    "context_source": "prd/2026-08-14-built-in-compare-requirements.md"
+  },
+  "inputs": [
+    {
+      "id": "DESC-01",
+      "input_type": "verbal",
+      "verbal_input": "使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 进行设计",
+      "state_label": "default-results",
+      "text_ui_file": "text-ui/DESC-01-default-results.txt",
+      "revision": 1,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "用户消息（2026-08-14）：确认全部"
+      }
+    },
+    {
+      "id": "DESC-02",
+      "input_type": "verbal",
+      "verbal_input": "使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 进行设计",
+      "state_label": "filtered-results",
+      "text_ui_file": "text-ui/DESC-02-filtered-results.txt",
+      "revision": 1,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "用户消息（2026-08-14）：确认全部"
+      }
+    },
+    {
+      "id": "DESC-03",
+      "input_type": "verbal",
+      "verbal_input": "使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 进行设计",
+      "state_label": "content-verifying",
+      "text_ui_file": "text-ui/DESC-03-content-verifying.txt",
+      "revision": 1,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "用户消息（2026-08-14）：确认全部"
+      }
+    },
+    {
+      "id": "DESC-04",
+      "input_type": "verbal",
+      "verbal_input": "使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 进行设计",
+      "state_label": "copy-confirmation",
+      "text_ui_file": "text-ui/DESC-04-copy-confirmation.txt",
+      "revision": 1,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "用户消息（2026-08-14）：确认全部"
+      }
+    }
+  ]
+}

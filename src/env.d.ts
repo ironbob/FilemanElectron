@@ -56,6 +56,26 @@ interface SearchQuery {
   modifiedBefore?: string
 }
 
+interface ContentVerificationPair {
+  relativePath: string
+  leftDeviceId: string
+  leftPath: string
+  leftSize: number
+  rightDeviceId: string
+  rightPath: string
+  rightSize: number
+}
+
+interface ContentVerificationProgress {
+  sessionId: string
+  taskId: string
+  relativePath: string
+  status: 'verifying' | 'content-equal' | 'content-different' | 'failed' | 'cancelled'
+  completed: number
+  total: number
+  message?: string
+}
+
 // ============ Device Types ============
 
 interface DeviceConfig {
@@ -167,6 +187,10 @@ interface Window {
     copy: (deviceId: string, srcPath: string, dstPath: string) => Promise<void>
     search: (deviceId: string, path: string, query: SearchQuery) => Promise<FileInfo[]>
 
+    // Directory compare content verification — progress contains no file bytes.
+    startContentVerification: (request: { sessionId: string; pairs: ContentVerificationPair[] }) => Promise<{ taskId: string; total: number }>
+    cancelContentVerification: (taskId: string) => Promise<boolean>
+
     // Cross-Device Operations
     copyBetweenDevices: (
       srcDeviceId: string,
@@ -218,6 +242,7 @@ interface Window {
     // Events
     onDeviceChange: (callback: (devices: Device[]) => void) => () => void
     onTransferProgress: (callback: (progress: unknown) => void) => () => void
+    onContentVerificationProgress: (callback: (progress: ContentVerificationProgress) => void) => () => void
 
     // Mobile Device Operations
     startMobileScan: () => Promise<void>

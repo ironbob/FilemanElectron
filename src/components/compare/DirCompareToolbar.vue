@@ -1,5 +1,14 @@
 <template>
   <div class="h-10 bg-bg-toolbar flex items-center px-2 gap-1 border-b border-border flex-shrink-0">
+    <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
+      <button class="toolbar-btn-enhanced" title="返回父级目录" aria-label="返回父级目录" @click="$emit('go-parent')">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+      </button>
+      <button class="toolbar-btn-enhanced" title="交换左右目录" aria-label="交换左右目录" @click="$emit('swap-sides')">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h11l-3-3m3 13H7l3 3M18 7l-3 3M7 17l3-3" /></svg>
+      </button>
+    </div>
+    <div class="w-px h-5 bg-border mx-1" />
     <!-- Copy operations -->
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
@@ -127,6 +136,19 @@
     <!-- Spacer -->
     <div class="flex-1" />
 
+    <button
+      v-if="!isVerifying"
+      class="toolbar-btn-enhanced btn-green"
+      title="校验选中项内容"
+      aria-label="校验选中项内容"
+      @click="$emit('verify')"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    </button>
+    <button v-else class="toolbar-btn-enhanced btn-orange" title="取消内容校验" aria-label="取消内容校验" @click="$emit('cancel-verify')">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+
     <!-- Loading indicator -->
     <div v-if="isLoading" class="flex items-center gap-1.5 text-text-tertiary text-xs">
       <div class="w-3.5 h-3.5 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
@@ -156,6 +178,7 @@ const props = defineProps<{
   rule: CompareRule
   filter: DirCompareFilter
   isLoading: boolean
+  isVerifying: boolean
 }>()
 
 const emit = defineEmits<{
@@ -166,6 +189,10 @@ const emit = defineEmits<{
   'prev-diff': []
   'next-diff': []
   'refresh': []
+  'go-parent': []
+  'swap-sides': []
+  'verify': []
+  'cancel-verify': []
   'update:rule': [rule: CompareRule]
   'update:filter': [filter: DirCompareFilter]
 }>()
@@ -190,7 +217,7 @@ const isEqualFilter = computed(() =>
 function setFilter(preset: 'all' | 'diff' | 'only' | 'equal') {
   const map: Record<string, DirCompareFilter> = {
     all:   { showEqual: true,  showDifferent: true,  showLeftOnly: true,  showRightOnly: true  },
-    diff:  { showEqual: false, showDifferent: true,  showLeftOnly: false, showRightOnly: false },
+    diff:  { showEqual: false, showDifferent: true,  showLeftOnly: true,  showRightOnly: true  },
     only:  { showEqual: false, showDifferent: false, showLeftOnly: true,  showRightOnly: true  },
     equal: { showEqual: true,  showDifferent: false, showLeftOnly: false, showRightOnly: false }
   }

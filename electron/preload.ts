@@ -76,6 +76,26 @@ export interface SearchQuery {
   modifiedBefore?: string
 }
 
+export interface ContentVerificationPair {
+  relativePath: string
+  leftDeviceId: string
+  leftPath: string
+  leftSize: number
+  rightDeviceId: string
+  rightPath: string
+  rightSize: number
+}
+
+export interface ContentVerificationProgress {
+  sessionId: string
+  taskId: string
+  relativePath: string
+  status: 'verifying' | 'content-equal' | 'content-different' | 'failed' | 'cancelled'
+  completed: number
+  total: number
+  message?: string
+}
+
 // File Operation Types
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
 export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
@@ -189,6 +209,12 @@ const filemanAPI = {
   search: (deviceId: string, path: string, query: SearchQuery) =>
     ipcRenderer.invoke('fs:search', deviceId, path, query),
 
+  // ============ Directory Compare Content Verification ============
+  startContentVerification: (request: { sessionId: string; pairs: ContentVerificationPair[] }) =>
+    ipcRenderer.invoke('compare:verify:start', request) as Promise<{ taskId: string; total: number }>,
+  cancelContentVerification: (taskId: string) =>
+    ipcRenderer.invoke('compare:verify:cancel', taskId) as Promise<boolean>,
+
   // ============ Cross-Device Operations ============
   copyBetweenDevices: (
     srcDeviceId: string,
@@ -230,6 +256,11 @@ const filemanAPI = {
     const handler = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress)
     ipcRenderer.on('transfer:progress', handler)
     return () => ipcRenderer.removeListener('transfer:progress', handler)
+  },
+  onContentVerificationProgress: (callback: (progress: ContentVerificationProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: ContentVerificationProgress) => callback(progress)
+    ipcRenderer.on('compare:verification-progress', handler)
+    return () => ipcRenderer.removeListener('compare:verification-progress', handler)
   },
 
   // ============ Shell Operations ============

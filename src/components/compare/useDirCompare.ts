@@ -1,277 +1,183 @@
-import { ref, computed, type Ref } from 'vue'
-import type { FileInfo, CompareEntry, CompareStatus, DirCompareFilter, DirCompareSession, CompareRule } from '@/types'
+import { computed, ref, type Ref } from 'vue'
+import type {
+  CompareEntry,
+  CompareSideError,
+  ContentVerificationPair,
+  DirCompareSession,
+  FileInfo
+} from '@/types'
+import {
+  applyVerificationProgress,
+  computeStats,
+  flattenEntries,
+  isDifference,
+  makeEntries,
+  queuedVerification,
+  resetCancelledVerification,
+  verificationCandidate,
+  type DirectoryReadResult
+} from './compareDomain'
 
-// ── Sorting helper ────────────────────────────────────────────────────────────
+const log = console
 
-function sortEntries(entries: CompareEntry[]) {
-  entries.sort((a, b) => {
-    // Directories first
-    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+async function readDirectory(deviceId: string, path: string, side: 'left' | 'right'): Promise<DirectoryReadResult> {
+  try {
+    return { files: await window.fileman.listFiles(deviceId, path) }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '读取目录失败'
+    const detail: CompareSideError = { side, deviceId, path, message }
+    log.warn('[DirCompare] Directory read failed', detail)
+    return { error: detail }
+  }
+}
+
+function resetVerification(entries: CompareEntry[]) {
+  entries.forEach(entry => {
+    entry.verification = { status: 'not-requested' }
+    if (entry.children) resetVerification(entry.children)
   })
 }
-
-// ── Status determination ──────────────────────────────────────────────────────
-
-function determineStatus(
-  left: FileInfo | undefined,
-  right: FileInfo | undefined,
-  rule: CompareRule
-): CompareStatus {
-  if (!left) return 'right-only'
-  if (!right) return 'left-only'
-
-  // Both exist — directories get 'equal' at this stage (refined after child scan)
-  if (left.isDirectory && right.isDirectory) return 'equal'
-
-  switch (rule) {
-    case 'name':
-      return 'equal'
-
-    case 'size':
-      return left.size === right.size ? 'equal' : 'different'
-
-    case 'timestamp': {
-      const lt = new Date(left.modifiedTime).getTime()
-      const rt = new Date(right.modifiedTime).getTime()
-      const timeDiff = Math.abs(lt - rt)
-      // Treat ≤2 s difference as equal (FAT32 / cross-fs timestamp rounding)
-      if (timeDiff <= 2000) {
-        return left.size === right.size ? 'equal' : 'different'
-      }
-      return lt > rt ? 'left-newer' : 'right-newer'
-    }
-  }
-}
-
-// ── Core compare algorithm ────────────────────────────────────────────────────
-
-async function compareDirectories(
-  deviceId: string,
-  leftPath: string,
-  rightPath: string,
-  rule: CompareRule,
-  depth: number,
-  parentRelPath: string
-): Promise<CompareEntry[]> {
-  const [leftFiles, rightFiles] = await Promise.all([
-    window.fileman.listFiles(deviceId, leftPath).catch(() => [] as FileInfo[]),
-    window.fileman.listFiles(deviceId, rightPath).catch(() => [] as FileInfo[])
-  ])
-
-  const leftMap = new Map<string, FileInfo>()
-  for (const f of leftFiles) leftMap.set(f.name, f)
-
-  const rightMap = new Map<string, FileInfo>()
-  for (const f of rightFiles) rightMap.set(f.name, f)
-
-  const allNames = new Set([...leftMap.keys(), ...rightMap.keys()])
-
-  const entries: CompareEntry[] = []
-  for (const name of allNames) {
-    const left = leftMap.get(name)
-    const right = rightMap.get(name)
-    const isDirectory = !!(left?.isDirectory || right?.isDirectory)
-    const relativePath = parentRelPath ? `${parentRelPath}/${name}` : name
-
-    entries.push({
-      relativePath,
-      name,
-      status: determineStatus(left, right, rule),
-      left,
-      right,
-      isDirectory,
-      expanded: false,
-      depth,
-      children: undefined
-    })
-  }
-
-  sortEntries(entries)
-  return entries
-}
-
-// ── Stats helper ──────────────────────────────────────────────────────────────
-
-export interface CompareStats {
-  equal: number
-  different: number
-  leftOnly: number
-  rightOnly: number
-  total: number
-}
-
-function computeStats(entries: CompareEntry[]): CompareStats {
-  const stats: CompareStats = { equal: 0, different: 0, leftOnly: 0, rightOnly: 0, total: 0 }
-
-  function walk(list: CompareEntry[]) {
-    for (const entry of list) {
-      if (!entry.isDirectory) {
-        stats.total++
-        switch (entry.status) {
-          case 'equal':       stats.equal++;     break
-          case 'different':
-          case 'left-newer':
-          case 'right-newer': stats.different++; break
-          case 'left-only':   stats.leftOnly++;  break
-          case 'right-only':  stats.rightOnly++; break
-        }
-      }
-      if (entry.children) walk(entry.children)
-    }
-  }
-
-  walk(entries)
-  return stats
-}
-
-// ── Filter helper ─────────────────────────────────────────────────────────────
-
-function shouldShowEntry(entry: CompareEntry, filter: DirCompareFilter): boolean {
-  if (entry.isDirectory) return true // always show dirs (they may have visible children)
-  switch (entry.status) {
-    case 'equal':
-      return filter.showEqual
-    case 'different':
-    case 'left-newer':
-    case 'right-newer':
-      return filter.showDifferent
-    case 'left-only':
-      return filter.showLeftOnly
-    case 'right-only':
-      return filter.showRightOnly
-  }
-}
-
-function flattenEntries(entries: CompareEntry[], filter: DirCompareFilter): CompareEntry[] {
-  const result: CompareEntry[] = []
-  for (const entry of entries) {
-    if (!shouldShowEntry(entry, filter)) continue
-    result.push(entry)
-    if (entry.isDirectory && entry.expanded && entry.children) {
-      result.push(...flattenEntries(entry.children, filter))
-    }
-  }
-  return result
-}
-
-// ── Composable ────────────────────────────────────────────────────────────────
 
 export function useDirCompare(session: Ref<DirCompareSession>) {
   const rootEntries = ref<CompareEntry[]>([])
   const isLoading = ref(false)
-
-  const stats = computed<CompareStats>(() => computeStats(rootEntries.value))
-
-  const flatEntries = computed<CompareEntry[]>(() =>
-    flattenEntries(rootEntries.value, session.value.filter)
-  )
-
-  // ── Navigation: next/prev diff ──────────────────────────────────────────────
-
+  const isVerifying = ref(false)
+  const verificationProgress = ref({ completed: 0, total: 0 })
+  const activeTaskId = ref<string | null>(null)
+  const dataRevision = ref(0)
   const currentDiffIndex = ref(-1)
 
-  const diffIndices = computed(() => {
-    const indices: number[] = []
-    const flat = flatEntries.value
-    for (let i = 0; i < flat.length; i++) {
-      if (flat[i].status !== 'equal') indices.push(i)
-    }
-    return indices
-  })
+  const flatEntries = computed(() => flattenEntries(rootEntries.value, session.value.filter))
+  const stats = computed(() => computeStats(rootEntries.value, flatEntries.value))
+  const diffIndices = computed(() => flatEntries.value
+    .map((entry, index) => isDifference(entry) ? index : -1)
+    .filter(index => index >= 0))
 
-  function goNextDiff(scrollIntoView: (index: number) => void) {
-    if (diffIndices.value.length === 0) return
-    const next = diffIndices.value.find(i => i > currentDiffIndex.value)
-    currentDiffIndex.value = next ?? diffIndices.value[0]
-    scrollIntoView(currentDiffIndex.value)
+  async function compareDirectories(
+    leftDeviceId: string,
+    leftPath: string | undefined,
+    rightDeviceId: string,
+    rightPath: string | undefined,
+    depth: number,
+    parentRelativePath: string
+  ) {
+    const [left, right] = await Promise.all([
+      leftPath ? readDirectory(leftDeviceId, leftPath, 'left') : Promise.resolve({ files: [] as FileInfo[] }),
+      rightPath ? readDirectory(rightDeviceId, rightPath, 'right') : Promise.resolve({ files: [] as FileInfo[] })
+    ])
+    return makeEntries(left, right, session.value.rule, depth, parentRelativePath)
   }
-
-  function goPrevDiff(scrollIntoView: (index: number) => void) {
-    if (diffIndices.value.length === 0) return
-    const prev = [...diffIndices.value].reverse().find(i => i < currentDiffIndex.value)
-    currentDiffIndex.value = prev ?? diffIndices.value[diffIndices.value.length - 1]
-    scrollIntoView(currentDiffIndex.value)
-  }
-
-  // ── Load / refresh ──────────────────────────────────────────────────────────
 
   async function refresh() {
+    if (activeTaskId.value) await cancelVerification()
     isLoading.value = true
+    log.info('[DirCompare] refreshing directories', { leftDeviceId: session.value.leftDeviceId, rightDeviceId: session.value.rightDeviceId })
     currentDiffIndex.value = -1
     try {
       rootEntries.value = await compareDirectories(
-        session.value.leftDeviceId,
-        session.value.leftRootPath,
-        session.value.rightRootPath,
-        session.value.rule,
-        0,
-        ''
+        session.value.leftDeviceId, session.value.leftRootPath,
+        session.value.rightDeviceId, session.value.rightRootPath, 0, ''
       )
+      dataRevision.value++
     } finally {
       isLoading.value = false
     }
   }
 
-  // ── Expand / collapse ───────────────────────────────────────────────────────
-
   async function toggleExpand(entry: CompareEntry) {
-    if (!entry.isDirectory) return
-
+    if (!entry.isDirectory || entry.error) return
     if (entry.expanded) {
       entry.expanded = false
       return
     }
-
-    // Load children if not yet loaded
     if (!entry.children) {
       isLoading.value = true
       try {
-        const leftChildPath = entry.left?.path
-          ?? `${session.value.leftRootPath}/${entry.relativePath}`
-        const rightChildPath = entry.right?.path
-          ?? `${session.value.rightRootPath}/${entry.relativePath}`
-
         entry.children = await compareDirectories(
-          session.value.leftDeviceId,
-          leftChildPath,
-          rightChildPath,
-          session.value.rule,
-          entry.depth + 1,
-          entry.relativePath
+          session.value.leftDeviceId, entry.left?.path,
+          session.value.rightDeviceId, entry.right?.path,
+          entry.depth + 1, entry.relativePath
         )
       } finally {
         isLoading.value = false
       }
     }
-
     entry.expanded = true
   }
 
-  function _setExpandedRecursive(entries: CompareEntry[], value: boolean) {
-    for (const entry of entries) {
+  function setExpanded(entries: CompareEntry[], value: boolean) {
+    entries.forEach(entry => {
       if (entry.isDirectory) {
         entry.expanded = value
-        if (entry.children) _setExpandedRecursive(entry.children, value)
+        if (entry.children) setExpanded(entry.children, value)
       }
-    }
+    })
   }
 
-  function expandAll() { _setExpandedRecursive(rootEntries.value, true) }
-  function collapseAll() { _setExpandedRecursive(rootEntries.value, false) }
+  function expandAll() { setExpanded(rootEntries.value, true) }
+  function collapseAll() { setExpanded(rootEntries.value, false) }
+
+  function goNextDiff(scrollIntoView: (index: number) => void) {
+    if (!diffIndices.value.length) return
+    currentDiffIndex.value = diffIndices.value.find(index => index > currentDiffIndex.value) ?? diffIndices.value[0]
+    scrollIntoView(currentDiffIndex.value)
+  }
+
+  function goPrevDiff(scrollIntoView: (index: number) => void) {
+    if (!diffIndices.value.length) return
+    currentDiffIndex.value = [...diffIndices.value].reverse().find(index => index < currentDiffIndex.value)
+      ?? diffIndices.value[diffIndices.value.length - 1]
+    scrollIntoView(currentDiffIndex.value)
+  }
+
+  async function verifyContent(entries: CompareEntry[]) {
+    const pairs: ContentVerificationPair[] = entries
+      .filter(verificationCandidate)
+      .map(entry => ({
+        relativePath: entry.relativePath,
+        leftDeviceId: session.value.leftDeviceId,
+        leftPath: entry.left!.path,
+        leftSize: entry.left!.size,
+        rightDeviceId: session.value.rightDeviceId,
+        rightPath: entry.right!.path,
+        rightSize: entry.right!.size
+      }))
+    if (!pairs.length) return
+    entries.filter(verificationCandidate).forEach(entry => { entry.verification = queuedVerification() })
+    const result = await window.fileman.startContentVerification({ sessionId: session.value.id, pairs })
+    log.info('[DirCompare] content verification started', { taskId: result.taskId, pairCount: result.total })
+    activeTaskId.value = result.taskId
+    isVerifying.value = true
+    verificationProgress.value = { completed: 0, total: result.total }
+  }
+
+  async function cancelVerification() {
+    const taskId = activeTaskId.value
+    if (!taskId) return
+    await window.fileman.cancelContentVerification(taskId)
+    log.info('[DirCompare] content verification cancelled', { taskId })
+    resetCancelledVerification(rootEntries.value, taskId)
+    activeTaskId.value = null
+    isVerifying.value = false
+  }
+
+  const unsubscribeVerification = window.fileman.onContentVerificationProgress(progress => {
+    if (progress.sessionId !== session.value.id) return
+    applyVerificationProgress(rootEntries.value, progress)
+    verificationProgress.value = { completed: progress.completed, total: progress.total }
+    if (['content-equal', 'content-different', 'failed'].includes(progress.status) && progress.completed >= progress.total) {
+      activeTaskId.value = null
+      isVerifying.value = false
+    }
+  })
+
+  function dispose() {
+    unsubscribeVerification()
+  }
 
   return {
-    rootEntries,
-    isLoading,
-    stats,
-    flatEntries,
-    diffIndices,
-    currentDiffIndex,
-    refresh,
-    toggleExpand,
-    expandAll,
-    collapseAll,
-    goNextDiff,
-    goPrevDiff
+    rootEntries, flatEntries, stats, isLoading, isVerifying, verificationProgress, dataRevision,
+    refresh, toggleExpand, expandAll, collapseAll, goNextDiff, goPrevDiff, currentDiffIndex,
+    verifyContent, cancelVerification, resetVerification, dispose
   }
 }

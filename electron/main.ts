@@ -14,8 +14,10 @@ import { HostShellService } from './src/services/HostShellService'
 import { FileMetadataService } from './src/services/FileMetadataService'
 import { ArchiveService } from './src/services/ArchiveService'
 import { MobileScreenshotService } from './src/services/MobileScreenshotService'
+import { ContentVerificationService, type ContentVerificationRequest } from './src/services/ContentVerificationService'
 
 const isDev = !app.isPackaged
+const log = console
 
 let mainWindow: BrowserWindow | null = null
 const configService = new ConfigService()
@@ -30,6 +32,7 @@ const hostShellService = new HostShellService()
 const fileMetadataService = new FileMetadataService(configService)
 const archiveService = new ArchiveService(deviceManager)
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
+const contentVerificationService = new ContentVerificationService(deviceManager)
 
 /** Separator used for virtual ZIP paths: "<zipFilePath>::<innerPath>" */
 const ZIP_PATH_SEP = '::'
@@ -215,6 +218,20 @@ ipcMain.handle('fs:readFile', async (_, deviceId: string, path: string) => {
   }
   const buffer = await deviceManager.readFile(deviceId, path)
   return buffer.toString('base64')
+})
+
+// ============ Directory compare content verification ============
+// Content bytes are consumed only in Main. Renderer receives progress/result metadata.
+ipcMain.handle('compare:verify:start', (event, request: ContentVerificationRequest) => {
+  log.info('[DirectoryCompareIPC] verification requested', { sessionId: request.sessionId, pairCount: request.pairs.length })
+  return contentVerificationService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send('compare:verification-progress', progress)
+  })
+})
+
+ipcMain.handle('compare:verify:cancel', (_, taskId: string) => {
+  log.info('[DirectoryCompareIPC] verification cancellation requested', { taskId })
+  return contentVerificationService.cancel(taskId)
 })
 
 // ============ ZIP browsing IPC Handlers ============

@@ -91,12 +91,39 @@ export interface AppSettings {
 export type CompareRule = 'name' | 'size' | 'timestamp'
 
 export type CompareStatus =
-  | 'equal'
+  | 'metadata-equal'
+  | 'content-equal'
   | 'different'
   | 'left-newer'
   | 'right-newer'
   | 'left-only'
   | 'right-only'
+  | 'type-mismatch'
+  | 'verifying'
+  | 'verification-failed'
+  | 'uncomparable'
+
+export type VerificationStatus =
+  | 'not-requested'
+  | 'queued'
+  | 'verifying'
+  | 'content-equal'
+  | 'content-different'
+  | 'failed'
+  | 'cancelled'
+
+export interface CompareSideError {
+  side: 'left' | 'right'
+  deviceId: string
+  path: string
+  message: string
+}
+
+export interface VerificationState {
+  status: VerificationStatus
+  taskId?: string
+  message?: string
+}
 
 export interface CompareEntry {
   /** Full relative path from compare root (unique key in the tree) */
@@ -109,6 +136,8 @@ export interface CompareEntry {
   expanded: boolean
   depth: number
   children?: CompareEntry[]
+  verification?: VerificationState
+  error?: CompareSideError
 }
 
 export interface DirCompareFilter {
@@ -141,6 +170,51 @@ export interface FileDiffSession {
   rightDeviceId: string
   /** Undefined when the file only exists on the left side */
   right?: FileInfo
+}
+
+export interface ContentVerificationPair {
+  relativePath: string
+  leftDeviceId: string
+  leftPath: string
+  leftSize: number
+  rightDeviceId: string
+  rightPath: string
+  rightSize: number
+}
+
+export interface ContentVerificationRequest {
+  sessionId: string
+  pairs: ContentVerificationPair[]
+}
+
+export interface ContentVerificationProgress {
+  sessionId: string
+  taskId: string
+  relativePath: string
+  status: Exclude<VerificationStatus, 'not-requested' | 'queued'>
+  completed: number
+  total: number
+  message?: string
+}
+
+export type CopyDirection = 'left-to-right' | 'right-to-left'
+export type CopyConflictStrategy = 'ask' | 'skip' | 'overwrite' | 'rename'
+
+export interface DirCompareCopyPlanItem {
+  relativePath: string
+  sourceDeviceId: string
+  sourcePath: string
+  targetDeviceId: string
+  targetDirectory: string
+  isDirectory: boolean
+}
+
+export interface DirCompareCopyPlan {
+  revision: number
+  direction: CopyDirection
+  items: DirCompareCopyPlanItem[]
+  blockedItems: string[]
+  strategy: CopyConflictStrategy
 }
 
 export * from './preview'

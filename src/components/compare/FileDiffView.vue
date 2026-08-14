@@ -310,23 +310,33 @@ const tooLarge = computed(() => {
 // ── Status badge ──────────────────────────────────────────────────────────────
 const statusLabel = computed(() => {
   switch (props.session.status) {
-    case 'equal':       return '相同'
+    case 'metadata-equal': return '元数据相同'
+    case 'content-equal': return '内容相同'
     case 'different':   return '不同'
     case 'left-newer':  return '左侧较新'
     case 'right-newer': return '右侧较新'
     case 'left-only':   return '仅左侧'
     case 'right-only':  return '仅右侧'
+    case 'type-mismatch': return '类型不同'
+    case 'verifying': return '校验中'
+    case 'verification-failed': return '校验失败'
+    case 'uncomparable': return '无法比较'
   }
 })
 
 const statusBadgeClass = computed(() => {
   switch (props.session.status) {
-    case 'equal':       return 'bg-green-500/15 text-green-400'
+    case 'metadata-equal': return 'bg-slate-500/15 text-slate-300'
+    case 'content-equal': return 'bg-green-500/15 text-green-400'
     case 'different':   return 'bg-red-500/20 text-red-400'
     case 'left-newer':
     case 'right-newer': return 'bg-blue-500/15 text-blue-400'
     case 'left-only':
     case 'right-only':  return 'bg-orange-500/20 text-orange-400'
+    case 'verifying': return 'bg-blue-500/15 text-blue-400'
+    case 'verification-failed':
+    case 'uncomparable': return 'bg-orange-500/20 text-orange-400'
+    case 'type-mismatch': return 'bg-red-500/20 text-red-400'
   }
 })
 

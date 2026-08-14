@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "mode": "repair",
+    "target_screen": "文件夹对比主屏（DirCompareView）",
+    "stage": "post_code_revalidated",
+    "revision": 2,
+    "user_forced_arch_first": false
+  },
+  "estimate": {
+    "production_files": 13,
+    "change_size": "large",
+    "ui_only": false,
+    "logic_change": "business_logic"
+  },
+  "evidence": [
+    "repair-audit.json MISMATCH-02：compareDirectories 只接收 leftDeviceId，修复会改变左右来源扫描数据流",
+    "repair-audit.json MISMATCH-03..05：CompareStatus、CompareEntry、CompareStats 需要新增元数据未验证、内容验证进度和失败状态",
+    "repair-audit.json MISMATCH-04：渐进内容验证需要 renderer 状态、preload IPC 契约和 main/service 分块读取协作",
+    "repair-audit.json MISMATCH-06：安全复制需要预检、冲突策略、确认与任务提交之间的新状态机",
+    "src/types/index.ts：共享 CompareStatus 同时被目录比较、tabs 与 FileDiffSession 使用，修改影响跨组件契约",
+    "electron/preload.ts 与 electron/main.ts：现有 window.fileman IPC 边界是内容验证能力的必要跨层落点",
+    "实际生产文件范围包含既有 10 个类型/视图/状态/IPC/文件差异兼容文件，以及内容验证服务、确认浮层和领域策略等 3 个新文件；FileDiffView 和 tabs 的状态语义兼容修改使范围由 11 调整为 13"
+  ],
+  "risk_flags": {
+    "navigation_change": true,
+    "state_ownership_change": true,
+    "data_flow_change": true,
+    "api_or_persistence_change": true,
+    "new_dependency": false,
+    "cross_layer_change": true,
+    "shared_component_or_token_change": true,
+    "multiple_screens": false,
+    "architecture_role_change": true
+  },
+  "decision": {
+    "path": "arch_first",
+    "rationale": "目标虽限定为单屏，但所需能力跨越共享状态类型、renderer composable、preload IPC、Electron main/service 与文件操作确认流程；同时包含跨设备扫描、可取消内容验证和复制冲突预检等业务逻辑，必须先形成架构契约再串行实现。"
+  }
+}
