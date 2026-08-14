@@ -72,8 +72,9 @@
 
       <!-- Main Area -->
       <div class="flex-1 flex flex-col overflow-hidden bg-bg-primary relative">
-        <!-- Tab Bar -->
-        <AppTabBar />
+        <!-- Finder keeps a single location in one continuous content view.
+             Tabs appear only when there is an actual second location to switch. -->
+        <AppTabBar v-if="tabsStore.tabs.length > 1" />
 
         <!-- Content Area with File Panes -->
         <div class="flex-1 flex overflow-hidden">
@@ -173,11 +174,12 @@ const fileOpsStore = useFileOperationsStore()
 const theme = ref<'light' | 'dark'>('dark')
 const showSettingsDialog = ref(false)
 
-// Sidebar resize (persisted). Default matches the original fixed w-52 (208px).
-const SIDEBAR_DEFAULT_WIDTH = 208
-const SIDEBAR_MIN_WIDTH = 160
+// The reference Finder sidebar occupies about 15% of its window width.
+// This default keeps that ratio at the app's normal 1152px launch viewport.
+const SIDEBAR_DEFAULT_WIDTH = 176
+const SIDEBAR_MIN_WIDTH = 168
 const SIDEBAR_MAX_WIDTH = 480
-const SIDEBAR_WIDTH_KEY = 'fileman-sidebar-width'
+const SIDEBAR_WIDTH_KEY = 'fileman-finder-sidebar-width'
 const sidebarWidth = ref(SIDEBAR_DEFAULT_WIDTH)
 const isSidebarResizing = ref(false)
 

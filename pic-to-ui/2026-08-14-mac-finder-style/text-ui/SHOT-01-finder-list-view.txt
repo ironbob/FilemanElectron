@@ -1,0 +1,40 @@
+Finder 列表视图（截图 SHOT-01，1920 × 1001）
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ●  ●  ●  │ [icon:back] [icon:forward]  JINGZAO                                  [icon:grid] [icon:list:selected] [icon:columns] [icon:gallery]             │
+│           │                                                                       [icon:sort-menu] [icon:share] [icon:tag] [icon:more]  [icon:search] 搜索 │
+├───────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [个人收藏] │ 名称                                                        │ 修改日期                 │ 大小       │ 种类                          │
+│ [icon:recent] 最近使用                                                     ├──────────────────────────────────────────────────────────────────────────────────┤
+│ [icon:shared] 共享                                                        │ [icon:file] 白噪音.mp4                 │ 2025年5月24日 22:12 │ 83 MB  │ MPEG-4 影片 │
+│           │ [个人收藏]                                                     │ [disclosure] [icon:folder] 电影         │ 2026年2月17日 13:11 │ --     │ 文件夹     │
+│ [icon:applications] 应用程序                                               │ [disclosure] [icon:folder] 教辅         │ 2026年6月4日 08:42  │ --     │ 文件夹     │
+│ [icon:downloads] 下载                                                     │ [disclosure] [icon:folder] 三年级寒假作业 │ 2026年2月9日 23:39  │ --     │ 文件夹     │
+│ [icon:folder] AI                                                          │ [icon:file] 三年级寒假作业.zip           │ 2026年1月25日 09:25 │ 183.7 MB │ ZIP 归档  │
+│ [icon:folder] work_space                                                  │ [disclosure] [icon:folder] 李帖         │ 2026年6月29日 23:10 │ --     │ 文件夹     │
+│ [icon:folder] tmp                                                         │ [disclosure] [icon:folder] ai_illu      │ 2026年2月11日 17:02 │ --     │ 文件夹     │
+│ [icon:folder] live                                                        │ [disclosure] [icon:folder] Android_sdk  │ 2026年6月3日 15:12  │ --     │ 文件夹     │
+│ [icon:desktop] 桌面                                                       │ [disclosure] [icon:folder] avideo       │ 2026年4月19日 19:11 │ --     │ 文件夹     │
+│ [icon:document] 文稿                                                      │ [icon:file] ClashX.dmg                   │ 2025年3月23日 19:16 │ 29 MB  │ 磁盘映像   │
+│ [icon:folder] logs                                                        │ [disclosure] [icon:folder] code         │ 2026年3月6日 22:27  │ --     │ 文件夹     │
+│ [icon:folder] ai_pic                                                      │ [disclosure] [icon:folder] DCIM         │ 今天 08:33          │ --     │ 文件夹     │
+│           │ [位置]                                                        │ [disclosure] [icon:folder] download     │ 2026年7月26日 23:20 │ --     │ 文件夹     │
+│ [icon:cloud] iCloud 云盘                                                  │ [disclosure] [icon:folder] model        │ 2025年4月22日 12:00 │ --     │ 文件夹     │
+│ [icon:home] wtb                                                          │ [disclosure] [icon:folder] mp3          │ 2026年2月23日 23:02 │ --     │ 文件夹     │
+│ [icon:drive] JINGZAO  [selected]                                         │ [disclosure] [icon:folder] pic          │ 2026年5月13日 09:40 │ --     │ 文件夹     │
+│ [icon:drive] Macintosh HD                                                 │ [disclosure:expanded] [icon:folder] video │ 2026年3月19日 21:39 │ --     │ 文件夹   │
+│ [icon:airdrop] 隔空投送                                                   │   [disclosure] [icon:folder] 51          │ 2026年8月11日 08:39 │ --     │ 文件夹     │
+│ [icon:trash] 废纸篓                                                       │   [disclosure] [icon:folder] 第二季【公众号 罗里罗嗦影视】                    │
+│           │   [disclosure] [icon:folder] 人物                               │                                        │
+│ [标签]     │   [disclosure] [icon:folder] 斯巴达克斯：诅咒者之战 第三季       │                                        │
+│ ● 红色     │ [disclosure] [icon:folder] vv  [expanded]                      │                                        │
+│ ● 橙色     │   [icon:image] 微信图片_20260423224224_77.jpg                 │ 2026年4月23日 22:42 │ 50 KB  │ JPEG 图像  │
+│ ● 黄色     │   [icon:image] 微信图片_20260730225011_193.jpg                │ 2026年7月30日 22:50 │ 166 KB │ JPEG 图像  │
+│ ● 绿色     │                                                              │                                      ▓   │
+│ ● 蓝色     │                                                              │                                      ▓   │
+│ ● 紫色     │                                                              │                                      ▓   │
+│ ● 灰色     │                                                              │                                      ▓   │
+│ [icon:tag] 所有标签…                                                      │                                      ▓   │
+└───────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+观察到的视觉规则：白色圆角窗口；顶部工具栏与内容区以细分隔线区分；窄左侧栏承载分组导航，当前 “JINGZAO” 为浅灰圆角选中态；主区为列表表格，列标题在顶端，文件夹/文件以图标、展开箭头与缩进展示层级，交替行呈很浅灰色圆角底；右侧有细滚动条。

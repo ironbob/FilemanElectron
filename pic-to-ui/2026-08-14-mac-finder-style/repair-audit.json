@@ -2,11 +2,11 @@
   "meta": {
     "mode": "repair",
     "target_screen": "Fileman 主文件管理窗口",
-    "reference_screenshots": ["DESC-01 confirmed text UI: Finder-style main window; no pixel screenshot was supplied"],
+    "reference_screenshots": ["SHOT-01: /var/folders/jw/5mwwlr9d6t51k0rpdmdw9q600000gn/T/codex-clipboard-5acb8015-0f60-45cb-90a8-e65bab4a986b.png (1920x1001, user confirmed)"],
     "implementation_root": ".",
     "baseline": {
-      "status": "unavailable",
-      "reason": "No Finder reference screenshot was supplied and this audit session has no configured Electron screenshot runner; npm run typecheck passed but does not produce a visual baseline."
+      "status": "captured",
+      "evidence": "Reference SHOT-01 was user-confirmed. Current Electron render captured at /var/folders/jw/5mwwlr9d6t51k0rpdmdw9q600000gn/T/com.openai.sky.CUAService/Electron Screenshot 2026-08-14 at 3.44.05 PM.jpeg (1152x768), with one JINGZAO file-list tab."
     }
   },
   "mismatches": [
@@ -15,84 +15,84 @@
       "category": "structure",
       "priority": "P0",
       "target_ids": ["N1", "N2", "N3", "N4"],
-      "screenshot_evidence": "DESC-01: confirmed main window has Finder title/toolbar, a sidebar plus one content region, and a bottom status bar.",
-      "current_evidence": "src/App.vue: root contains a generic title bar, an AppSidebar, an AppTabBar, one or more FilePane instances, and a status bar; the hierarchy is not yet expressed as a unified Finder shell.",
-      "diagnosis": "The current root uses utility classes for a dark custom file-manager layout rather than a screen-scoped Finder layout contract.",
+      "screenshot_evidence": "SHOT-01 shows one Finder title/toolbar region, a sidebar, a list content region, and a bottom edge without a product-specific tab strip.",
+      "current_evidence": "Electron after capture has a continuous single-tab file list with Finder chrome, but its sidebar remains application-specific and its titlebar still contains separate utility actions.",
+      "diagnosis": "The single-tab layout now follows the Finder shell, while application controls and sidebar grouping still create structural differences from SHOT-01.",
       "current_code_anchor": {"file": "src/App.vue", "widget": "appTitle"},
       "status": "flagged",
-      "reason": "The root structure was updated and the build passed, but no Electron after screenshot or Finder reference screenshot exists for visual closure.",
-      "impact": "The unified Finder shell cannot be claimed visually matched.",
-      "next_action": "Capture the target Electron window and compare it with a supplied Finder screenshot."
+      "reason": "Visual capture now exists, but the reference has no product tab/action band and uses a Finder-native sidebar grouping.",
+      "impact": "The main hierarchy is improved but not a pixel-equivalent Finder composition.",
+      "next_action": "If pixel parity is required, merge the remaining utility actions into an overflow menu and map app-specific sources into Finder sidebar groups."
     },
     {
       "id": "MISMATCH-02",
       "category": "entry",
       "priority": "P0",
       "target_ids": ["ENTRY-01", "ENTRY-02", "ENTRY-03", "ENTRY-04", "ENTRY-05", "ENTRY-06", "ENTRY-10"],
-      "screenshot_evidence": "DESC-01: confirmed toolbar exposes back, forward, view options, share, tags, search, and sorting as Finder-style controls.",
-      "current_evidence": "src/components/FilePane.vue: navigation, search, view selection, and file actions exist in each pane; App.vue has only theme, operation-panel, and settings controls in its top bar.",
-      "diagnosis": "The same capabilities are distributed across pane-local and application-level chrome, while share and tag affordances lack a single Finder toolbar placement.",
+      "screenshot_evidence": "SHOT-01 places back/forward, view switches, sort, sharing, tags, overflow, and search in one compact Finder toolbar.",
+      "current_evidence": "Electron after capture places navigation, search, view switches, share/tag and file actions in the FilePane toolbar; theme, operations, and settings remain in the titlebar.",
+      "diagnosis": "The core Finder controls are present and styled compactly, but app utility controls remain split across a second chrome row.",
       "current_code_anchor": {"file": "src/components/FilePane.vue", "widget": "viewModes"},
       "status": "flagged",
-      "reason": "Navigation, view, sharing-path, tag-editing, search, and sort controls are delivered in code, but their visual toolbar placement cannot be compared without a reference image.",
-      "impact": "Finder toolbar visual fidelity remains unverified.",
-      "next_action": "Compare a same-size after screenshot with the requested Finder screenshot."
+      "reason": "The after capture verifies control density and order, but includes extra app operations absent from SHOT-01.",
+      "impact": "Toolbar semantics work while exact Finder composition remains different.",
+      "next_action": "Consolidate app-only controls behind the Finder overflow action if the product should prioritize exact screenshot parity."
     },
     {
       "id": "MISMATCH-03",
       "category": "structure",
       "priority": "P0",
       "target_ids": ["N3-1", "ENTRY-07", "ENTRY-08", "ENTRY-09"],
-      "screenshot_evidence": "DESC-01: confirmed sidebar is visually organized into Favorites, Locations, and Tags.",
-      "current_evidence": "src/components/AppSidebar.vue: sidebar contains Locations, device-management areas, Places, Favorites, and Preview with separate operational controls.",
-      "diagnosis": "The existing sidebar has compatible data sources but its grouping and chrome do not map to the confirmed Finder-style visual hierarchy.",
+      "screenshot_evidence": "SHOT-01 sidebar is organized as personal favorites, locations, then colored tags; JINGZAO has a neutral selected row.",
+      "current_evidence": "Electron after capture uses Locations, External Volumes, Mobile Devices, Places, Favorites, and Preview; JINGZAO uses the application active-blue treatment.",
+      "diagnosis": "The proportions, separators, and row treatment are Finder-like, but the information architecture reflects Fileman's device-management capabilities rather than SHOT-01's Finder groups.",
       "current_code_anchor": {"file": "src/components/AppSidebar.vue", "widget": "favoritesStore"},
       "status": "flagged",
-      "reason": "The sidebar was scoped into the Finder visual layer, but no after render is available to verify group spacing and hierarchy.",
-      "impact": "Sidebar hierarchy may need visual refinement.",
-      "next_action": "Capture the sidebar at the target viewport and review against a supplied Finder screenshot."
+      "reason": "The after capture provides evidence of the remaining group and selected-state differences.",
+      "impact": "Sidebar visual parity remains partial.",
+      "next_action": "Add a Finder-compatible personal/tag grouping while retaining device management behind a disclosure or overflow surface."
     },
     {
       "id": "MISMATCH-04",
       "category": "style",
       "priority": "P1",
       "target_ids": ["DIM-01", "DIM-02", "DIM-03", "DIM-04", "DIM-05"],
-      "screenshot_evidence": "DESC-01: confirmed Finder baseline uses restrained macOS chrome, fine separators, compact controls, and a neutral content canvas; exact pixel and color values were not supplied.",
-      "current_evidence": "src/style.css: dark blue-purple theme, gradients, glow shadows, and animated hover transforms are used by sidebar-item and toolbar-btn-enhanced.",
-      "diagnosis": "Global visual tokens and component utility styles prioritize a vibrant custom theme instead of Finder's restrained translucency, spacing, and selection treatment.",
+      "screenshot_evidence": "SHOT-01 uses a white rounded canvas, fine separators, about 20px list rows, and restrained gray selection/chrome treatments.",
+      "current_evidence": "Electron after capture uses the light Finder token set, thin separators, 26px list rows, alternating gray list rows, and a bright blue application selection.",
+      "diagnosis": "The neutral canvas, compact controls, list columns, and zebra rows have converged; chrome height, list-row height, and selected color still differ from SHOT-01.",
       "current_code_anchor": {"file": "src/style.css", "widget": ".toolbar-btn-enhanced"},
       "status": "flagged",
-      "reason": "Finder tokens are implemented in src/styles/finder-ui.css, but color, blur, spacing, and typography have no screenshot measurement baseline.",
-      "impact": "Exact Finder proportions and visual treatment remain unverified.",
-      "next_action": "Measure each DIM item after a reference screenshot is supplied."
+      "reason": "Measured screenshot comparison is now available and identifies residual proportion/color differences.",
+      "impact": "The visual system is Finder-inspired but cannot yet claim pixel parity.",
+      "next_action": "Use a same-size 1920px render to tune the remaining titlebar and row-height values."
     },
     {
       "id": "MISMATCH-05",
       "category": "icon",
       "priority": "P0",
       "target_ids": ["ICON-01", "ICON-02", "ICON-03", "ICON-04", "ICON-05", "ICON-06", "ICON-07", "ICON-08", "ICON-09", "ICON-10", "ICON-11", "ICON-12", "ICON-13", "ICON-14", "ICON-15", "ICON-16", "ICON-17", "ICON-18"],
-      "screenshot_evidence": "DESC-01: confirmed Finder toolbar/sidebar/file items use dedicated semantic icons rather than text substitutes.",
-      "current_evidence": "src/App.vue, src/components/AppSidebar.vue, and src/components/FilePane.vue render numerous inline SVG paths and runtime SVG components; no downloaded icon asset catalog or source/license manifest exists.",
-      "diagnosis": "The application has semantic icons, but does not yet have a reusable, traceable Finder icon resource layer required by the confirmed style contract.",
+      "screenshot_evidence": "SHOT-01 uses semantic toolbar, sidebar, folder, file, and tag icons throughout.",
+      "current_evidence": "Electron after capture shows semantic folder, document, navigation, view, and toolbar icons; FinderIcon maps supplied Lucide assets for the shared Finder controls.",
+      "diagnosis": "Semantic coverage is complete, while some app-specific source icons and color treatments intentionally differ from Finder's native glyphs.",
       "current_code_anchor": {"file": "src/components/FilePane.vue", "widget": "GridIcon"},
       "status": "flagged",
-      "reason": "Lucide SVG assets and their source records are delivered, but no reference screenshot exists to compare icon placement and sizing.",
-      "impact": "Icon semantics are implemented while visual equivalence remains unverified.",
-      "next_action": "Review the rendered toolbar and sidebar icons against the supplied Finder screenshot."
+      "reason": "Visual review verifies semantic coverage but reveals non-native app-specific icon styling.",
+      "impact": "Icon placement is functional; exact glyph parity is not claimed.",
+      "next_action": "Replace remaining inline app glyphs with the shared FinderIcon registry if native-style glyph consistency becomes a release requirement."
     },
     {
       "id": "MISMATCH-06",
       "category": "state",
       "priority": "P1",
       "target_ids": ["STATE-01", "STATE-02", "STATE-03"],
-      "screenshot_evidence": "DESC-01: default state is confirmed; selected and empty states are explicit inferences awaiting a screenshot or later visual review.",
-      "current_evidence": "src/style.css: .sidebar-item-active uses a blue gradient and shadow; FilePane manages per-pane modes and selection from stores.",
-      "diagnosis": "Selection styling is coupled to the current vibrant theme and inferred state-specific Finder treatments have not been established against a screenshot.",
+      "screenshot_evidence": "SHOT-01 confirms a neutral gray selected JINGZAO sidebar row and a default populated list state.",
+      "current_evidence": "Electron after capture confirms a populated list state but renders selected JINGZAO with a saturated blue row; the empty state was not part of SHOT-01.",
+      "diagnosis": "The populated state is verified; selected color differs, and empty state remains inferred.",
       "current_code_anchor": {"file": "src/style.css", "widget": ".sidebar-item-active"},
       "status": "flagged",
-      "reason": "Default, selected, and empty-state treatments include inferred details and have no visual render evidence.",
-      "impact": "Selected and empty Finder states may require adjustment.",
-      "next_action": "Provide target state screenshots and run state-specific visual comparison."
+      "reason": "SHOT-01 supplies only the selected sidebar and populated-list reference; it exposes a selected-color mismatch.",
+      "impact": "Selected and empty-state parity remains incomplete.",
+      "next_action": "Tune sidebar selection to neutral inactive gray and capture an empty-state Finder reference before claiming complete state parity."
     }
   ]
 }

@@ -35,7 +35,7 @@
 .finder-shell .text-text-tertiary { color: var(--finder-secondary-label) !important; }
 
 .finder-window-titlebar {
-  height: 52px !important;
+  height: 48px !important;
   background: var(--finder-chrome) !important;
   border-color: var(--finder-divider) !important;
   backdrop-filter: saturate(180%) blur(18px);
@@ -49,11 +49,11 @@
 }
 
 .finder-shell .finder-sidebar .sidebar-item {
-  min-height: 28px;
+  min-height: 25px;
   gap: 8px;
-  margin: 1px 7px;
-  padding: 4px 8px;
-  border-radius: 5px;
+  margin: 1px 8px;
+  padding: 3px 7px;
+  border-radius: 6px;
 }
 
 .finder-shell .finder-sidebar .sidebar-item-active {
@@ -70,8 +70,8 @@
 }
 
 .finder-shell .finder-pane-toolbar {
-  height: 46px !important;
-  padding: 0 12px;
+  height: 40px !important;
+  padding: 0 14px;
   background: var(--finder-chrome) !important;
   border-color: var(--finder-divider) !important;
 }
@@ -83,8 +83,8 @@
 }
 
 .finder-shell .toolbar-btn-enhanced {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 5px;
   color: var(--finder-secondary-label);
 }
@@ -102,6 +102,37 @@
   gap: 3px;
   background: var(--finder-chrome) !important;
   border-color: var(--finder-divider) !important;
+}
+
+/* Finder's list view is dense: a 20px-ish header followed by compact, muted
+   zebra rows. These rules are intentionally component-scoped, so grids and
+   comparison panes retain their own behavior. */
+.finder-shell .finder-list-header {
+  height: 25px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: rgba(250, 250, 251, 0.92) !important;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.finder-shell .finder-list-row {
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.finder-shell .finder-list-row .text-base,
+.finder-shell .finder-list-row .text-sm {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.finder-shell .vue-recycle-scroller__item-view:nth-child(even) .finder-list-row:not(.bg-accent-blue) {
+  background: rgba(118, 118, 128, 0.075);
+}
+
+.finder-shell .finder-list-row:hover:not(.bg-accent-blue) {
+  background: rgba(118, 118, 128, 0.13) !important;
 }
 
 .finder-shell .finder-tab-strip .tab-item {

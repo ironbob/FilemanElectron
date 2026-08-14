@@ -6,13 +6,14 @@
     "screen_job": "让用户在一个 Finder 风格窗口中浏览位置、切换目录视图并执行文件管理操作。",
     "scope": "single_screen",
     "source_inputs": [
-      {"id": "DESC-01", "type": "verbal"}
+      {"id": "DESC-01", "type": "verbal"},
+      {"id": "SHOT-01", "type": "screenshot"}
     ],
     "text_ui_guard": {
       "manifest": "text-ui-manifest.json",
       "result": "user_confirmed",
-      "confirmed_input_ids": ["DESC-01"],
-      "confirmation_evidence": "User message on 2026-08-14: 确认"
+      "confirmed_input_ids": ["DESC-01", "SHOT-01"],
+      "confirmation_evidence": "User messages on 2026-08-14: 确认 (DESC-01) and 确认 (SHOT-01)."
     }
   },
   "structure_skeleton": {
@@ -47,16 +48,16 @@
     ]
   },
   "entries": [
-    {"id": "ENTRY-01", "kind": "icon_button", "semantic": "后退到上一个浏览位置", "input_anchor": "DESC-01:toolbar:left"},
-    {"id": "ENTRY-02", "kind": "icon_button", "semantic": "前进到下一个浏览位置", "input_anchor": "DESC-01:toolbar:left"},
-    {"id": "ENTRY-03", "kind": "icon_button", "semantic": "选择内容展示方式", "input_anchor": "DESC-01:toolbar:center"},
-    {"id": "ENTRY-04", "kind": "icon_button", "semantic": "复制当前选中内容的路径以供分享", "input_anchor": "DESC-01:toolbar:center"},
-    {"id": "ENTRY-05", "kind": "icon_button", "semantic": "编辑当前选中内容的标签", "input_anchor": "DESC-01:toolbar:center"},
-    {"id": "ENTRY-06", "kind": "button", "semantic": "搜索当前文件范围", "input_anchor": "DESC-01:toolbar:right"},
-    {"id": "ENTRY-07", "kind": "menu_item", "semantic": "切换收藏位置", "input_anchor": "DESC-01:sidebar:favorites"},
-    {"id": "ENTRY-08", "kind": "menu_item", "semantic": "切换磁盘或连接位置", "input_anchor": "DESC-01:sidebar:locations"},
-    {"id": "ENTRY-09", "kind": "menu_item", "semantic": "按标签筛选内容", "input_anchor": "DESC-01:sidebar:tags"},
-    {"id": "ENTRY-10", "kind": "icon_button", "semantic": "切换排序方式", "input_anchor": "DESC-01:path-bar:right"}
+    {"id": "ENTRY-01", "kind": "icon_button", "semantic": "后退到上一个浏览位置", "input_anchor": "SHOT-01:toolbar:left"},
+    {"id": "ENTRY-02", "kind": "icon_button", "semantic": "前进到下一个浏览位置", "input_anchor": "SHOT-01:toolbar:left"},
+    {"id": "ENTRY-03", "kind": "icon_button", "semantic": "选择内容展示方式", "input_anchor": "SHOT-01:toolbar:right:view-switcher"},
+    {"id": "ENTRY-04", "kind": "icon_button", "semantic": "复制当前选中内容的路径以供分享", "input_anchor": "SHOT-01:toolbar:right:share"},
+    {"id": "ENTRY-05", "kind": "icon_button", "semantic": "编辑当前选中内容的标签", "input_anchor": "SHOT-01:toolbar:right:tag"},
+    {"id": "ENTRY-06", "kind": "button", "semantic": "搜索当前文件范围", "input_anchor": "SHOT-01:toolbar:right:search"},
+    {"id": "ENTRY-07", "kind": "menu_item", "semantic": "切换收藏位置", "input_anchor": "SHOT-01:sidebar:personal-favorites"},
+    {"id": "ENTRY-08", "kind": "menu_item", "semantic": "切换磁盘或连接位置", "input_anchor": "SHOT-01:sidebar:locations"},
+    {"id": "ENTRY-09", "kind": "menu_item", "semantic": "按标签筛选内容", "input_anchor": "SHOT-01:sidebar:tags"},
+    {"id": "ENTRY-10", "kind": "icon_button", "semantic": "切换排序方式", "input_anchor": "SHOT-01:toolbar:right:sort-menu"}
   ],
   "icons": [
     {"id": "ICON-01", "semantic": "窗口关闭", "input_anchor": "DESC-01:header:top-left", "location": "window controls"},
@@ -79,15 +80,15 @@
     {"id": "ICON-18", "semantic": "排序", "input_anchor": "DESC-01:path-bar:right", "location": "path bar"}
   ],
   "key_dimensions": [
-    {"id": "DIM-01", "what": "widget_size", "ratio_note": "侧边栏宽度相对窗口内容区为较窄固定栏；口述未提供可量取截图，比例待验证。"},
-    {"id": "DIM-02", "what": "spacing", "ratio_note": "双层顶部栏、侧边栏与主内容区域由细分隔线明确分层；具体高度和间距未指定。"},
-    {"id": "DIM-03", "what": "fontsize", "ratio_note": "侧边栏分组标题应明显小于常规导航项文字；未提供精确字号比例。"},
-    {"id": "DIM-04", "what": "widget_size", "ratio_note": "工具栏图标按钮应小于搜索框高度，维持 macOS 紧凑控制密度；无像素基准。"},
-    {"id": "DIM-05", "what": "spacing", "ratio_note": "文件网格在内容区域中以均匀列距排列；列数与间距随窗口宽度响应，具体值未指定。"}
+    {"id": "DIM-01", "what": "widget_size", "ratio_note": "SHOT-01：侧边栏约 294/1920（15.3%）窗口宽；应用渲染按 176px 默认宽度在 1152px 窗口中约为 14.8%。"},
+    {"id": "DIM-02", "what": "spacing", "ratio_note": "SHOT-01：顶部 Finder chrome（标题与工具栏）约 80px；内容区以细分隔线和单一连续工具栏分层。"},
+    {"id": "DIM-03", "what": "fontsize", "ratio_note": "SHOT-01：侧栏分组标题约 11px，导航与文件名约 13–14px，列标题约 11px。"},
+    {"id": "DIM-04", "what": "widget_size", "ratio_note": "SHOT-01：工具栏图标按钮约 28–32px，低于搜索框与工具栏总高度。"},
+    {"id": "DIM-05", "what": "spacing", "ratio_note": "SHOT-01 的当前视图为列表；交替行约 20–21px 高，并采用紧凑表头与列对齐。"}
   ],
   "states": [
-    {"id": "STATE-01", "kind": "default", "source": "input", "input_anchor": "DESC-01:finder-main-window"},
-    {"id": "STATE-02", "kind": "selected", "source": "inferred"},
+    {"id": "STATE-01", "kind": "default", "source": "input", "input_anchor": "SHOT-01:finder-list-view"},
+    {"id": "STATE-02", "kind": "selected", "source": "input", "input_anchor": "SHOT-01:sidebar:JINGZAO"},
     {"id": "STATE-03", "kind": "empty", "source": "inferred"}
   ],
   "bitmaps": [],

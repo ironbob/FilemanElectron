@@ -21,11 +21,12 @@
     <!-- List View -->
     <template v-else-if="viewMode === 'list'">
       <!-- Header 固定在顶部，不随列表滚动 -->
-      <div class="flex-shrink-0 flex items-center gap-3 px-4 py-2 bg-bg-secondary border-b border-border text-xs font-medium text-text-tertiary">
+      <div class="finder-list-header flex-shrink-0 flex items-center gap-2 px-4 bg-bg-secondary border-b border-border text-xs font-medium text-text-tertiary">
         <span class="w-6"></span>
         <button class="flex-1 text-left hover:text-text-primary" @click="toggleSort('name')">Name {{ sortIndicator('name') }}</button>
-        <button class="w-24 text-right hover:text-text-primary" @click="toggleSort('size')">Size {{ sortIndicator('size') }}</button>
-        <button class="w-36 text-right hover:text-text-primary" @click="toggleSort('modifiedTime')">Date Modified {{ sortIndicator('modifiedTime') }}</button>
+        <button class="w-40 text-left hover:text-text-primary" @click="toggleSort('modifiedTime')">Date Modified {{ sortIndicator('modifiedTime') }}</button>
+        <button class="w-20 text-right hover:text-text-primary" @click="toggleSort('size')">Size {{ sortIndicator('size') }}</button>
+        <span class="w-24 text-left">Kind</span>
       </div>
 
       <!-- 虚拟滚动列表 -->
@@ -38,7 +39,7 @@
         v-slot="{ item: file }"
       >
         <div
-          class="file-item flex items-center gap-3 px-4 cursor-pointer transition-colors duration-100"
+          class="finder-list-row file-item flex items-center gap-2 px-4 cursor-pointer transition-colors duration-100"
           :data-file-path="file.path"
           :style="{ height: LIST_ITEM_HEIGHT + 'px' }"
           :class="isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary hover:bg-bg-hover'"
@@ -62,11 +63,14 @@
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
           />
-          <span class="w-24 text-right text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
+          <span class="w-40 text-left text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
+            {{ formatDate(file.modifiedTime) }}
+          </span>
+          <span class="w-20 text-right text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
             {{ file.isDirectory ? '--' : formatSize(file.size) }}
           </span>
-          <span class="w-36 text-right text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
-            {{ formatDate(file.modifiedTime) }}
+          <span class="w-24 truncate text-left text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
+            {{ fileKind(file) }}
           </span>
         </div>
       </RecycleScroller>
@@ -454,7 +458,7 @@ function sortIndicator(field: FileSortDescriptor['field']) {
 
 // ── 虚拟滚动配置 ──────────────────────────────────────────────────────────────
 // List View: 每行固定高度 = py-2(16px) + text-base行高(24px) = 40px
-const LIST_ITEM_HEIGHT = 40
+const LIST_ITEM_HEIGHT = 26
 
 // Grid View: 三档网格规格（大/中/小）。每档定义单元格宽度、行高、间距、
 // 缩略图/图标/文件名字号，以及请求哪一档缩略图。'large' 与历史单档网格一致。
@@ -889,6 +893,12 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
+}
+
+function fileKind(file: FileInfo): string {
+  if (file.isDirectory) return 'Folder'
+  const extension = file.name.includes('.') ? file.name.split('.').pop()?.toUpperCase() : ''
+  return extension ? `${extension} document` : 'Document'
 }
 
 function formatDate(dateStr: string): string {
