@@ -3,7 +3,7 @@
     v-if="pane"
     class="finder-pane h-full flex flex-col overflow-hidden bg-bg-primary"
     :class="{ 'ring-2 ring-inset ring-accent-blue bg-accent-blue/5': isDropTarget }"
-    @mousedown.capture="activatePane"
+    @mousedown.capture="handlePaneMouseDown"
     @dragenter.prevent="handleDragEnter"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
@@ -25,13 +25,13 @@
         >
           <FinderIcon name="arrowLeft" />
         </button>
-        <div class="relative">
-          <button class="toolbar-btn-enhanced" title="Recent locations" aria-label="Recent locations" @click="recentMenuOpen = !recentMenuOpen">
+        <div ref="recentMenuRef" class="relative flex-shrink-0">
+          <button class="toolbar-btn-enhanced" title="Recent locations" aria-label="Recent locations" :aria-expanded="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </button>
-          <div v-if="recentMenuOpen" class="absolute left-0 top-9 z-50 max-h-64 w-72 overflow-auto rounded-lg border border-border bg-bg-secondary py-1 shadow-xl">
+          <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto rounded-lg border border-border py-1 shadow-xl" role="menu" aria-label="Recent locations">
             <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-tertiary">No recent locations</div>
-            <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="block w-full px-3 py-2 text-left text-xs hover:bg-bg-hover" @click="openRecentLocation(location.deviceId, location.path)">
+            <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="block w-full px-3 py-2 text-left text-xs hover:bg-bg-hover" role="menuitem" @click="openRecentLocation(location.deviceId, location.path)">
               <span class="block truncate text-text-primary">{{ location.path }}</span><span class="block truncate text-text-tertiary">{{ location.deviceId }}</span>
             </button>
           </div>
@@ -271,7 +271,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, h, type Component, watch } from 'vue'
+import { ref, computed, reactive, h, type Component, watch, onMounted, onUnmounted } from 'vue'
 import FinderIcon from './FinderIcon.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { usePreviewStore } from '@/stores/preview'
@@ -311,6 +311,7 @@ const canCaptureScreenshot = computed(() => currentDevice.value?.type === 'andro
 
 const searchQuery = ref('')
 const recentMenuOpen = ref(false)
+const recentMenuRef = ref<HTMLElement | null>(null)
 const loadedFiles = ref<FileInfo[]>([])
 
 log.info('[FinderFilePane] initialized', { paneId: props.paneId })
@@ -325,6 +326,11 @@ let dragDepth = 0
 
 function activatePane() {
   tabsStore.setActivePane(props.paneId)
+}
+
+function handlePaneMouseDown(event: MouseEvent) {
+  activatePane()
+  closeRecentMenuOnOutsideClick(event)
 }
 
 function handleDragEnter(event: DragEvent) {
@@ -548,6 +554,22 @@ function openRecentLocation(deviceId: string, path: string) {
   browserStore.rememberLocation(deviceId, path)
   recentMenuOpen.value = false
 }
+
+function closeRecentMenuOnOutsideClick(event: MouseEvent) {
+  if (!recentMenuOpen.value) return
+  const target = event.target
+  if (!(target instanceof Node) || !recentMenuRef.value?.contains(target)) {
+    recentMenuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeRecentMenuOnOutsideClick, true)
+})
 
 function handlePreview(file: FileInfo) {
   if (!file.isDirectory) {
@@ -862,3 +884,12 @@ function handleDrop() {
   isDropTarget.value = false
 }
 </script>
+
+<style scoped>
+.recent-locations-menu {
+  /* Do not use bg-bg-secondary here: Finder's toolbar skin intentionally makes
+     that utility translucent for button groups, which makes a popup unreadable. */
+  background: var(--finder-canvas, var(--bg-secondary));
+  isolation: isolate;
+}
+</style>
