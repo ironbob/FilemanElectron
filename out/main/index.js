@@ -1,9 +1,9 @@
-import { safeStorage, app, ipcMain, BrowserWindow } from "electron";
+import { safeStorage, app, ipcMain, nativeImage, BrowserWindow } from "electron";
 import os from "os";
 import * as path from "path";
 import path__default, { join } from "path";
-import Store from "electron-store";
 import fs$1 from "fs-extra";
+import Store from "electron-store";
 import { createRequire } from "module";
 import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
 import * as fs from "fs";
@@ -3799,6 +3799,33 @@ ipcMain.handle("fs:moveBetween", async (_, srcDeviceId, srcPaths, dstDeviceId, d
     targetDeviceId: dstDeviceId,
     targetPath: dstPath
   });
+});
+ipcMain.handle("fs:importExternal", async (_, sourcePaths, targetDeviceId, targetPath) => {
+  if (!Array.isArray(sourcePaths)) {
+    throw new Error("拖入内容无效。");
+  }
+  const validSourcePaths = (await Promise.all(sourcePaths.filter((sourcePath) => typeof sourcePath === "string" && path__default.isAbsolute(sourcePath)).map(async (sourcePath) => await fs$1.pathExists(sourcePath) ? sourcePath : null))).filter((sourcePath) => sourcePath !== null);
+  if (validSourcePaths.length === 0) {
+    throw new Error("未找到可导入的本地文件或文件夹。");
+  }
+  return fileOperationManager.addTask({
+    type: "copy",
+    sourceDeviceId: "local",
+    sourcePaths: validSourcePaths,
+    targetDeviceId,
+    targetPath
+  });
+});
+const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLvkAAAAABJRU5ErkJggg=="
+);
+ipcMain.on("drag:startNative", (event, sourcePaths) => {
+  if (!Array.isArray(sourcePaths)) return;
+  const files = sourcePaths.filter(
+    (sourcePath) => typeof sourcePath === "string" && path__default.isAbsolute(sourcePath) && fs$1.existsSync(sourcePath)
+  );
+  if (files.length === 0) return;
+  event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON });
 });
 ipcMain.handle("file-operation:create", async (_, params) => {
   return fileOperationManager.addTask(params);

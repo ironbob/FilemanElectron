@@ -923,12 +923,24 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
     }
     event.dataTransfer.setData('application/json', JSON.stringify(dragData))
     event.dataTransfer.effectAllowed = 'copyMove'
+
+    // Electron can hand an existing *local* path to Finder through
+    // webContents.startDrag. Remote/mobile files do not have a local path and
+    // deliberately retain the existing in-app drag behaviour instead.
+    if (props.deviceId === 'local' && !dragData.files.some(filePath => filePath.includes('::'))) {
+      event.preventDefault()
+      window.fileman.startNativeDrag(dragData.files)
+    }
   }
 }
 
 function handleDrop(event: DragEvent, targetPath: string) {
   event.preventDefault()
   if (event.dataTransfer) {
+    // Native Finder drops bubble to App.vue, which can route the local source
+    // paths into any connected target device via the transfer queue.
+    if (event.dataTransfer.files.length > 0) return
+
     try {
       const data = JSON.parse(event.dataTransfer.getData('application/json'))
       emit('operation', {

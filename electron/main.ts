@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron'
 import os from 'os'
-import { join } from 'path'
+import path, { join } from 'path'
+import fs from 'fs-extra'
 import { ConfigService } from './src/services/ConfigService'
 import { CredentialService } from './src/services/CredentialService'
 import { DeviceManager, type Device, type DeviceConfig, type Credentials, type DetectedDevice } from './src/services/DeviceManager'
@@ -273,6 +274,59 @@ ipcMain.handle('fs:moveBetween', async (
     targetDeviceId: dstDeviceId,
     targetPath: dstPath
   })
+})
+
+// ============ Native Finder Drag & Drop ============
+
+/**
+ * Receives files dropped from Finder (or another local macOS app) and queues a
+ * regular cross-device copy from the local adapter. This intentionally shares
+ * FileOperationManager with every other transfer, so folders, SMB, and mobile
+ * targets keep their existing recursive-copy and progress semantics.
+ */
+ipcMain.handle('fs:importExternal', async (
+  _,
+  sourcePaths: unknown,
+  targetDeviceId: string,
+  targetPath: string
+): Promise<FileOperationTask> => {
+  if (!Array.isArray(sourcePaths)) {
+    throw new Error('拖入内容无效。')
+  }
+
+  const validSourcePaths = (await Promise.all(sourcePaths
+    .filter((sourcePath): sourcePath is string => typeof sourcePath === 'string' && path.isAbsolute(sourcePath))
+    .map(async sourcePath => (await fs.pathExists(sourcePath)) ? sourcePath : null)))
+    .filter((sourcePath): sourcePath is string => sourcePath !== null)
+
+  if (validSourcePaths.length === 0) {
+    throw new Error('未找到可导入的本地文件或文件夹。')
+  }
+
+  return fileOperationManager.addTask({
+    type: 'copy',
+    sourceDeviceId: 'local',
+    sourcePaths: validSourcePaths,
+    targetDeviceId,
+    targetPath
+  })
+})
+
+// A non-empty icon is mandatory for native drags on macOS. Keep the icon
+// self-contained so it works in both development and packaged builds.
+const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLvkAAAAABJRU5ErkJggg=='
+)
+
+/** Start a native macOS drag for local files so Finder can receive them. */
+ipcMain.on('drag:startNative', (event, sourcePaths: unknown) => {
+  if (!Array.isArray(sourcePaths)) return
+  const files = sourcePaths.filter(
+    (sourcePath): sourcePath is string => typeof sourcePath === 'string' && path.isAbsolute(sourcePath) && fs.existsSync(sourcePath)
+  )
+  if (files.length === 0) return
+
+  event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON })
 })
 
 // ============ File Operation IPC Handlers ============

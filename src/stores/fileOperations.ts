@@ -84,6 +84,15 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       })
     },
 
+    /** Queue files dropped from Finder into any writable app destination. */
+    async importExternalFiles(
+      files: File[],
+      targetDeviceId: string,
+      targetPath: string
+    ): Promise<FileOperationTask> {
+      return window.fileman.importExternalFiles(files, targetDeviceId, targetPath)
+    },
+
     async createDeleteTask(
       deviceId: string,
       paths: string[]

@@ -178,6 +178,15 @@ interface Window {
       dstPath: string
     ) => Promise<void>
 
+    // Native Finder drag & drop. External files always originate from local
+    // disk, then use the normal transfer queue for the chosen target device.
+    importExternalFiles: (
+      files: File[],
+      targetDeviceId: string,
+      targetPath: string
+    ) => Promise<FileOperationTask>
+    startNativeDrag: (sourcePaths: string[]) => void
+
     // File Operations Queue
     getFileOperationQueue: () => Promise<FileOperationTask[]>
     getFileOperationHistory: () => Promise<FileOperationTask[]>

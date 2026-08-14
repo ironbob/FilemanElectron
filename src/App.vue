@@ -265,34 +265,56 @@ const statusText = computed(() => {
   return 'Ready'
 })
 
-function handleDrop(event: DragEvent, targetPaneId: string) {
+async function handleDrop(event: DragEvent, targetPaneId: string) {
   event.preventDefault()
   if (event.dataTransfer) {
-    try {
-      const data = JSON.parse(event.dataTransfer.getData('application/json'))
-      if (data.paneId !== targetPaneId) {
-        const targetPane = tabsStore.findPane(targetPaneId)
-        if (targetPane) {
-          if (event.altKey) {
-            fileOpsStore.createMoveTask(
-              data.deviceId || 'local',
-              data.files,
-              targetPane.deviceId,
-              targetPane.path
-            )
-          } else {
-            fileOpsStore.createCopyTask(
-              data.deviceId || 'local',
-              data.files,
-              targetPane.deviceId,
-              targetPane.path
-            )
+    // Preserve the app's own copy/move semantics first. A native local-file
+    // drag can also expose File objects, but its application payload retains
+    // Alt-to-move behaviour when dropped into another app pane.
+    const internalDragData = event.dataTransfer.getData('application/json')
+    if (internalDragData) {
+      try {
+        const data = JSON.parse(internalDragData)
+        if (data.paneId !== targetPaneId) {
+          const targetPane = tabsStore.findPane(targetPaneId)
+          if (targetPane) {
+            if (event.altKey) {
+              fileOpsStore.createMoveTask(
+                data.deviceId || 'local',
+                data.files,
+                targetPane.deviceId,
+                targetPane.path
+              )
+            } else {
+              fileOpsStore.createCopyTask(
+                data.deviceId || 'local',
+                data.files,
+                targetPane.deviceId,
+                targetPane.path
+              )
+            }
+            fileOpsStore.showPanel()
           }
-          fileOpsStore.showPanel()
         }
+      } catch (error) {
+        console.error('Failed to handle internal drop:', error)
       }
-    } catch (e) {
-      console.error('Failed to handle drop:', e)
+      return
+    }
+
+    const externalFiles = Array.from(event.dataTransfer.files)
+    if (externalFiles.length > 0) {
+      const targetPane = tabsStore.findPane(targetPaneId)
+      if (!targetPane) return
+
+      try {
+        await fileOpsStore.importExternalFiles(externalFiles, targetPane.deviceId, targetPane.path)
+        fileOpsStore.showPanel()
+        tabsStore.navigatePane(targetPaneId, targetPane.path)
+      } catch (error) {
+        console.error('[App] Failed to import Finder drop:', { targetPaneId, error })
+      }
+      return
     }
   }
 }

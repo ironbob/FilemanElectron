@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, shell } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 
 // Types for IPC communication
 export interface DeviceConfig {
@@ -192,6 +192,23 @@ const filemanAPI = {
     dstDeviceId: string,
     dstPath: string
   ) => ipcRenderer.invoke('fs:moveBetween', srcDeviceId, srcPaths, dstDeviceId, dstPath),
+
+  // ============ Native Finder Drag & Drop ============
+  // Resolve paths inside preload, where Electron's webUtils can safely bridge
+  // a native File object without depending on the deprecated File.path field.
+  importExternalFiles: (
+    files: File[],
+    targetDeviceId: string,
+    targetPath: string
+  ): Promise<FileOperationTask> => {
+    const sourcePaths = files
+      .map(file => webUtils.getPathForFile(file))
+      .filter((filePath): filePath is string => filePath.length > 0)
+    return ipcRenderer.invoke('fs:importExternal', sourcePaths, targetDeviceId, targetPath)
+  },
+  startNativeDrag: (sourcePaths: string[]): void => {
+    ipcRenderer.send('drag:startNative', sourcePaths)
+  },
 
   // ============ Events ============
   onDeviceChange: (callback: (devices: Device[]) => void) => {

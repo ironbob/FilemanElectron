@@ -660,6 +660,10 @@ async function doRename(newName: string) {
 
 function handleDrop(event: DragEvent) {
   if (event.dataTransfer) {
+    // Finder drops are handled by App.vue, which owns the target-pane routing.
+    // Do not try to parse native File data as the app's internal drag payload.
+    if (event.dataTransfer.files.length > 0) return
+
     try {
       const data = JSON.parse(event.dataTransfer.getData('application/json'))
       handleOperation({
