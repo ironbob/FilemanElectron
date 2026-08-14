@@ -622,7 +622,7 @@ function handleKeyDown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
   // Cmd/Ctrl + R: Refresh
-  if ((event.metaKey || event.ctrlKey) && event.key === 'r') {
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'r') {
     event.preventDefault()
     loadFiles()
     return
