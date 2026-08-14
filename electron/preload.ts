@@ -1,219 +1,70 @@
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import { CH } from './src/ipc/channels'
 
-// Types for IPC communication
-export interface DeviceConfig {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  host?: string
-  port?: number
-  username?: string
-  rootPath?: string
-  share?: string
-  domain?: string
-  url?: string
-}
-
-export interface Credentials {
-  username?: string
-  password?: string
-  privateKey?: string
-  domain?: string
-  share?: string
-}
-
-export interface Device {
-  id: string
-  type: DeviceConfig['type']
-  name: string
-  status: 'connected' | 'disconnected' | 'connecting'
-  rootPath: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-  model?: string
-}
-
-export interface DeviceCapabilities {
-  readonly canRead: boolean
-  readonly canWrite: boolean
-  readonly canDelete: boolean
-  readonly canRename: boolean
-  readonly canMkdir: boolean
-  readonly canList: boolean
-  readonly canStat: boolean
-  readonly canCopy: boolean
-  readonly canMove: boolean
-  readonly canSearch: boolean
-  readonly canCopyFrom: boolean
-  readonly canCopyTo: boolean
-  readonly canMoveFrom: boolean
-  readonly canMoveTo: boolean
-  readonly canStream: boolean
-  readonly canCaptureScreenshot: boolean
-  readonly canArchive: boolean
-  readonly canRecycle: boolean
-  readonly maxFileSize?: number
-  readonly readonlyPaths?: string[]
-  readonly hiddenPaths?: string[]
-}
-
-export interface FileInfo {
-  name: string
-  path: string
-  isDirectory: boolean
-  isFile: boolean
-  size: number
-  modifiedTime: string
-  createdTime?: string
-  extension?: string
-}
-
-export interface SearchQuery {
-  pattern: string
-  fileTypes?: string[]
-  minSize?: number
-  maxSize?: number
-  modifiedAfter?: string
-  modifiedBefore?: string
-}
-
-export interface ContentVerificationPair {
-  relativePath: string
-  leftDeviceId: string
-  leftPath: string
-  leftSize: number
-  rightDeviceId: string
-  rightPath: string
-  rightSize: number
-}
-
-export interface ContentVerificationProgress {
-  sessionId: string
-  taskId: string
-  relativePath: string
-  status: 'verifying' | 'content-equal' | 'content-different' | 'failed' | 'cancelled'
-  completed: number
-  total: number
-  message?: string
-}
-
-// File Operation Types
-export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
-export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-
-export interface FileOperationItemResult {
-  sourcePath: string
-  targetPath?: string
-  status: 'success' | 'skipped' | 'failed'
-  error?: string
-  bytesProcessed?: number
-}
-
-export interface FileOperationProgress {
-  currentFile: string
-  currentFileIndex: number
-  totalFiles: number
-  bytesTransferred: number
-  totalBytes: number
-  speed: number
-  itemResults: FileOperationItemResult[]
-}
-
-export interface FileOperationTask {
-  id: string
-  type: FileOperationType
-  sourceDeviceId: string
-  sourcePaths: string[]
-  targetDeviceId?: string
-  targetPath?: string
-  newName?: string
-  conflictStrategy?: ConflictStrategy
-  renameItems?: Array<{ sourcePath: string; newName: string }>
-  restoreItems?: Array<{ trashPath: string; originalPath: string }>
-  status: FileOperationStatus
-  progress: FileOperationProgress
-  createdAt: number
-  startedAt?: number
-  completedAt?: number
-  error?: string
-}
-
-export interface CreateTaskParams {
-  type: FileOperationType
-  sourceDeviceId: string
-  sourcePaths: string[]
-  targetDeviceId?: string
-  targetPath?: string
-  newName?: string
-  conflictStrategy?: ConflictStrategy
-  renameItems?: Array<{ sourcePath: string; newName: string }>
-  restoreItems?: Array<{ trashPath: string; originalPath: string }>
-}
-
-// Mobile Device Types
-export interface DetectedMobileDevice {
-  id: string
-  type: 'android' | 'ios'
-  name: string
-  model?: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-}
-
-// External Volume Types (mounted on the local filesystem, e.g. /Volumes/*)
-export interface DetectedVolume {
-  id: string
-  name: string
-  mountPath: string
-  isRemovable: boolean
-}
+// 域类型正典在 @shared/types（跨进程单一事实源），此处仅 import type 消费
+// （编译期擦除，preload 不引入运行时跨进程依赖）。通道名一律经 CH 常量引用。
+import type {
+  DeviceConfig,
+  Credentials,
+  Device,
+  DeviceCapabilities,
+  FileInfo,
+  SearchQuery,
+  ContentVerificationPair,
+  ContentVerificationProgress,
+  FileOperationTask,
+  CreateTaskParams,
+  DetectedMobileDevice,
+  DetectedVolume,
+} from '@shared/types'
 
 const filemanAPI = {
   // ============ System ============
-  getHomeDir: () => ipcRenderer.invoke('system:getHomeDir'),
+  getHomeDir: () => ipcRenderer.invoke(CH.invoke.systemGetHomeDir),
 
   // ============ Config ============
-  getConfig: () => ipcRenderer.invoke('config:get'),
-  saveConfig: (config: unknown) => ipcRenderer.invoke('config:save', config),
+  getConfig: () => ipcRenderer.invoke(CH.invoke.configGet),
+  saveConfig: (config: unknown) => ipcRenderer.invoke(CH.invoke.configSave, config),
 
   // ============ Device Management ============
-  getDevices: () => ipcRenderer.invoke('device:list'),
+  getDevices: () => ipcRenderer.invoke(CH.invoke.deviceList),
   addDevice: (config: DeviceConfig, credentials?: Credentials) =>
-    ipcRenderer.invoke('device:add', config, credentials),
+    ipcRenderer.invoke(CH.invoke.deviceAdd, config, credentials),
   updateDevice: (deviceId: string, config: Partial<DeviceConfig>, credentials?: Credentials) =>
-    ipcRenderer.invoke('device:update', deviceId, config, credentials),
-  removeDevice: (deviceId: string) => ipcRenderer.invoke('device:remove', deviceId),
-  connectDevice: (deviceId: string) => ipcRenderer.invoke('device:connect', deviceId),
-  disconnectDevice: (deviceId: string) => ipcRenderer.invoke('device:disconnect', deviceId),
+    ipcRenderer.invoke(CH.invoke.deviceUpdate, deviceId, config, credentials),
+  removeDevice: (deviceId: string) => ipcRenderer.invoke(CH.invoke.deviceRemove, deviceId),
+  connectDevice: (deviceId: string) => ipcRenderer.invoke(CH.invoke.deviceConnect, deviceId),
+  disconnectDevice: (deviceId: string) => ipcRenderer.invoke(CH.invoke.deviceDisconnect, deviceId),
   pairDevice: (deviceId: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('device:pair', deviceId),
-  hasCredentials: (deviceId: string) => ipcRenderer.invoke('device:hasCredentials', deviceId),
+    ipcRenderer.invoke(CH.invoke.devicePair, deviceId),
+  hasCredentials: (deviceId: string) => ipcRenderer.invoke(CH.invoke.deviceHasCredentials, deviceId),
   getDeviceCapabilities: (deviceId: string): Promise<DeviceCapabilities> =>
-    ipcRenderer.invoke('device:getCapabilities', deviceId),
+    ipcRenderer.invoke(CH.invoke.deviceGetCapabilities, deviceId),
   canTransferBetween: (sourceDeviceId: string, targetDeviceId: string, operation: 'copy' | 'move'): Promise<boolean> =>
-    ipcRenderer.invoke('device:canTransferBetween', sourceDeviceId, targetDeviceId, operation),
+    ipcRenderer.invoke(CH.invoke.deviceCanTransferBetween, sourceDeviceId, targetDeviceId, operation),
 
   // ============ File System Operations (all require deviceId) ============
-  listFiles: (deviceId: string, path: string) => ipcRenderer.invoke('fs:list', deviceId, path),
-  getStats: (deviceId: string, path: string) => ipcRenderer.invoke('fs:stat', deviceId, path),
-  exists: (deviceId: string, path: string) => ipcRenderer.invoke('fs:exists', deviceId, path),
-  mkdir: (deviceId: string, path: string) => ipcRenderer.invoke('fs:mkdir', deviceId, path),
-  delete: (deviceId: string, path: string) => ipcRenderer.invoke('fs:delete', deviceId, path),
+  listFiles: (deviceId: string, path: string) => ipcRenderer.invoke(CH.invoke.fsList, deviceId, path),
+  getStats: (deviceId: string, path: string) => ipcRenderer.invoke(CH.invoke.fsStat, deviceId, path),
+  exists: (deviceId: string, path: string) => ipcRenderer.invoke(CH.invoke.fsExists, deviceId, path),
+  mkdir: (deviceId: string, path: string) => ipcRenderer.invoke(CH.invoke.fsMkdir, deviceId, path),
+  delete: (deviceId: string, path: string) => ipcRenderer.invoke(CH.invoke.fsDelete, deviceId, path),
   rename: (deviceId: string, oldPath: string, newPath: string) =>
-    ipcRenderer.invoke('fs:rename', deviceId, oldPath, newPath),
+    ipcRenderer.invoke(CH.invoke.fsRename, deviceId, oldPath, newPath),
   readFile: (deviceId: string, path: string): Promise<string> =>
-    ipcRenderer.invoke('fs:readFile', deviceId, path),
+    ipcRenderer.invoke(CH.invoke.fsReadFile, deviceId, path),
   writeFile: (deviceId: string, path: string, data: string) =>
-    ipcRenderer.invoke('fs:writeFile', deviceId, path, data),
+    ipcRenderer.invoke(CH.invoke.fsWriteFile, deviceId, path, data),
   copy: (deviceId: string, srcPath: string, dstPath: string) =>
-    ipcRenderer.invoke('fs:copy', deviceId, srcPath, dstPath),
+    ipcRenderer.invoke(CH.invoke.fsCopy, deviceId, srcPath, dstPath),
   search: (deviceId: string, path: string, query: SearchQuery) =>
-    ipcRenderer.invoke('fs:search', deviceId, path, query),
+    ipcRenderer.invoke(CH.invoke.fsSearch, deviceId, path, query),
 
   // ============ Directory Compare Content Verification ============
   startContentVerification: (request: { sessionId: string; pairs: ContentVerificationPair[] }) =>
-    ipcRenderer.invoke('compare:verify:start', request) as Promise<{ taskId: string; total: number }>,
+    ipcRenderer.invoke(CH.invoke.compareVerifyStart, request) as Promise<{ taskId: string; total: number }>,
   cancelContentVerification: (taskId: string) =>
-    ipcRenderer.invoke('compare:verify:cancel', taskId) as Promise<boolean>,
+    ipcRenderer.invoke(CH.invoke.compareVerifyCancel, taskId) as Promise<boolean>,
 
   // ============ Cross-Device Operations ============
   copyBetweenDevices: (
@@ -221,13 +72,13 @@ const filemanAPI = {
     srcPaths: string[],
     dstDeviceId: string,
     dstPath: string
-  ) => ipcRenderer.invoke('fs:copyBetween', srcDeviceId, srcPaths, dstDeviceId, dstPath),
+  ) => ipcRenderer.invoke(CH.invoke.fsCopyBetween, srcDeviceId, srcPaths, dstDeviceId, dstPath),
   moveBetweenDevices: (
     srcDeviceId: string,
     srcPaths: string[],
     dstDeviceId: string,
     dstPath: string
-  ) => ipcRenderer.invoke('fs:moveBetween', srcDeviceId, srcPaths, dstDeviceId, dstPath),
+  ) => ipcRenderer.invoke(CH.invoke.fsMoveBetween, srcDeviceId, srcPaths, dstDeviceId, dstPath),
 
   // ============ Native Finder Drag & Drop ============
   // Resolve paths inside preload, where Electron's webUtils can safely bridge
@@ -240,27 +91,27 @@ const filemanAPI = {
     const sourcePaths = files
       .map(file => webUtils.getPathForFile(file))
       .filter((filePath): filePath is string => filePath.length > 0)
-    return ipcRenderer.invoke('fs:importExternal', sourcePaths, targetDeviceId, targetPath)
+    return ipcRenderer.invoke(CH.invoke.fsImportExternal, sourcePaths, targetDeviceId, targetPath)
   },
   startNativeDrag: (sourcePaths: string[]): void => {
-    ipcRenderer.send('drag:startNative', sourcePaths)
+    ipcRenderer.send(CH.send.dragStartNative, sourcePaths)
   },
 
   // ============ Events ============
   onDeviceChange: (callback: (devices: Device[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, devices: Device[]) => callback(devices)
-    ipcRenderer.on('device:changed', handler)
-    return () => ipcRenderer.removeListener('device:changed', handler)
+    ipcRenderer.on(CH.push.deviceChanged, handler)
+    return () => ipcRenderer.removeListener(CH.push.deviceChanged, handler)
   },
   onTransferProgress: (callback: (progress: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress)
-    ipcRenderer.on('transfer:progress', handler)
-    return () => ipcRenderer.removeListener('transfer:progress', handler)
+    ipcRenderer.on(CH.push.transferProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.transferProgress, handler)
   },
   onContentVerificationProgress: (callback: (progress: ContentVerificationProgress) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: ContentVerificationProgress) => callback(progress)
-    ipcRenderer.on('compare:verification-progress', handler)
-    return () => ipcRenderer.removeListener('compare:verification-progress', handler)
+    ipcRenderer.on(CH.push.compareVerificationProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.compareVerificationProgress, handler)
   },
 
   // ============ Shell Operations ============
@@ -269,58 +120,58 @@ const filemanAPI = {
   },
   // Open a local directory in the system Terminal (macOS: Terminal.app via osascript).
   openInTerminal: (path: string): Promise<void> =>
-    ipcRenderer.invoke('shell:openInTerminal', path),
+    ipcRenderer.invoke(CH.invoke.shellOpenInTerminal, path),
 
   // ============ File Operations ============
   createFileOperation: (params: CreateTaskParams) =>
-    ipcRenderer.invoke('file-operation:create', params),
+    ipcRenderer.invoke(CH.invoke.fileOperationCreate, params),
   cancelFileOperation: (taskId: string) =>
-    ipcRenderer.invoke('file-operation:cancel', taskId),
+    ipcRenderer.invoke(CH.invoke.fileOperationCancel, taskId),
   retryFileOperation: (taskId: string) =>
-    ipcRenderer.invoke('file-operation:retry', taskId),
+    ipcRenderer.invoke(CH.invoke.fileOperationRetry, taskId),
   getFileOperationQueue: () =>
-    ipcRenderer.invoke('file-operation:getQueue'),
+    ipcRenderer.invoke(CH.invoke.fileOperationGetQueue),
   getFileOperationHistory: () =>
-    ipcRenderer.invoke('file-operation:getHistory'),
+    ipcRenderer.invoke(CH.invoke.fileOperationGetHistory),
   clearFileOperationHistory: () =>
-    ipcRenderer.invoke('file-operation:clearHistory'),
+    ipcRenderer.invoke(CH.invoke.fileOperationClearHistory),
 
   // ============ File Browser Metadata / Archive / Mobile Capture ============
   getFileMetadata: (deviceId: string, filePath: string) =>
-    ipcRenderer.invoke('file-metadata:get', deviceId, filePath),
+    ipcRenderer.invoke(CH.invoke.fileMetadataGet, deviceId, filePath),
   setFileTags: (deviceId: string, filePath: string, tags: string[]) =>
-    ipcRenderer.invoke('file-metadata:setTags', deviceId, filePath, tags),
-  findFilesByTags: (tags: string[]) => ipcRenderer.invoke('file-metadata:findByTags', tags),
+    ipcRenderer.invoke(CH.invoke.fileMetadataSetTags, deviceId, filePath, tags),
+  findFilesByTags: (tags: string[]) => ipcRenderer.invoke(CH.invoke.fileMetadataFindByTags, tags),
   createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
-    ipcRenderer.invoke('archive:create', deviceId, sourcePaths, targetDirectory, archiveName),
+    ipcRenderer.invoke(CH.invoke.archiveCreate, deviceId, sourcePaths, targetDirectory, archiveName),
   extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) =>
-    ipcRenderer.invoke('archive:extract', deviceId, archivePath, targetDirectory),
+    ipcRenderer.invoke(CH.invoke.archiveExtract, deviceId, archivePath, targetDirectory),
   captureMobileScreenshot: (deviceId: string, targetDirectory: string) =>
-    ipcRenderer.invoke('mobile:captureScreenshot', deviceId, targetDirectory),
+    ipcRenderer.invoke(CH.invoke.mobileCaptureScreenshot, deviceId, targetDirectory),
 
   // ============ File Operation Events ============
   onFileOperationAdded: (callback: (task: FileOperationTask) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, task: FileOperationTask) => callback(task)
-    ipcRenderer.on('file-operation:added', handler)
-    return () => ipcRenderer.removeListener('file-operation:added', handler)
+    ipcRenderer.on(CH.push.fileOperationAdded, handler)
+    return () => ipcRenderer.removeListener(CH.push.fileOperationAdded, handler)
   },
   onFileOperationUpdated: (callback: (task: FileOperationTask) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, task: FileOperationTask) => callback(task)
-    ipcRenderer.on('file-operation:updated', handler)
-    return () => ipcRenderer.removeListener('file-operation:updated', handler)
+    ipcRenderer.on(CH.push.fileOperationUpdated, handler)
+    return () => ipcRenderer.removeListener(CH.push.fileOperationUpdated, handler)
   },
 
   // ============ Mobile Device Operations ============
-  startMobileScan: () => ipcRenderer.invoke('mobile:startScan'),
-  stopMobileScan: () => ipcRenderer.invoke('mobile:stopScan'),
+  startMobileScan: () => ipcRenderer.invoke(CH.invoke.mobileStartScan),
+  stopMobileScan: () => ipcRenderer.invoke(CH.invoke.mobileStopScan),
   scanMobileDevicesNow: (): Promise<DetectedMobileDevice[]> =>
-    ipcRenderer.invoke('mobile:scanNow'),
+    ipcRenderer.invoke(CH.invoke.mobileScanNow),
   rememberDevice: (deviceId: string) =>
-    ipcRenderer.invoke('mobile:rememberDevice', deviceId),
+    ipcRenderer.invoke(CH.invoke.mobileRememberDevice, deviceId),
   forgetDevice: (deviceId: string) =>
-    ipcRenderer.invoke('mobile:forgetDevice', deviceId),
+    ipcRenderer.invoke(CH.invoke.mobileForgetDevice, deviceId),
   checkLibimobiledevice: (): Promise<boolean> =>
-    ipcRenderer.invoke('mobile:checkLibimobiledevice'),
+    ipcRenderer.invoke(CH.invoke.mobileCheckLibimobiledevice),
 
   // ============ Mobile Device Events ============
   onMobileDevicesChanged: (callback: (devices: DetectedMobileDevice[]) => void) => {
@@ -328,22 +179,22 @@ const filemanAPI = {
       console.log('[Preload] mobile:devicesChanged event received:', devices.length, devices)
       callback(devices)
     }
-    ipcRenderer.on('mobile:devicesChanged', handler)
+    ipcRenderer.on(CH.push.mobileDevicesChanged, handler)
     console.log('[Preload] Registered listener for mobile:devicesChanged')
-    return () => ipcRenderer.removeListener('mobile:devicesChanged', handler)
+    return () => ipcRenderer.removeListener(CH.push.mobileDevicesChanged, handler)
   },
 
   // ============ Thumbnail Operations ============
   thumbnail: {
     get: (deviceId: string, filePath: string, size: number, mtime: string, thumbnailSize: 'small' | 'large') =>
-      ipcRenderer.invoke('thumbnail:get', deviceId, filePath, size, mtime, thumbnailSize),
-    clearCache: () => ipcRenderer.invoke('thumbnail:clearCache'),
-    getCacheSize: () => ipcRenderer.invoke('thumbnail:getCacheSize'),
+      ipcRenderer.invoke(CH.invoke.thumbnailGet, deviceId, filePath, size, mtime, thumbnailSize),
+    clearCache: () => ipcRenderer.invoke(CH.invoke.thumbnailClearCache),
+    getCacheSize: () => ipcRenderer.invoke(CH.invoke.thumbnailGetCacheSize),
   },
 
   // ============ Native Image Decode (HEIC/RAW → JPEG via macOS sips) ============
   decodeNativeImage: (deviceId: string, filePath: string, opts?: { maxDim?: number }) =>
-    ipcRenderer.invoke('image:decodeNative', deviceId, filePath, opts) as Promise<{
+    ipcRenderer.invoke(CH.invoke.imageDecodeNative, deviceId, filePath, opts) as Promise<{
       buffer: string
       mime: string
     }>,
@@ -356,27 +207,27 @@ const filemanAPI = {
      * Returns metadata only – no decompression.
      */
     listDirectory: (zipFilePath: string, internalPath: string) =>
-      ipcRenderer.invoke('zip:list', zipFilePath, internalPath),
+      ipcRenderer.invoke(CH.invoke.zipList, zipFilePath, internalPath),
     /**
      * Read and decompress a single entry from a ZIP file.
      * Returns the file content as a base64 string.
      */
     readEntry: (zipFilePath: string, entryPath: string): Promise<string> =>
-      ipcRenderer.invoke('zip:readEntry', zipFilePath, entryPath),
+      ipcRenderer.invoke(CH.invoke.zipReadEntry, zipFilePath, entryPath),
   },
 
   // ============ External Volumes (mounted on local filesystem) ============
   volumes: {
     /** Snapshot of currently mounted external volumes. */
-    list: (): Promise<DetectedVolume[]> => ipcRenderer.invoke('volumes:list'),
+    list: (): Promise<DetectedVolume[]> => ipcRenderer.invoke(CH.invoke.volumesList),
     /** Subscribe to volume mount/unmount changes. Returns an unsubscribe function. */
     onChanged: (callback: (volumes: DetectedVolume[]) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, volumes: DetectedVolume[]) => {
         console.log('[Preload] volumes:changed event received:', volumes.length)
         callback(volumes)
       }
-      ipcRenderer.on('volumes:changed', handler)
-      return () => ipcRenderer.removeListener('volumes:changed', handler)
+      ipcRenderer.on(CH.push.volumesChanged, handler)
+      return () => ipcRenderer.removeListener(CH.push.volumesChanged, handler)
     },
   },
 }

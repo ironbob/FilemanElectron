@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Tab, Pane, DirCompareSession, FileDiffSession, FileInfo, CompareStatus } from '@/types'
+import { isZipVirtualPath, zipVirtualParent } from '@shared/zipPath'
 
 const log = console
 const STORAGE_KEY = 'fileman-tabs-state'
@@ -94,7 +95,7 @@ function loadFromStorage(): PersistedTabState | null {
       return JSON.parse(data)
     }
   } catch (e) {
-    console.warn('Failed to load tabs state:', e)
+    log.error('[TabsStore] 持久化状态解析失败，回退默认标签:', e)
   }
   return null
 }
@@ -232,22 +233,9 @@ export const useTabsStore = defineStore('tabs', () => {
 
     const path = pane.path
 
-    // Handle virtual ZIP path: "<zipFilePath>::<innerPath>"
-    if (path.includes('::')) {
-      const sepIdx = path.indexOf('::')
-      const zipFilePath = path.slice(0, sepIdx)
-      const innerPath   = path.slice(sepIdx + 2)
-      const innerParts  = innerPath.split('/').filter(Boolean)
-
-      if (innerParts.length > 0) {
-        // Go up one level inside the ZIP
-        innerParts.pop()
-        navigatePane(paneId, `${zipFilePath}::${innerParts.join('/')}`)
-      } else {
-        // Already at ZIP root → exit to the ZIP file's parent directory
-        const fsParent = zipFilePath.split('/').slice(0, -1).join('/') || '/'
-        navigatePane(paneId, fsParent)
-      }
+    // Handle virtual ZIP path: "<zipFilePath>::<innerPath>"（协议解析统一在 @shared/zipPath）
+    if (isZipVirtualPath(path)) {
+      navigatePane(paneId, zipVirtualParent(path))
       return
     }
 

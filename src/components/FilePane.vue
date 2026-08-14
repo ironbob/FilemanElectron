@@ -286,6 +286,7 @@ import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
 import FileInfoDialog from './dialogs/FileInfoDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import { isImageFile } from '@/utils/fileTypes'
+import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
 import type { ConflictStrategy } from '@/types/fileOperation'
@@ -377,23 +378,12 @@ const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: stri
 
 const pathSegments = computed(() => {
   if (!pane.value) return []
-  const path = pane.value.path
-
-  // Virtual ZIP path: "<zipFilePath>::<innerPath>"
-  if (path.includes('::')) {
-    const sepIdx = path.indexOf('::')
-    const zipFilePath = path.slice(0, sepIdx)
-    const innerPath   = path.slice(sepIdx + 2)
-    const fsSegments  = zipFilePath.split('/').filter(Boolean)
-    const innerSegs   = innerPath ? innerPath.split('/').filter(Boolean) : []
-    return [...fsSegments, ...innerSegs]
-  }
-
-  return path.split('/').filter(Boolean)
+  // ZIP 虚拟路径与普通路径统一经 @shared/zipPath 计算（单一事实源）。
+  return zipBreadcrumbSegments(pane.value.path)
 })
 
 /** True when the current pane is browsing inside a ZIP archive. */
-const isInsideZip = computed(() => pane.value?.path.includes('::') ?? false)
+const isInsideZip = computed(() => isZipVirtualPath(pane.value?.path ?? ''))
 
 /**
  * 宿主集成（Finder）是否可用：仅本地设备、且不在 ZIP 虚拟路径内。
@@ -415,9 +405,8 @@ function revealCurrentFolderInFinder() {
  * file itself (the boundary between filesystem and archive internals).
  */
 function isZipBoundarySegment(index: number): boolean {
-  if (!pane.value?.path.includes('::')) return false
-  const zipFilePath = pane.value.path.slice(0, pane.value.path.indexOf('::'))
-  const fsSegmentCount = zipFilePath.split('/').filter(Boolean).length
+  if (!isZipVirtualPath(pane.value?.path ?? '')) return false
+  const fsSegmentCount = parseZipVirtualPath(pane.value!.path).zipFilePath.split('/').filter(Boolean).length
   // The ZIP file is the last filesystem segment
   return index === fsSegmentCount - 1
 }
@@ -488,11 +477,9 @@ function navigateToSegment(index: number) {
   if (!pane.value) return
   const path = pane.value.path
 
-  // Virtual ZIP path: "<zipFilePath>::<innerPath>"
-  if (path.includes('::')) {
-    const sepIdx     = path.indexOf('::')
-    const zipFilePath = path.slice(0, sepIdx)
-    const innerPath   = path.slice(sepIdx + 2)
+  // Virtual ZIP path: "<zipFilePath>::<innerPath>"（解析统一在 @shared/zipPath）
+  if (isZipVirtualPath(path)) {
+    const { zipFilePath, innerPath } = parseZipVirtualPath(path)
     const fsSegments  = zipFilePath.split('/').filter(Boolean)
     const innerSegs   = innerPath ? innerPath.split('/').filter(Boolean) : []
 
@@ -502,12 +489,12 @@ function navigateToSegment(index: number) {
       tabsStore.navigatePane(props.paneId, newPath)
     } else if (index === fsSegments.length - 1) {
       // Click on the ZIP file itself → show ZIP root
-      tabsStore.navigatePane(props.paneId, `${zipFilePath}::`)
+      tabsStore.navigatePane(props.paneId, joinZipPath(zipFilePath, ''))
     } else {
       // Navigate within the ZIP
       const innerIdx  = index - fsSegments.length
       const newInner  = innerSegs.slice(0, innerIdx + 1).join('/')
-      tabsStore.navigatePane(props.paneId, `${zipFilePath}::${newInner}`)
+      tabsStore.navigatePane(props.paneId, joinZipPath(zipFilePath, newInner))
     }
     return
   }
@@ -576,7 +563,7 @@ function handlePreview(file: FileInfo) {
     // ZIP files: navigate into the archive instead of previewing
     if (file.extension?.toLowerCase() === '.zip') {
       // file.path may already be a virtual zip path if we're nested; just append '::'
-      const virtualPath = file.path.includes('::') ? file.path : file.path + '::'
+      const virtualPath = isZipVirtualPath(file.path) ? file.path : file.path + '::'
       tabsStore.navigatePane(props.paneId, virtualPath)
       return
     }
@@ -584,7 +571,7 @@ function handlePreview(file: FileInfo) {
     // Images (outside ZIPs) open the folder-aware image browser instead of the
     // single-file preview tab. The sibling list comes from the pane's loaded
     // files so prev/next can walk the folder.
-    if (isImageFile(file.extension || '') && !file.path.includes('::')) {
+    if (isImageFile(file.extension || '') && !isZipVirtualPath(file.path)) {
       previewStore.openImageBrowser(file, deviceId, loadedFiles.value)
       return
     }

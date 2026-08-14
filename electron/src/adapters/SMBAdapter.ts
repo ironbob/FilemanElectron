@@ -1,8 +1,16 @@
 import * as path from 'path'
-import SMB2 from '@marsaud/smb2'
 import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { SMB_CAPABILITIES, type DeviceCapabilities } from './capabilities'
+import { loadOptional } from './optionalDeps'
+
+const log = console
+
+// @marsaud/smb2 为可选依赖：延迟到 connect() 内加载（与 ssh2/adbkit 同策略），
+// 缺依赖时该设备类型连接报"已禁用"而非 main 进程启动崩溃。类型经
+// import() 类型形态引用，不引入运行时静态依赖。
+type SMB2Class = typeof import('@marsaud/smb2').default   // 构造器
+type SMB2Client = import('@marsaud/smb2').default          // 实例
 
 interface SMBConfig {
   host: string
@@ -19,7 +27,7 @@ export class SMBAdapter implements IFileSystemAdapter {
   readonly name: string
   private readonly config: SMBConfig
   private connected = false
-  private client: SMB2 | null = null
+  private client: SMB2Client | null = null
 
   constructor(deviceId: string, name: string, config: SMBConfig) {
     this.deviceId = deviceId
@@ -35,6 +43,7 @@ export class SMBAdapter implements IFileSystemAdapter {
     if (!this.config.host || !this.config.share) {
       throw new Error('SMB 连接需要主机地址和共享名称')
     }
+    const SMB2 = await loadOptional<SMB2Class>('@marsaud/smb2', async () => (await import('@marsaud/smb2')).default)
     const client = new SMB2({
       share: `\\\\${this.config.host}\\${this.config.share}`,
       domain: this.config.domain || '',
@@ -49,6 +58,7 @@ export class SMBAdapter implements IFileSystemAdapter {
       this.connected = true
     } catch (error) {
       client.disconnect()
+      log.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error)
       throw error
     }
   }
@@ -160,7 +170,7 @@ export class SMBAdapter implements IFileSystemAdapter {
     return results
   }
 
-  private getClient(): SMB2 {
+  private getClient(): SMB2Client {
     if (!this.connected || !this.client) throw new Error('SMB 设备尚未连接')
     return this.client
   }

@@ -2,45 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { DeviceCapabilities } from '@/types/fileOperation'
 
-export interface Device {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  status: 'connected' | 'disconnected' | 'connecting'
-  rootPath: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'  // iOS only
-  model?: string
-}
-
-export interface DeviceConfig {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  host?: string
-  port?: number
-  username?: string
-  rootPath?: string
-  share?: string
-  domain?: string
-  url?: string
-}
-
-export interface Credentials {
-  username?: string
-  password?: string
-  privateKey?: string
-  domain?: string
-  share?: string
-}
-
-// Mobile device types
-export interface DetectedMobileDevice {
-  id: string
-  type: 'android' | 'ios'
-  name: string
-  model?: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-}
+// 域类型正典在 @shared/types，re-export 兼容本 store 既有消费者的导入路径。
+export type { Device, DeviceConfig, Credentials, DetectedMobileDevice } from '@shared/types'
+import type { Device, DeviceConfig, Credentials, DetectedMobileDevice } from '@shared/types'
 
 export const useDevicesStore = defineStore('devices', () => {
   const devices = ref<Device[]>([])

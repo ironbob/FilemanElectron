@@ -1,32 +1,7 @@
-export interface FileInfo {
-  name: string
-  path: string
-  isDirectory: boolean
-  isFile: boolean
-  size: number
-  modifiedTime: string
-  createdTime?: string
-  extension?: string
-}
-
-export interface Device {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  status: 'connected' | 'disconnected' | 'connecting'
-  rootPath?: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-  model?: string
-}
-
-// Mobile device types
-export interface DetectedMobileDevice {
-  id: string
-  type: 'android' | 'ios'
-  name: string
-  model?: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-}
+// 跨进程域类型正典在 @shared/types，此处 re-export 兼容既有 `from '@/types'` 引用。
+// 仅 renderer 专属类型（Tab/Pane/Compare 会话等）保留本地声明。
+export type { FileInfo, Device, DeviceConfig, DetectedMobileDevice, ContentVerificationPair } from '@shared/types'
+import type { FileInfo } from '@shared/types'
 
 export interface Tab {
   id: string
@@ -61,17 +36,6 @@ export interface AppConfig {
   devices: DeviceConfig[]
   favorites: Favorite[]
   settings: AppSettings
-}
-
-export interface DeviceConfig {
-  id: string
-  type: string
-  name: string
-  host?: string
-  port?: number
-  username?: string
-  password?: string
-  url?: string
 }
 
 export interface Favorite {
@@ -172,30 +136,14 @@ export interface FileDiffSession {
   right?: FileInfo
 }
 
-export interface ContentVerificationPair {
-  relativePath: string
-  leftDeviceId: string
-  leftPath: string
-  leftSize: number
-  rightDeviceId: string
-  rightPath: string
-  rightSize: number
-}
-
 export interface ContentVerificationRequest {
   sessionId: string
   pairs: ContentVerificationPair[]
 }
 
-export interface ContentVerificationProgress {
-  sessionId: string
-  taskId: string
-  relativePath: string
-  status: Exclude<VerificationStatus, 'not-requested' | 'queued'>
-  completed: number
-  total: number
-  message?: string
-}
+// ContentVerificationPair / ContentVerificationProgress 正典在 @shared/types
+//（上方已 re-export；此处 Progress 与正典字面量联合完全同集，直接复用）。
+export type { ContentVerificationProgress } from '@shared/types'
 
 export type CopyDirection = 'left-to-right' | 'right-to-left'
 export type CopyConflictStrategy = 'ask' | 'skip' | 'overwrite' | 'rename'

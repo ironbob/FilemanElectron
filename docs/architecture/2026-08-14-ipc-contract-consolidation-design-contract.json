@@ -1,0 +1,524 @@
+{
+  "feature": "ipc-contract-consolidation",
+  "title": "IPC 契约与域类型单一事实源收敛（RISK-01/02/03-1/05）",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-14",
+  "existing_alignment": {
+    "recognized_style": "Electron 29 三进程（main/preload/renderer）+ TypeScript + Vue 3 + Pinia；主进程 adapters/services 分层，通道按 system:/config:/device:/fs: 前缀命名空间；日志用 console；验证仅 npm run typecheck（renderer）+ tsc -p tsconfig.node.json（main）。注：stack 枚举无 Electron 条目，按最接近的 FastAPI+Vue 前端侧做法 + 通用分层/DDD 原则适配",
+    "new_code_follows": "新增根目录 shared/ 放跨进程纯类型与纯函数（@shared alias 进两份 tsconfig 与三段 vite 构建）；主进程新模块放 electron/src/ipc/ 与 electron/src/adapters/；命名沿用 PascalCase 服务类 + camelCase 通道常量；日志沿用 console（error 带上下文）"
+  },
+  "interaction_confirmation": {
+    "proposal_revision": 1,
+    "profile_selection": {
+      "status": "user_selected",
+      "selected_profile": "standard",
+      "source": "user_message",
+      "evidence": "用户在等级选择门回复：standard（推荐），并选定范围=前三项+第4项主进程小整理（5 项全做）"
+    },
+    "design_confirmation": {
+      "status": "user_confirmed",
+      "confirmed_candidate": "ALT-1",
+      "confirmed_revision": 1,
+      "source": "later_user_message",
+      "evidence": "方案展示后的用户回复：确认，按方案编码（ALT-1 根目录 shared/ + ALT-A CH 常量对象 + 6 角色与接口契约）"
+    }
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {
+        "name": "maintainability",
+        "priority": "high",
+        "scenario": "新增或修改一个 IPC 通道/域类型字段时，只改一处即全仓生效；通道名 typo 在编译期暴露",
+        "acceptance": "grep 域类型声明只剩 shared/types.ts；preload/main 的通道字符串全部来自 CH 常量"
+      },
+      {
+        "name": "consistency",
+        "priority": "high",
+        "scenario": "ZIP 虚拟路径在 main/renderer 的解析结果一致，含结尾 '/' 的边界条目",
+        "acceptance": "includes('::') 解析逻辑只剩 shared/zipPath.ts 一处；parse/join 往返一致"
+      },
+      {
+        "name": "reliability",
+        "priority": "medium",
+        "scenario": "缺 @marsaud/smb2 或 @devicefarmer/adbkit 时 main 进程可正常启动，对应设备连接时报『已禁用』错误",
+        "acceptance": "四个可选依赖全部延迟加载并经 loadOptional 统一错误语义（运行冒烟登记 unverified，以静态审查佐证）"
+      },
+      {
+        "name": "behavior_preservation",
+        "priority": "high",
+        "scenario": "除删除 3 个死通道（mobile:getAutoConnectDevices/getDetectedDevices/getDeviceInfo）外零运行时行为变更",
+        "acceptance": "typecheck 双绿 + npm run build 双 bundle 成功 + 通道集合 diff 仅少 3 个死通道"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "ALT-1",
+        "summary": "根目录 shared/ 单一事实源：shared/types.ts（域类型）+ shared/zipPath.ts（ZIP 路径协议纯函数），@shared alias 进 web/node 两份 tsconfig 与 main/preload/renderer 三段 vite 构建；主进程 channels.ts 常量对象 CH；optionalDeps.ts 的 loadOptional 统一延迟加载",
+        "strengths": [
+          "main/renderer 构建对称，依赖方向干净（共享层被两侧消费，不反向）",
+          "类型与运行时纯函数都能跨进程复用，彻底消灭 6 处类型副本与 3 份 ZIP 解析方言",
+          "alias 配错会被 typecheck 立即暴露，无隐式运行时风险"
+        ],
+        "weaknesses": [
+          "需要改 2 份 tsconfig + 3 段 vite alias（一次性构建配置成本）",
+          "env.d.ts 是全局脚本文件，需用 import() 类型导入形态而非顶部 import"
+        ],
+        "risks": [
+          "若未来引入 monorepo 工具链，shared/ 目录需随之调整（影响低）"
+        ]
+      },
+      {
+        "id": "ALT-2",
+        "summary": "共享代码放 src/shared/（renderer 树内），主进程跨树相对引用；其余同 ALT-1",
+        "strengths": ["不动根目录结构，renderer 侧无需 alias"],
+        "weaknesses": [
+          "主进程反向依赖 renderer 树，违反依赖方向原则，概念颠倒",
+          "electron-vite main 构建需跨树 resolve，长期心智负担"
+        ],
+        "risks": ["后续进程职责调整时该目录归属成为争议点"]
+      },
+      {
+        "id": "ALT-3",
+        "summary": "codegen：由单一 schema 生成 main/preload/renderer 三份类型与常量副本",
+        "strengths": ["各树完全独立，无跨树构建配置"],
+        "weaknesses": ["引入生成器与生成物，复杂度大于问题本身（YAGNI 违背）"],
+        "risks": ["生成物漂移、忘记重新生成引入新的不同步面"]
+      }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "maintainability/consistency 是 high 优先级质量属性，ALT-1 是唯一同时让类型与运行时函数单源且依赖方向干净的方案；构建配置成本一次性且被 typecheck 门禁覆盖；ALT-3 的生成器复杂度与问题规模不成比例（minimize_complexity/YAGNI）",
+    "top_down_check": "从三条业务流（ZIP 向上导航、SMB 缺依赖连接、设备能力兜底）推导出需要：跨进程类型契约（SharedTypes）、路径协议纯函数（ZipPath）、通道常量（ChannelRegistry）、统一降级加载（OptionalDeps）、能力兜底工厂（Capabilities 扩展）；入口/桥/消费者侧只改引用不动职责",
+    "bottom_up_check": "已核实：renderer 全部 Device 构造点带 rootPath 兜底（stores/devices.ts:128/140/242），正典 rootPath: string 必填不破坏现有代码；env.d.ts 为全局脚本文件须用 import() 类型形态；tsconfig.json 有 paths 段可加 @shared；electron.vite.config.ts main/renderer 各有 alias 段、preload 无需运行时 import shared（仅 type import，编译期擦除）",
+    "risk_spikes": [],
+    "review": {
+      "mode": "independent",
+      "reviewer": "新视角语义复核（同一模型换视角自审：候选取舍/信息隐藏/接口不变量逐项复核，无未决分歧）",
+      "findings": "无阻断性发现；确认 zipVirtualParent 需对齐 tabs.ts:249 现语义（ZIP 根退出到 ZIP 文件父目录）",
+      "disposition": "复核意见已吸收进 IFC-2 契约"
+    }
+  },
+  "ui_architecture": {
+    "framework": "Vue 3",
+    "current_patterns": ["Redux/Store", "Direct View"],
+    "target_patterns": ["Redux/Store", "Direct View"],
+    "state_management": "Pinia 全局 store（tabs/devices/fileOperations 等）为跨组件状态事实源；组件局部状态就近管理",
+    "view_model_policy": "not_used",
+    "mvvm_suitability": "not_suitable",
+    "migration_impact": "none",
+    "impact_scope": [],
+    "migration_confirmation": "not_required",
+    "decision_reason": "本 feature 仅替换 FilePane.vue/tabs.ts 内的纯函数调用（ZIP 路径解析改调 shared/zipPath），不改组件状态边界、不新增页面状态转换；现有 Pinia store 模式已清晰，机械引入 ViewModel 反增复杂度"
+  },
+  "roles": [
+    {
+      "id": "ROLE-D01",
+      "name": "SharedTypes",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "声明跨进程域类型的单一事实源（Device/DeviceConfig/Credentials/FileInfo/FileStats/SearchQuery/DeviceCapabilities/FileOperation*/DetectedMobileDevice/DetectedVolume/ContentVerification*）",
+      "hidden_secret": "跨进程域模型的形状与字段可选性（rootPath: string 必填 + config?: DeviceConfig 正典）",
+      "change_triggers": ["域类型字段增删/可选性调整（只改此文件）"],
+      "data_owned": "无持久状态（纯类型声明）",
+      "depends_on": [],
+      "industry_basis": "DTO/共享内核（Shared Kernel）：跨边界复用的稳定契约类型集中单源声明",
+      "design_principles": ["value_object", "information_hiding", "high_cohesion_low_coupling"],
+      "code_units": ["shared/types.ts"]
+    },
+    {
+      "id": "ROLE-D02",
+      "name": "ZipPath",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "domain_service",
+      "responsibility": "提供 ZIP 虚拟路径协议的纯函数操作：isZipVirtualPath/parseZipVirtualPath/joinZipPath/zipVirtualParent/zipBreadcrumbSegments",
+      "hidden_secret": "'::' 分隔符约定与结尾 '/' 归一化规则",
+      "change_triggers": ["ZIP 虚拟路径协议演化（分隔符/归一化规则只改此文件）"],
+      "data_owned": "无持久状态（纯函数）",
+      "depends_on": [],
+      "industry_basis": "DDD 领域服务 + 值对象：对无身份路径值的操作收敛为单源纯函数模块",
+      "design_principles": ["domain_service", "SRP", "information_hiding"],
+      "code_units": ["shared/zipPath.ts"]
+    },
+    {
+      "id": "ROLE-D03",
+      "name": "CapabilitiesRegistry",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "声明 6 套设备能力常量与未连接设备的默认能力兜底工厂 DEFAULT_REMOTE_CAPABILITIES(type)",
+      "hidden_secret": "各设备类型的能力差异矩阵与未连接时的兜底策略",
+      "change_triggers": ["新设备类型能力声明/兜底规则调整"],
+      "data_owned": "无持久状态（常量 + 纯工厂）",
+      "depends_on": ["ROLE-D01"],
+      "industry_basis": "DDD 值对象 + 工厂：能力为不可变声明式数据，兜底策略与声明同址",
+      "design_principles": ["value_object", "high_cohesion_low_coupling", "SRP"],
+      "code_units": ["electron/src/adapters/capabilities.ts"]
+    },
+    {
+      "id": "ROLE-L01",
+      "name": "ChannelRegistry",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "声明全部 IPC 通道名常量（CH.invoke 请求响应通道 + CH.push 推送事件通道），供 main handler 与 preload API 共同引用",
+      "hidden_secret": "通道字符串拼写与命名空间前缀",
+      "change_triggers": ["新增/删除 IPC 通道（只加常量）"],
+      "data_owned": "无状态（as const 常量表）",
+      "depends_on": [],
+      "industry_basis": "常量表单源（DRY）：协议标识符集中声明防拼写漂移，业界等价于 API 路由常量模块",
+      "design_principles": ["separation_of_concerns", "defensive_design", "high_cohesion_low_coupling"],
+      "code_units": ["electron/src/ipc/channels.ts"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "OptionalDeps",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "提供 loadOptional(id, loader) 统一延迟加载可选原生依赖并包装降级错误",
+      "hidden_secret": "可选依赖的加载策略与缺依赖时的失败语义",
+      "change_triggers": ["新增可选依赖/调整降级错误文案"],
+      "data_owned": "无状态（加载结果由调用方缓存）",
+      "depends_on": [],
+      "industry_basis": "优雅降级（graceful degradation）+ 统一资源加载器惯例：可选能力缺失时显式禁用而非崩溃",
+      "design_principles": ["SRP", "defensive_design", "separation_of_concerns"],
+      "code_units": ["electron/src/adapters/optionalDeps.ts"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "MainComposition",
+      "role_kind": "layer",
+      "layer": "composition",
+      "domain_role": null,
+      "responsibility": "装配服务单例、注册 IPC handler（引用 CH 常量）、管理 app 生命周期与移动扫描显式启动；fs:stat/fs:readFile 的 ZIP 特判委托 ZipPath 解析",
+      "hidden_secret": "进程装配与通道→服务的路由映射",
+      "change_triggers": ["新增服务装配/通道注册"],
+      "data_owned": "mainWindow 引用与 13 个服务单例",
+      "depends_on": ["ROLE-L01", "ROLE-D02", "ROLE-D03"],
+      "industry_basis": "组合根（Composition Root）：Electron main 入口的装配与路由注册惯例",
+      "design_principles": ["separation_of_concerns", "dependency_direction"],
+      "code_units": ["electron/main.ts"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "PreloadBridge",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "经 contextBridge 暴露唯一 window.fileman API；方法与通道经 CH 常量对应；类型消费 SharedTypes；env.d.ts 声明同步消费",
+      "hidden_secret": "IPC 序列化边界与 API 表面形状",
+      "change_triggers": ["filemanAPI 方法增删"],
+      "data_owned": "无持久状态（事件订阅句柄由调用方持有）",
+      "depends_on": ["ROLE-D01", "ROLE-L01"],
+      "industry_basis": "防腐层/桥接（contextBridge 单一暴露点，Electron 安全惯例）",
+      "design_principles": ["separation_of_concerns", "defensive_design"],
+      "code_units": ["electron/preload.ts", "src/env.d.ts"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "TabsStore",
+      "role_kind": "layer",
+      "layer": "store",
+      "domain_role": null,
+      "responsibility": "管理标签/面板状态；goUp 的 ZIP 上级导航委托 zipVirtualParent 计算",
+      "hidden_secret": "标签/面板状态模型与持久化策略",
+      "change_triggers": ["导航语义/持久化策略调整"],
+      "data_owned": "Tab/Pane 状态（localStorage 持久化，selectedFiles 剥离）",
+      "depends_on": ["ROLE-D01", "ROLE-D02"],
+      "industry_basis": "Pinia 共享 store 惯例（跨组件状态事实源）",
+      "design_principles": ["SRP", "separation_of_concerns"],
+      "code_units": ["src/stores/tabs.ts"]
+    },
+    {
+      "id": "ROLE-L06",
+      "name": "FilePaneView",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "双面板 UI；面包屑 segments 与 isInsideZip 委托 shared/zipPath 计算",
+      "hidden_secret": "面板交互呈现细节",
+      "change_triggers": ["面板 UI 交互调整"],
+      "data_owned": "组件局部 UI 状态",
+      "depends_on": ["ROLE-D02"],
+      "industry_basis": "Vue 视图组件惯例（呈现 + 局部状态，路径逻辑委托领域模块）",
+      "design_principles": ["separation_of_concerns", "tell_dont_ask"],
+      "code_units": ["src/components/FilePane.vue"]
+    },
+    {
+      "id": "ROLE-L07",
+      "name": "SMBAdapter",
+      "role_kind": "layer",
+      "layer": "repository",
+      "domain_role": null,
+      "responsibility": "SMB 协议适配器；@marsaud/smb2 经 loadOptional 在 connect() 内延迟加载",
+      "hidden_secret": "SMB 协议细节与客户端库加载方式",
+      "change_triggers": ["SMB 库升级/协议行为调整"],
+      "data_owned": "SMB2 client 连接句柄（连接生命周期内）",
+      "depends_on": ["ROLE-L02"],
+      "industry_basis": "端口-适配器（Adapter）：IFileSystemAdapter 的 SMB 实现",
+      "design_principles": ["SRP", "defensive_design"],
+      "code_units": ["electron/src/adapters/SMBAdapter.ts"]
+    },
+    {
+      "id": "ROLE-L08",
+      "name": "AndroidAdapter",
+      "role_kind": "layer",
+      "layer": "repository",
+      "domain_role": null,
+      "responsibility": "Android adb 适配器；adbkit 的 createRequire 加载移入 connect() 并经 loadOptional 包装错误",
+      "hidden_secret": "adb 协议细节与 adbkit 加载方式",
+      "change_triggers": ["adb 传输行为调整"],
+      "data_owned": "adbkit client 句柄",
+      "depends_on": ["ROLE-L02"],
+      "industry_basis": "端口-适配器（Adapter）：IFileSystemAdapter 的 Android 实现",
+      "design_principles": ["SRP", "defensive_design"],
+      "code_units": ["electron/src/adapters/AndroidAdapter.ts"]
+    },
+    {
+      "id": "ROLE-L09",
+      "name": "DeviceManager",
+      "role_kind": "layer",
+      "layer": "service",
+      "domain_role": null,
+      "responsibility": "设备注册/连接/代理；能力兜底委托 DEFAULT_REMOTE_CAPABILITIES；构造函数不再自动启动移动扫描（由 main 显式启动）",
+      "hidden_secret": "设备生命周期与 adapter 注册表",
+      "change_triggers": ["连接策略/设备注册规则调整"],
+      "data_owned": "devices/adapters Map 与连接尝试去重表",
+      "depends_on": ["ROLE-D01", "ROLE-D03"],
+      "industry_basis": "应用服务 + 注册表模式（设备→适配器的工厂与生命周期管理）",
+      "design_principles": ["SRP", "DIP"],
+      "code_units": ["electron/src/services/DeviceManager.ts"]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IFC-1",
+      "name": "ZipPath.parseZipVirtualPath / joinZipPath",
+      "provider": "ROLE-D02",
+      "consumers": ["ROLE-L03", "ROLE-L05", "ROLE-L06"],
+      "input": "p: string（可能含 '::' 的路径）",
+      "output": "{ zipFilePath: string; innerPath: string }；joinZipPath(zipFilePath, innerPath): string",
+      "preconditions": ["parse 前调用方应先经 isZipVirtualPath(p) 判定（或容错：无 '::' 时 zipFilePath=p、innerPath=''）"],
+      "postconditions": ["innerPath 已归一化：无结尾 '/'，'' 表示 ZIP 根"],
+      "invariants": ["joinZipPath(parse(p).zipFilePath, parse(p).innerPath) === 归一化(p)（往返一致）"],
+      "errors": ["纯函数不抛错；非法输入返回哨兵值由调用方分支处理"],
+      "data_ownership": "无状态；返回新字符串，调用方持有",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-2",
+      "name": "ZipPath.zipVirtualParent",
+      "provider": "ROLE-D02",
+      "consumers": ["ROLE-L05"],
+      "input": "p: string（isZipVirtualPath(p) 为 true 的路径）",
+      "output": "string：inner 非根 → 去掉最后一段的虚拟路径；inner 为根 → ZIP 文件所在文件系统父目录（对齐 tabs.ts:249 现语义，根目录兜底 '/'）",
+      "preconditions": ["isZipVirtualPath(p) === true"],
+      "postconditions": ["返回值为合法虚拟路径或绝对文件系统路径"],
+      "invariants": ["连续调用最终收敛到 '/'（不会产生循环）"],
+      "errors": ["纯函数不抛错"],
+      "data_ownership": "无状态",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-3",
+      "name": "ChannelRegistry.CH",
+      "provider": "ROLE-L01",
+      "consumers": ["ROLE-L03", "ROLE-L04"],
+      "input": "无（常量表消费）",
+      "output": "CH.invoke.<name> / CH.push.<name> 的 as const 字符串字面量",
+      "preconditions": ["none"],
+      "postconditions": ["全部值与重构前通道字符串逐字相同（除删除的 3 个死通道）"],
+      "invariants": ["preload 与 main 引用同一常量源，拼写漂移在编译期暴露"],
+      "errors": ["none"],
+      "data_ownership": "无状态编译期常量",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-4",
+      "name": "OptionalDeps.loadOptional",
+      "provider": "ROLE-L02",
+      "consumers": ["ROLE-L07", "ROLE-L08"],
+      "input": "id: string（依赖名，用于错误文案）；loader: () => T | Promise<T>",
+      "output": "Promise<T>（加载成功的模块）",
+      "preconditions": ["调用点在设备 connect() 路径内（保证缺依赖时设备类型可禁用而非进程崩溃）"],
+      "postconditions": ["成功时透传 loader 结果"],
+      "invariants": ["加载失败必抛含『设备类型已禁用』语义的错误，不吞错"],
+      "errors": ["loader 抛错 → 包装为 Error('可选依赖 <id> 不可用…已禁用…原始错误') 向上传播，调用方（DeviceManager connect 路径）负责置 disconnected 并通知"],
+      "data_ownership": "无状态；模块缓存由调用方持有（连接生命周期）",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable（连接去重由 DeviceManager.connectionAttempts 负责）"
+    },
+    {
+      "id": "IFC-5",
+      "name": "SharedTypes 正典 Device/DeviceConfig",
+      "provider": "ROLE-D01",
+      "consumers": ["ROLE-L03", "ROLE-L04", "ROLE-L05", "ROLE-L09"],
+      "input": "无（类型消费）",
+      "output": "Device { rootPath: string 必填, config?: DeviceConfig, pairingStatus?… } 等正典形状",
+      "preconditions": ["none"],
+      "postconditions": ["main/preload/renderer 三侧 import type 同一声明；本地重复声明全部删除"],
+      "invariants": ["正典以主进程版本为准（rootPath 必填 + config 可选）；renderer 构造点均已核实带 rootPath 兜底"],
+      "errors": ["none（编译期契约）"],
+      "data_ownership": "类型无运行时数据",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-6",
+      "name": "CapabilitiesRegistry.DEFAULT_REMOTE_CAPABILITIES",
+      "provider": "ROLE-D03",
+      "consumers": ["ROLE-L09"],
+      "input": "deviceType: DeviceConfig['type']",
+      "output": "DeviceCapabilities（未连接远程设备的能力兜底，行为与 DeviceManager.ts:589-609 现状逐字段一致）",
+      "preconditions": ["设备未连接（无 adapter 可查询）"],
+      "postconditions": ["返回纯对象，调用方不修改"],
+      "invariants": ["canStream 恒 false（连接后由具体适配器覆盖）"],
+      "errors": ["none（未知类型返回同一兜底形状）"],
+      "data_ownership": "无状态工厂",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    }
+  ],
+  "design_contract_checks": [
+    {
+      "id": "DC-1",
+      "item": "依赖方向：shared 被两侧消费不反向；main/renderer 不直接跨树 import；preload/renderer 不出现运行时跨进程 import（type import 编译期擦除）",
+      "principle": "dependency_direction",
+      "role_scope": ["ROLE-D01", "ROLE-D02", "ROLE-L03", "ROLE-L04"]
+    },
+    {
+      "id": "DC-2",
+      "item": "单一事实源：域类型声明只在 shared/types.ts；ZIP '::' 解析只在 shared/zipPath.ts；通道字符串只在 channels.ts",
+      "principle": "high_cohesion_low_coupling",
+      "role_scope": []
+    },
+    {
+      "id": "DC-3",
+      "item": "行为保持：通道集合 diff 仅少 3 个死通道；Device/DeviceCapabilities 正典字段与主进程现状一致；zipVirtualParent 与 tabs.goUp 现语义一致",
+      "principle": "minimize_complexity",
+      "role_scope": []
+    },
+    {
+      "id": "DC-4",
+      "item": "防御式：loadOptional 错误必含依赖 id 与禁用语义；parse 容错无 '::' 输入",
+      "principle": "defensive_design",
+      "role_scope": ["ROLE-D02", "ROLE-L02"]
+    },
+    {
+      "id": "DC-5",
+      "item": "构造无副作用：DeviceManager 构造函数不启动扫描；扫描启动收敛到 main.ts app.whenReady",
+      "principle": "SRP",
+      "role_scope": ["ROLE-L03", "ROLE-L09"]
+    }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "ZIP 内触发向上导航",
+      "roles": ["ROLE-L05"],
+      "code_refs": ["src/stores/tabs.ts:goUp"],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": null
+    },
+    {
+      "step": 2,
+      "name": "判定虚拟路径并计算上级目标",
+      "roles": ["ROLE-L05", "ROLE-D02"],
+      "code_refs": ["src/stores/tabs.ts:goUp", "shared/zipPath.ts:zipVirtualParent"],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "路径无 '::' → 走普通文件系统上级分支（不进虚拟路径逻辑）"
+    },
+    {
+      "step": 3,
+      "name": "导航生效，面包屑同步",
+      "roles": ["ROLE-L06"],
+      "code_refs": ["src/components/FilePane.vue:pathSegments", "shared/zipPath.ts:zipBreadcrumbSegments"],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": null
+    },
+    {
+      "step": 4,
+      "name": "renderer 发起设备连接",
+      "roles": ["ROLE-L04"],
+      "code_refs": ["electron/preload.ts:connectDevice"],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": null
+    },
+    {
+      "step": 5,
+      "name": "main 路由连接请求到 DeviceManager",
+      "roles": ["ROLE-L03", "ROLE-L09"],
+      "code_refs": ["electron/main.ts:deviceConnect"],
+      "doc_ref": "业务流程图-步骤5",
+      "exception": null
+    },
+    {
+      "step": 6,
+      "name": "SMB 适配器延迟加载可选依赖",
+      "roles": ["ROLE-L07", "ROLE-L02"],
+      "code_refs": ["electron/src/adapters/SMBAdapter.ts:connect", "electron/src/adapters/optionalDeps.ts:loadOptional"],
+      "doc_ref": "业务流程图-步骤6",
+      "exception": "依赖缺失 → loadOptional 抛『设备类型已禁用』错误 → DeviceManager 置 disconnected 并推送状态"
+    },
+    {
+      "step": 7,
+      "name": "设备状态推送回 renderer",
+      "roles": ["ROLE-L03"],
+      "code_refs": ["electron/main.ts:notifyRenderer"],
+      "doc_ref": "业务流程图-步骤7",
+      "exception": null
+    }
+  ],
+  "logging_standard": {
+    "library": "console（沿用仓库现状：main 进程 console.log/error，前缀 [模块名]）",
+    "key_nodes_instrumented": ["异常", "外部调用"]
+  },
+  "verification": {
+    "commands": [
+      { "command": "npm run typecheck", "result": "vue-tsc 0 错误（退出码 0）", "evidence": "renderer 全量类型检查（含 shared/**/*.ts 与 @shared 引用）", "status": "passed" },
+      { "command": "npx tsc -p tsconfig.node.json --noEmit", "result": "16 处错误，与 git stash 基线完全一致（零新增）", "evidence": "基线对比：stash 重跑 HEAD 得同集合 16 处（FileOperationManager×12/main.ts Item/LocalAdapter/WebDAV/FileMetadata，均为存量）；本次改动相关文件（SMBAdapter/channels/optionalDeps/capabilities/DeviceManager/preload/adapters/types）0 错误", "status": "passed" },
+      { "command": "npm run build", "result": "main/preload/renderer 三 bundle 构建成功（built in 3.75s）", "evidence": "shared/ 在 main+renderer 两段构建均可解析；zipPath 打包进 out/main/index.js 与 renderer index-*.js；preload 仅 type 消费无运行时引入", "status": "passed" },
+      { "command": "grep 单一源断言", "result": "interface DeviceConfig 声明仅剩 shared/types.ts；includes('::')/ZIP_SEP 仅剩 shared/zipPath.ts；main/preload 裸通道字符串 0（剩余引号字符串为 Electron 生命周期事件 did-finish-load/activate/window-all-closed）", "evidence": "grep -rn 全仓断言输出", "status": "passed" }
+    ],
+    "checks": [
+      { "target": "maintainability：域类型/通道/ZIP解析单一源", "method": "static_check", "evidence": "grep 断言四项全过 + typecheck 双绿（零新增错误）", "status": "passed" },
+      { "target": "consistency：IFC-1 parse/join 往返一致", "method": "static_check", "evidence": "zipPath.ts 归一化集中于 normalizeInnerPath，joinZipPath(zipFilePath, parse(p).innerPath) 恒等归一化(p)；vue-tsc 严格模式通过", "status": "passed" },
+      { "target": "behavior_preservation：通道集合仅少 3 死通道", "method": "static_check", "evidence": "main.ts handler 58→55：删除 mobile:getAutoConnectDevices/getDetectedDevices/getDeviceInfo（preload 无对应、renderer 无调用，均已核实）；CH 常量值与原字符串逐字一致", "status": "passed" },
+      { "target": "reliability：缺依赖 main 可启动", "method": "manual_review", "evidence": "静态审查：SMB 顶层静态 import 改为 connect() 内 loadOptional；Android createRequire 移入 getAdbkit() 惰性加载（runShell 复用缓存）；模块顶层零可选依赖加载点", "status": "passed" },
+      { "target": "IFC-2 zipVirtualParent 语义保持", "method": "manual_review", "evidence": "与 tabs.ts goUp 原实现（inner 非根 pop 一段 / 根退到 ZIP 父目录 '/' 兜底）逐分支比对一致；FilePane navigateToSegment/zipEntriesToFileInfo 的 join 语义经 joinZipPath 保持（含 `${zip}::` 根形态）", "status": "passed" }
+    ],
+    "unverified": [
+      { "item": "删依赖运行冒烟（rename node_modules/@marsaud/smb2 验证 main 可启动）", "impact": "reliability 质量属性缺少运行时证据，置信度降级为中", "follow_up": "交付后由用户执行一次删依赖启动验证" },
+      { "item": "npm run dev 手测 ZIP 导航/面包屑", "impact": "IFC-2 行为保持仅有静态比对证据", "follow_up": "交付后手测 ZIP 进入→向上→根退出→面包屑点击路径" }
+    ]
+  },
+  "summary": {
+    "roles_count": 12,
+    "interfaces_count": 6,
+    "process_steps": 7,
+    "verification_checks": 5,
+    "layer_roles": 9,
+    "domain_roles": 3
+  },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "原则复核：12 角色均有对应代码单元且依赖方向与确认一致（shared 被两侧消费、无反向、无环）；日志沿用 console（loadOptional 异常打点带依赖 id 与原始错误上下文）；流程 7 步均落代码与文档。诚实说明：(1) tsconfig.node.json 存在 16 处存量类型错误（经 git stash 基线对比确认非本次引入，涉及 FileOperationManager TransferTask 字段声明等），不阻断本 feature 但建议独立修复；(2) validate_gate 为结构性规则近似（文件存在/关键字/步骤对账），职责是否真单一属语义项，已由新视角语义复核覆盖并登记缺口；(3) 删依赖运行冒烟与 npm run dev 手测未执行（见 unverified）"
+  },
+  "open_questions": [
+    {
+      "question": "mobile:getDetectedDevices 等 3 个死通道是否保留",
+      "impact": "不影响本次交付（已确认 renderer 无调用路径，renderer 经 mobile:devicesChanged 推送获取）",
+      "后续阶段": "如有外部工具依赖这些通道可按 ALT 中死通道清单恢复"
+    }
+  ]
+}

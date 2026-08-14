@@ -264,6 +264,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useFavoritesStore } from '@/stores/favorites'
 import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
+import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
 import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -506,14 +507,7 @@ const gridRows = computed(() => {
 })
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── ZIP virtual path helpers ──────────────────────────────────────────────────
-const ZIP_SEP = '::'
-function isZipVirtualPath(path: string) { return path.includes(ZIP_SEP) }
-function parseZipVirtualPath(path: string) {
-  const idx = path.indexOf(ZIP_SEP)
-  return { zipFilePath: path.slice(0, idx), innerPath: path.slice(idx + 2) }
-}
-
+// ── ZIP virtual path helpers（协议解析统一在 @shared/zipPath，此处仅组装）──
 function zipEntriesToFileInfo(entries: Array<{
   name: string; path: string; isDirectory: boolean; size: number;
   compressedSize: number; modifiedTime: string
@@ -521,7 +515,7 @@ function zipEntriesToFileInfo(entries: Array<{
   return entries.map(e => ({
     name: e.name,
     // Virtual path so rest of app (preview, selection, etc.) can use it
-    path: `${zipFilePath}${ZIP_SEP}${e.path}`,
+    path: joinZipPath(zipFilePath, e.path),
     isDirectory: e.isDirectory,
     isFile: !e.isDirectory,
     size: e.size,
@@ -981,7 +975,7 @@ function handleDoubleClick(file: FileInfo) {
     emit('navigate', file.path)
   } else if (file.extension?.toLowerCase() === '.zip') {
     // Navigate INTO the ZIP as a virtual filesystem
-    emit('navigate', file.path + ZIP_SEP)
+    emit('navigate', joinZipPath(file.path, ''))
   } else {
     emit('preview', file)
   }
@@ -1109,7 +1103,7 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
     // Electron can hand an existing *local* path to Finder through
     // webContents.startDrag. Remote/mobile files do not have a local path and
     // deliberately retain the existing in-app drag behaviour instead.
-    if (props.deviceId === 'local' && !dragData.files.some(filePath => filePath.includes('::'))) {
+    if (props.deviceId === 'local' && !dragData.files.some(filePath => isZipVirtualPath(filePath))) {
       event.preventDefault()
       window.fileman.startNativeDrag(dragData.files)
     }

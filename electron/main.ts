@@ -15,6 +15,8 @@ import { FileMetadataService } from './src/services/FileMetadataService'
 import { ArchiveService } from './src/services/ArchiveService'
 import { MobileScreenshotService } from './src/services/MobileScreenshotService'
 import { ContentVerificationService, type ContentVerificationRequest } from './src/services/ContentVerificationService'
+import { CH } from './src/ipc/channels'
+import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 
 const isDev = !app.isPackaged
 const log = console
@@ -34,17 +36,8 @@ const archiveService = new ArchiveService(deviceManager)
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
 
-/** Separator used for virtual ZIP paths: "<zipFilePath>::<innerPath>" */
-const ZIP_PATH_SEP = '::'
-
-function isZipVirtualPath(p: string): boolean {
-  return p.includes(ZIP_PATH_SEP)
-}
-
-function parseZipVirtualPath(p: string): { zipFilePath: string; innerPath: string } {
-  const idx = p.indexOf(ZIP_PATH_SEP)
-  return { zipFilePath: p.slice(0, idx), innerPath: p.slice(idx + 2) }
-}
+// ZIP 虚拟路径协议（"<zipFilePath>::<innerPath>"）的解析/构造统一在
+// @shared/zipPath（main 与 renderer 共用的单一事实源），此处不再本地实现。
 
 const localAdapter = deviceManager.getAdapter('local')
 if (localAdapter) {
@@ -75,14 +68,14 @@ function createWindow(): void {
     const currentMobileDevices = deviceManager.getDetectedMobileDevices()
     if (currentMobileDevices.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
       console.log('[Main] Pushing initial mobile devices to renderer:', currentMobileDevices.length)
-      mainWindow.webContents.send('mobile:devicesChanged', currentMobileDevices)
+      mainWindow.webContents.send(CH.push.mobileDevicesChanged, currentMobileDevices)
     }
 
     // Push current external volumes state as well (scanner may have run early).
     const currentVolumes = volumeScanner.getVolumes()
     if (currentVolumes.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
       console.log('[Main] Pushing initial volumes to renderer:', currentVolumes.length)
-      mainWindow.webContents.send('volumes:changed', currentVolumes)
+      mainWindow.webContents.send(CH.push.volumesChanged, currentVolumes)
     }
   })
 
@@ -98,7 +91,7 @@ function createWindow(): void {
 
 // ============ System IPC Handlers ============
 
-ipcMain.handle('system:getHomeDir', () => {
+ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
   return os.homedir()
 })
 
@@ -107,37 +100,37 @@ ipcMain.handle('system:getHomeDir', () => {
 // 「在 Finder 中显示」不走此 handler —— 它复用 preload 的 shell.showItemInFolder
 // （Electron 安全同步 API，已被 preview/TaskItem 在用）。两者机制不同，故分离。
 
-ipcMain.handle('shell:openInTerminal', async (_, dirPath: string): Promise<void> => {
+ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath: string): Promise<void> => {
   return hostShellService.openInTerminal(dirPath)
 })
 
 // ============ Config IPC Handlers ============
 
-ipcMain.handle('config:get', () => configService.getConfig())
-ipcMain.handle('config:save', (_, config) => configService.saveConfig(config))
+ipcMain.handle(CH.invoke.configGet, () => configService.getConfig())
+ipcMain.handle(CH.invoke.configSave, (_, config) => configService.saveConfig(config))
 
 // ============ Device Management IPC Handlers ============
 
-ipcMain.handle('device:list', (): Device[] => {
+ipcMain.handle(CH.invoke.deviceList, (): Device[] => {
   return deviceManager.getDevices()
 })
 
-ipcMain.handle('device:add', async (_, config: DeviceConfig, credentials?: Credentials): Promise<Device> => {
+ipcMain.handle(CH.invoke.deviceAdd, async (_, config: DeviceConfig, credentials?: Credentials): Promise<Device> => {
   // Remote adapters are intentionally created only on connection. Registering
   // one here made every newly-added SMB/SSH device fail before it could connect.
   return deviceManager.addDevice(config, credentials)
 })
 
-ipcMain.handle('device:update', async (_, deviceId: string, config: Partial<DeviceConfig>, credentials?: Credentials): Promise<void> => {
+ipcMain.handle(CH.invoke.deviceUpdate, async (_, deviceId: string, config: Partial<DeviceConfig>, credentials?: Credentials): Promise<void> => {
   return deviceManager.updateDevice(deviceId, config, credentials)
 })
 
-ipcMain.handle('device:remove', async (_, deviceId: string): Promise<void> => {
+ipcMain.handle(CH.invoke.deviceRemove, async (_, deviceId: string): Promise<void> => {
   fileOperationManager.unregisterAdapter(deviceId)
   return deviceManager.unregisterDevice(deviceId)
 })
 
-ipcMain.handle('device:connect', async (_, deviceId: string): Promise<void> => {
+ipcMain.handle(CH.invoke.deviceConnect, async (_, deviceId: string): Promise<void> => {
   await deviceManager.connectDevice(deviceId)
   // Register adapter after connection
   const adapter = deviceManager.getAdapter(deviceId)
@@ -146,35 +139,35 @@ ipcMain.handle('device:connect', async (_, deviceId: string): Promise<void> => {
   }
 })
 
-ipcMain.handle('device:disconnect', async (_, deviceId: string): Promise<void> => {
+ipcMain.handle(CH.invoke.deviceDisconnect, async (_, deviceId: string): Promise<void> => {
   fileOperationManager.unregisterAdapter(deviceId)
   return deviceManager.disconnectDevice(deviceId)
 })
 
-ipcMain.handle('device:hasCredentials', (_, deviceId: string): boolean => {
+ipcMain.handle(CH.invoke.deviceHasCredentials, (_, deviceId: string): boolean => {
   return credentialService.has(deviceId)
 })
 
-ipcMain.handle('device:getCapabilities', (_, deviceId: string) => {
+ipcMain.handle(CH.invoke.deviceGetCapabilities, (_, deviceId: string) => {
   return deviceManager.getCapabilities(deviceId)
 })
 
-ipcMain.handle('device:canTransferBetween', (_, sourceDeviceId: string, targetDeviceId: string, operation: 'copy' | 'move'): boolean => {
+ipcMain.handle(CH.invoke.deviceCanTransferBetween, (_, sourceDeviceId: string, targetDeviceId: string, operation: 'copy' | 'move'): boolean => {
   return deviceManager.canTransferBetween(sourceDeviceId, targetDeviceId, operation)
 })
 
 // 发起 iOS 配对(完整生命周期:发起 → 设备端信任 → 校验,见 iOSAdapter.pairIosDevice)
-ipcMain.handle('device:pair', async (_, deviceId: string): Promise<{ success: boolean; error?: string }> => {
+ipcMain.handle(CH.invoke.devicePair, async (_, deviceId: string): Promise<{ success: boolean; error?: string }> => {
   return deviceManager.pairDevice(deviceId)
 })
 
 // ============ File System IPC Handlers (with deviceId routing) ============
 
-ipcMain.handle('fs:list', async (_, deviceId: string, path: string) => {
+ipcMain.handle(CH.invoke.fsList, async (_, deviceId: string, path: string) => {
   return deviceManager.listFiles(deviceId, path)
 })
 
-ipcMain.handle('fs:stat', async (_, deviceId: string, path: string) => {
+ipcMain.handle(CH.invoke.fsStat, async (_, deviceId: string, path: string) => {
   if (isZipVirtualPath(path)) {
     const { zipFilePath, innerPath } = parseZipVirtualPath(path)
     const entries = await zipService.getEntries(zipFilePath)
@@ -193,23 +186,23 @@ ipcMain.handle('fs:stat', async (_, deviceId: string, path: string) => {
   return deviceManager.getStats(deviceId, path)
 })
 
-ipcMain.handle('fs:exists', async (_, deviceId: string, path: string) => {
+ipcMain.handle(CH.invoke.fsExists, async (_, deviceId: string, path: string) => {
   return deviceManager.exists(deviceId, path)
 })
 
-ipcMain.handle('fs:mkdir', async (_, deviceId: string, path: string) => {
+ipcMain.handle(CH.invoke.fsMkdir, async (_, deviceId: string, path: string) => {
   return deviceManager.mkdir(deviceId, path)
 })
 
-ipcMain.handle('fs:delete', async (_, deviceId: string, path: string) => {
+ipcMain.handle(CH.invoke.fsDelete, async (_, deviceId: string, path: string) => {
   return deviceManager.delete(deviceId, path)
 })
 
-ipcMain.handle('fs:rename', async (_, deviceId: string, oldPath: string, newPath: string) => {
+ipcMain.handle(CH.invoke.fsRename, async (_, deviceId: string, oldPath: string, newPath: string) => {
   return deviceManager.rename(deviceId, oldPath, newPath)
 })
 
-ipcMain.handle('fs:readFile', async (_, deviceId: string, path: string) => {
+ipcMain.handle(CH.invoke.fsReadFile, async (_, deviceId: string, path: string) => {
   // Virtual ZIP path: extract entry on demand
   if (isZipVirtualPath(path)) {
     const { zipFilePath, innerPath } = parseZipVirtualPath(path)
@@ -222,21 +215,21 @@ ipcMain.handle('fs:readFile', async (_, deviceId: string, path: string) => {
 
 // ============ Directory compare content verification ============
 // Content bytes are consumed only in Main. Renderer receives progress/result metadata.
-ipcMain.handle('compare:verify:start', (event, request: ContentVerificationRequest) => {
+ipcMain.handle(CH.invoke.compareVerifyStart, (event, request: ContentVerificationRequest) => {
   log.info('[DirectoryCompareIPC] verification requested', { sessionId: request.sessionId, pairCount: request.pairs.length })
   return contentVerificationService.start(request, progress => {
-    if (!event.sender.isDestroyed()) event.sender.send('compare:verification-progress', progress)
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.compareVerificationProgress, progress)
   })
 })
 
-ipcMain.handle('compare:verify:cancel', (_, taskId: string) => {
+ipcMain.handle(CH.invoke.compareVerifyCancel, (_, taskId: string) => {
   log.info('[DirectoryCompareIPC] verification cancellation requested', { taskId })
   return contentVerificationService.cancel(taskId)
 })
 
 // ============ ZIP browsing IPC Handlers ============
 
-ipcMain.handle('zip:list', async (_, zipFilePath: string, internalPath: string) => {
+ipcMain.handle(CH.invoke.zipList, async (_, zipFilePath: string, internalPath: string) => {
   try {
     const entries = await zipService.listDirectory(zipFilePath, internalPath)
     console.log(`[zip:list] ${zipFilePath} :: "${internalPath}" → ${entries.length} entries`)
@@ -247,51 +240,51 @@ ipcMain.handle('zip:list', async (_, zipFilePath: string, internalPath: string) 
   }
 })
 
-ipcMain.handle('zip:readEntry', async (_, zipFilePath: string, entryPath: string) => {
+ipcMain.handle(CH.invoke.zipReadEntry, async (_, zipFilePath: string, entryPath: string) => {
   const buffer = await zipService.readEntry(zipFilePath, entryPath)
   return buffer.toString('base64')
 })
 
-ipcMain.handle('fs:writeFile', async (_, deviceId: string, path: string, data: string) => {
+ipcMain.handle(CH.invoke.fsWriteFile, async (_, deviceId: string, path: string, data: string) => {
   const buffer = Buffer.from(data, 'base64')
   return deviceManager.writeFile(deviceId, path, buffer)
 })
 
-ipcMain.handle('fs:copy', async (_, deviceId: string, srcPath: string, dstPath: string) => {
+ipcMain.handle(CH.invoke.fsCopy, async (_, deviceId: string, srcPath: string, dstPath: string) => {
   return deviceManager.copy(deviceId, srcPath, dstPath)
 })
 
-ipcMain.handle('fs:search', async (_, deviceId: string, path: string, query) => {
+ipcMain.handle(CH.invoke.fsSearch, async (_, deviceId: string, path: string, query) => {
   return deviceManager.search(deviceId, path, query)
 })
 
 // ============ File Browser Metadata / Archive / Capture ============
 
-ipcMain.handle('file-metadata:get', (_, deviceId: string, filePath: string) =>
+ipcMain.handle(CH.invoke.fileMetadataGet, (_, deviceId: string, filePath: string) =>
   fileMetadataService.get(deviceId, filePath)
 )
 
-ipcMain.handle('file-metadata:setTags', (_, deviceId: string, filePath: string, tags: string[]) =>
+ipcMain.handle(CH.invoke.fileMetadataSetTags, (_, deviceId: string, filePath: string, tags: string[]) =>
   fileMetadataService.setTags(deviceId, filePath, tags)
 )
 
-ipcMain.handle('file-metadata:findByTags', (_, tags: string[]) => fileMetadataService.findByTags(tags))
+ipcMain.handle(CH.invoke.fileMetadataFindByTags, (_, tags: string[]) => fileMetadataService.findByTags(tags))
 
-ipcMain.handle('archive:create', (_, deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
+ipcMain.handle(CH.invoke.archiveCreate, (_, deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
   archiveService.createZip(deviceId, sourcePaths, targetDirectory, archiveName)
 )
 
-ipcMain.handle('archive:extract', (_, deviceId: string, archivePath: string, targetDirectory: string) =>
+ipcMain.handle(CH.invoke.archiveExtract, (_, deviceId: string, archivePath: string, targetDirectory: string) =>
   archiveService.extractZip(deviceId, archivePath, targetDirectory)
 )
 
-ipcMain.handle('mobile:captureScreenshot', (_, deviceId: string, targetDirectory: string) =>
+ipcMain.handle(CH.invoke.mobileCaptureScreenshot, (_, deviceId: string, targetDirectory: string) =>
   mobileScreenshotService.captureToDirectory(deviceId, targetDirectory)
 )
 
 // ============ Cross-Device Operations ============
 
-ipcMain.handle('fs:copyBetween', async (
+ipcMain.handle(CH.invoke.fsCopyBetween, async (
   _,
   srcDeviceId: string,
   srcPaths: string[],
@@ -307,7 +300,7 @@ ipcMain.handle('fs:copyBetween', async (
   })
 })
 
-ipcMain.handle('fs:moveBetween', async (
+ipcMain.handle(CH.invoke.fsMoveBetween, async (
   _,
   srcDeviceId: string,
   srcPaths: string[],
@@ -331,7 +324,7 @@ ipcMain.handle('fs:moveBetween', async (
  * FileOperationManager with every other transfer, so folders, SMB, and mobile
  * targets keep their existing recursive-copy and progress semantics.
  */
-ipcMain.handle('fs:importExternal', async (
+ipcMain.handle(CH.invoke.fsImportExternal, async (
   _,
   sourcePaths: unknown,
   targetDeviceId: string,
@@ -366,7 +359,7 @@ const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
 )
 
 /** Start a native macOS drag for local files so Finder can receive them. */
-ipcMain.on('drag:startNative', (event, sourcePaths: unknown) => {
+ipcMain.on(CH.send.dragStartNative, (event, sourcePaths: unknown) => {
   if (!Array.isArray(sourcePaths)) return
   const files = sourcePaths.filter(
     (sourcePath): sourcePath is string => typeof sourcePath === 'string' && path.isAbsolute(sourcePath) && fs.existsSync(sourcePath)
@@ -378,27 +371,27 @@ ipcMain.on('drag:startNative', (event, sourcePaths: unknown) => {
 
 // ============ File Operation IPC Handlers ============
 
-ipcMain.handle('file-operation:create', async (_, params: CreateTaskParams): Promise<FileOperationTask> => {
+ipcMain.handle(CH.invoke.fileOperationCreate, async (_, params: CreateTaskParams): Promise<FileOperationTask> => {
   return fileOperationManager.addTask(params)
 })
 
-ipcMain.handle('file-operation:cancel', async (_, taskId: string): Promise<void> => {
+ipcMain.handle(CH.invoke.fileOperationCancel, async (_, taskId: string): Promise<void> => {
   fileOperationManager.cancelTask(taskId)
 })
 
-ipcMain.handle('file-operation:retry', async (_, taskId: string): Promise<FileOperationTask | null> => {
+ipcMain.handle(CH.invoke.fileOperationRetry, async (_, taskId: string): Promise<FileOperationTask | null> => {
   return fileOperationManager.retryTask(taskId)
 })
 
-ipcMain.handle('file-operation:getQueue', async (): Promise<FileOperationTask[]> => {
+ipcMain.handle(CH.invoke.fileOperationGetQueue, async (): Promise<FileOperationTask[]> => {
   return fileOperationManager.getAllTasks()
 })
 
-ipcMain.handle('file-operation:getHistory', async (): Promise<FileOperationTask[]> => {
+ipcMain.handle(CH.invoke.fileOperationGetHistory, async (): Promise<FileOperationTask[]> => {
   return fileOperationManager.getHistory()
 })
 
-ipcMain.handle('file-operation:clearHistory', async (): Promise<void> => {
+ipcMain.handle(CH.invoke.fileOperationClearHistory, async (): Promise<void> => {
   fileOperationManager.clearHistory()
 })
 
@@ -407,42 +400,34 @@ ipcMain.handle('file-operation:clearHistory', async (): Promise<void> => {
 /**
  * Start mobile device scanning
  */
-ipcMain.handle('mobile:startScan', () => {
+ipcMain.handle(CH.invoke.mobileStartScan, () => {
   deviceManager.startMobileDeviceScan()
 })
 
-ipcMain.handle('mobile:stopScan', () => {
+ipcMain.handle(CH.invoke.mobileStopScan, () => {
   deviceManager.stopMobileDeviceScan()
 })
 
-ipcMain.handle('mobile:scanNow', async (): Promise<DetectedDevice[]> => {
+ipcMain.handle(CH.invoke.mobileScanNow, async (): Promise<DetectedDevice[]> => {
   return deviceManager.scanMobileDevicesNow()
 })
 
-ipcMain.handle('mobile:rememberDevice', async (_, deviceId: string): Promise<void> => {
+ipcMain.handle(CH.invoke.mobileRememberDevice, async (_, deviceId: string): Promise<void> => {
   await deviceManager.rememberMobileDevice(deviceId)
   notifyRenderer()
 })
 
-ipcMain.handle('mobile:forgetDevice', async (_, deviceId: string): Promise<void> => {
+ipcMain.handle(CH.invoke.mobileForgetDevice, async (_, deviceId: string): Promise<void> => {
   await deviceManager.forgetMobileDevice(deviceId)
   notifyRenderer()
 })
 
-ipcMain.handle('mobile:getAutoConnectDevices', async (): Promise<string[]> => {
-  return deviceManager.getAutoConnectDevices()
-})
+// 注：已删除 3 个死通道（mobile:getAutoConnectDevices / getDetectedDevices /
+// getDeviceInfo）——preload 无对应方法、renderer 无调用；设备状态经
+// device:list 拉取 + mobile:devicesChanged 推送获取。清单见 channels.ts。
 
-ipcMain.handle('mobile:checkLibimobiledevice', async (): Promise<boolean> => {
+ipcMain.handle(CH.invoke.mobileCheckLibimobiledevice, async (): Promise<boolean> => {
   return deviceManager.isLibimobiledeviceInstalled()
-})
-
-ipcMain.handle('mobile:getDetectedDevices', (): DetectedDevice[] => {
-  return deviceManager.getDetectedMobileDevices()
-})
-
-ipcMain.handle('mobile:getDeviceInfo', async (_, deviceId: string): Promise<DetectedDevice | undefined> => {
-  return deviceManager.getDetectedMobileDevice(deviceId)
 })
 
 // ============ Device Change Notifications ============
@@ -450,18 +435,18 @@ ipcMain.handle('mobile:getDeviceInfo', async (_, deviceId: string): Promise<Dete
 // Notify renderer when devices change
 function notifyRenderer(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('device:changed', deviceManager.getDevices())
+    mainWindow.webContents.send(CH.push.deviceChanged, deviceManager.getDevices())
   }
 }
 
 deviceManager.onDeviceChange((devices) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('device:changed', devices)
+    mainWindow.webContents.send(CH.push.deviceChanged, devices)
 
     // Also send mobile devices change notification
     const mobileDevices = deviceManager.getDetectedMobileDevices()
     console.log('[Main] Sending mobile:devicesChanged, devices:', mobileDevices.length)
-    mainWindow.webContents.send('mobile:devicesChanged', mobileDevices)
+    mainWindow.webContents.send(CH.push.mobileDevicesChanged, mobileDevices)
   }
 
   // Update file operation manager adapters
@@ -477,7 +462,7 @@ deviceManager.onDeviceChange((devices) => {
 
 // ============ Thumbnail IPC Handlers ============
 
-ipcMain.handle('thumbnail:get', async (_, deviceId: string, filePath: string, size: number, mtime: string, thumbnailSize: 'small' | 'large') => {
+ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId: string, filePath: string, size: number, mtime: string, thumbnailSize: 'small' | 'large') => {
   return thumbnailService.getThumbnail(
     deviceId,
     filePath,
@@ -488,11 +473,11 @@ ipcMain.handle('thumbnail:get', async (_, deviceId: string, filePath: string, si
   )
 })
 
-ipcMain.handle('thumbnail:clearCache', async () => {
+ipcMain.handle(CH.invoke.thumbnailClearCache, async () => {
   await thumbnailService.clearCache()
 })
 
-ipcMain.handle('thumbnail:getCacheSize', async () => {
+ipcMain.handle(CH.invoke.thumbnailGetCacheSize, async () => {
   return thumbnailService.getCacheSize()
 })
 
@@ -500,7 +485,7 @@ ipcMain.handle('thumbnail:getCacheSize', async () => {
 // HEIC/HEIF + camera RAW → JPEG raster via macOS `sips`. Used by the image
 // browser for formats Chromium cannot render. Returns base64 (matches fs:readFile).
 
-ipcMain.handle('image:decodeNative', async (
+ipcMain.handle(CH.invoke.imageDecodeNative, async (
   _,
   deviceId: string,
   filePath: string,
@@ -515,7 +500,7 @@ ipcMain.handle('image:decodeNative', async (
 /**
  * 已挂载的外接卷列表（快照）。首次拉取用；后续变化由 volumes:changed 推送。
  */
-ipcMain.handle('volumes:list', () => {
+ipcMain.handle(CH.invoke.volumesList, () => {
   return volumeScanner.getVolumes()
 })
 
@@ -525,7 +510,7 @@ ipcMain.handle('volumes:list', () => {
  */
 volumeScanner.onVolumeChange((volumes) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('volumes:changed', volumes)
+    mainWindow.webContents.send(CH.push.volumesChanged, volumes)
   }
 })
 
@@ -533,7 +518,9 @@ volumeScanner.onVolumeChange((volumes) => {
 
 app.whenReady().then(() => {
   createWindow()
-  // 启动外接卷扫描（窗口创建后开始轮询）
+  // 启动移动设备扫描与外接卷扫描（与 VolumeScanner 同模式：由组合根显式启动，
+  // DeviceManager 构造函数不再有生命周期副作用）
+  deviceManager.startMobileDeviceScan()
   volumeScanner.start()
 
   app.on('activate', () => {

@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import type { IFileSystemAdapter } from '../adapters/types'
+import { CH } from '../ipc/channels'
 
 export interface TransferRequest {
   id: string
@@ -64,7 +65,7 @@ export class TransferManager {
     this.progressHandlers.forEach(handler => handler(progress))
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('transfer:progress', progress)
+      this.mainWindow.webContents.send(CH.push.transferProgress, progress)
     }
   }
 

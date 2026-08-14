@@ -25,132 +25,21 @@ declare module 'vue-virtual-scroller' {
   export const DynamicScrollerItem: DefineComponent<any, any, any>
 }
 
-// ============ File System Types ============
+// ============ 跨进程域类型（正典在 shared/types.ts） ============
+// 本文件是全局脚本声明（不能顶部 import，否则全局声明失效），因此用
+// import() 类型导入形态别名到全局作用域，供下方 Window['fileman'] 引用。
 
-interface FileInfo {
-  name: string
-  path: string
-  isDirectory: boolean
-  isFile: boolean
-  size: number
-  modifiedTime: string
-  createdTime?: string
-  extension?: string
-}
-
-interface FileStats {
-  size: number
-  isDirectory: boolean
-  isFile: boolean
-  modifiedTime: string
-  createdTime: string
-  mode: number
-}
-
-interface SearchQuery {
-  pattern: string
-  fileTypes?: string[]
-  minSize?: number
-  maxSize?: number
-  modifiedAfter?: string
-  modifiedBefore?: string
-}
-
-interface ContentVerificationPair {
-  relativePath: string
-  leftDeviceId: string
-  leftPath: string
-  leftSize: number
-  rightDeviceId: string
-  rightPath: string
-  rightSize: number
-}
-
-interface ContentVerificationProgress {
-  sessionId: string
-  taskId: string
-  relativePath: string
-  status: 'verifying' | 'content-equal' | 'content-different' | 'failed' | 'cancelled'
-  completed: number
-  total: number
-  message?: string
-}
-
-// ============ Device Types ============
-
-interface DeviceConfig {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  host?: string
-  port?: number
-  username?: string
-  rootPath?: string
-  share?: string
-  domain?: string
-  url?: string
-}
-
-interface Credentials {
-  username?: string
-  password?: string
-  privateKey?: string
-  domain?: string
-  share?: string
-}
-
-interface Device {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  status: 'connected' | 'disconnected' | 'connecting'
-  rootPath: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-  model?: string
-}
-
-// Mobile Device Types
-interface DetectedMobileDevice {
-  id: string
-  type: 'android' | 'ios'
-  name: string
-  model?: string
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-}
-
-// External Volume Types (mounted on the local filesystem, e.g. /Volumes/*)
-interface DetectedVolume {
-  id: string
-  name: string
-  mountPath: string
-  isRemovable: boolean
-}
-
-// ============ Device Capabilities ============
-
-interface DeviceCapabilities {
-  readonly canRead: boolean
-  readonly canWrite: boolean
-  readonly canDelete: boolean
-  readonly canRename: boolean
-  readonly canMkdir: boolean
-  readonly canList: boolean
-  readonly canStat: boolean
-  readonly canCopy: boolean
-  readonly canMove: boolean
-  readonly canSearch: boolean
-  readonly canCopyFrom: boolean
-  readonly canCopyTo: boolean
-  readonly canMoveFrom: boolean
-  readonly canMoveTo: boolean
-  readonly canStream: boolean
-  readonly canCaptureScreenshot: boolean
-  readonly canArchive: boolean
-  readonly canRecycle: boolean
-  readonly maxFileSize?: number
-  readonly readonlyPaths?: string[]
-  readonly hiddenPaths?: string[]
-}
+type FileInfo = import('@shared/types').FileInfo
+type FileStats = import('@shared/types').FileStats
+type SearchQuery = import('@shared/types').SearchQuery
+type ContentVerificationPair = import('@shared/types').ContentVerificationPair
+type ContentVerificationProgress = import('@shared/types').ContentVerificationProgress
+type DeviceConfig = import('@shared/types').DeviceConfig
+type Credentials = import('@shared/types').Credentials
+type Device = import('@shared/types').Device
+type DetectedMobileDevice = import('@shared/types').DetectedMobileDevice
+type DetectedVolume = import('@shared/types').DetectedVolume
+type DeviceCapabilities = import('@shared/types').DeviceCapabilities
 
 // ============ Window API ============
 
@@ -306,54 +195,11 @@ interface Window {
   }
 }
 
-// ============ File Operation Types ============
+// ============ File Operation Types（正典在 shared/types.ts） ============
 
-type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
-type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-type FileOperationItemStatus = 'success' | 'skipped' | 'failed'
-
-interface FileOperationItemResult {
-  sourcePath: string
-  targetPath?: string
-  status: FileOperationItemStatus
-  error?: string
-  bytesProcessed?: number
-}
-
-interface FileOperationProgress {
-  currentFile: string
-  currentFileIndex: number
-  totalFiles: number
-  bytesTransferred: number
-  totalBytes: number
-  speed: number
-  itemResults: FileOperationItemResult[]
-}
-
-interface FileOperationTask {
-  id: string
-  type: FileOperationType
-  status: FileOperationStatus
-  sourcePaths: string[]
-  sourceDeviceId: string
-  targetPath?: string
-  targetDeviceId?: string
-  newName?: string
-  progress: FileOperationProgress
-  createdAt: number
-  startedAt?: number
-  completedAt?: number
-  error?: string
-}
-
-interface CreateTaskParams {
-  type: FileOperationType
-  sourcePaths: string[]
-  sourceDeviceId: string
-  targetPath?: string
-  targetDeviceId?: string
-  newName?: string
-  conflictStrategy?: 'skip' | 'overwrite' | 'rename'
-  renameItems?: Array<{ sourcePath: string; newName: string }>
-  restoreItems?: Array<{ trashPath: string; originalPath: string }>
-}
+type FileOperationType = import('@shared/types').FileOperationType
+type FileOperationStatus = import('@shared/types').FileOperationStatus
+type FileOperationItemResult = import('@shared/types').FileOperationItemResult
+type FileOperationProgress = import('@shared/types').FileOperationProgress
+type FileOperationTask = import('@shared/types').FileOperationTask
+type CreateTaskParams = import('@shared/types').CreateTaskParams

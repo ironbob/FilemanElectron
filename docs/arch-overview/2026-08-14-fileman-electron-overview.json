@@ -1,0 +1,373 @@
+{
+  "target": "fileman-electron",
+  "analyzed_at": "2026-08-14",
+  "scope_level": "app",
+  "languages": ["TypeScript", "Vue", "JavaScript"],
+  "language_precision": [
+    {
+      "language": "TypeScript",
+      "precision": "high",
+      "note": "主进程(electron/)与渲染层逻辑(src/*.ts)均为显式 import + 类型系统，依赖边经 rg 逐条核实"
+    },
+    {
+      "language": "Vue",
+      "precision": "medium",
+      "note": "36 个 SFC 的 <script setup> import 已核实；template 层组件引用与 scoped CSS 依赖仅抽样核对"
+    },
+    {
+      "language": "JavaScript",
+      "precision": "low",
+      "note": "仅 native/iosafc/index.js（4 行 stub），规模可忽略，未深入取证"
+    }
+  ],
+  "covered_files": [
+    "electron/main.ts",
+    "electron/preload.ts",
+    "electron/src/adapters/types.ts",
+    "electron/src/adapters/capabilities.ts",
+    "electron/src/adapters/LocalAdapter.ts",
+    "electron/src/adapters/SMBAdapter.ts",
+    "electron/src/adapters/SSHAdapter.ts",
+    "electron/src/adapters/AndroidAdapter.ts",
+    "electron/src/adapters/iOSAdapter.ts",
+    "electron/src/adapters/WebDAVAdapter.ts",
+    "electron/src/services/DeviceManager.ts",
+    "electron/src/services/FileOperationManager.ts",
+    "electron/src/services/StreamTransfer.ts",
+    "electron/src/services/ConfigService.ts",
+    "electron/src/services/ThumbnailService.ts",
+    "electron/src/services/ZipService.ts",
+    "electron/src/services/MobileDeviceScanner.ts",
+    "electron/src/services/VolumeScanner.ts",
+    "electron/src/services/ToolPathResolver.ts",
+    "electron/src/services/HostShellService.ts",
+    "electron/src/services/ImageDecodeService.ts",
+    "electron/src/services/MobileScreenshotService.ts",
+    "electron/src/services/ArchiveService.ts",
+    "electron/src/services/ContentVerificationService.ts",
+    "electron/src/services/FileMetadataService.ts",
+    "electron/src/services/CredentialService.ts",
+    "src/main.ts",
+    "src/App.vue",
+    "src/components/FilePane.vue",
+    "src/components/FileList.vue",
+    "src/components/compare/DirCompareView.vue",
+    "src/components/compare/useDirCompare.ts",
+    "src/components/preview/PreviewPane.vue",
+    "src/stores/tabs.ts",
+    "src/stores/devices.ts",
+    "src/stores/fileOperations.ts",
+    "src/types/",
+    "src/utils/",
+    "src/composables/",
+    "e2e/directory-compare.spec.ts"
+  ],
+  "responsibility": "macOS 双面板多标签文件管理器：以统一适配器层(IFileSystemAdapter)在 Electron 三进程架构(main/preload/renderer)中浏览与操作本地及远程文件系统(SMB/SSH/Android/iOS/WebDAV)，内置目录比较、文件 diff、富媒体预览与跨设备传输。",
+  "overall_grade": "良",
+  "dimensions": [
+    {
+      "key": "layering",
+      "grade": "良",
+      "assessment": "三进程物理分层非常清晰：renderer 组件经 Pinia stores 到 window.fileman 单向下行（src/stores/devices.ts:122 经 preload 桥），preload 是唯一暴露点且 contextIsolation 生效（electron/preload.ts:384 exposeInMainWorld，electron/main.ts:65 contextIsolation:true）。主进程内 IPC 入口(main.ts) → 服务层(services/) → 适配器层(adapters/) 依赖单向、无循环证据；适配器不反向依赖服务层。差距：入口层 main.ts 集中注册全部约 60 个 ipcMain.handle 且承载 ZIP 虚拟路径('::'约定)解析等业务规则（electron/main.ts:37-47、electron/main.ts:177-194），入口层越位承载了领域逻辑；IPC 契约在 main.ts/preload.ts/src/env.d.ts 三处手工平行声明，属结构性重复但项目已有明确同步纪律约定。",
+      "industry_practice": {
+        "what": "分层架构：按表现/应用/基础设施分层，上层依赖下层、依赖单向不反向不循环；入口层(路由/IPC)只做转发与协议适配，不承载业务规则",
+        "when": "职责可清晰分层的应用；Electron 社区惯例是 main 进程入口做 IPC 路由、业务下沉 service 模块",
+        "gap": "现状进程间分层与主进程层间依赖接近标杆；差距在入口层 main.ts 同时承担路由注册与 ZIP 虚拟路径业务规则，且 IPC 契约三处平行声明带来跨层同步负担",
+        "provenance": "LLM内置经验",
+        "verified": false,
+        "further_reading": [
+          "Layered Architecture 经验模式",
+          "《Clean Architecture》Robert Martin 依赖规则",
+          "Electron 安全清单 contextIsolation"
+        ]
+      },
+      "evidence": [
+        { "file": "electron/preload.ts", "line": 384, "note": "contextBridge.exposeInMainWorld 单一暴露点 filemanAPI" },
+        { "file": "electron/main.ts", "line": 65, "note": "contextIsolation:true nodeIntegration 关闭的安全基线" },
+        { "file": "src/stores/devices.ts", "line": 122, "note": "renderer 状态层经 window.fileman.getDevices 走 IPC 而非直连 Node" },
+        { "file": "electron/main.ts", "line": 37, "note": "ZIP_PATH_SEP '::' 虚拟路径约定与解析逻辑落在入口层 main.ts" },
+        { "file": "electron/src/services/DeviceManager.ts", "line": 526, "note": "listFiles 由 DeviceManager 代理到 adapter，服务层→适配器层单向" }
+      ]
+    },
+    {
+      "key": "cohesion",
+      "grade": "良",
+      "assessment": "适配器层是内聚典范：IFileSystemAdapter 统一 19 个文件系统操作 + 可选流式方法（electron/src/adapters/types.ts:33-69），DeviceCapabilities 按 6 种设备类型声明能力差异（electron/src/adapters/capabilities.ts:41-172），UI 按 capability 门控动作而非 if-else 设备类型。服务层各司其职（Config/Credential/Thumbnail/Zip/Transfer 各自独立）。差距：DeviceManager 703 行同时承担设备注册表、连接生命周期、移动设备发现代理、能力兜底查询、文件操作代理五类职责（electron/src/services/DeviceManager.ts:45-703），且构造函数里自动启动移动扫描（electron/src/services/DeviceManager.ts:88）；渲染层存在巨型组件 FileList.vue 1545 行 / PreviewTextContent.vue 1372 行，单文件内聚多种交互关注点。",
+      "industry_practice": {
+        "what": "单一职责与高内聚低耦合：一个模块只有一个变化的理由；信息隐藏，只暴露必要接口；端口-适配器模式下核心不感知具体外设",
+        "when": "通用；多种外部设备/协议接入时端口-适配器(hexagonal)是常见组织方式",
+        "gap": "适配器层与能力门控接近标杆；差距在 DeviceManager 汇聚多职责（注册/连接/发现代理/能力兜底/FS代理）与个别巨型组件，属局部而非系统性偏离",
+        "provenance": "LLM内置经验",
+        "verified": false,
+        "further_reading": [
+          "SOLID·SRP Robert Martin",
+          "Hexagonal Architecture Alistair Cockburn",
+          "Parnas 信息隐藏"
+        ]
+      },
+      "evidence": [
+        { "file": "electron/src/adapters/types.ts", "line": 33, "note": "IFileSystemAdapter 接口定义，统一的端口抽象" },
+        { "file": "electron/src/adapters/types.ts", "line": 59, "note": "流式方法可选 + canStream capability 门控，接口隔离的显式注释" },
+        { "file": "electron/src/adapters/capabilities.ts", "line": 148, "note": "IOS_CAPABILITIES 声明 iOS 沙箱限制，能力差异显式化" },
+        { "file": "electron/src/services/DeviceManager.ts", "line": 88, "note": "mobileDeviceScanner.start() 在 DeviceManager 构造函数内自动启动，发现生命周期与设备管理耦合" },
+        { "file": "src/components/FileList.vue", "line": 1, "note": "FileList.vue 1545 行巨型组件，聚合虚拟滚动/多选/拖拽/预览触发等多种交互" }
+      ]
+    },
+    {
+      "key": "extensibility",
+      "grade": "良",
+      "assessment": "主扩展轴（新增设备类型）设计到位：新设备 = 实现 IFileSystemAdapter + 声明 DeviceCapabilities + 在 DeviceManager.createAdapter 的 switch 加一个 case（electron/src/services/DeviceManager.ts:448-495），文件系统 IPC 通道（fs:*）按 deviceId 通用路由、无需新增通道；可选原生依赖运行时加载使功能可裁剪（AndroidAdapter createRequire electron/src/adapters/AndroidAdapter.ts:26、SSH 动态 import electron/src/adapters/SSHAdapter.ts:38、iOS require 候选路径 electron/src/adapters/iOSAdapter.ts:42）；传输策略按 canStream capability 在流式/缓冲间选择且代码注释明确引用 OCP（electron/src/services/FileOperationManager.ts:18）。差距：新增设备仍要改 createAdapter 的 switch 与 DeviceConfig type union（4 处触点）；可选依赖加载策略不统一（SMB 为顶层静态 import electron/src/adapters/SMBAdapter.ts:2，其余为运行时动态加载）；无注册表/工厂表机制但以当前 6 种设备规模属够用，未见过度设计。",
+      "industry_practice": {
+        "what": "开闭原则 + 策略/注册表扩展：新增能力靠新增实现类并在工厂/注册表登记，不改既有分发逻辑；可选依赖用运行时加载与能力探测做优雅降级",
+        "when": "变化方向明确可枚举（如设备/协议类型）时；YAGNI 约束下不为想象中的设备数提前抽象",
+        "gap": "现状接近标杆：接口+能力+通用路由使新设备扩展成本为局部增量；差距在 switch-case 分发与可选依赖加载策略不一致（静态 vs 动态），设备类型继续增多时触点会线性增长",
+        "provenance": "LLM内置经验",
+        "verified": false,
+        "further_reading": [
+          "SOLID·OCP Robert Martin",
+          "GoF Factory Method / Registry 模式",
+          "Twelve-Factor App 依赖与配置分离"
+        ]
+      },
+      "evidence": [
+        { "file": "electron/src/services/DeviceManager.ts", "line": 448, "note": "createAdapter 按 device.type switch 分发到 6 种适配器" },
+        { "file": "electron/src/adapters/AndroidAdapter.ts", "line": 26, "note": "createRequire(import.meta.url) 运行时加载 adbkit，缺依赖时设备类型禁用而非构建失败" },
+        { "file": "electron/src/adapters/SSHAdapter.ts", "line": 38, "note": "await import('ssh2') 动态加载可选依赖" },
+        { "file": "electron/src/adapters/SMBAdapter.ts", "line": 2, "note": "import SMB2 顶层静态加载 @marsaud/smb2，与其余适配器的动态策略不一致" },
+        { "file": "electron/src/services/FileOperationManager.ts", "line": 18, "note": "注释显式声明按 capability(canStream) 选流式/缓冲策略的 OCP 设计" }
+      ]
+    },
+    {
+      "key": "readability",
+      "grade": "良",
+      "assessment": "结构自解释：目录即架构（adapters/services/stores/components/compare/preview/types/utils 一望而知），IPC 通道按 system:/config:/device:/fs:/zip:/file-operation:/mobile:/thumbnail: 命名空间化（electron/main.ts:99 起）；命名高度表意（LocalAdapter/SSHAdapter/ThumbnailService/FileOperationManager/StreamTransfer 直呼其职）；项目以『疑难问题解决记录/』沉淀架构决策背景，可读性资产化。差距：DeviceManager 名字未体现其移动设备发现代理职责；renderer 依赖 vue-router 却不使用（tab 是 Pinia store），存在一个易误导的心智模型残留（package.json dependencies 含 vue-router）；巨型 SFC（FileList.vue 1545 行）降低单文件结构可读性；注释中英混合为团队约定、不评判。",
+      "industry_practice": {
+        "what": "语义命名 + 约定优于配置：名字反映职责，同一类事物用一致的组织与命名约定；依赖清单与实际架构一致，不留误导性残留",
+        "when": "通用；长期演进的多人文档化项目尤为受益",
+        "gap": "现状命名与目录约定接近标杆；差距在个别名字与职责不完全对齐（DeviceManager）、未使用的 vue-router 依赖残留与巨型单文件组件的结构噪音",
+        "provenance": "LLM内置经验",
+        "verified": false,
+        "further_reading": [
+          "《代码整洁之道》命名 Robert Martin",
+          "Rails Convention over Configuration",
+          "DDD Ubiquitous Language Eric Evans"
+        ]
+      },
+      "evidence": [
+        { "file": "electron/main.ts", "line": 99, "note": "IPC handler 按 system:/config:/device:/fs: 命名空间分区注册，可读性约定一致" },
+        { "file": "electron/src/adapters/types.ts", "line": 33, "note": "IFileSystemAdapter 命名直白表意，接口即文档" },
+        { "file": "src/stores/tabs.ts", "line": 56, "note": "compareSession/fileDiffSession 区分 tab 形态，状态模型命名清晰" },
+        { "file": "src/components/FileList.vue", "line": 257, "note": "1545 行 SFC 的 script 入口，单文件承载过多结构信息" },
+        { "file": "src/main.ts", "line": 1, "note": "renderer 入口仅 createApp+Pinia 无 router，与 package.json 中 vue-router 依赖并存形成误导" }
+      ]
+    }
+  ],
+  "highlights": [
+    {
+      "id": "HL-01",
+      "title": "适配器 + 能力声明双抽象：设备差异显式化、UI 零类型分支",
+      "dimension": "extensibility",
+      "note": "IFileSystemAdapter 统一端口，DeviceCapabilities 把 6 种设备的能力差异从散落的 if-else 收敛为声明式数据，UI 按 capability 门控，新设备接入不改既有分发逻辑——接近端口-适配器标杆做法。",
+      "evidence": [
+        { "file": "electron/src/adapters/types.ts", "line": 33, "note": "IFileSystemAdapter 统一接口" },
+        { "file": "electron/src/adapters/capabilities.ts", "line": 41, "note": "LOCAL/SMB/SSH/WEBDAV/ANDROID/IOS 六套能力声明" }
+      ]
+    },
+    {
+      "id": "HL-02",
+      "title": "Electron 安全基线落实到位：单一 contextBridge 暴露点",
+      "dimension": "layering",
+      "note": "contextIsolation + nodeIntegration:false + 唯一 window.fileman 暴露点，渲染层与 Node 能力物理隔离，进程间依赖方向被机制而非纪律约束——这是很多 Electron 项目失守的地方。",
+      "evidence": [
+        { "file": "electron/preload.ts", "line": 384, "note": "exposeInMainWorld('fileman', filemanAPI) 唯一暴露" },
+        { "file": "electron/main.ts", "line": 65, "note": "contextIsolation:true 配置" }
+      ]
+    },
+    {
+      "id": "HL-03",
+      "title": "可选原生依赖运行时加载：缺依赖降级而非崩溃",
+      "dimension": "cohesion",
+      "note": "adbkit/ssh2/iosafc 以 createRequire/动态 import 运行时加载，缺依赖只禁用对应设备类型，构建与运行不因可选依赖硬失败；移动 CLI 工具(adb/libimobiledevice)经 ToolPathResolver 统一解析打包内路径。",
+      "evidence": [
+        { "file": "electron/src/adapters/AndroidAdapter.ts", "line": 26, "note": "createRequire 运行时加载 adbkit" },
+        { "file": "electron/src/adapters/iOSAdapter.ts", "line": 42, "note": "require(c) 候选路径加载 iosafc addon" },
+        { "file": "electron/src/services/ToolPathResolver.ts", "line": 8, "note": "bundled CLI 工具路径单一事实源注释" }
+      ]
+    },
+    {
+      "id": "HL-04",
+      "title": "IPC 通道命名空间化 + 踩坑记录文档化",
+      "dimension": "readability",
+      "note": "system:/config:/device:/fs:/zip: 等通道前缀使 60 余个通道可一眼归类；『疑难问题解决记录/』把架构级陷阱（Monaco worker、pdfjs 兼容、CSS 作用域）沉淀为权威记录，是低成本高回报的可读性资产。",
+      "evidence": [
+        { "file": "electron/main.ts", "line": 171, "note": "fs: 前缀通道按 deviceId 路由的注释分区" },
+        { "file": "electron/preload.ts", "line": 170, "note": "filemanAPI 方法与通道名一一对应" }
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "RISK-01",
+      "title": "IPC 契约三处平行声明的同步漂移风险",
+      "dimension": "layering",
+      "note": "同一 IPC 形状在 main.ts handler、preload.ts filemanAPI、src/env.d.ts 类型声明三处手工维护；通道数量继续增长或多人并行改动时，三处漂移可能在运行期才暴露（类型层与实现层脱节）。",
+      "evidence": [
+        { "file": "electron/main.ts", "line": 173, "note": "ipcMain.handle fs:list 定义处（三处同步之一）" },
+        { "file": "electron/preload.ts", "line": 196, "note": "listFiles 对应 invoke('fs:list')（三处同步之二）" },
+        { "file": "src/env.d.ts", "line": 1, "note": "Window fileman 类型声明（三处同步之三）" }
+      ]
+    },
+    {
+      "id": "RISK-02",
+      "title": "ZIP 虚拟路径约定跨层散落",
+      "dimension": "cohesion",
+      "note": "'<zip>::<inner>' 约定由入口层 main.ts 定义并特判 fs:stat/fs:readFile，renderer 的 tabs.goUp 也要理解该格式；若未来引入更多虚拟文件系统形态（其他压缩格式/挂载视图），该字符串约定可能在更多层复制。",
+      "evidence": [
+        { "file": "electron/main.ts", "line": 40, "note": "isZipVirtualPath 入口层判定" },
+        { "file": "electron/main.ts", "line": 178, "note": "fs:stat 内 ZIP 虚拟路径特判分支" }
+      ]
+    },
+    {
+      "id": "RISK-03",
+      "title": "DeviceManager 职责持续汇聚的趋势",
+      "dimension": "cohesion",
+      "note": "设备注册/连接生命周期/移动发现代理/能力兜底/文件操作代理五类职责已汇聚于一个 703 行类，且构造即启动扫描；设备类型或发现机制（如网络发现）继续增加时，该类可能成为变更热点。",
+      "evidence": [
+        { "file": "electron/src/services/DeviceManager.ts", "line": 45, "note": "class DeviceManager 定义处" },
+        { "file": "electron/src/services/DeviceManager.ts", "line": 88, "note": "构造函数内 mobileDeviceScanner.start()" }
+      ]
+    },
+    {
+      "id": "RISK-04",
+      "title": "巨型单文件组件的认知负担",
+      "dimension": "readability",
+      "note": "FileList.vue(1545 行)/PreviewTextContent.vue(1372 行)/FilePane.vue(890 行)聚合大量交互关注点；功能继续叠加时，新读者建立心智模型与安全修改的成本会上升，也放大与 CLAUDE.md 已记录的性能约定的耦合面。",
+      "evidence": [
+        { "file": "src/components/FileList.vue", "line": 1, "note": "1545 行组件文件" },
+        { "file": "src/components/preview/PreviewTextContent.vue", "line": 1, "note": "1372 行 Monaco 预览组件" }
+      ]
+    },
+    {
+      "id": "RISK-05",
+      "title": "可选依赖加载策略不一致",
+      "dimension": "extensibility",
+      "note": "SMB 适配器顶层静态 import @marsaud/smb2，而 Android/SSH/iOS 用运行时动态加载；未来若调整打包裁剪或依赖可选性策略（如把更多协议变为可选），两种策略的行为差异（启动即失败 vs 运行时禁用）可能造成不一致的失效模式。",
+      "evidence": [
+        { "file": "electron/src/adapters/SMBAdapter.ts", "line": 2, "note": "import SMB2 静态加载" },
+        { "file": "electron/src/adapters/SSHAdapter.ts", "line": 38, "note": "await import('ssh2') 动态加载对照" }
+      ]
+    }
+  ],
+  "diagrams": {
+    "layering": {
+      "applicable": true,
+      "direction": "TD",
+      "groups": [
+        { "id": "g_renderer_ui", "label": "Renderer · UI 组件层" },
+        { "id": "g_renderer_state", "label": "Renderer · Pinia 状态层" },
+        { "id": "g_preload", "label": "Preload · IPC 桥" },
+        { "id": "g_main_entry", "label": "Main · IPC 入口层" },
+        { "id": "g_main_services", "label": "Main · 服务层" },
+        { "id": "g_adapters", "label": "Main · 适配器层" },
+        { "id": "g_external", "label": "外部依赖" }
+      ],
+      "nodes": [
+        { "id": "app", "label": "App.vue 外壳", "group": "g_renderer_ui", "evidence": [{ "file": "src/App.vue", "line": 163, "note": "script setup 组合根组件" }] },
+        { "id": "filepane", "label": "FilePane 双面板", "group": "g_renderer_ui", "evidence": [{ "file": "src/components/FilePane.vue", "line": 274, "note": "FilePane 组件 script 入口" }] },
+        { "id": "filelist", "label": "FileList 虚拟化列表", "group": "g_renderer_ui", "evidence": [{ "file": "src/components/FileList.vue", "line": 257, "note": "FileList script 入口 RecycleScroller" }] },
+        { "id": "compare", "label": "目录比较子系统", "group": "g_renderer_ui", "evidence": [{ "file": "src/components/compare/DirCompareView.vue", "line": 224, "note": "DirCompareView useDirCompare 组合" }] },
+        { "id": "preview", "label": "预览子系统", "group": "g_renderer_ui", "evidence": [{ "file": "src/components/preview/PreviewPane.vue", "line": 1, "note": "PreviewPane 预览容器组件" }] },
+        { "id": "stores", "label": "Pinia stores ×10", "group": "g_renderer_state", "evidence": [{ "file": "src/stores/tabs.ts", "line": 116, "note": "tabs store watch 持久化" }] },
+        { "id": "bridge", "label": "window.fileman", "group": "g_preload", "evidence": [{ "file": "electron/preload.ts", "line": 384, "note": "exposeInMainWorld 唯一暴露点" }] },
+        { "id": "ipc", "label": "main.ts IPC handlers", "group": "g_main_entry", "evidence": [{ "file": "electron/main.ts", "line": 173, "note": "ipcMain.handle fs:list 等通道注册" }] },
+        { "id": "devmgr", "label": "DeviceManager", "group": "g_main_services", "evidence": [{ "file": "electron/src/services/DeviceManager.ts", "line": 45, "note": "class DeviceManager" }] },
+        { "id": "fileop", "label": "FileOperationManager + StreamTransfer", "group": "g_main_services", "evidence": [{ "file": "electron/src/services/FileOperationManager.ts", "line": 165, "note": "class FileOperationManager 任务队列" }] },
+        { "id": "auxsvc", "label": "外围服务(Thumbnail/Zip/Mobile/Archive…)", "group": "g_main_services", "evidence": [{ "file": "electron/main.ts", "line": 27, "note": "thumbnailService 等单例在 main.ts 装配" }] },
+        { "id": "adapters", "label": "IFileSystemAdapter ×6 实现", "group": "g_adapters", "evidence": [{ "file": "electron/src/adapters/types.ts", "line": 33, "note": "IFileSystemAdapter 接口" }] },
+        { "id": "extdeps", "label": "npm 可选原生库 / 系统 CLI", "group": "g_external", "evidence": [{ "file": "electron/src/adapters/SSHAdapter.ts", "line": 38, "note": "动态 import ssh2 外部依赖" }] }
+      ],
+      "edges": [
+        { "from": "app", "to": "filepane", "label": "组合", "evidence": [{ "file": "src/App.vue", "line": 167, "note": "import FilePane" }] },
+        { "from": "filepane", "to": "filelist", "label": "组合", "evidence": [{ "file": "src/components/FilePane.vue", "line": 282, "note": "import FileList" }] },
+        { "from": "app", "to": "compare", "label": "组合", "evidence": [{ "file": "src/App.vue", "line": 172, "note": "import DirCompareView" }] },
+        { "from": "app", "to": "preview", "label": "组合", "evidence": [{ "file": "src/App.vue", "line": 169, "note": "import PreviewFullscreen" }] },
+        { "from": "filepane", "to": "stores", "label": "读写状态", "evidence": [{ "file": "src/components/FilePane.vue", "line": 276, "note": "useTabsStore 等 store 引用" }] },
+        { "from": "filelist", "to": "stores", "label": "读写状态", "evidence": [{ "file": "src/components/FileList.vue", "line": 261, "note": "useDevicesStore useTabsStore 引用" }] },
+        { "from": "compare", "to": "stores", "label": "读写状态", "evidence": [{ "file": "src/components/compare/DirCompareView.vue", "line": 226, "note": "useFileOperationsStore 引用" }] },
+        { "from": "stores", "to": "bridge", "label": "window.fileman 调用", "evidence": [{ "file": "src/stores/devices.ts", "line": 122, "note": "window.fileman.getDevices IPC 调用" }] },
+        { "from": "bridge", "to": "ipc", "label": "ipcRenderer.invoke", "evidence": [{ "file": "electron/preload.ts", "line": 172, "note": "getHomeDir invoke 示例 filemanAPI" }] },
+        { "from": "ipc", "to": "bridge", "label": "webContents.send 推送", "style": "dashed", "evidence": [{ "file": "electron/main.ts", "line": 453, "note": "device:changed 推送 notifyRenderer" }] },
+        { "from": "ipc", "to": "devmgr", "label": "路由调用", "evidence": [{ "file": "electron/main.ts", "line": 174, "note": "fs:list 调 deviceManager.listFiles" }] },
+        { "from": "ipc", "to": "fileop", "label": "路由调用", "evidence": [{ "file": "electron/main.ts", "line": 301, "note": "fs:copyBetween 调 addTaskAndWait" }] },
+        { "from": "ipc", "to": "auxsvc", "label": "路由调用", "evidence": [{ "file": "electron/main.ts", "line": 239, "note": "zip:list 调 zipService" }] },
+        { "from": "auxsvc", "to": "devmgr", "label": "构造注入", "evidence": [{ "file": "electron/main.ts", "line": 28, "note": "ImageDecodeService(deviceManager) 注入" }] },
+        { "from": "devmgr", "to": "adapters", "label": "createAdapter/代理", "evidence": [{ "file": "electron/src/services/DeviceManager.ts", "line": 448, "note": "createAdapter switch 分发" }] },
+        { "from": "fileop", "to": "adapters", "label": "注册表消费", "evidence": [{ "file": "electron/src/services/FileOperationManager.ts", "line": 2, "note": "import IFileSystemAdapter registerAdapter" }] },
+        { "from": "adapters", "to": "extdeps", "label": "运行时加载(静态/动态混合)", "style": "dashed", "evidence": [{ "file": "electron/src/adapters/AndroidAdapter.ts", "line": 26, "note": "createRequire adbkit 动态加载" }] }
+      ]
+    },
+    "c4": {
+      "applicable": true,
+      "level": "container",
+      "nodes": [
+        { "id": "user", "label": "macOS 用户", "kind": "actor", "evidence": [{ "file": "electron/main.ts", "line": 54, "note": "createWindow 面向桌面用户" }] },
+        { "id": "renderer", "label": "Renderer 进程 (Vue 3 SPA)", "kind": "service", "evidence": [{ "file": "src/main.ts", "line": 1, "note": "createApp 渲染进程入口" }] },
+        { "id": "preload", "label": "Preload 桥 (contextBridge)", "kind": "component", "evidence": [{ "file": "electron/preload.ts", "line": 384, "note": "exposeInMainWorld fileman" }] },
+        { "id": "mainproc", "label": "Main 进程 (服务+适配器宿主)", "kind": "service", "evidence": [{ "file": "electron/main.ts", "line": 22, "note": "mainWindow 单例与全部服务装配" }] },
+        { "id": "adapters", "label": "文件系统适配器层", "kind": "component", "evidence": [{ "file": "electron/src/adapters/types.ts", "line": 33, "note": "IFileSystemAdapter 端口" }] },
+        { "id": "config", "label": "配置/凭据存储 (electron-store)", "kind": "store", "evidence": [{ "file": "electron/src/services/ConfigService.ts", "line": 25, "note": "class ConfigService electron-store 持久化" }] },
+        { "id": "thumbcache", "label": "缩略图磁盘缓存", "kind": "store", "evidence": [{ "file": "electron/main.ts", "line": 480, "note": "thumbnail:get 缓存服务通道" }] },
+        { "id": "ext_remote", "label": "远程文件服务器 (SMB/SSH/WebDAV)", "kind": "external", "evidence": [{ "file": "electron/src/adapters/SMBAdapter.ts", "line": 2, "note": "SMB2 客户端连远端服务器" }] },
+        { "id": "ext_mobile", "label": "移动设备 (adb / libimobiledevice)", "kind": "external", "evidence": [{ "file": "electron/src/services/ToolPathResolver.ts", "line": 14, "note": "bundled adb extraResources 解析" }] },
+        { "id": "ext_host", "label": "macOS 系统工具 (sips / Terminal)", "kind": "external", "evidence": [{ "file": "electron/src/services/ImageDecodeService.ts", "line": 1, "note": "execFile child_process 调 sips" }] }
+      ],
+      "edges": [
+        { "from": "user", "to": "renderer", "label": "UI 交互", "evidence": [{ "file": "src/App.vue", "line": 1, "note": "界面模板交互入口" }] },
+        { "from": "renderer", "to": "preload", "label": "window.fileman", "evidence": [{ "file": "src/stores/devices.ts", "line": 122, "note": "window.fileman.getDevices 调用" }] },
+        { "from": "preload", "to": "mainproc", "label": "ipcRenderer.invoke", "evidence": [{ "file": "electron/preload.ts", "line": 172, "note": "invoke IPC 通道" }] },
+        { "from": "mainproc", "to": "preload", "label": "webContents.send 推送", "style": "dashed", "evidence": [{ "file": "electron/main.ts", "line": 453, "note": "webContents.send 推送事件" }] },
+        { "from": "mainproc", "to": "adapters", "label": "按 deviceId 代理", "evidence": [{ "file": "electron/src/services/DeviceManager.ts", "line": 526, "note": "listFiles 代理到 adapter" }] },
+        { "from": "adapters", "to": "ext_remote", "label": "SMB/SSH/WebDAV 协议", "evidence": [{ "file": "electron/src/adapters/SSHAdapter.ts", "line": 38, "note": "ssh2 Client 连接远端" }] },
+        { "from": "adapters", "to": "ext_mobile", "label": "adb / AFC CLI", "evidence": [{ "file": "electron/src/adapters/AndroidAdapter.ts", "line": 26, "note": "adbkit 连 Android 设备" }] },
+        { "from": "mainproc", "to": "ext_host", "label": "spawn 系统工具", "evidence": [{ "file": "electron/main.ts", "line": 110, "note": "shell:openInTerminal osascript" }] },
+        { "from": "mainproc", "to": "config", "label": "读写配置", "evidence": [{ "file": "electron/main.ts", "line": 116, "note": "config:get/save 通道" }] },
+        { "from": "mainproc", "to": "thumbcache", "label": "缓存读写", "evidence": [{ "file": "electron/main.ts", "line": 480, "note": "thumbnail:get 通道" }] }
+      ]
+    },
+    "runtime": {
+      "applicable": true,
+      "type": "sequence",
+      "participants": [
+        { "id": "fp", "label": "FilePane (Renderer)", "evidence": [{ "file": "src/components/FilePane.vue", "line": 278, "note": "useFileOperationsStore 发起传输" }] },
+        { "id": "pl", "label": "window.fileman (Preload)", "evidence": [{ "file": "electron/preload.ts", "line": 224, "note": "copyFilesBetween invoke fs:copyBetween" }] },
+        { "id": "mi", "label": "fs:copyBetween (Main IPC)", "evidence": [{ "file": "electron/main.ts", "line": 294, "note": "ipcMain.handle copyBetween 入口" }] },
+        { "id": "fom", "label": "FileOperationManager", "evidence": [{ "file": "electron/src/services/FileOperationManager.ts", "line": 165, "note": "class FileOperationManager 队列" }] },
+        { "id": "st", "label": "StreamTransfer", "evidence": [{ "file": "electron/src/services/StreamTransfer.ts", "line": 33, "note": "class StreamTransfer 流式管道" }] },
+        { "id": "sa", "label": "源适配器", "evidence": [{ "file": "electron/src/adapters/types.ts", "line": 67, "note": "openReadStream 源端读取" }] },
+        { "id": "ta", "label": "目标适配器", "evidence": [{ "file": "electron/src/adapters/types.ts", "line": 68, "note": "openWriteStream 目标端写入" }] },
+        { "id": "ops", "label": "FileOperations store (Renderer)", "evidence": [{ "file": "src/stores/fileOperations.ts", "line": 43, "note": "onFileOperationUpdated 进度订阅" }] }
+      ],
+      "flows": [
+        { "step": 1, "from": "fp", "to": "pl", "action": "发起跨设备复制 copyBetween(srcDeviceId, srcPaths, dstDeviceId, dstPath)", "kind": "sync", "evidence": [{ "file": "electron/preload.ts", "line": 224, "note": "invoke fs:copyBetween 参数" }] },
+        { "step": 2, "from": "pl", "to": "mi", "action": "ipcRenderer.invoke('fs:copyBetween')", "kind": "sync", "evidence": [{ "file": "electron/main.ts", "line": 294, "note": "ipcMain.handle fs:copyBetween" }] },
+        { "step": 3, "from": "mi", "to": "fom", "action": "addTaskAndWait({type:'copy',...}) 入队并等待", "kind": "sync", "evidence": [{ "file": "electron/main.ts", "line": 301, "note": "fileOperationManager.addTaskAndWait 调用" }] },
+        { "step": 4, "from": "fom", "to": "fom", "action": "串行队列调度 executeCopy", "kind": "async", "evidence": [{ "file": "electron/src/services/FileOperationManager.ts", "line": 291, "note": "executeCopy 执行" }] },
+        { "step": 5, "from": "fom", "to": "st", "action": "按 canStream capability 建立流式管道（否则缓冲回退）", "kind": "sync", "evidence": [{ "file": "electron/src/services/FileOperationManager.ts", "line": 18, "note": "canStream 策略选择注释" }] },
+        { "step": 6, "from": "st", "to": "sa", "action": "openReadStream(path) 读源", "kind": "sync", "evidence": [{ "file": "electron/src/adapters/types.ts", "line": 67, "note": "openReadStream 定义" }] },
+        { "step": 7, "from": "st", "to": "ta", "action": "openWriteStream(path) 写目标（move 完成后删源）", "kind": "sync", "evidence": [{ "file": "electron/src/adapters/types.ts", "line": 68, "note": "openWriteStream 定义" }] },
+        { "step": 8, "from": "fom", "to": "ops", "action": "webContents.send('file-operation:updated') 推送进度", "kind": "async", "evidence": [{ "file": "src/stores/fileOperations.ts", "line": 43, "note": "onFileOperationUpdated 订阅进度" }] },
+        { "step": 9, "from": "fom", "to": "mi", "action": "任务完成 addTaskAndWait resolve", "kind": "response", "evidence": [{ "file": "electron/src/services/FileOperationManager.ts", "line": 803, "note": "addTaskAndWait 实现" }] },
+        { "step": 10, "from": "mi", "to": "pl", "action": "IPC 返回", "kind": "response", "evidence": [{ "file": "electron/main.ts", "line": 294, "note": "handler await 返回" }] },
+        { "step": 11, "from": "pl", "to": "fp", "action": "Promise resolve，UI 刷新", "kind": "response", "evidence": [{ "file": "electron/preload.ts", "line": 224, "note": "copyFilesBetween 返回 Promise" }] }
+      ]
+    }
+  },
+  "gaps": [
+    "LSP 不可用（typescript-language-server 未安装），全部依赖边与调用关系为 rg 文本搜索降级取得，模板层隐式引用可能未全覆盖",
+    "Vue SFC 的 template 层组件/指令依赖与 scoped CSS 选择器仅抽样核对（precision=medium），相关结论已保守表述",
+    "非热点文件（dialogs/*、preview 各 content 组件、utils/textFilter 词法-求值器、MobileDeviceScanner/VolumeScanner 内部实现）仅做结构与接口级确认，未逐行精读",
+    "native/iosafc/index.js 为 4 行 stub，其 node-addon-api 原生实现不在本仓库，未取证",
+    "e2e/directory-compare.spec.ts 在覆盖集合内但未参与架构评估（测试产物）",
+    "UI 层实际是否完全按 capability 门控（无设备类型硬编码分支）为抽样结论，未逐一核对全部组件"
+  ]
+}

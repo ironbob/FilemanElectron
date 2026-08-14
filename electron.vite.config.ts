@@ -24,12 +24,18 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'electron/src')
+        '@': resolve(__dirname, 'electron/src'),
+        '@shared': resolve(__dirname, 'shared')
       }
     }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@shared': resolve(__dirname, 'shared')
+      }
+    },
     build: {
       rollupOptions: {
         input: {
@@ -56,7 +62,8 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'src')
+        '@': resolve(__dirname, 'src'),
+        '@shared': resolve(__dirname, 'shared')
       }
     },
     plugins: [vue()]

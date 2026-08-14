@@ -1,88 +1,14 @@
-export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
-export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-
-/**
- * Device capabilities - describes what operations a device supports
- */
-export interface DeviceCapabilities {
-  // Basic file operations
-  readonly canRead: boolean
-  readonly canWrite: boolean
-  readonly canDelete: boolean
-  readonly canRename: boolean
-  readonly canMkdir: boolean
-  readonly canList: boolean
-  readonly canStat: boolean
-
-  // Advanced operations
-  readonly canCopy: boolean
-  readonly canMove: boolean
-  readonly canSearch: boolean
-
-  // Cross-device operations
-  readonly canCopyFrom: boolean
-  readonly canCopyTo: boolean
-  readonly canMoveFrom: boolean
-  readonly canMoveTo: boolean
-  readonly canCaptureScreenshot: boolean
-  readonly canArchive: boolean
-  readonly canRecycle: boolean
-
-  // Limitations
-  readonly maxFileSize?: number
-  readonly readonlyPaths?: string[]
-  readonly hiddenPaths?: string[]
-}
-
-export interface FileOperationItemResult {
-  sourcePath: string
-  targetPath?: string
-  status: 'success' | 'skipped' | 'failed'
-  error?: string
-  bytesProcessed?: number
-}
-
-export interface FileOperationProgress {
-  currentFile: string
-  currentFileIndex: number
-  totalFiles: number
-  bytesTransferred: number
-  totalBytes: number
-  speed: number
-  itemResults: FileOperationItemResult[]
-}
-
-export interface FileOperationTask {
-  id: string
-  type: FileOperationType
-  sourceDeviceId: string
-  sourcePaths: string[]
-  targetDeviceId?: string
-  targetPath?: string
-  newName?: string
-  conflictStrategy?: ConflictStrategy
-  renameItems?: Array<{ sourcePath: string; newName: string }>
-  restoreItems?: Array<{ trashPath: string; originalPath: string }>
-  status: FileOperationStatus
-  progress: FileOperationProgress
-  createdAt: number
-  startedAt?: number
-  completedAt?: number
-  error?: string
-}
-
-export interface CreateTaskParams {
-  type: FileOperationType
-  sourceDeviceId: string
-  sourcePaths: string[]
-  targetDeviceId?: string
-  targetPath?: string
-  newName?: string
-  conflictStrategy?: ConflictStrategy
-  renameItems?: Array<{ sourcePath: string; newName: string }>
-  restoreItems?: Array<{ trashPath: string; originalPath: string }>
-}
+// 跨进程文件操作类型正典在 @shared/types，此处 re-export 兼容既有引用。
+export type {
+  ConflictStrategy,
+  FileOperationType,
+  FileOperationStatus,
+  DeviceCapabilities,
+  FileOperationItemResult,
+  FileOperationProgress,
+  FileOperationTask,
+  CreateTaskParams,
+} from '@shared/types'
 
 /** Serialized into DataTransfer for file drags that stay inside the app. */
 export interface InternalFileDragPayload {

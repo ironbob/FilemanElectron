@@ -8,37 +8,16 @@ import { WebDAVAdapter } from '../adapters/WebDAVAdapter'
 import { iOSAdapter, pairIosDevice } from '../adapters/iOSAdapter'
 import type { IFileSystemAdapter, FileInfo, FileStats, SearchQuery } from '../adapters/types'
 import type { DeviceCapabilities } from '../adapters/capabilities'
-import { LOCAL_CAPABILITIES } from '../adapters/capabilities'
+import { LOCAL_CAPABILITIES, DEFAULT_REMOTE_CAPABILITIES } from '../adapters/capabilities'
 import { MobileDeviceScanner, type DetectedDevice } from './MobileDeviceScanner'
+
+const log = console
 
 export type { DetectedDevice }
 export type { Credentials } from './CredentialService'
-
-export interface DeviceConfig {
-  id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
-  name: string
-  host?: string
-  port?: number
-  username?: string
-  rootPath?: string
-  // SMB specific
-  share?: string
-  domain?: string
-  // WebDAV specific. The endpoint includes the protocol and optional port.
-  url?: string
-}
-
-export interface Device {
-  id: string
-  type: DeviceConfig['type']
-  name: string
-  status: 'connected' | 'disconnected' | 'connecting'
-  rootPath: string
-  config?: DeviceConfig
-  pairingStatus?: 'unpaired' | 'pairing' | 'paired'
-  model?: string
-}
+// 域类型正典在 @shared/types（跨进程单一事实源），re-export 兼容既有引用。
+export type { DeviceConfig, Device } from '@shared/types'
+import type { DeviceConfig, Device } from '@shared/types'
 
 export type DeviceEventHandler = (devices: Device[]) => void
 
@@ -84,8 +63,9 @@ export class DeviceManager {
     // Load saved devices from config
     this.loadSavedDevices()
 
-    // Start mobile device scanning
-    this.mobileDeviceScanner.start()
+    // Note: mobile device scanning is NOT auto-started here. The composition
+    // root (electron/main.ts, app.whenReady) starts it explicitly, alongside
+    // VolumeScanner — keeping lifecycle side effects out of constructors.
   }
 
   /**
@@ -364,6 +344,7 @@ export class DeviceManager {
         try { await adapter?.disconnect() } catch { /* 连接失败时仅清理本次会话 */ }
         device.status = 'disconnected'
         this.adapters.delete(deviceId)
+        log.error(`[DeviceManager] 设备连接失败 (${deviceId}):`, error)
         this.notifyHandlers()
         throw error
       } finally {
@@ -587,26 +568,7 @@ export class DeviceManager {
       default:
         // For remote devices not yet connected, assume basic capabilities
         // Actual capabilities will be verified on connection
-        return {
-          canRead: true,
-          canWrite: true,
-          canDelete: true,
-          canRename: true,
-          canMkdir: true,
-          canList: true,
-          canStat: true,
-          canCopy: true,
-          canMove: true,
-          canSearch: true,
-          canCopyFrom: true,
-          canCopyTo: true,
-          canMoveFrom: true,
-          canMoveTo: true,
-          canStream: false, // 连接后由具体适配器的 capability 覆盖
-          canCaptureScreenshot: device.type === 'android',
-          canArchive: true,
-          canRecycle: true,
-        }
+        return DEFAULT_REMOTE_CAPABILITIES(device.type)
     }
   }
 

@@ -3,7 +3,10 @@ import { createRequire } from 'module'
 import { Readable, Writable, PassThrough } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { ANDROID_CAPABILITIES, type DeviceCapabilities } from './capabilities'
+import { loadOptional } from './optionalDeps'
 import { ToolPathResolver } from '../services/ToolPathResolver'
+
+const log = console
 
 // L02 · AndroidAdapter (driven adapter, hexagonal)
 //
@@ -23,7 +26,19 @@ import type { Client, DeviceClient } from '@devicefarmer/adbkit'
 // bundle, a default import resolves to the CommonJS module namespace instead of
 // the Adb class, leaving `createClient` undefined. Load its real default export
 // through Node's CommonJS interop boundary instead.
-const adbkit = createRequire(import.meta.url)('@devicefarmer/adbkit').default as typeof import('@devicefarmer/adbkit').default
+//
+// 可选依赖延迟加载：加载点在 connect() 路径内（经 loadOptional 统一降级错误），
+// 缺依赖时 Android 设备连接报"已禁用"而非 main 进程启动崩溃。
+type AdbkitModule = typeof import('@devicefarmer/adbkit').default
+let adbkitModule: AdbkitModule | null = null
+
+async function getAdbkit(): Promise<AdbkitModule> {
+  if (!adbkitModule) {
+    adbkitModule = await loadOptional<AdbkitModule>('@devicefarmer/adbkit', () =>
+      createRequire(import.meta.url)('@devicefarmer/adbkit').default as AdbkitModule)
+  }
+  return adbkitModule
+}
 
 interface AndroidConfig {
   deviceId?: string // adb serial
@@ -53,6 +68,7 @@ export class AndroidAdapter implements IFileSystemAdapter {
 
   async connect(): Promise<void> {
     try {
+      const adbkit = await getAdbkit()
       const adbPath = ToolPathResolver.getAdbPath() // undefined → adbkit 用 $PATH 上的 adb
       this.client = adbkit.createClient(adbPath ? { bin: adbPath } : {})
 
@@ -82,10 +98,10 @@ export class AndroidAdapter implements IFileSystemAdapter {
       this.connected = false
       this.device = null
       this.client = null
+      log.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? 'auto'}):`, error)
       throw error
     }
   }
-
   async disconnect(): Promise<void> {
     this.device = null
     this.client = null
@@ -287,7 +303,7 @@ export class AndroidAdapter implements IFileSystemAdapter {
     const dev = this.dev()
     const wrapped = `${command}; printf '\\n${EXIT_MARKER}%d' "$?"`
     const stream = await dev.shell(wrapped)
-    const buf = await adbkit.util.readAll(stream)
+    const buf = await (await getAdbkit()).util.readAll(stream)
     const out = buf.toString('utf-8')
 
     const markerIdx = out.lastIndexOf(EXIT_MARKER)

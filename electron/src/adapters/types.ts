@@ -1,34 +1,10 @@
 import type { Readable, Writable } from 'stream'
 import type { DeviceCapabilities } from './capabilities'
 
-export interface FileInfo {
-  name: string
-  path: string
-  isDirectory: boolean
-  isFile: boolean
-  size: number
-  modifiedTime: string
-  createdTime?: string
-  extension?: string
-}
-
-export interface FileStats {
-  size: number
-  isDirectory: boolean
-  isFile: boolean
-  modifiedTime: string
-  createdTime: string
-  mode: number
-}
-
-export interface SearchQuery {
-  pattern: string
-  fileTypes?: string[]
-  minSize?: number
-  maxSize?: number
-  modifiedAfter?: string
-  modifiedBefore?: string
-}
+// FileInfo / FileStats / SearchQuery 正典在 @shared/types（跨进程单一事实源），
+// 此处 re-export 兼容既有 `from './types'` / `from '../adapters/types'` 引用。
+export type { FileInfo, FileStats, SearchQuery } from '@shared/types'
+import type { FileInfo, FileStats, SearchQuery } from '@shared/types'
 
 export interface IFileSystemAdapter {
   readonly type: string

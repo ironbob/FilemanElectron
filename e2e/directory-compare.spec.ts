@@ -64,6 +64,9 @@ test.beforeEach(async ({ page }) => {
         }
       }], activeTabId: 'compare-tab'
     }))
+    localStorage.setItem('fileman-recent-locations', JSON.stringify([
+      { deviceId: 'left-device', path: '/Volumes/JINGZAO/avideo', visitedAt: Date.now() }
+    ]))
   })
   await page.goto('/')
 })
@@ -89,6 +92,17 @@ test('keeps the new-tab control available with a single tab', async ({ page }) =
   await expect(newTabButton).toBeVisible()
   await newTabButton.click()
   await expect(page.locator('.finder-tab-strip .tab-item')).toHaveCount(2)
+})
+
+test('renders recent locations on an opaque popup surface', async ({ page }) => {
+  await page.getByRole('button', { name: 'New Tab' }).click()
+  await page.getByRole('button', { name: 'Recent locations' }).click()
+  const menu = page.getByRole('menu', { name: 'Recent locations' })
+  await expect(menu).toBeVisible()
+  await expect(menu).toHaveCSS('background-color', /^rgb\(/)
+  await expect(menu.getByText('/Volumes/JINGZAO/avideo')).toBeVisible()
+  await page.getByPlaceholder('Search or tag:work').click()
+  await expect(menu).toBeHidden()
 })
 
 test('filters differences and submits an explicit copy plan', async ({ page }) => {

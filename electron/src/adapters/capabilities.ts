@@ -3,38 +3,10 @@
  * Describes what operations a device adapter supports
  */
 
-export interface DeviceCapabilities {
-  // Basic file operations
-  readonly canRead: boolean          // Can read file content
-  readonly canWrite: boolean         // Can write/create files
-  readonly canDelete: boolean        // Can delete files
-  readonly canRename: boolean        // Can rename files
-  readonly canMkdir: boolean         // Can create directories
-  readonly canList: boolean          // Can list directory contents
-  readonly canStat: boolean          // Can get file stats
-
-  // Advanced operations
-  readonly canCopy: boolean          // Can copy files within same device
-  readonly canMove: boolean          // Can move files within same device
-  readonly canSearch: boolean        // Can search for files
-
-  // Cross-device operations
-  readonly canCopyFrom: boolean      // Can be source for cross-device copy
-  readonly canCopyTo: boolean        // Can be target for cross-device copy
-  readonly canMoveFrom: boolean      // Can be source for cross-device move
-  readonly canMoveTo: boolean        // Can be target for cross-device move
-
-  // Streaming (large-file transfer without full buffering)
-  readonly canStream: boolean        // Supports openReadStream/openWriteStream
-  readonly canCaptureScreenshot: boolean
-  readonly canArchive: boolean
-  readonly canRecycle: boolean
-
-  // Limitations
-  readonly maxFileSize?: number      // Maximum file size in bytes (undefined = unlimited)
-  readonly readonlyPaths?: string[]  // Paths that are read-only
-  readonly hiddenPaths?: string[]    // Paths that should be hidden
-}
+// 接口正典声明在 @shared/types（跨进程单一事实源），此处 re-export 兼容
+// 既有 `from './capabilities'` 引用。
+export type { DeviceCapabilities } from '@shared/types'
+import type { DeviceCapabilities } from '@shared/types'
 
 // Predefined capability sets for common device types
 
@@ -201,4 +173,32 @@ export function isPathReadOnly(capabilities: DeviceCapabilities, path: string): 
   return capabilities.readonlyPaths.some(readonlyPath =>
     path === readonlyPath || path.startsWith(readonlyPath + '/')
   )
+}
+
+/**
+ * 未连接远程设备的能力兜底（此前内联在 DeviceManager.getCapabilities 里，
+ * 与能力声明分居两处）。允许 UI 在连接前展示能力；连接后由具体适配器的
+ * capability 覆盖。行为与原内联版本逐字段一致（canStream 恒 false）。
+ */
+export function DEFAULT_REMOTE_CAPABILITIES(deviceType: 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'): DeviceCapabilities {
+  return {
+    canRead: true,
+    canWrite: true,
+    canDelete: true,
+    canRename: true,
+    canMkdir: true,
+    canList: true,
+    canStat: true,
+    canCopy: true,
+    canMove: true,
+    canSearch: true,
+    canCopyFrom: true,
+    canCopyTo: true,
+    canMoveFrom: true,
+    canMoveTo: true,
+    canStream: false, // 连接后由具体适配器的 capability 覆盖
+    canCaptureScreenshot: deviceType === 'android',
+    canArchive: true,
+    canRecycle: true,
+  }
 }

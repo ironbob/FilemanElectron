@@ -1,6 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import type { IFileSystemAdapter } from '../adapters/types'
 import { StreamTransfer, CancelledError } from './StreamTransfer'
+import { CH } from '../ipc/channels'
 const log = console
 
 /**
@@ -188,13 +189,13 @@ export class FileOperationManager {
 
   private notifyTaskUpdate(task: TransferTask): void {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('file-operation:updated', task)
+      this.mainWindow.webContents.send(CH.push.fileOperationUpdated, task)
     }
   }
 
   private notifyTaskAdded(task: TransferTask): void {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('file-operation:added', task)
+      this.mainWindow.webContents.send(CH.push.fileOperationAdded, task)
     }
   }
 
