@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import type {
   CompareEntry,
   CompareSideError,
@@ -73,14 +73,20 @@ export function useDirCompare(session: Ref<DirCompareSession>) {
     isLoading.value = true
     log.info('[DirCompare] refreshing directories', { leftDeviceId: session.value.leftDeviceId, rightDeviceId: session.value.rightDeviceId })
     currentDiffIndex.value = -1
+    let refreshed = false
     try {
       rootEntries.value = await compareDirectories(
         session.value.leftDeviceId, session.value.leftRootPath,
         session.value.rightDeviceId, session.value.rightRootPath, 0, ''
       )
-      dataRevision.value++
+      refreshed = true
     } finally {
       isLoading.value = false
+    }
+    if (refreshed) {
+      // Let the virtual scroller mount with the new list before changing its key.
+      await nextTick()
+      dataRevision.value++
     }
   }
 

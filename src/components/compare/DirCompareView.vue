@@ -90,6 +90,7 @@
     <RecycleScroller
       v-else
       ref="scrollerRef"
+      :key="dataRevision"
       class="flex-1 min-h-0"
       :items="flatEntries"
       :item-size="ITEM_HEIGHT"

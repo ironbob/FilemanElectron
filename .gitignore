@@ -30,6 +30,10 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Playwright E2E output
+playwright-report/
+test-results/
+
 # Environment
 .env
 .env.local
