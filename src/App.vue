@@ -85,9 +85,9 @@
 
       <!-- Main Area -->
       <div class="flex-1 flex flex-col overflow-hidden bg-bg-primary relative">
-        <!-- Finder keeps a single location in one continuous content view.
-             Tabs appear only when there is an actual second location to switch. -->
-        <AppTabBar v-if="tabsStore.tabs.length > 1" />
+        <!-- Keep the tab strip mounted even for the first tab: its New Tab control
+             is the only discoverable way to create the second workspace. -->
+        <AppTabBar />
 
         <!-- Content Area with File Panes -->
         <div class="flex-1 flex overflow-hidden">

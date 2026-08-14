@@ -104,6 +104,7 @@ export const useTabsStore = defineStore('tabs', () => {
   
   const tabs = ref<Tab[]>(persistedState?.tabs || [createDefaultTab()])
   const activeTabId = ref(persistedState?.activeTabId || tabs.value[0].id)
+  let skipNextPersistenceForSelection = false
 
   const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value))
 
@@ -115,6 +116,10 @@ export const useTabsStore = defineStore('tabs', () => {
   watch(
     [tabs, activeTabId],
     () => {
+      if (skipNextPersistenceForSelection) {
+        skipNextPersistenceForSelection = false
+        return
+      }
       debouncedSave({
         tabs: tabs.value,
         activeTabId: activeTabId.value
@@ -271,6 +276,12 @@ export const useTabsStore = defineStore('tabs', () => {
   function setSelectedFiles(paneId: string, files: string[]) {
     const pane = findPane(paneId)
     if (pane) {
+      if (pane.selectedFiles.length === files.length && pane.selectedFiles.every((file, index) => file === files[index])) {
+        return
+      }
+      // Selection is transient and is removed before persistence.  Avoid a
+      // debounced JSON serialization after every click or rubber-band update.
+      skipNextPersistenceForSelection = true
       pane.selectedFiles = files
     }
   }

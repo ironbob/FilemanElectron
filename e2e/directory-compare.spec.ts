@@ -84,6 +84,13 @@ test('compares cross-device rows and verifies selected content', async ({ page }
   await expect(page.getByText('内容相同').first()).toBeVisible()
 })
 
+test('keeps the new-tab control available with a single tab', async ({ page }) => {
+  const newTabButton = page.getByRole('button', { name: 'New Tab' })
+  await expect(newTabButton).toBeVisible()
+  await newTabButton.click()
+  await expect(page.locator('.finder-tab-strip .tab-item')).toHaveCount(2)
+})
+
 test('filters differences and submits an explicit copy plan', async ({ page }) => {
   await page.getByRole('button', { name: '刷新对比' }).click()
   await expect.poll(() => page.evaluate(() => (window as any).__listCalls?.length ?? 0)).toBe(2)

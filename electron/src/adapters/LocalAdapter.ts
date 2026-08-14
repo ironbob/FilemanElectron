@@ -5,6 +5,8 @@ import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { LOCAL_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 
+const LIST_STAT_CONCURRENCY = 32
+
 export class LocalAdapter implements IFileSystemAdapter {
   readonly type = 'local'
   readonly deviceId = 'local'
@@ -33,28 +35,38 @@ export class LocalAdapter implements IFileSystemAdapter {
   async list(dirPath: string): Promise<FileInfo[]> {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
     const files: FileInfo[] = []
+    let nextIndex = 0
 
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name)
-      let stats: fs.Stats
+    // Metadata is needed for the list columns, but awaiting every stat in
+    // sequence makes large or network-backed directories feel stalled. Workers
+    // preserve a bounded amount of filesystem pressure while filling the list.
+    const worker = async () => {
+      while (nextIndex < entries.length) {
+        const entry = entries[nextIndex++]
+        const fullPath = path.join(dirPath, entry.name)
 
-      try {
-        stats = await fs.stat(fullPath)
-      } catch {
-        continue // Skip files we can't access
+        try {
+          const stats = await fs.stat(fullPath)
+          files.push({
+            name: entry.name,
+            path: fullPath,
+            isDirectory: entry.isDirectory(),
+            isFile: entry.isFile(),
+            size: stats.size,
+            modifiedTime: stats.mtime.toISOString(),
+            createdTime: stats.birthtime.toISOString(),
+            extension: entry.isFile() ? path.extname(entry.name).toLowerCase() : undefined
+          })
+        } catch {
+          // Skip files we can't access
+        }
       }
-
-      files.push({
-        name: entry.name,
-        path: fullPath,
-        isDirectory: entry.isDirectory(),
-        isFile: entry.isFile(),
-        size: stats.size,
-        modifiedTime: stats.mtime.toISOString(),
-        createdTime: stats.birthtime.toISOString(),
-        extension: entry.isFile() ? path.extname(entry.name).toLowerCase() : undefined
-      })
     }
+
+    await Promise.all(Array.from(
+      { length: Math.min(LIST_STAT_CONCURRENCY, entries.length) },
+      () => worker()
+    ))
 
     // Sort: directories first, then by name
     return files.sort((a, b) => {

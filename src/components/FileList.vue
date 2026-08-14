@@ -349,9 +349,9 @@ const renameState = reactive({
 const renameInputRef = ref<HTMLInputElement | null>(null)
 
 // ── 性能诊断日志 ───────────────────────────────────────────────────────────────
-// 生产环境中可通过 window.__FILELIST_PERF__ = false 关闭
+// Keep diagnostics out of production interaction paths.
 const _perf = {
-  enabled: true,
+  enabled: import.meta.env.DEV,
   selectCount: 0,
   lastSelectTime: 0,
   renderCallCount: 0,
@@ -533,29 +533,45 @@ function zipEntriesToFileInfo(entries: Array<{
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-let _loadCallSeq = 0
+async function loadDeviceCapabilities(deviceId: string) {
+  try {
+    const [capabilities, checks] = await Promise.all([
+      devicesStore.getDeviceCapabilities(deviceId),
+      Promise.all(devicesStore.connectedDevices
+        .filter(device => device.id !== deviceId)
+        .map(async device => {
+          const [copy, move] = await Promise.all([
+            window.fileman.canTransferBetween(deviceId, device.id, 'copy'),
+            window.fileman.canTransferBetween(deviceId, device.id, 'move')
+          ])
+          return [device.id, { copy, move }] as const
+        }))
+    ])
+
+    // A later navigation can switch devices while these background checks run.
+    if (props.deviceId !== deviceId) return
+    deviceCapabilities.value = capabilities
+    transferTargets.value = new Map(checks)
+  } catch (error) {
+    // Capabilities only affect contextual actions; a failure must not block the
+    // directory listing itself.
+    log.warn('[FileList] Could not load device capabilities', { deviceId, error })
+  }
+}
 
 async function loadFiles() {
-  const callId = ++_loadCallSeq
   const pathSnapshot = props.path
-  console.log(`[FileList#${callId}] loadFiles() called — path="${pathSnapshot}" deviceId="${props.deviceId}"`)
-  console.trace(`[FileList#${callId}] call stack`)
 
   loading.value = true
   try {
     // ── Virtual ZIP path ──────────────────────────────────────────────────────
     if (isZipVirtualPath(pathSnapshot)) {
       const { zipFilePath, innerPath } = parseZipVirtualPath(pathSnapshot)
-      console.log(`[FileList#${callId}] ZIP branch: zipFile="${zipFilePath}" inner="${innerPath}"`)
-      console.log(`[FileList#${callId}] window.fileman.zip available:`, !!(window.fileman as any).zip)
       const entries = await window.fileman.zip.listDirectory(zipFilePath, innerPath)
-      console.log(`[FileList#${callId}] IPC returned ${entries.length} entries; props.path is now "${props.path}"`)
       if (props.path !== pathSnapshot) {
-        console.warn(`[FileList#${callId}] PATH CHANGED DURING AWAIT (was "${pathSnapshot}", now "${props.path}") — discarding stale result`)
         return
       }
       const result = zipEntriesToFileInfo(entries, zipFilePath)
-      console.log(`[FileList#${callId}] setting files.value → ${result.length} items`)
       files.value = result
       columnFilesMap.value.set(pathSnapshot, result)
       emit('loaded', result)
@@ -566,28 +582,13 @@ async function loadFiles() {
     }
 
     // ── Normal filesystem path ────────────────────────────────────────────────
-    // Load device capabilities
-    try {
-      deviceCapabilities.value = await devicesStore.getDeviceCapabilities(props.deviceId)
-      const checks = await Promise.all(devicesStore.connectedDevices
-        .filter(device => device.id !== props.deviceId)
-        .map(async device => [device.id, {
-          copy: await window.fileman.canTransferBetween(props.deviceId, device.id, 'copy'),
-          move: await window.fileman.canTransferBetween(props.deviceId, device.id, 'move')
-        }] as const))
-      transferTargets.value = new Map(checks)
-    } catch (e) {
-      console.warn(`[FileList#${callId}] Could not load device capabilities:`, e)
-    }
-
-    console.log(`[FileList#${callId}] normal FS branch: deviceId="${props.deviceId}" path="${pathSnapshot}"`)
+    // Context-menu capabilities are not required to render the directory. Keep
+    // them off the critical path so navigation paints as soon as listFiles ends.
+    void loadDeviceCapabilities(props.deviceId)
     const result = await window.fileman.listFiles(props.deviceId, pathSnapshot)
-    console.log(`[FileList#${callId}] FS listFiles returned ${result.length} items; props.path is now "${props.path}"`)
     if (props.path !== pathSnapshot) {
-      console.warn(`[FileList#${callId}] PATH CHANGED DURING AWAIT (was "${pathSnapshot}", now "${props.path}") — discarding stale result`)
       return
     }
-    console.log(`[FileList#${callId}] setting files.value → ${result.length} items`)
     files.value = result
     columnFilesMap.value.set(pathSnapshot, result)
     emit('loaded', result)
@@ -601,11 +602,10 @@ async function loadFiles() {
       }
     }
   } catch (error) {
-    console.error(`[FileList#${callId}] ERROR for path="${pathSnapshot}":`, error)
+    console.error('[FileList] Failed to load directory', { deviceId: props.deviceId, path: pathSnapshot, error })
     files.value = []
     emit('loaded', [])
   } finally {
-    console.log(`[FileList#${callId}] finally — files.value.length=${files.value.length}`)
     loading.value = false
   }
 }
@@ -623,12 +623,10 @@ async function loadMissingColumnFiles(cols: Column[]) {
   }
 }
 
-watch(() => props.path, (newPath, oldPath) => {
-  console.log(`[FileList] watch(path): "${oldPath}" → "${newPath}"`)
+watch(() => props.path, () => {
   loadFiles()
 }, { immediate: true })
-watch(() => props.deviceId, (newId, oldId) => {
-  console.log(`[FileList] watch(deviceId): "${oldId}" → "${newId}"`)
+watch(() => props.deviceId, () => {
   loadFiles()
 })
 
