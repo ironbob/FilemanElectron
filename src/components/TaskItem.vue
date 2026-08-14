@@ -174,7 +174,7 @@
 
 <script setup lang="ts">
 import { ref, computed, h, type Component } from 'vue'
-import type { FileOperationTask, FileOperationType, FileOperationItemResult } from '@/types/fileOperation'
+import type { FileOperationTask, FileOperationType } from '@/types/fileOperation'
 
 const props = defineProps<{
   task: FileOperationTask

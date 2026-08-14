@@ -68,7 +68,7 @@ export const SMB_CAPABILITIES: DeviceCapabilities = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
-  canStream: false,     // @aozp/smb2 stream support TBD → buffer fallback
+  canStream: true,      // @marsaud/smb2 createReadStream/createWriteStream
 }
 
 export const SSH_CAPABILITIES: DeviceCapabilities = {
@@ -87,6 +87,24 @@ export const SSH_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,
   canMoveTo: true,
   canStream: true,      // ssh2 sftp createReadStream/WriteStream
+}
+
+export const WEBDAV_CAPABILITIES: DeviceCapabilities = {
+  canRead: true,
+  canWrite: true,
+  canDelete: true,
+  canRename: true,
+  canMkdir: true,
+  canList: true,
+  canStat: true,
+  canCopy: true,
+  canMove: true,
+  canSearch: true,
+  canCopyFrom: true,
+  canCopyTo: true,
+  canMoveFrom: true,
+  canMoveTo: true,
+  canStream: true,
 }
 
 export const ANDROID_CAPABILITIES: DeviceCapabilities = {

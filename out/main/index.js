@@ -4,12 +4,16 @@ import * as path from "path";
 import path__default, { join } from "path";
 import Store from "electron-store";
 import fs$1 from "fs-extra";
-import { exec } from "child_process";
+import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
+import * as fs from "fs";
+import adbkit from "@devicefarmer/adbkit";
+import SMB2 from "@marsaud/smb2";
+import { createClient } from "webdav";
+import { exec, execFile } from "child_process";
 import { promisify } from "util";
 import crypto from "crypto";
 import sharp from "sharp";
 import ffmpeg from "ffmpeg-static";
-import * as fs from "fs";
 import * as zlib from "zlib";
 import __cjs_url__ from "node:url";
 import __cjs_path__ from "node:path";
@@ -158,7 +162,9 @@ const LOCAL_CAPABILITIES = {
   canCopyFrom: true,
   canCopyTo: true,
   canMoveFrom: true,
-  canMoveTo: true
+  canMoveTo: true,
+  canStream: true
+  // fs.createReadStream/WriteStream
 };
 const SMB_CAPABILITIES = {
   canRead: true,
@@ -176,7 +182,9 @@ const SMB_CAPABILITIES = {
   canCopyFrom: true,
   canCopyTo: true,
   canMoveFrom: true,
-  canMoveTo: true
+  canMoveTo: true,
+  canStream: true
+  // @marsaud/smb2 createReadStream/createWriteStream
 };
 const SSH_CAPABILITIES = {
   canRead: true,
@@ -194,7 +202,26 @@ const SSH_CAPABILITIES = {
   canCopyFrom: true,
   canCopyTo: true,
   canMoveFrom: true,
-  canMoveTo: true
+  canMoveTo: true,
+  canStream: true
+  // ssh2 sftp createReadStream/WriteStream
+};
+const WEBDAV_CAPABILITIES = {
+  canRead: true,
+  canWrite: true,
+  canDelete: true,
+  canRename: true,
+  canMkdir: true,
+  canList: true,
+  canStat: true,
+  canCopy: true,
+  canMove: true,
+  canSearch: true,
+  canCopyFrom: true,
+  canCopyTo: true,
+  canMoveFrom: true,
+  canMoveTo: true,
+  canStream: true
 };
 const ANDROID_CAPABILITIES = {
   canRead: true,
@@ -218,6 +245,8 @@ const ANDROID_CAPABILITIES = {
   // Pull + delete
   canMoveTo: true,
   // Push + delete source
+  canStream: true,
+  // adbkit pull/push transfer streams
   // Some Android directories are read-only without root
   readonlyPaths: ["/system", "/vendor", "/product", "/data/app"]
 };
@@ -243,8 +272,12 @@ const IOS_CAPABILITIES = {
   // Pull + delete
   canMoveTo: true,
   // Push + delete source
-  // iOS is heavily restricted
-  readonlyPaths: ["/"],
+  canStream: false,
+  // AFC has no usable stream CLI → buffer fallback
+  // AFC itself is the sandbox boundary. Do not mark `/` read-only here: doing
+  // so makes every write/delete action unavailable in the UI even when AFC
+  // grants access to a writable container. Unsupported paths are rejected by
+  // the device and surfaced with context by iOSAdapter.
   maxFileSize: 2 * 1024 * 1024 * 1024
   // 2GB typical limit for app sandbox
 };
@@ -320,6 +353,13 @@ class LocalAdapter {
     await fs$1.ensureDir(path__default.dirname(dstPath));
     await fs$1.copy(srcPath, dstPath);
   }
+  async openReadStream(filePath) {
+    return fs$1.createReadStream(filePath);
+  }
+  async openWriteStream(filePath) {
+    await fs$1.ensureDir(path__default.dirname(filePath));
+    return fs$1.createWriteStream(filePath);
+  }
   async stat(targetPath) {
     const stats = await fs$1.stat(targetPath);
     return {
@@ -380,12 +420,54 @@ class LocalAdapter {
     return regex.test(name);
   }
 }
+class ToolPathResolver {
+  static {
+    this.cachedAdb = void 0;
+  }
+  static {
+    this.BUNDLED_ADB_CANDIDATES = ["adb", "tools/adb"];
+  }
+  /**
+   * 解析 adb 可执行文件路径。
+   * @returns 打包且存在 → 绝对路径;否则 undefined(调用方走 $PATH)。
+   */
+  static getAdbPath() {
+    if (this.cachedAdb !== void 0) {
+      return this.cachedAdb ?? void 0;
+    }
+    if (app?.isPackaged) {
+      for (const rel of this.BUNDLED_ADB_CANDIDATES) {
+        const candidate = path.join(process.resourcesPath, rel);
+        try {
+          if (fs.existsSync(candidate)) {
+            this.cachedAdb = candidate;
+            console.log(`[ToolPathResolver] adb resolved (bundled): ${candidate}`);
+            return candidate;
+          }
+        } catch {
+        }
+      }
+    }
+    this.cachedAdb = null;
+    console.log("[ToolPathResolver] adb not bundled; using $PATH");
+    return void 0;
+  }
+  /** 供 child_process spawn 使用的 adb 命令(打包内绝对路径或 'adb')。 */
+  static getAdbExecutable() {
+    return this.getAdbPath() ?? "adb";
+  }
+  /** 重置缓存(安装/重打包后重探测用)。 */
+  static resetCache() {
+    this.cachedAdb = void 0;
+  }
+}
+const EXIT_MARKER = "__FMLEXIT__";
 class AndroidAdapter {
   constructor(deviceId, name, config = {}) {
     this.type = "android";
-    this.connected = false;
-    this.adb = null;
+    this.client = null;
     this.device = null;
+    this.connected = false;
     this.deviceId = deviceId;
     this.name = name;
     this.config = config;
@@ -395,285 +477,82 @@ class AndroidAdapter {
   }
   async connect() {
     try {
-      const AdbKit = await import("adbkit").catch(() => null);
-      if (!AdbKit) {
-        throw new Error("ADB package not installed. Run: npm install adbkit");
-      }
-      this.adb = AdbKit.default.createClient();
-      const devices = await this.adb.listDevices();
+      const adbPath = ToolPathResolver.getAdbPath();
+      this.client = adbkit.createClient(adbPath ? { bin: adbPath } : {});
+      const devices = await this.client.listDevices();
       if (devices.length === 0) {
-        throw new Error("No Android device found. Please connect your device and enable USB debugging.");
+        throw new Error("未检测到 Android 设备。请连接设备并开启 USB 调试。");
       }
-      const targetDevice = this.config.deviceId ? devices.find((d) => d.id === this.config.deviceId) : devices[0];
-      if (!targetDevice) {
-        throw new Error(`Device not found: ${this.config.deviceId}`);
+      const serial = this.config.deviceId ?? devices[0].id;
+      const target = devices.find((d) => d.id === serial) ?? devices[0];
+      if (target.type !== "device") {
+        if (target.type === "unauthorized") {
+          throw new Error('设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。');
+        }
+        if (target.type === "offline") {
+          throw new Error("设备离线。请重新插拔数据线后重试。");
+        }
+        throw new Error(`设备当前不可用(状态:${target.type})。`);
       }
-      this.device = this.adb.getDevice(targetDevice.id);
+      this.device = this.client.getDevice(target.id);
       this.connected = true;
+      console.log(`[AndroidAdapter] connected: serial=${target.id}`);
     } catch (error) {
       this.connected = false;
+      this.device = null;
+      this.client = null;
       throw error;
     }
   }
   async disconnect() {
     this.device = null;
-    this.adb = null;
-    this.connected = false;
-  }
-  isConnected() {
-    return this.connected;
-  }
-  ensureConnected() {
-    if (!this.connected || !this.device) {
-      throw new Error("Android device not connected");
-    }
-  }
-  async list(dirPath) {
-    this.ensureConnected();
-    const files = [];
-    try {
-      const output = await this.device.shell(`ls -la "${dirPath}" 2>/dev/null`);
-      const lines = output.toString().split("\n").slice(1);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const parts = line.trim().split(/\s+/);
-        if (parts.length < 8) continue;
-        const isDirectory = line.startsWith("d");
-        const name = parts.slice(7).join(" ");
-        if (name === "." || name === "..") continue;
-        const fullPath = path.join(dirPath, name);
-        const size = parseInt(parts[4], 10) || 0;
-        files.push({
-          name,
-          path: fullPath,
-          isDirectory,
-          isFile: !isDirectory,
-          size,
-          modifiedTime: (/* @__PURE__ */ new Date()).toISOString(),
-          // Parse from parts[5], parts[6]
-          extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
-        });
-      }
-    } catch (error) {
-      console.error("Android list error:", error);
-    }
-    return files.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }
-  async mkdir(dirPath) {
-    this.ensureConnected();
-    await this.device.shell(`mkdir -p "${dirPath}"`);
-  }
-  async rmdir(dirPath, recursive) {
-    this.ensureConnected();
-    const cmd = recursive ? `rm -rf "${dirPath}"` : `rmdir "${dirPath}"`;
-    await this.device.shell(cmd);
-  }
-  async readFile(filePath) {
-    this.ensureConnected();
-    return new Promise((resolve, reject) => {
-      const chunks = [];
-      this.device.pull(filePath).on("data", (chunk) => chunks.push(chunk)).on("end", () => resolve(Buffer.concat(chunks))).on("error", reject);
-    });
-  }
-  async writeFile(filePath, data) {
-    this.ensureConnected();
-    const fs2 = await import("fs-extra");
-    const os2 = await import("os");
-    const tempPath = path.join(os2.tmpdir(), `fileman_${Date.now()}`);
-    await fs2.writeFile(tempPath, data);
-    try {
-      await this.device.push(tempPath, filePath);
-    } finally {
-      await fs2.remove(tempPath);
-    }
-  }
-  async delete(targetPath) {
-    this.ensureConnected();
-    await this.device.shell(`rm -rf "${targetPath}"`);
-  }
-  async rename(oldPath, newPath) {
-    this.ensureConnected();
-    await this.device.shell(`mv "${oldPath}" "${newPath}"`);
-  }
-  async copy(srcPath, dstPath) {
-    this.ensureConnected();
-    await this.device.shell(`cp -r "${srcPath}" "${dstPath}"`);
-  }
-  async stat(targetPath) {
-    this.ensureConnected();
-    await this.device.shell(`stat "${targetPath}"`);
-    return {
-      size: 0,
-      isDirectory: false,
-      isFile: true,
-      modifiedTime: (/* @__PURE__ */ new Date()).toISOString(),
-      createdTime: (/* @__PURE__ */ new Date()).toISOString(),
-      mode: 0
-    };
-  }
-  async exists(targetPath) {
-    this.ensureConnected();
-    try {
-      await this.device.shell(`test -e "${targetPath}"`);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  async search(dirPath, query) {
-    this.ensureConnected();
-    const results = [];
-    const pattern = query.pattern.toLowerCase();
-    try {
-      const output = await this.device.shell(
-        `find "${dirPath}" -iname "*${pattern}*" 2>/dev/null`
-      );
-      const lines = output.toString().split("\n");
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const name = path.basename(line);
-        results.push({
-          name,
-          path: line,
-          isDirectory: false,
-          isFile: true,
-          size: 0,
-          modifiedTime: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
-    } catch (error) {
-      console.error("Android search error:", error);
-    }
-    return results;
-  }
-}
-class SMBAdapter {
-  constructor(deviceId, name, config) {
-    this.type = "smb";
-    this.connected = false;
     this.client = null;
-    this.smb2Package = null;
-    this.deviceId = deviceId;
-    this.name = name;
-    this.config = config;
-  }
-  getCapabilities() {
-    return SMB_CAPABILITIES;
-  }
-  async connect() {
-    try {
-      const SMB2 = await import("@aozp/smb2").catch(() => null);
-      if (!SMB2) {
-        throw new Error("SMB package not installed. Run: npm install @aozp/smb2");
-      }
-      this.smb2Package = SMB2;
-      this.client = new SMB2.default({
-        share: `\\\\${this.config.host}\\${this.config.share}`,
-        domain: this.config.domain || "",
-        username: this.config.username || "",
-        password: this.config.password || ""
-      });
-      this.connected = true;
-    } catch (error) {
-      this.connected = false;
-      throw error;
-    }
-  }
-  async disconnect() {
-    if (this.client) {
-      this.client = null;
-    }
     this.connected = false;
   }
   isConnected() {
     return this.connected;
   }
-  ensureConnected() {
-    if (!this.connected || !this.client) {
-      throw new Error("SMB device not connected");
+  dev() {
+    if (!this.connected || !this.device) {
+      throw new Error("Android 设备未连接");
     }
+    return this.device;
   }
+  // ============ 文件系统操作 ============
   async list(dirPath) {
-    this.ensureConnected();
-    const files = [];
-    try {
-      const entries = await this.client.readdir(dirPath);
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.filename);
-        files.push({
-          name: entry.filename,
-          path: fullPath,
-          isDirectory: entry.isDirectory,
-          isFile: !entry.isDirectory,
-          size: entry.size || 0,
-          modifiedTime: entry.mtime?.toISOString() || (/* @__PURE__ */ new Date()).toISOString(),
-          extension: !entry.isDirectory ? path.extname(entry.filename).toLowerCase() : void 0
-        });
-      }
-    } catch (error) {
-      console.error("SMB list error:", error);
-    }
-    return files.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }
-  async mkdir(dirPath) {
-    this.ensureConnected();
-    await this.client.mkdir(dirPath);
-  }
-  async rmdir(dirPath, recursive) {
-    this.ensureConnected();
-    if (recursive) {
-      const files = await this.list(dirPath);
-      for (const file of files) {
-        if (file.isDirectory) {
-          await this.rmdir(file.path, true);
-        } else {
-          await this.delete(file.path);
-        }
-      }
-    }
-    await this.client.rmdir(dirPath);
-  }
-  async readFile(filePath) {
-    this.ensureConnected();
-    return this.client.readFile(filePath);
-  }
-  async writeFile(filePath, data) {
-    this.ensureConnected();
-    await this.client.writeFile(filePath, data);
-  }
-  async delete(targetPath) {
-    this.ensureConnected();
-    await this.client.unlink(targetPath);
-  }
-  async rename(oldPath, newPath) {
-    this.ensureConnected();
-    await this.client.rename(oldPath, newPath);
-  }
-  async copy(srcPath, dstPath) {
-    const content = await this.readFile(srcPath);
-    await this.writeFile(dstPath, content);
+    const dev = this.dev();
+    const entries = await dev.readdir(dirPath);
+    const files = entries.filter((e) => e.name !== "." && e.name !== "..").map((e) => this.entryToFileInfo(dirPath, e));
+    return sortFiles(files);
   }
   async stat(targetPath) {
-    this.ensureConnected();
-    const stats = await this.client.stat(targetPath);
+    const dev = this.dev();
+    const s = await dev.stat(targetPath);
+    const mtime = s.mtimeMs || 0;
     return {
-      size: stats.size,
-      isDirectory: stats.isDirectory(),
-      isFile: stats.isFile(),
-      modifiedTime: stats.mtime?.toISOString() || (/* @__PURE__ */ new Date()).toISOString(),
-      createdTime: stats.ctime?.toISOString() || (/* @__PURE__ */ new Date()).toISOString(),
-      mode: stats.mode || 0
+      size: Number(s.size) || 0,
+      isDirectory: s.isDirectory(),
+      isFile: !s.isDirectory(),
+      modifiedTime: new Date(mtime).toISOString(),
+      createdTime: new Date(mtime).toISOString(),
+      mode: Number(s.mode) || 0
     };
+  }
+  async mkdir(dirPath) {
+    await this.runShell(`mkdir -p ${shellQuote(dirPath)}`);
+  }
+  async rmdir(dirPath, recursive) {
+    const cmd = recursive ? `rm -rf ${shellQuote(dirPath)}` : `rmdir ${shellQuote(dirPath)}`;
+    await this.runShell(cmd);
+  }
+  async delete(targetPath) {
+    await this.runShell(`rm -rf ${shellQuote(targetPath)}`);
+  }
+  async rename(oldPath, newPath) {
+    await this.runShell(`mv ${shellQuote(oldPath)} ${shellQuote(newPath)}`);
+  }
+  async copy(srcPath, dstPath) {
+    await this.runShell(`cp -r ${shellQuote(srcPath)} ${shellQuote(dstPath)}`);
   }
   async exists(targetPath) {
     try {
@@ -683,26 +562,297 @@ class SMBAdapter {
       return false;
     }
   }
-  async search(dirPath, query) {
-    const results = [];
-    const pattern = query.pattern.toLowerCase();
-    async function searchRecursive(adapter, currentPath) {
+  async readFile(filePath) {
+    const dev = this.dev();
+    const transfer = await dev.pull(filePath);
+    const chunks = [];
+    for await (const chunk of transfer) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+  async writeFile(filePath, data) {
+    const dev = this.dev();
+    const parent = posixDirname$1(filePath);
+    if (parent && parent !== filePath) {
       try {
-        const files = await adapter.list(currentPath);
-        for (const file of files) {
-          if (file.name.toLowerCase().includes(pattern)) {
-            results.push(file);
-          }
-          if (file.isDirectory) {
-            await searchRecursive(adapter, file.path);
-          }
-        }
+        await this.runShell(`mkdir -p ${shellQuote(parent)}`);
       } catch {
       }
     }
-    await searchRecursive(this, dirPath);
+    await dev.push(Readable.from([data]), filePath);
+  }
+  async search(dirPath, query) {
+    const dev = this.dev();
+    const pattern = (query.pattern || "").trim();
+    if (!pattern) return [];
+    const raw = await this.runShell(
+      `find ${shellQuote(dirPath)} -type f -iname ${shellQuote("*" + pattern + "*")} 2>/dev/null`
+    );
+    const results = [];
+    for (const line of raw.split("\n")) {
+      const p = line.trim();
+      if (!p) continue;
+      const name = posixBaseName$1(p);
+      let isDirectory = false;
+      let size = 0;
+      let mtime = 0;
+      try {
+        const s = await dev.stat(p);
+        isDirectory = s.isDirectory();
+        size = Number(s.size) || 0;
+        mtime = s.mtimeMs || 0;
+      } catch {
+      }
+      results.push({
+        name,
+        path: p,
+        isDirectory,
+        isFile: !isDirectory,
+        size,
+        modifiedTime: new Date(mtime).toISOString(),
+        extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
+      });
+    }
     return results;
   }
+  // ============ 流式访问(canStream=true) ============
+  async openReadStream(filePath) {
+    const dev = this.dev();
+    return dev.pull(filePath);
+  }
+  async openWriteStream(filePath) {
+    const dev = this.dev();
+    const parent = posixDirname$1(filePath);
+    if (parent && parent !== filePath) {
+      try {
+        await this.runShell(`mkdir -p ${shellQuote(parent)}`);
+      } catch {
+      }
+    }
+    const pass = new PassThrough();
+    const transfer = await dev.push(pass, filePath);
+    const writable = new Writable({
+      write(chunk, _encoding, callback) {
+        if (pass.write(chunk)) {
+          callback();
+        } else {
+          pass.once("drain", () => callback());
+        }
+      },
+      final(callback) {
+        transfer.once("end", () => callback());
+        transfer.once("error", (err) => callback(err));
+        pass.end();
+      }
+    });
+    transfer.on("error", (err) => writable.destroy(err));
+    return writable;
+  }
+  // ============ 内部工具 ============
+  entryToFileInfo(dirPath, entry) {
+    const isDirectory = entry.isDirectory();
+    const name = entry.name;
+    const mtime = entry.mtimeMs || 0;
+    return {
+      name,
+      path: joinPosix$2(dirPath, name),
+      isDirectory,
+      isFile: !isDirectory,
+      size: Number(entry.size) || 0,
+      modifiedTime: new Date(mtime).toISOString(),
+      extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
+    };
+  }
+  /**
+   * 执行 shell 命令并按 exit code 判定成败。
+   * 末尾附加 EXIT_MARKER+code;adb shell 不直接返回 exit code,故用标记解析。
+   */
+  async runShell(command) {
+    const dev = this.dev();
+    const wrapped = `${command}; printf '\\n${EXIT_MARKER}%d' "$?"`;
+    const stream = await dev.shell(wrapped);
+    const buf = await adbkit.util.readAll(stream);
+    const out = buf.toString("utf-8");
+    const markerIdx = out.lastIndexOf(EXIT_MARKER);
+    if (markerIdx === -1) {
+      return out;
+    }
+    const codeStr = out.slice(markerIdx + EXIT_MARKER.length).trim();
+    const stdout = out.slice(0, markerIdx);
+    const code = parseInt(codeStr, 10);
+    if (!Number.isNaN(code) && code !== 0) {
+      throw new Error(`命令失败(code=${code}): ${command}
+${stdout.trim()}`);
+    }
+    return stdout;
+  }
+}
+function joinPosix$2(dir, name) {
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
+}
+function posixBaseName$1(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx === -1 ? trimmed : trimmed.slice(idx + 1);
+}
+function posixDirname$1(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  if (idx === -1) return "";
+  if (idx === 0) return "/";
+  return trimmed.slice(0, idx);
+}
+function shellQuote(s) {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+function sortFiles(files) {
+  return files.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+class SMBAdapter {
+  constructor(deviceId, name, config) {
+    this.type = "smb";
+    this.connected = false;
+    this.client = null;
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return SMB_CAPABILITIES;
+  }
+  async connect() {
+    if (!this.config.host || !this.config.share) {
+      throw new Error("SMB 连接需要主机地址和共享名称");
+    }
+    const client = new SMB2({
+      share: `\\\\${this.config.host}\\${this.config.share}`,
+      domain: this.config.domain || "",
+      username: this.config.username || "",
+      password: this.config.password || "",
+      port: this.config.port || 445
+    });
+    try {
+      await client.readdir("");
+      this.client = client;
+      this.connected = true;
+    } catch (error) {
+      client.disconnect();
+      throw error;
+    }
+  }
+  async disconnect() {
+    this.client?.disconnect();
+    this.client = null;
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  async list(dirPath) {
+    const client = this.getClient();
+    const parent = this.remotePath(dirPath);
+    const entries = await client.readdir(parent, { stats: true });
+    return entries.map((entry) => {
+      const isDirectory = entry.isDirectory();
+      return {
+        name: entry.name,
+        path: path.posix.join(this.displayPath(dirPath), entry.name),
+        isDirectory,
+        isFile: !isDirectory,
+        size: Number(entry.size || 0),
+        modifiedTime: entry.mtime?.toISOString() || (/* @__PURE__ */ new Date(0)).toISOString(),
+        createdTime: entry.birthtime?.toISOString() || entry.ctime?.toISOString(),
+        extension: isDirectory ? void 0 : path.posix.extname(entry.name).toLowerCase()
+      };
+    }).sort(sortDirectoriesFirst$1);
+  }
+  async mkdir(dirPath) {
+    await this.getClient().mkdir(this.remotePath(dirPath));
+  }
+  async rmdir(dirPath, recursive) {
+    if (recursive) {
+      for (const file of await this.list(dirPath)) {
+        if (file.isDirectory) await this.rmdir(file.path, true);
+        else await this.delete(file.path);
+      }
+    }
+    await this.getClient().rmdir(this.remotePath(dirPath));
+  }
+  async readFile(filePath) {
+    return this.getClient().readFile(this.remotePath(filePath));
+  }
+  async writeFile(filePath, data) {
+    await this.getClient().writeFile(this.remotePath(filePath), data);
+  }
+  async delete(targetPath) {
+    await this.getClient().unlink(this.remotePath(targetPath));
+  }
+  async rename(oldPath, newPath) {
+    await this.getClient().rename(this.remotePath(oldPath), this.remotePath(newPath), { replace: true });
+  }
+  async copy(srcPath, dstPath) {
+    await this.writeFile(dstPath, await this.readFile(srcPath));
+  }
+  async openReadStream(filePath) {
+    return this.getClient().createReadStream(this.remotePath(filePath));
+  }
+  async openWriteStream(filePath) {
+    return this.getClient().createWriteStream(this.remotePath(filePath));
+  }
+  async stat(targetPath) {
+    const stats = await this.getClient().stat(this.remotePath(targetPath));
+    const raw = stats;
+    return {
+      size: Number(raw.size || 0),
+      isDirectory: stats.isDirectory(),
+      isFile: !stats.isDirectory(),
+      modifiedTime: stats.mtime?.toISOString() || (/* @__PURE__ */ new Date(0)).toISOString(),
+      createdTime: stats.birthtime?.toISOString() || stats.ctime?.toISOString() || (/* @__PURE__ */ new Date(0)).toISOString(),
+      mode: raw.mode || 0
+    };
+  }
+  async exists(targetPath) {
+    return this.getClient().exists(this.remotePath(targetPath));
+  }
+  async search(dirPath, query) {
+    const results = [];
+    const pattern = query.pattern.toLocaleLowerCase();
+    const visit = async (currentPath) => {
+      let files;
+      try {
+        files = await this.list(currentPath);
+      } catch {
+        return;
+      }
+      for (const file of files) {
+        if (file.name.toLocaleLowerCase().includes(pattern)) results.push(file);
+        if (file.isDirectory) await visit(file.path);
+      }
+    };
+    await visit(dirPath);
+    return results;
+  }
+  getClient() {
+    if (!this.connected || !this.client) throw new Error("SMB 设备尚未连接");
+    return this.client;
+  }
+  remotePath(value) {
+    const normalized = value.replace(/\//g, "\\").replace(/^\\+/, "");
+    return normalized;
+  }
+  displayPath(value) {
+    const normalized = path.posix.normalize(value || "/");
+    return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  }
+}
+function sortDirectoriesFirst$1(a, b) {
+  if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+  return a.name.localeCompare(b.name);
 }
 class SSHAdapter {
   constructor(deviceId, name, config) {
@@ -781,13 +931,13 @@ class SSHAdapter {
         }
         const files = entries.map((entry) => ({
           name: entry.filename,
-          path: path.join(dirPath, entry.filename),
+          path: path.posix.join(dirPath, entry.filename),
           isDirectory: entry.longname.startsWith("d"),
           isFile: !entry.longname.startsWith("d"),
           size: entry.attrs.size,
           modifiedTime: new Date(entry.attrs.mtime * 1e3).toISOString(),
           createdTime: new Date(entry.attrs.atime * 1e3).toISOString(),
-          extension: !entry.longname.startsWith("d") ? path.extname(entry.filename).toLowerCase() : void 0
+          extension: !entry.longname.startsWith("d") ? path.posix.extname(entry.filename).toLowerCase() : void 0
         }));
         resolve(files.sort((a, b) => {
           if (a.isDirectory !== b.isDirectory) {
@@ -866,6 +1016,14 @@ class SSHAdapter {
     const content = await this.readFile(srcPath);
     await this.writeFile(dstPath, content);
   }
+  async openReadStream(filePath) {
+    this.ensureConnected();
+    return this.sftp.createReadStream(filePath);
+  }
+  async openWriteStream(filePath) {
+    this.ensureConnected();
+    return this.sftp.createWriteStream(filePath);
+  }
   async stat(targetPath) {
     this.ensureConnected();
     return new Promise((resolve, reject) => {
@@ -914,9 +1072,184 @@ class SSHAdapter {
     return results;
   }
 }
+class WebDAVAdapter {
+  constructor(deviceId, name, config) {
+    this.type = "webdav";
+    this.client = null;
+    this.connected = false;
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return WEBDAV_CAPABILITIES;
+  }
+  async connect() {
+    let endpoint;
+    try {
+      endpoint = new URL(this.config.url);
+    } catch {
+      throw new Error("WebDAV 地址无效：请输入以 http:// 或 https:// 开头的 URL");
+    }
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
+      throw new Error("WebDAV 仅支持 HTTP 或 HTTPS 地址");
+    }
+    const client = createClient(endpoint.toString(), {
+      username: this.config.username,
+      password: this.config.password
+    });
+    await client.getDirectoryContents(this.rootPath());
+    this.client = client;
+    this.connected = true;
+  }
+  async disconnect() {
+    this.client = null;
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  async list(dirPath) {
+    const entries = await this.getClient().getDirectoryContents(this.remotePath(dirPath));
+    return entries.map((entry) => this.toFileInfo(entry)).sort(sortDirectoriesFirst);
+  }
+  async mkdir(dirPath) {
+    await this.getClient().createDirectory(this.remotePath(dirPath), { recursive: true });
+  }
+  async rmdir(dirPath, recursive) {
+    const client = this.getClient();
+    const target = this.remotePath(dirPath);
+    if (recursive) {
+      for (const file of await this.list(dirPath)) {
+        if (file.isDirectory) await this.rmdir(file.path, true);
+        else await this.delete(file.path);
+      }
+    }
+    await client.deleteFile(target);
+  }
+  async readFile(filePath) {
+    const result = await this.getClient().getFileContents(this.remotePath(filePath), { format: "binary" });
+    if (typeof result === "string") return Buffer.from(result);
+    return Buffer.from(result);
+  }
+  async writeFile(filePath, data) {
+    await this.getClient().putFileContents(this.remotePath(filePath), data, { overwrite: true });
+  }
+  async delete(targetPath) {
+    await this.getClient().deleteFile(this.remotePath(targetPath));
+  }
+  async rename(oldPath, newPath) {
+    await this.getClient().moveFile(this.remotePath(oldPath), this.remotePath(newPath), { overwrite: true });
+  }
+  async copy(srcPath, dstPath) {
+    await this.getClient().copyFile(this.remotePath(srcPath), this.remotePath(dstPath), { overwrite: true });
+  }
+  async openReadStream(filePath) {
+    return this.getClient().createReadStream(this.remotePath(filePath));
+  }
+  async openWriteStream(filePath) {
+    return this.getClient().createWriteStream(this.remotePath(filePath));
+  }
+  async stat(targetPath) {
+    const entry = await this.getClient().stat(this.remotePath(targetPath));
+    return this.toFileStats(entry);
+  }
+  async exists(targetPath) {
+    return this.getClient().exists(this.remotePath(targetPath));
+  }
+  async search(dirPath, query) {
+    const matches = [];
+    const pattern = query.pattern.toLocaleLowerCase();
+    const visit = async (currentPath) => {
+      let files;
+      try {
+        files = await this.list(currentPath);
+      } catch {
+        return;
+      }
+      for (const file of files) {
+        if (file.name.toLocaleLowerCase().includes(pattern)) matches.push(file);
+        if (file.isDirectory) await visit(file.path);
+      }
+    };
+    await visit(dirPath);
+    return matches;
+  }
+  getClient() {
+    if (!this.connected || !this.client) throw new Error("WebDAV 设备尚未连接");
+    return this.client;
+  }
+  rootPath() {
+    return this.remotePath(this.config.rootPath || "/");
+  }
+  remotePath(targetPath) {
+    const normalized = path.posix.normalize(targetPath || "/");
+    return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  }
+  toFileInfo(entry) {
+    const stats = this.toFileStats(entry);
+    return {
+      name: entry.basename,
+      path: this.remotePath(entry.filename),
+      isDirectory: stats.isDirectory,
+      isFile: stats.isFile,
+      size: stats.size,
+      modifiedTime: stats.modifiedTime,
+      createdTime: stats.createdTime,
+      extension: stats.isFile ? path.posix.extname(entry.basename).toLowerCase() : void 0
+    };
+  }
+  toFileStats(entry) {
+    const directory = entry.type === "directory";
+    const modified = entry.lastmod ? new Date(entry.lastmod).toISOString() : (/* @__PURE__ */ new Date(0)).toISOString();
+    return {
+      size: Number(entry.size || 0),
+      isDirectory: directory,
+      isFile: !directory,
+      modifiedTime: modified,
+      createdTime: modified,
+      mode: 0
+    };
+  }
+}
+function sortDirectoriesFirst(a, b) {
+  if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+  return a.name.localeCompare(b.name);
+}
+let addonCache = null;
+function loadAddon() {
+  if (addonCache) return addonCache;
+  const candidates = [];
+  try {
+    candidates.push(path.join(app.getAppPath(), "native", "iosafc"));
+  } catch {
+  }
+  for (const up of ["..", "..", "..", "..", "../../../"]) {
+    candidates.push(path.join(__dirname, up, "native", "iosafc"));
+  }
+  try {
+    candidates.push(path.join(process.resourcesPath, "ios-native", "iosafc.node"));
+  } catch {
+  }
+  try {
+    candidates.push(path.join(app.getAppPath(), "native", "iosafc", "build", "Release", "iosafc.node"));
+  } catch {
+  }
+  for (const c of candidates) {
+    try {
+      addonCache = require2(c);
+      return addonCache;
+    } catch {
+    }
+  }
+  throw new Error(
+    "iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。"
+  );
+}
 class iOSAdapter {
   constructor(deviceId, name, config = {}) {
     this.type = "ios";
+    this.handle = null;
     this.connected = false;
     this.deviceId = deviceId;
     this.name = name;
@@ -925,161 +1258,115 @@ class iOSAdapter {
   getCapabilities() {
     return IOS_CAPABILITIES;
   }
+  /** 设备 id 形如 "ios:<udid>";libimobiledevice 需要裸 udid。 */
+  udid() {
+    const raw = this.config.deviceId ?? this.deviceId;
+    return raw.startsWith("ios:") ? raw.slice(4) : raw;
+  }
   async connect() {
     try {
-      const { exec: exec2 } = await import("child_process");
-      const { promisify: promisify2 } = await import("util");
-      const execAsync2 = promisify2(exec2);
-      const { stdout } = await execAsync2('ideviceinfo -k DeviceName 2>/dev/null || echo ""');
-      const deviceName = stdout.trim();
-      if (!deviceName) {
-        throw new Error("No iOS device found. Please connect your device and trust this computer.");
-      }
+      const afc = loadAddon();
+      const handle = afc.connect(this.udid(), false);
+      this.handle = handle;
       this.connected = true;
+      console.log(`[iOSAdapter] connected: udid=${this.udid()}`);
     } catch (error) {
       this.connected = false;
-      if (error instanceof Error && error.message.includes("ideviceinfo")) {
-        throw new Error(
-          "iOS support requires libimobiledevice. Install with:\n  macOS: brew install libimobiledevice\n  Linux: sudo apt-get install libimobiledevice-dev\n  Windows: Download from https://libimobiledevice.org/"
-        );
-      }
+      this.handle = null;
       throw error;
     }
   }
   async disconnect() {
+    if (this.handle !== null) {
+      try {
+        loadAddon().disconnect(this.handle);
+      } catch {
+      }
+    }
+    this.handle = null;
     this.connected = false;
   }
   isConnected() {
     return this.connected;
   }
-  ensureConnected() {
-    if (!this.connected) {
-      throw new Error("iOS device not connected");
-    }
+  /** 发起配对(触发设备端"信任此电脑");供后续 IPC 调用,完成后重试 connect。 */
+  async pair() {
+    return loadAddon().pair(this.udid());
   }
-  async list(dirPath) {
-    this.ensureConnected();
-    const files = [];
-    try {
-      const { exec: exec2 } = await import("child_process");
-      const { promisify: promisify2 } = await import("util");
-      const execAsync2 = promisify2(exec2);
-      const { stdout } = await execAsync2(
-        `idevicefs ls "${dirPath}" 2>/dev/null || echo ""`
-      );
-      const lines = stdout.trim().split("\n");
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const parts = line.trim().split(/\s+/);
-        if (parts.length < 4) continue;
-        const isDirectory = line.startsWith("d");
-        const name = parts.slice(3).join(" ");
-        if (name === "." || name === "..") continue;
-        const fullPath = path.join(dirPath, name);
-        files.push({
-          name,
-          path: fullPath,
-          isDirectory,
-          isFile: !isDirectory,
-          size: parseInt(parts[2], 10) || 0,
-          modifiedTime: (/* @__PURE__ */ new Date()).toISOString(),
-          extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
-        });
+  h() {
+    if (!this.connected || this.handle === null) throw new Error("iOS 设备未连接");
+    if (!loadAddon().isPaired(this.udid())) {
+      try {
+        loadAddon().disconnect(this.handle);
+      } catch {
       }
-    } catch (error) {
-      console.error("iOS list error:", error);
+      this.handle = null;
+      this.connected = false;
+      throw new Error("iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。");
     }
+    return this.handle;
+  }
+  // ============ 文件系统操作 ============
+  async list(dirPath) {
+    const entries = loadAddon().list(this.h(), dirPath);
+    const files = entries.map((e) => this.toFileInfo(dirPath, e));
     return files.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1;
-      }
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
   }
+  async stat(targetPath) {
+    const s = loadAddon().stat(this.h(), targetPath);
+    return {
+      size: s.size,
+      isDirectory: s.isDirectory,
+      isFile: !s.isDirectory,
+      modifiedTime: new Date(s.mtime).toISOString(),
+      createdTime: new Date(s.mtime).toISOString(),
+      mode: 0
+    };
+  }
   async mkdir(dirPath) {
-    this.ensureConnected();
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
-    await execAsync2(`idevicefs mkdir "${dirPath}"`);
+    loadAddon().mkdir(this.h(), dirPath);
   }
   async rmdir(dirPath, recursive) {
-    this.ensureConnected();
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
     if (recursive) {
-      await execAsync2(`idevicefs rm -r "${dirPath}"`);
-    } else {
-      await execAsync2(`idevicefs rmdir "${dirPath}"`);
+      let entries = [];
+      try {
+        entries = loadAddon().list(this.h(), dirPath);
+      } catch {
+      }
+      for (const e of entries) {
+        const child = joinPosix$1(dirPath, e.name);
+        if (e.isDirectory) await this.rmdir(child, true);
+        else loadAddon().remove(this.h(), child);
+      }
     }
-  }
-  async readFile(filePath) {
-    this.ensureConnected();
-    const fs2 = await import("fs-extra");
-    const os2 = await import("os");
-    const tempPath = path.join(os2.tmpdir(), `fileman_ios_${Date.now()}`);
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
-    try {
-      await execAsync2(`idevicefs pull "${filePath}" "${tempPath}"`);
-      const content = await fs2.readFile(tempPath);
-      return content;
-    } finally {
-      await fs2.remove(tempPath);
-    }
-  }
-  async writeFile(filePath, data) {
-    this.ensureConnected();
-    const fs2 = await import("fs-extra");
-    const os2 = await import("os");
-    const tempPath = path.join(os2.tmpdir(), `fileman_ios_${Date.now()}`);
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
-    try {
-      await fs2.writeFile(tempPath, data);
-      await execAsync2(`idevicefs push "${tempPath}" "${filePath}"`);
-    } finally {
-      await fs2.remove(tempPath);
-    }
+    loadAddon().remove(this.h(), dirPath);
   }
   async delete(targetPath) {
-    this.ensureConnected();
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
-    await execAsync2(`idevicefs rm "${targetPath}"`);
+    loadAddon().remove(this.h(), targetPath);
   }
   async rename(oldPath, newPath) {
-    this.ensureConnected();
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
-    await execAsync2(`idevicefs mv "${oldPath}" "${newPath}"`);
+    loadAddon().rename(this.h(), oldPath, newPath);
   }
   async copy(srcPath, dstPath) {
     const content = await this.readFile(srcPath);
     await this.writeFile(dstPath, content);
   }
-  async stat(targetPath) {
-    this.ensureConnected();
-    const { exec: exec2 } = await import("child_process");
-    const { promisify: promisify2 } = await import("util");
-    const execAsync2 = promisify2(exec2);
+  async readFile(filePath) {
+    return loadAddon().readFile(this.h(), filePath);
+  }
+  async writeFile(filePath, data) {
+    const maxFileSize = this.getCapabilities().maxFileSize;
+    if (maxFileSize !== void 0 && data.length > maxFileSize) {
+      throw new Error(`iOS AFC 单文件上限为 ${maxFileSize} 字节，无法写入: ${filePath}`);
+    }
     try {
-      const { stdout } = await execAsync2(`idevicefs stat "${targetPath}"`);
-      return {
-        size: 0,
-        isDirectory: false,
-        isFile: true,
-        modifiedTime: (/* @__PURE__ */ new Date()).toISOString(),
-        createdTime: (/* @__PURE__ */ new Date()).toISOString(),
-        mode: 0
-      };
-    } catch {
-      throw new Error(`File not found: ${targetPath}`);
+      loadAddon().writeFile(this.h(), filePath, data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`iOS AFC 无法写入 ${filePath}；该位置可能不允许写入或父目录不存在。${message}`);
     }
   }
   async exists(targetPath) {
@@ -1090,12 +1377,57 @@ class iOSAdapter {
       return false;
     }
   }
-  async search(dirPath, query) {
-    throw new Error("Search is not supported on iOS devices");
+  async search(_dirPath, _query) {
+    throw new Error("iOS 设备不支持搜索(AFC 无通用搜索)");
+  }
+  // ============ 内部工具 ============
+  toFileInfo(dirPath, e) {
+    return {
+      name: e.name,
+      path: joinPosix$1(dirPath, e.name),
+      isDirectory: e.isDirectory,
+      isFile: !e.isDirectory,
+      size: e.size,
+      modifiedTime: new Date(e.mtime).toISOString(),
+      extension: !e.isDirectory ? path.extname(e.name).toLowerCase() : void 0
+    };
   }
 }
+function joinPosix$1(dir, name) {
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
+}
+function udidFromId(id) {
+  return id.startsWith("ios:") ? id.slice(4) : id;
+}
+async function pairIosDevice(deviceId, timeoutMs = 6e4) {
+  const udid = udidFromId(deviceId);
+  let addon;
+  try {
+    addon = loadAddon();
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  try {
+    const initiated = addon.pair(udid);
+    if (!initiated) {
+      return { success: false, error: "发起配对失败 —— 请确认设备已解锁、已插稳" };
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      if (addon.isPaired(udid)) return { success: true };
+    } catch {
+    }
+  }
+  return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' };
+}
 const execAsync = promisify(exec);
-const log$1 = {
+const log$3 = {
   info: (message, ...args) => console.log(`[MobileDeviceScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[MobileDeviceScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[MobileDeviceScanner] DEBUG: ${message}`, ...args)
@@ -1120,7 +1452,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$1.info("Starting mobile device scanner", { interval: this.options.scanInterval });
+    log$3.info("Starting mobile device scanner", { interval: this.options.scanInterval });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -1133,7 +1465,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$1.info("Mobile device scanner stopped");
+      log$3.info("Mobile device scanner stopped");
     }
   }
   /**
@@ -1154,16 +1486,16 @@ class MobileDeviceScanner {
         const androidDevices = await this.scanAndroid();
         devices.push(...androidDevices);
       } else {
-        log$1.info("ADB not available, skipping Android scan");
+        log$3.info("ADB not available, skipping Android scan");
       }
       if (this.libimobiledeviceInstalled) {
         const iosDevices = await this.scanIOS();
         devices.push(...iosDevices);
       } else {
-        log$1.debug("libimobiledevice not available, skipping iOS scan");
+        log$3.debug("libimobiledevice not available, skipping iOS scan");
       }
     } catch (error) {
-      log$1.error("Mobile device scan error:", error);
+      log$3.error("Mobile device scan error:", error);
     }
     const newIds = new Set(devices.map((d) => d.id));
     const oldIds = new Set(this.currentDevices.keys());
@@ -1178,16 +1510,20 @@ class MobileDeviceScanner {
       }
     }
     if (added.length > 0) {
-      log$1.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
+      log$3.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
     }
     if (removed.length > 0) {
-      log$1.info("Devices removed:", removed);
+      log$3.info("Devices removed:", removed);
     }
+    const changed = devices.some((device) => {
+      const previous = this.currentDevices.get(device.id);
+      return !!previous && !sameDetectedDevice(previous, device);
+    });
     this.currentDevices.clear();
     for (const device of devices) {
       this.currentDevices.set(device.id, device);
     }
-    if (added.length > 0 || removed.length > 0) {
+    if (added.length > 0 || removed.length > 0 || changed) {
       this.notifyHandlers(devices, added, removed);
     }
     return devices;
@@ -1222,10 +1558,10 @@ class MobileDeviceScanner {
   async checkLibimobiledeviceInstalled() {
     try {
       const { stdout, stderr } = await execAsync("which idevice_id");
-      log$1.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$3.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$1.debug("libimobiledevice check failed:", error);
+      log$3.debug("libimobiledevice check failed:", error);
       return false;
     }
   }
@@ -1233,12 +1569,17 @@ class MobileDeviceScanner {
    * Check if ADB is installed
    */
   async checkAdbInstalled() {
+    const bundled = ToolPathResolver.getAdbPath();
+    if (bundled) {
+      log$3.debug("adb resolved (bundled):", bundled);
+      return true;
+    }
     try {
       const { stdout, stderr } = await execAsync("which adb");
-      log$1.debug("adb path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$3.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$1.debug("ADB check failed:", error);
+      log$3.debug("ADB check failed:", error);
       return false;
     }
   }
@@ -1248,9 +1589,9 @@ class MobileDeviceScanner {
   async scanAndroid() {
     const devices = [];
     try {
-      const { stdout, stderr } = await execAsync("adb devices -l");
+      const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`);
       if (stderr) {
-        log$1.debug("ADB command stderr:", stderr);
+        log$3.debug("ADB command stderr:", stderr);
       }
       const lines = stdout.trim().split("\n");
       for (const line of lines) {
@@ -1264,11 +1605,11 @@ class MobileDeviceScanner {
           const stateMatch = deviceInfo.match(/^(\S+)/);
           const state = stateMatch ? stateMatch[1] : "unknown";
           if (state === "offline") {
-            log$1.info("Device offline, skipping:", serial);
+            log$3.info("Device offline, skipping:", serial);
             continue;
           }
           if (state === "unauthorized") {
-            log$1.info("Device unauthorized (needs USB debugging authorization):", serial);
+            log$3.info("Device unauthorized (needs USB debugging authorization):", serial);
             devices.push({
               id: `android:${serial}`,
               type: "android",
@@ -1281,7 +1622,7 @@ class MobileDeviceScanner {
           const modelMatch = deviceInfo.match(/model:([^\s]+)/);
           if (modelMatch) {
             model = modelMatch[1].replace(/_/g, " ");
-            log$1.debug("Extracted model name:", model);
+            log$3.debug("Extracted model name:", model);
           }
           let product = "";
           const productMatch = deviceInfo.match(/product:([^\s]+)/);
@@ -1295,14 +1636,14 @@ class MobileDeviceScanner {
             model: deviceInfo
           });
         } else {
-          log$1.debug("Line did not match device pattern:", line);
+          log$3.debug("Line did not match device pattern:", line);
         }
       }
     } catch (error) {
-      log$1.error("Android scan error:", error);
+      log$3.error("Android scan error:", error);
       if (error instanceof Error) {
-        log$1.error("Error message:", error.message);
-        log$1.error("Error stack:", error.stack);
+        log$3.error("Error message:", error.message);
+        log$3.error("Error stack:", error.stack);
       }
     }
     return devices;
@@ -1315,44 +1656,44 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""');
       if (stderr) {
-        log$1.debug("idevice_id stderr:", stderr);
+        log$3.debug("idevice_id stderr:", stderr);
       }
       const udidList = stdout.trim().split("\n").filter((line) => line.trim());
       for (const udid of udidList) {
         if (!udid.trim()) continue;
-        log$1.debug("Processing iOS device:", udid);
+        log$3.debug("Processing iOS device:", udid);
         try {
           let deviceName = "iOS Device";
           try {
-            log$1.debug(`Getting device name for ${udid}...`);
+            log$3.debug(`Getting device name for ${udid}...`);
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
               `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             );
-            log$1.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
+            log$3.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
             if (nameOutput.trim()) {
               deviceName = nameOutput.trim();
             }
           } catch (nameError) {
-            log$1.debug("Failed to get device name:", nameError);
+            log$3.debug("Failed to get device name:", nameError);
           }
           let pairingStatus = "unpaired";
           try {
-            log$1.debug(`Checking pairing status for ${udid}...`);
+            log$3.debug(`Checking pairing status for ${udid}...`);
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
               `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
             );
-            log$1.debug(`idevicepair output:`, pairOutput, pairStderr);
+            log$3.debug(`idevicepair output:`, pairOutput, pairStderr);
             if (pairOutput.includes("SUCCESS")) {
               pairingStatus = "paired";
             } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
               pairingStatus = "unpaired";
-              log$1.info(`iOS device ${udid} needs pairing`);
+              log$3.info(`iOS device ${udid} needs pairing`);
             }
           } catch (pairError) {
-            log$1.debug("Failed to check pairing status:", pairError);
+            log$3.debug("Failed to check pairing status:", pairError);
             pairingStatus = "unpaired";
           }
-          log$1.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
+          log$3.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
           devices.push({
             id: `ios:${udid}`,
             type: "ios",
@@ -1360,13 +1701,13 @@ class MobileDeviceScanner {
             pairingStatus
           });
         } catch (error) {
-          log$1.error(`iOS device ${udid} scan error:`, error);
+          log$3.error(`iOS device ${udid} scan error:`, error);
         }
       }
     } catch (error) {
-      log$1.error("iOS scan error:", error);
+      log$3.error("iOS scan error:", error);
       if (error instanceof Error) {
-        log$1.error("Error message:", error.message);
+        log$3.error("Error message:", error.message);
       }
     }
     return devices;
@@ -1381,12 +1722,12 @@ class MobileDeviceScanner {
    * Notify all handlers of device changes
    */
   notifyHandlers(devices, added, removed) {
-    log$1.debug(`Notifying ${this.handlers.length} handlers`);
+    log$3.debug(`Notifying ${this.handlers.length} handlers`);
     for (const handler of this.handlers) {
       try {
         handler(devices, added, removed);
       } catch (error) {
-        log$1.error("Device change handler error:", error);
+        log$3.error("Device change handler error:", error);
       }
     }
   }
@@ -1403,12 +1744,16 @@ class MobileDeviceScanner {
     return this.adbAvailable;
   }
 }
+function sameDetectedDevice(a, b) {
+  return a.id === b.id && a.type === b.type && a.name === b.name && a.model === b.model && a.pairingStatus === b.pairingStatus;
+}
 class DeviceManager {
   constructor(configService2, credentialService2) {
     this.devices = /* @__PURE__ */ new Map();
     this.adapters = /* @__PURE__ */ new Map();
     this.handlers = [];
     this.autoConnectDevices = /* @__PURE__ */ new Set();
+    this.connectionAttempts = /* @__PURE__ */ new Map();
     this.configService = configService2;
     this.credentialService = credentialService2;
     const config = this.configService.getConfig();
@@ -1441,6 +1786,16 @@ class DeviceManager {
       added: added.map((d) => ({ id: d.id, name: d.name, type: d.type })),
       removed
     });
+    let metadataChanged = false;
+    for (const detected of devices) {
+      const existing = this.devices.get(detected.id);
+      if (existing) {
+        metadataChanged = metadataChanged || existing.name !== detected.name || existing.model !== detected.model || existing.pairingStatus !== detected.pairingStatus;
+        existing.name = detected.name;
+        existing.model = detected.model;
+        existing.pairingStatus = detected.pairingStatus;
+      }
+    }
     for (const device of added) {
       console.log("[DeviceManager] Processing new device:", device.id, device.name);
       const shouldAutoConnect = this.autoConnectDevices.has(device.id);
@@ -1450,6 +1805,8 @@ class DeviceManager {
         name: device.name,
         status: shouldAutoConnect ? "connecting" : "disconnected",
         rootPath: "/",
+        pairingStatus: device.pairingStatus,
+        model: device.model,
         config: {
           id: device.id,
           type: device.type,
@@ -1462,8 +1819,8 @@ class DeviceManager {
         this.connectMobileDevice(device.id);
       }
     }
-    if (added.length > 0) {
-      console.log("[DeviceManager] Notifying handlers of new devices");
+    if (added.length > 0 || metadataChanged) {
+      console.log("[DeviceManager] Notifying handlers of mobile device updates");
       this.notifyHandlers();
     }
     for (const deviceId of removed) {
@@ -1612,23 +1969,36 @@ class DeviceManager {
     if (!device) {
       throw new Error(`Device not found: ${deviceId}`);
     }
-    if (device.status === "connected") {
+    if (device.status === "connected" && this.adapters.has(deviceId)) {
       return;
     }
-    this.updateDeviceStatus(deviceId, "connecting");
-    try {
-      const credentials = await this.credentialService.get(deviceId);
-      const adapter = await this.createAdapter(device, credentials);
-      this.adapters.set(deviceId, adapter);
-      await adapter.connect();
-      device.status = "connected";
-      this.notifyHandlers();
-    } catch (error) {
-      device.status = "disconnected";
-      this.adapters.delete(deviceId);
-      this.notifyHandlers();
-      throw error;
-    }
+    const pending = this.connectionAttempts.get(deviceId);
+    if (pending) return pending;
+    const attempt = (async () => {
+      this.updateDeviceStatus(deviceId, "connecting");
+      try {
+        const credentials = await this.credentialService.get(deviceId);
+        const adapter = await this.createAdapter(device, credentials);
+        this.adapters.set(deviceId, adapter);
+        await adapter.connect();
+        device.status = "connected";
+        this.notifyHandlers();
+      } catch (error) {
+        const adapter = this.adapters.get(deviceId);
+        try {
+          await adapter?.disconnect();
+        } catch {
+        }
+        device.status = "disconnected";
+        this.adapters.delete(deviceId);
+        this.notifyHandlers();
+        throw error;
+      } finally {
+        this.connectionAttempts.delete(deviceId);
+      }
+    })();
+    this.connectionAttempts.set(deviceId, attempt);
+    return attempt;
   }
   /**
    * Disconnect from a device
@@ -1663,6 +2033,20 @@ class DeviceManager {
       device.status = status;
       this.notifyHandlers();
     }
+  }
+  /**
+   * 发起配对(仅 iOS;完整生命周期:发起 → 设备端信任 → 校验)。
+   * 非 iOS 设备不支持配对。
+   */
+  async pairDevice(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new Error(`Device not found: ${deviceId}`);
+    }
+    if (device.type !== "ios") {
+      return { success: false, error: "该设备类型无需/不支持配对" };
+    }
+    return pairIosDevice(deviceId);
   }
   /**
    * Register a device change handler
@@ -1705,6 +2089,13 @@ class DeviceManager {
           password: credentials?.password,
           privateKey: credentials?.privateKey
         });
+      case "webdav":
+        return new WebDAVAdapter(device.id, device.name, {
+          url: config.url || config.host || "",
+          username: credentials?.username || config.username,
+          password: credentials?.password,
+          rootPath: config.rootPath || "/"
+        });
       case "ios":
         return new iOSAdapter(device.id, device.name, {
           deviceId: config.id
@@ -1729,35 +2120,49 @@ class DeviceManager {
     this.handlers.forEach((handler) => handler(devices));
   }
   // ============ File System Operations (proxied to adapters) ============
+  /**
+   * 文件请求的最后一道边界：已持久化的标签、IPC 或侧栏事件可能在适配器
+   * 尚未注册时访问设备。此处按需连接，避免直接向调用方泄露“无 adapter”。
+   */
+  async getReadyAdapter(deviceId) {
+    const adapter = this.adapters.get(deviceId);
+    if (adapter?.isConnected()) return adapter;
+    await this.connectDevice(deviceId);
+    const connectedAdapter = this.adapters.get(deviceId);
+    if (!connectedAdapter?.isConnected()) {
+      throw new Error(`设备连接后仍不可用: ${deviceId}`);
+    }
+    return connectedAdapter;
+  }
   async listFiles(deviceId, path2) {
-    return this.getAdapter(deviceId).list(path2);
+    return (await this.getReadyAdapter(deviceId)).list(path2);
   }
   async getStats(deviceId, path2) {
-    return this.getAdapter(deviceId).stat(path2);
+    return (await this.getReadyAdapter(deviceId)).stat(path2);
   }
   async exists(deviceId, path2) {
-    return this.getAdapter(deviceId).exists(path2);
+    return (await this.getReadyAdapter(deviceId)).exists(path2);
   }
   async mkdir(deviceId, path2) {
-    return this.getAdapter(deviceId).mkdir(path2);
+    return (await this.getReadyAdapter(deviceId)).mkdir(path2);
   }
   async delete(deviceId, path2) {
-    return this.getAdapter(deviceId).delete(path2);
+    return (await this.getReadyAdapter(deviceId)).delete(path2);
   }
   async rename(deviceId, oldPath, newPath) {
-    return this.getAdapter(deviceId).rename(oldPath, newPath);
+    return (await this.getReadyAdapter(deviceId)).rename(oldPath, newPath);
   }
   async readFile(deviceId, path2) {
-    return this.getAdapter(deviceId).readFile(path2);
+    return (await this.getReadyAdapter(deviceId)).readFile(path2);
   }
   async writeFile(deviceId, path2, data) {
-    return this.getAdapter(deviceId).writeFile(path2, data);
+    return (await this.getReadyAdapter(deviceId)).writeFile(path2, data);
   }
   async copy(deviceId, srcPath, dstPath) {
-    return this.getAdapter(deviceId).copy(srcPath, dstPath);
+    return (await this.getReadyAdapter(deviceId)).copy(srcPath, dstPath);
   }
   async search(deviceId, path2, query) {
-    return this.getAdapter(deviceId).search(path2, query);
+    return (await this.getReadyAdapter(deviceId)).search(path2, query);
   }
   /**
    * Get capabilities for a device
@@ -1789,7 +2194,9 @@ class DeviceManager {
           canCopyFrom: true,
           canCopyTo: true,
           canMoveFrom: true,
-          canMoveTo: true
+          canMoveTo: true,
+          canStream: false
+          // 连接后由具体适配器的 capability 覆盖
         };
     }
   }
@@ -1872,8 +2279,154 @@ class DeviceManager {
     this.configService.saveConfig(config);
   }
 }
+class CancelledError extends Error {
+  constructor(message = "传输已取消") {
+    super(message);
+    this.name = "CancelledError";
+  }
+}
+class StreamTransfer {
+  /**
+   * 拷贝单个文件:srcPath(源适配器) → dstPath(目标适配器)。
+   * @returns 实际传输字节数。
+   */
+  static async transferFile(source, srcPath, target, dstPath, options = {}) {
+    const canStream = !!source.getCapabilities().canStream && !!target.getCapabilities().canStream && typeof source.openReadStream === "function" && typeof target.openWriteStream === "function";
+    if (canStream) {
+      return this.streamingCopy(source, srcPath, target, dstPath, options);
+    }
+    return this.bufferCopy(source, srcPath, target, dstPath, options);
+  }
+  /** 流式拷贝:管道 source→meter→target,逐块计字节、可取消、异常删半成品。 */
+  static async streamingCopy(source, srcPath, target, dstPath, options) {
+    if (options.shouldCancel?.()) throw new CancelledError();
+    let bytesTransferred = 0;
+    const meter = new Transform({
+      transform(chunk, _encoding, callback) {
+        bytesTransferred += chunk.length;
+        options.onProgress?.(bytesTransferred);
+        callback(null, chunk);
+      }
+    });
+    const cancelTimer = setInterval(() => {
+      if (options.shouldCancel?.()) {
+        meter.destroy(new CancelledError());
+      }
+    }, 200);
+    let src = null;
+    let dst = null;
+    try {
+      src = await source.openReadStream(srcPath);
+      dst = await target.openWriteStream(dstPath);
+      await new Promise((resolve, reject) => {
+        pipeline(src, meter, dst, (err) => err ? reject(err) : resolve());
+      });
+      await this.verifyTargetSize(target, dstPath, bytesTransferred);
+      return bytesTransferred;
+    } catch (error) {
+      await this.safeDeletePartial(target, dstPath);
+      throw error;
+    } finally {
+      clearInterval(cancelTimer);
+      src?.destroy();
+      dst?.destroy();
+    }
+  }
+  /** 缓冲回退:整文件读 → 写。用于不支持流式的适配器(SMB/iOS)。 */
+  static async bufferCopy(source, srcPath, target, dstPath, options) {
+    if (options.shouldCancel?.()) throw new CancelledError();
+    const content = await source.readFile(srcPath);
+    if (options.shouldCancel?.()) throw new CancelledError();
+    try {
+      await target.writeFile(dstPath, content);
+      await this.verifyTargetSize(target, dstPath, content.length);
+    } catch (error) {
+      await this.safeDeletePartial(target, dstPath);
+      throw error;
+    }
+    options.onProgress?.(content.length);
+    return content.length;
+  }
+  /** 尽力删除半成品目标;失败仅记录,不掩盖原异常。 */
+  static async safeDeletePartial(target, dstPath) {
+    try {
+      const exists = await target.exists(dstPath);
+      if (exists) {
+        await target.delete(dstPath);
+        console.warn(`[StreamTransfer] cleaned partial target: ${dstPath}`);
+      }
+    } catch (cleanupError) {
+      console.error(`[StreamTransfer] failed to clean partial target ${dstPath}:`, cleanupError);
+    }
+  }
+  /**
+   * 复制成功的最小验证：目标必须是同等字节数的文件。移动操作依赖此不变量，
+   * 因而只有该检查通过后 FileOperationManager 才会删除源文件。
+   */
+  static async verifyTargetSize(target, dstPath, expectedBytes) {
+    const stat = await target.stat(dstPath);
+    if (!stat.isFile || stat.size !== expectedBytes) {
+      throw new Error(
+        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat.size} 字节`
+      );
+    }
+  }
+}
 function generateTaskId() {
   return `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+class TransferTask {
+  constructor(params) {
+    this.id = generateTaskId();
+    this.type = params.type;
+    this.sourceDeviceId = params.sourceDeviceId;
+    this.sourcePaths = params.sourcePaths;
+    this.targetDeviceId = params.targetDeviceId;
+    this.targetPath = params.targetPath;
+    this.newName = params.newName;
+    this.status = "pending";
+    this.progress = {
+      currentFile: "",
+      currentFileIndex: 0,
+      totalFiles: params.sourcePaths.length,
+      bytesTransferred: 0,
+      totalBytes: 0,
+      speed: 0,
+      itemResults: []
+    };
+    this.createdAt = Date.now();
+  }
+  markRunning() {
+    this.status = "running";
+    this.startedAt = Date.now();
+  }
+  setTotals(bytes, files) {
+    this.progress.totalBytes = bytes;
+    this.progress.totalFiles = files;
+  }
+  addBytes(n) {
+    this.progress.bytesTransferred += n;
+  }
+  setCurrentFile(name, index) {
+    this.progress.currentFile = name;
+    this.progress.currentFileIndex = index;
+  }
+  recordItem(item) {
+    this.progress.itemResults.push(item);
+  }
+  complete() {
+    this.status = "completed";
+    this.completedAt = Date.now();
+  }
+  fail(error) {
+    this.status = "failed";
+    this.error = error;
+    this.completedAt = Date.now();
+  }
+  markCancelled() {
+    this.status = "cancelled";
+    this.completedAt = Date.now();
+  }
 }
 class FileOperationManager {
   constructor() {
@@ -1885,6 +2438,8 @@ class FileOperationManager {
     this.adapters = /* @__PURE__ */ new Map();
     this.mainWindow = null;
     this.maxHistorySize = 100;
+    this.lastProgressNotifyAt = 0;
+    this.completionWaiters = /* @__PURE__ */ new Map();
   }
   registerAdapter(deviceId, adapter) {
     this.adapters.set(deviceId, adapter);
@@ -1905,27 +2460,16 @@ class FileOperationManager {
       this.mainWindow.webContents.send("file-operation:added", task);
     }
   }
+  /** 节流(≥100ms)推送进度,避免大文件逐块刷屏 IPC。 */
+  notifyProgress(task, force = false) {
+    const now = Date.now();
+    if (force || now - this.lastProgressNotifyAt >= 100) {
+      this.lastProgressNotifyAt = now;
+      this.notifyTaskUpdate(task);
+    }
+  }
   async addTask(params) {
-    const task = {
-      id: generateTaskId(),
-      type: params.type,
-      sourceDeviceId: params.sourceDeviceId,
-      sourcePaths: params.sourcePaths,
-      targetDeviceId: params.targetDeviceId,
-      targetPath: params.targetPath,
-      newName: params.newName,
-      status: "pending",
-      progress: {
-        currentFile: "",
-        currentFileIndex: 0,
-        totalFiles: params.sourcePaths.length,
-        bytesTransferred: 0,
-        totalBytes: 0,
-        speed: 0,
-        itemResults: []
-      },
-      createdAt: Date.now()
-    };
+    const task = new TransferTask(params);
     this.queue.push(task);
     this.notifyTaskAdded(task);
     this.processQueue();
@@ -1938,20 +2482,20 @@ class FileOperationManager {
     try {
       await this.executeTask(this.currentTask);
     } catch (error) {
-      console.error("Task execution error:", error);
+      console.error("[FileOperationManager] task execution error:", error);
     } finally {
       this.isRunning = false;
       const completedTask = this.currentTask;
       this.currentTask = null;
       if (completedTask) {
         this.addToHistory(completedTask);
+        this.resolveCompletion(completedTask);
       }
       this.processQueue();
     }
   }
   async executeTask(task) {
-    task.status = "running";
-    task.startedAt = Date.now();
+    task.markRunning();
     this.notifyTaskUpdate(task);
     this.cancelled = false;
     try {
@@ -1976,253 +2520,302 @@ class FileOperationManager {
           break;
       }
       if (this.cancelled) {
-        task.status = "cancelled";
+        task.markCancelled();
       } else {
-        task.status = "completed";
+        task.complete();
       }
     } catch (error) {
-      task.status = "failed";
-      task.error = error instanceof Error ? error.message : String(error);
+      task.fail(error instanceof Error ? error.message : String(error));
     }
-    task.completedAt = Date.now();
     this.notifyTaskUpdate(task);
   }
+  // ============ 跨设备/同设备 拷贝 ============
   async executeCopy(task) {
-    const sourceAdapter = this.adapters.get(task.sourceDeviceId);
-    if (!sourceAdapter) {
-      throw new Error(`Source adapter not found: ${task.sourceDeviceId}`);
-    }
-    const targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
-    const targetAdapter = this.adapters.get(targetDeviceId);
-    if (!targetAdapter) {
-      throw new Error(`Target adapter not found: ${targetDeviceId}`);
-    }
-    const targetPath = task.targetPath || "/";
-    let totalBytes = 0;
-    let bytesTransferred = 0;
+    const { source, target, targetPath } = this.resolveEndpoints(task);
+    const { bytes, files } = await this.computeTotals(source, task.sourcePaths);
+    task.setTotals(bytes, files);
+    let fileCounter = 0;
     for (const sourcePath of task.sourcePaths) {
-      try {
-        const stat = await sourceAdapter.stat(sourcePath);
-        totalBytes += stat.size;
-      } catch {
-      }
-    }
-    task.progress.totalBytes = totalBytes;
-    for (let i = 0; i < task.sourcePaths.length; i++) {
       if (this.cancelled) return;
-      const sourcePath = task.sourcePaths[i];
-      const fileName = sourcePath.split("/").pop() || "";
-      const finalTargetPath = `${targetPath}/${fileName}`;
-      task.progress.currentFile = fileName;
-      task.progress.currentFileIndex = i;
-      this.notifyTaskUpdate(task);
-      const itemResult = {
-        sourcePath,
-        targetPath: finalTargetPath,
-        status: "success"
-      };
       try {
-        const startTime = Date.now();
-        const exists = await targetAdapter.exists(finalTargetPath);
-        if (exists) {
-          itemResult.status = "skipped";
-          task.progress.itemResults.push(itemResult);
-          continue;
-        }
-        const content = await sourceAdapter.readFile(sourcePath);
-        await targetAdapter.writeFile(finalTargetPath, content);
-        const elapsed = Date.now() - startTime;
-        bytesTransferred += content.length;
-        task.progress.bytesTransferred = bytesTransferred;
-        task.progress.speed = elapsed > 0 ? content.length / elapsed * 1e3 : 0;
-        itemResult.bytesProcessed = content.length;
-        task.progress.itemResults.push(itemResult);
+        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter++, false);
       } catch (error) {
-        itemResult.status = "failed";
-        itemResult.error = error instanceof Error ? error.message : String(error);
-        task.progress.itemResults.push(itemResult);
+        if (error instanceof CancelledError) return;
+        throw error;
       }
     }
-    task.progress.currentFileIndex = task.sourcePaths.length;
   }
   async executeMove(task) {
-    const sourceAdapter = this.adapters.get(task.sourceDeviceId);
-    if (!sourceAdapter) {
-      throw new Error(`Source adapter not found: ${task.sourceDeviceId}`);
-    }
+    const sourceDeviceId = task.sourceDeviceId;
     const targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
-    const targetAdapter = this.adapters.get(targetDeviceId);
-    if (!targetAdapter) {
-      throw new Error(`Target adapter not found: ${targetDeviceId}`);
+    const source = this.adapters.get(sourceDeviceId);
+    const target = this.adapters.get(targetDeviceId);
+    if (!source || !target) {
+      throw new Error(`Adapter not found: ${!source ? sourceDeviceId : targetDeviceId}`);
     }
     const targetPath = task.targetPath || "/";
-    let totalBytes = 0;
-    let bytesTransferred = 0;
+    if (sourceDeviceId === targetDeviceId) {
+      for (const sourcePath of task.sourcePaths) {
+        if (this.cancelled) return;
+        const name = posixBaseName(sourcePath);
+        const dst = joinPosix(targetPath, name);
+        task.setCurrentFile(name, 0);
+        this.notifyTaskUpdate(task);
+        const item = { sourcePath, targetPath: dst, status: "success" };
+        try {
+          await source.rename(sourcePath, dst);
+        } catch (error) {
+          item.status = "failed";
+          item.error = error instanceof Error ? error.message : String(error);
+        }
+        task.recordItem(item);
+      }
+      return;
+    }
+    const { bytes, files } = await this.computeTotals(source, task.sourcePaths);
+    task.setTotals(bytes, files);
+    let fileCounter = 0;
     for (const sourcePath of task.sourcePaths) {
+      if (this.cancelled) return;
       try {
-        const stat = await sourceAdapter.stat(sourcePath);
-        totalBytes += stat.size;
+        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter++, true);
+      } catch (error) {
+        if (error instanceof CancelledError) return;
+        throw error;
+      }
+    }
+  }
+  /** 拷贝一个顶层路径(文件或目录树)。move=true 时,成功的项删源。 */
+  async copyPath(task, source, sourcePath, target, targetDir, nextIndex, move) {
+    let isDir = false;
+    try {
+      isDir = (await source.stat(sourcePath)).isDirectory;
+    } catch {
+      task.recordItem({ sourcePath, status: "failed", error: "无法读取源路径属性" });
+      return false;
+    }
+    const name = posixBaseName(sourcePath);
+    const dst = joinPosix(targetDir, name);
+    if (isDir) {
+      return this.copyTree(task, source, sourcePath, target, dst, nextIndex, move);
+    } else {
+      return this.copyFile(task, source, sourcePath, target, dst, nextIndex, move);
+    }
+  }
+  /** 递归拷贝目录树。move 且全成功时删源目录。 */
+  async copyTree(task, source, srcDir, target, dstDir, nextIndex, move) {
+    try {
+      if (await target.exists(dstDir)) {
+        const targetStat = await target.stat(dstDir);
+        if (!targetStat.isDirectory) throw new Error(`目标路径不是目录: ${dstDir}`);
+      } else {
+        await target.mkdir(dstDir);
+      }
+    } catch (error) {
+      task.recordItem({ sourcePath: srcDir, targetPath: dstDir, status: "failed", error: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+    let entries = [];
+    try {
+      entries = await source.list(srcDir);
+    } catch (error) {
+      task.recordItem({ sourcePath: srcDir, status: "failed", error: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+    let copiedCompletely = true;
+    for (const entry of entries) {
+      if (this.cancelled) return false;
+      const childSrc = joinPosix(srcDir, entry.name);
+      const childDst = joinPosix(dstDir, entry.name);
+      try {
+        let copied;
+        if (entry.isDirectory) {
+          copied = await this.copyTree(task, source, childSrc, target, childDst, nextIndex, move);
+        } else {
+          copied = await this.copyFile(task, source, childSrc, target, childDst, nextIndex, move);
+        }
+        copiedCompletely = copiedCompletely && copied;
+      } catch (error) {
+        if (error instanceof CancelledError) return false;
+        copiedCompletely = false;
+      }
+    }
+    if (move && copiedCompletely && !this.cancelled) {
+      try {
+        await source.delete(srcDir);
+      } catch (error) {
+        console.warn(`[FileOperationManager] failed to remove moved source dir ${srcDir}:`, error);
+        return false;
+      }
+    }
+    return copiedCompletely;
+  }
+  /** 拷贝单个文件(流式优先,缓冲回退)。move=true 时成功/跳过后删源。 */
+  async copyFile(task, source, srcPath, target, dstPath, nextIndex, move) {
+    const name = posixBaseName(srcPath);
+    const index = nextIndex();
+    task.setCurrentFile(name, index);
+    this.notifyProgress(task, true);
+    const item = { sourcePath: srcPath, targetPath: dstPath, status: "success" };
+    try {
+      if (await target.exists(dstPath)) {
+        item.status = "skipped";
+        task.recordItem(item);
+        return false;
+      }
+      const startBytes = task.progress.bytesTransferred;
+      const startTime = Date.now();
+      const bytes = await StreamTransfer.transferFile(source, srcPath, target, dstPath, {
+        onProgress: (b) => {
+          task.progress.bytesTransferred = startBytes + b;
+          this.updateSpeed(task, startBytes, startTime);
+          this.notifyProgress(task);
+        },
+        shouldCancel: () => this.cancelled
+      });
+      item.bytesProcessed = bytes;
+      task.recordItem(item);
+      if (move) {
+        await source.delete(srcPath);
+      }
+      return true;
+    } catch (error) {
+      if (error instanceof CancelledError) {
+        throw error;
+      }
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
+      return false;
+    }
+  }
+  updateSpeed(task, startBytes, startTime) {
+    const elapsed = Date.now() - startTime;
+    const delta = task.progress.bytesTransferred - startBytes;
+    task.progress.speed = elapsed > 0 ? delta / elapsed * 1e3 : 0;
+  }
+  /** 统计总量(含目录递归)。 */
+  async computeTotals(source, paths) {
+    let bytes = 0;
+    let files = 0;
+    const walk = async (p) => {
+      try {
+        const st = await source.stat(p);
+        if (st.isFile) {
+          bytes += st.size;
+          files++;
+          return;
+        }
+        const entries = await source.list(p);
+        for (const e of entries) {
+          await walk(joinPosix(p, e.name));
+        }
       } catch {
       }
+    };
+    for (const p of paths) {
+      await walk(p);
     }
-    task.progress.totalBytes = totalBytes;
-    for (let i = 0; i < task.sourcePaths.length; i++) {
-      if (this.cancelled) return;
-      const sourcePath = task.sourcePaths[i];
-      const fileName = sourcePath.split("/").pop() || "";
-      const finalTargetPath = `${targetPath}/${fileName}`;
-      task.progress.currentFile = fileName;
-      task.progress.currentFileIndex = i;
-      this.notifyTaskUpdate(task);
-      const itemResult = {
-        sourcePath,
-        targetPath: finalTargetPath,
-        status: "success"
-      };
-      try {
-        const startTime = Date.now();
-        const exists = await targetAdapter.exists(finalTargetPath);
-        if (exists) {
-          itemResult.status = "skipped";
-          task.progress.itemResults.push(itemResult);
-          continue;
-        }
-        if (task.sourceDeviceId === targetDeviceId) {
-          await sourceAdapter.rename(sourcePath, finalTargetPath);
-        } else {
-          const content = await sourceAdapter.readFile(sourcePath);
-          await targetAdapter.writeFile(finalTargetPath, content);
-          await sourceAdapter.delete(sourcePath);
-          bytesTransferred += content.length;
-          task.progress.bytesTransferred = bytesTransferred;
-        }
-        const elapsed = Date.now() - startTime;
-        task.progress.speed = elapsed > 0 ? bytesTransferred / elapsed * 1e3 : 0;
-        itemResult.bytesProcessed = bytesTransferred;
-        task.progress.itemResults.push(itemResult);
-      } catch (error) {
-        itemResult.status = "failed";
-        itemResult.error = error instanceof Error ? error.message : String(error);
-        task.progress.itemResults.push(itemResult);
-      }
-    }
-    task.progress.currentFileIndex = task.sourcePaths.length;
+    return { bytes, files };
   }
+  resolveEndpoints(task) {
+    const source = this.adapters.get(task.sourceDeviceId);
+    const targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
+    const target = this.adapters.get(targetDeviceId);
+    if (!source) throw new Error(`Source adapter not found: ${task.sourceDeviceId}`);
+    if (!target) throw new Error(`Target adapter not found: ${targetDeviceId}`);
+    return { source, target, targetPath: task.targetPath || "/" };
+  }
+  // ============ 单设备操作 ============
   async executeDelete(task) {
     const adapter = this.adapters.get(task.sourceDeviceId);
-    if (!adapter) {
-      throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
-    }
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
     for (let i = 0; i < task.sourcePaths.length; i++) {
       if (this.cancelled) return;
       const sourcePath = task.sourcePaths[i];
-      const fileName = sourcePath.split("/").pop() || "";
-      task.progress.currentFile = fileName;
-      task.progress.currentFileIndex = i;
+      task.setCurrentFile(posixBaseName(sourcePath), i);
       this.notifyTaskUpdate(task);
-      const itemResult = {
-        sourcePath,
-        status: "success"
-      };
+      const item = { sourcePath, status: "success" };
       try {
         await adapter.delete(sourcePath);
-        task.progress.itemResults.push(itemResult);
       } catch (error) {
-        itemResult.status = "failed";
-        itemResult.error = error instanceof Error ? error.message : String(error);
-        task.progress.itemResults.push(itemResult);
+        item.status = "failed";
+        item.error = error instanceof Error ? error.message : String(error);
       }
+      task.recordItem(item);
     }
-    task.progress.currentFileIndex = task.sourcePaths.length;
   }
   async executeRename(task) {
     const adapter = this.adapters.get(task.sourceDeviceId);
-    if (!adapter) {
-      throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
-    }
-    if (task.sourcePaths.length === 0 || !task.newName) {
-      throw new Error("Invalid rename parameters");
-    }
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    if (task.sourcePaths.length === 0 || !task.newName) throw new Error("Invalid rename parameters");
     const sourcePath = task.sourcePaths[0];
-    const dir = sourcePath.substring(0, sourcePath.lastIndexOf("/"));
-    const targetPath = `${dir}/${task.newName}`;
-    task.progress.currentFile = task.newName;
-    task.progress.currentFileIndex = 0;
+    const dir = posixDirname(sourcePath);
+    const targetPath = joinPosix(dir, task.newName);
+    task.setCurrentFile(task.newName, 0);
     task.progress.totalFiles = 1;
     this.notifyTaskUpdate(task);
-    const itemResult = {
-      sourcePath,
-      targetPath,
-      status: "success"
-    };
+    const item = { sourcePath, targetPath, status: "success" };
     try {
       await adapter.rename(sourcePath, targetPath);
-      task.progress.itemResults.push(itemResult);
     } catch (error) {
-      itemResult.status = "failed";
-      itemResult.error = error instanceof Error ? error.message : String(error);
-      task.progress.itemResults.push(itemResult);
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
       throw error;
     }
-    task.progress.currentFileIndex = 1;
+    task.recordItem(item);
   }
   async executeMkdir(task) {
     const adapter = this.adapters.get(task.sourceDeviceId);
-    if (!adapter) {
-      throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
-    }
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
     const targetPath = task.targetPath || "/";
-    task.progress.currentFile = targetPath.split("/").pop() || "";
-    task.progress.currentFileIndex = 0;
+    task.setCurrentFile(posixBaseName(targetPath), 0);
     task.progress.totalFiles = 1;
     this.notifyTaskUpdate(task);
-    const itemResult = {
-      sourcePath: "",
-      targetPath,
-      status: "success"
-    };
+    const item = { sourcePath: "", targetPath, status: "success" };
     try {
       await adapter.mkdir(targetPath);
-      task.progress.itemResults.push(itemResult);
     } catch (error) {
-      itemResult.status = "failed";
-      itemResult.error = error instanceof Error ? error.message : String(error);
-      task.progress.itemResults.push(itemResult);
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
       throw error;
     }
-    task.progress.currentFileIndex = 1;
+    task.recordItem(item);
   }
   async executeTouch(task) {
     const adapter = this.adapters.get(task.sourceDeviceId);
-    if (!adapter) {
-      throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
-    }
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
     const targetPath = task.targetPath || "/";
-    task.progress.currentFile = targetPath.split("/").pop() || "";
-    task.progress.currentFileIndex = 0;
+    task.setCurrentFile(posixBaseName(targetPath), 0);
     task.progress.totalFiles = 1;
     this.notifyTaskUpdate(task);
-    const itemResult = {
-      sourcePath: "",
-      targetPath,
-      status: "success"
-    };
+    const item = { sourcePath: "", targetPath, status: "success" };
     try {
       await adapter.writeFile(targetPath, Buffer.from(""));
-      task.progress.itemResults.push(itemResult);
     } catch (error) {
-      itemResult.status = "failed";
-      itemResult.error = error instanceof Error ? error.message : String(error);
-      task.progress.itemResults.push(itemResult);
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
       throw error;
     }
-    task.progress.currentFileIndex = 1;
+    task.recordItem(item);
   }
+  // ============ 队列管理 ============
   cancelTask(taskId) {
     if (this.currentTask?.id === taskId) {
       this.cancelled = true;
     } else {
+      const queuedTask = this.queue.find((t) => t.id === taskId);
       this.queue = this.queue.filter((t) => t.id !== taskId);
+      if (queuedTask) {
+        queuedTask.markCancelled();
+        this.addToHistory(queuedTask);
+        this.notifyTaskUpdate(queuedTask);
+        this.resolveCompletion(queuedTask);
+        return;
+      }
       const historyIndex = this.history.findIndex((t) => t.id === taskId);
       if (historyIndex > -1) {
         this.history[historyIndex].status = "cancelled";
@@ -2259,6 +2852,23 @@ class FileOperationManager {
   clearHistory() {
     this.history = [];
   }
+  /** 兼容旧 IPC：仍通过同一队列执行并等待完成，避免绕过取消、验证与清理。 */
+  async addTaskAndWait(params) {
+    const task = await this.addTask(params);
+    return this.waitForCompletion(task.id);
+  }
+  waitForCompletion(taskId) {
+    const completed = this.history.find((task) => task.id === taskId);
+    if (completed) return Promise.resolve(completed);
+    return new Promise((resolve) => this.completionWaiters.set(taskId, resolve));
+  }
+  resolveCompletion(task) {
+    const resolve = this.completionWaiters.get(task.id);
+    if (resolve) {
+      this.completionWaiters.delete(task.id);
+      resolve(task);
+    }
+  }
   addToHistory(task) {
     this.history.unshift(task);
     if (this.history.length > this.maxHistorySize) {
@@ -2266,15 +2876,31 @@ class FileOperationManager {
     }
   }
 }
-const LOG_PREFIX = "[ThumbnailService]";
-function log(message, ...args) {
-  console.log(`${LOG_PREFIX} ${message}`, ...args);
+function joinPosix(dir, name) {
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
 }
-function logError(message, ...args) {
-  console.error(`${LOG_PREFIX} ${message}`, ...args);
+function posixBaseName(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx === -1 ? trimmed : trimmed.slice(idx + 1);
+}
+function posixDirname(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  if (idx === -1) return "";
+  if (idx === 0) return "/";
+  return trimmed.slice(0, idx);
+}
+const LOG_PREFIX$1 = "[ThumbnailService]";
+function log$2(message, ...args) {
+  console.log(`${LOG_PREFIX$1} ${message}`, ...args);
+}
+function logError$1(message, ...args) {
+  console.error(`${LOG_PREFIX$1} ${message}`, ...args);
 }
 function logWarn(message, ...args) {
-  console.warn(`${LOG_PREFIX} ${message}`, ...args);
+  console.warn(`${LOG_PREFIX$1} ${message}`, ...args);
 }
 const THUMBNAIL_SIZES = {
   small: { width: 64, height: 64 },
@@ -2286,11 +2912,20 @@ const SUPPORTED_IMAGE_FORMATS = /* @__PURE__ */ new Set([
   "png",
   "gif",
   "webp",
+  "avif",
   "bmp",
   "tiff",
+  "ico",
   "heic",
   "heif",
-  "raw"
+  "dng",
+  "raw",
+  "arw",
+  "cr2",
+  "nef",
+  "orf",
+  "raf",
+  "sr2"
 ]);
 const SUPPORTED_VIDEO_FORMATS = /* @__PURE__ */ new Set([
   "mp4",
@@ -2309,27 +2944,27 @@ class ThumbnailService {
   constructor() {
     this.maxDiskCacheSize = 500 * 1024 * 1024;
     this.cacheDir = path__default.join(app.getPath("userData"), "thumbnails");
-    log("Initializing ThumbnailService");
-    log("Cache directory:", this.cacheDir);
+    log$2("Initializing ThumbnailService");
+    log$2("Cache directory:", this.cacheDir);
     this.ensureCacheDir();
   }
   async ensureCacheDir() {
     try {
       await fs$1.ensureDir(this.cacheDir);
-      log("Cache directory ensured:", this.cacheDir);
+      log$2("Cache directory ensured:", this.cacheDir);
     } catch (e) {
-      logError("Failed to create cache directory:", e);
+      logError$1("Failed to create cache directory:", e);
     }
   }
   generateCacheKey(deviceId, filePath, size, mtime) {
     const raw = `${deviceId}:${filePath}:${size}:${mtime}`;
     const hash = crypto.createHash("md5").update(raw).digest("hex").slice(0, 16);
-    log("Generated cache key:", hash, "for file:", filePath);
+    log$2("Generated cache key:", hash, "for file:", filePath);
     return hash;
   }
   async getThumbnail(deviceId, filePath, size, mtime, thumbnailSize, readFile) {
     const ext = path__default.extname(filePath).toLowerCase().replace(".", "");
-    log("getThumbnail called:", {
+    log$2("getThumbnail called:", {
       deviceId,
       filePath,
       size,
@@ -2338,34 +2973,34 @@ class ThumbnailService {
       ext
     });
     const cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime);
-    log("Checking disk cache for key:", cacheKey);
+    log$2("Checking disk cache for key:", cacheKey);
     const cachedThumbnail = await this.getFromDiskCache(cacheKey);
     if (cachedThumbnail) {
-      log("Cache HIT for:", filePath, "key:", cacheKey);
+      log$2("Cache HIT for:", filePath, "key:", cacheKey);
       return { cacheKey, thumbnailBase64: cachedThumbnail };
     }
-    log("Cache MISS for:", filePath, "key:", cacheKey);
+    log$2("Cache MISS for:", filePath, "key:", cacheKey);
     if (!SUPPORTED_IMAGE_FORMATS.has(ext) && !SUPPORTED_VIDEO_FORMATS.has(ext)) {
       logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
       return null;
     }
     const dimensions = THUMBNAIL_SIZES[thumbnailSize];
-    log("Target dimensions:", dimensions);
+    log$2("Target dimensions:", dimensions);
     let thumbnailBuffer = null;
     const startTime = Date.now();
     if (SUPPORTED_IMAGE_FORMATS.has(ext)) {
-      log("Generating image thumbnail for:", filePath);
+      log$2("Generating image thumbnail for:", filePath);
       thumbnailBuffer = await this.generateImageThumbnail(filePath, deviceId, readFile, dimensions);
     } else if (SUPPORTED_VIDEO_FORMATS.has(ext)) {
-      log("Generating video thumbnail for:", filePath);
+      log$2("Generating video thumbnail for:", filePath);
       thumbnailBuffer = await this.generateVideoThumbnail(filePath, deviceId, readFile, dimensions);
     }
     const elapsed = Date.now() - startTime;
     if (!thumbnailBuffer) {
-      logError("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
+      logError$1("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
       return null;
     }
-    log(
+    log$2(
       "Thumbnail generated successfully for:",
       filePath,
       "size:",
@@ -2386,13 +3021,13 @@ class ThumbnailService {
     try {
       if (await fs$1.pathExists(cachePath)) {
         const buffer = await fs$1.readFile(cachePath);
-        log("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
+        log$2("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
         return buffer.toString("base64");
       } else {
-        log("Disk cache miss, key:", cacheKey, "path:", cachePath);
+        log$2("Disk cache miss, key:", cacheKey, "path:", cachePath);
       }
     } catch (e) {
-      logError("Error reading disk cache:", cacheKey, e);
+      logError$1("Error reading disk cache:", cacheKey, e);
     }
     return null;
   }
@@ -2400,61 +3035,61 @@ class ThumbnailService {
     const cachePath = path__default.join(this.cacheDir, `${cacheKey}.webp`);
     try {
       await fs$1.writeFile(cachePath, thumbnailBuffer);
-      log("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
+      log$2("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
     } catch (e) {
-      logError("Failed to save to disk cache:", cacheKey, e);
+      logError$1("Failed to save to disk cache:", cacheKey, e);
     }
   }
   async generateImageThumbnail(filePath, deviceId, readFile, dimensions) {
     try {
-      log("Reading image file:", filePath, "deviceId:", deviceId);
+      log$2("Reading image file:", filePath, "deviceId:", deviceId);
       const readStartTime = Date.now();
       const fileBuffer = await readFile(deviceId, filePath);
-      log("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
-      log("Processing image with sharp, target dimensions:", dimensions);
+      log$2("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
+      log$2("Processing image with sharp, target dimensions:", dimensions);
       const processStartTime = Date.now();
       const result = await sharp(fileBuffer).resize(dimensions.width, dimensions.height, {
         fit: "cover",
         withoutEnlargement: true
       }).webp({ quality: 92 }).toBuffer();
-      log("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
+      log$2("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
       return result;
     } catch (e) {
-      logError("Failed to generate image thumbnail:", filePath, e);
+      logError$1("Failed to generate image thumbnail:", filePath, e);
       return null;
     }
   }
   async generateVideoThumbnail(filePath, deviceId, readFile, dimensions) {
     if (!ffmpeg) {
-      logError("ffmpeg not available, cannot generate video thumbnail");
+      logError$1("ffmpeg not available, cannot generate video thumbnail");
       return null;
     }
-    log("ffmpeg path:", ffmpeg);
+    log$2("ffmpeg path:", ffmpeg);
     try {
       if (deviceId === "local") {
-        log("Extracting video frame from local file:", filePath);
+        log$2("Extracting video frame from local file:", filePath);
         return await this.extractVideoFrameLocal(filePath, dimensions);
       }
       logWarn("Video thumbnail for remote files not yet supported, deviceId:", deviceId);
       return null;
     } catch (e) {
-      logError("Failed to generate video thumbnail:", filePath, e);
+      logError$1("Failed to generate video thumbnail:", filePath, e);
       return null;
     }
   }
   async extractVideoFrameLocal(filePath, dimensions) {
-    const { execFile } = require2("child_process");
+    const { execFile: execFile2 } = require2("child_process");
     const util = require2("util");
-    const execFileAsync = util.promisify(execFile);
+    const execFileAsync2 = util.promisify(execFile2);
     const tempDir = app.getPath("temp");
     const outputPath = path__default.join(tempDir, `thumb_${Date.now()}.webp`);
-    log("extractVideoFrameLocal - input:", filePath);
-    log("extractVideoFrameLocal - output:", outputPath);
-    log("extractVideoFrameLocal - dimensions:", dimensions);
+    log$2("extractVideoFrameLocal - input:", filePath);
+    log$2("extractVideoFrameLocal - output:", outputPath);
+    log$2("extractVideoFrameLocal - dimensions:", dimensions);
     try {
-      log("Attempting ffmpeg extraction at 1 second offset");
+      log$2("Attempting ffmpeg extraction at 1 second offset");
       const startTime = Date.now();
-      await execFileAsync(ffmpeg, [
+      await execFileAsync2(ffmpeg, [
         "-i",
         filePath,
         "-ss",
@@ -2466,19 +3101,19 @@ class ThumbnailService {
         "-y",
         outputPath
       ], { timeout: 1e4 });
-      log("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
+      log$2("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
       const buffer = await fs$1.readFile(outputPath);
-      log("Read thumbnail file, size:", buffer.length, "bytes");
+      log$2("Read thumbnail file, size:", buffer.length, "bytes");
       await fs$1.unlink(outputPath).catch(() => {
       });
-      log("Cleaned up temp file:", outputPath);
+      log$2("Cleaned up temp file:", outputPath);
       return buffer;
     } catch (firstError) {
       logWarn("ffmpeg extraction at 1s failed, trying at 0s:", firstError);
       try {
-        log("Attempting ffmpeg extraction at 0 second offset");
+        log$2("Attempting ffmpeg extraction at 0 second offset");
         const startTime = Date.now();
-        await execFileAsync(ffmpeg, [
+        await execFileAsync2(ffmpeg, [
           "-i",
           filePath,
           "-ss",
@@ -2490,42 +3125,113 @@ class ThumbnailService {
           "-y",
           outputPath
         ], { timeout: 1e4 });
-        log("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
+        log$2("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
         const buffer = await fs$1.readFile(outputPath);
-        log("Read thumbnail file, size:", buffer.length, "bytes");
+        log$2("Read thumbnail file, size:", buffer.length, "bytes");
         await fs$1.unlink(outputPath).catch(() => {
         });
-        log("Cleaned up temp file:", outputPath);
+        log$2("Cleaned up temp file:", outputPath);
         return buffer;
       } catch (secondError) {
-        logError("ffmpeg extraction at 0s also failed:", filePath, secondError);
+        logError$1("ffmpeg extraction at 0s also failed:", filePath, secondError);
         return null;
       }
     }
   }
   async clearCache() {
-    log("Clearing disk cache at:", this.cacheDir);
+    log$2("Clearing disk cache at:", this.cacheDir);
     try {
       await fs$1.emptyDir(this.cacheDir);
-      log("Disk cache cleared successfully");
+      log$2("Disk cache cleared successfully");
     } catch (e) {
-      logError("Failed to clear disk cache:", e);
+      logError$1("Failed to clear disk cache:", e);
     }
   }
   async getCacheSize() {
     let totalSize = 0;
     try {
       const files = await fs$1.readdir(this.cacheDir);
-      log("Calculating cache size, files count:", files.length);
+      log$2("Calculating cache size, files count:", files.length);
       for (const file of files) {
         const stat = await fs$1.stat(path__default.join(this.cacheDir, file));
         totalSize += stat.size;
       }
-      log("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
+      log$2("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
     } catch (e) {
-      logError("Failed to calculate cache size:", e);
+      logError$1("Failed to calculate cache size:", e);
     }
     return totalSize;
+  }
+}
+const execFileAsync = promisify(execFile);
+const LOG_PREFIX = "[ImageDecodeService]";
+function log$1(...args) {
+  console.log(LOG_PREFIX, ...args);
+}
+function logError(...args) {
+  console.error(LOG_PREFIX, ...args);
+}
+const DEFAULT_MAX_DIM = 2560;
+class ImageDecodeService {
+  constructor(deviceManager2) {
+    this.deviceManager = deviceManager2;
+  }
+  async decodeToRaster(deviceId, filePath, opts = {}) {
+    if (process.platform !== "darwin") {
+      throw new Error("Native image decode requires macOS (sips)");
+    }
+    const maxDim = Math.max(64, Math.min(opts.maxDim ?? DEFAULT_MAX_DIM, 8192));
+    const outFile = this.tempPath(".jpg");
+    const temps = [outFile];
+    try {
+      let inputFile;
+      if (deviceId === "local") {
+        inputFile = filePath;
+      } else {
+        const buffer = await this.deviceManager.readFile(deviceId, filePath);
+        const ext = path__default.extname(filePath) || ".bin";
+        inputFile = this.tempPath(ext);
+        temps.push(inputFile);
+        await fs$1.writeFile(inputFile, buffer);
+      }
+      await this.runSips(inputFile, outFile, maxDim);
+      const bytes = await fs$1.readFile(outFile);
+      log$1(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
+      return { buffer: bytes.toString("base64"), mime: "image/jpeg" };
+    } finally {
+      for (const t of temps) {
+        await fs$1.remove(t).catch(() => void 0);
+      }
+    }
+  }
+  /**
+   * -s format jpeg:       emit JPEG
+   * -s formatOptions 90:  quality 90
+   * -Z <maxDim>:          constrain longest side, preserve aspect, no upscale
+   */
+  async runSips(input, output, maxDim) {
+    try {
+      await execFileAsync("sips", [
+        "-s",
+        "format",
+        "jpeg",
+        "-s",
+        "formatOptions",
+        "90",
+        "-Z",
+        String(maxDim),
+        input,
+        "--out",
+        output
+      ]);
+    } catch (err) {
+      logError("sips failed for", input, err);
+      throw new Error(`Failed to decode image via sips: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  tempPath(ext) {
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return path__default.join(os.tmpdir(), `fileman-decode-${unique}${ext}`);
   }
 }
 const EOCD_SIG = 101010256;
@@ -2728,6 +3434,185 @@ function dosDateToIso(date, time) {
   const seconds = (time & 31) * 2;
   return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
 }
+const log = {
+  info: (message, ...args) => console.log(`[VolumeScanner] ${message}`, ...args),
+  error: (message, ...args) => console.error(`[VolumeScanner] ${message}`, ...args),
+  debug: (message, ...args) => console.log(`[VolumeScanner] DEBUG: ${message}`, ...args)
+};
+class VolumeScanner {
+  constructor(options = {}) {
+    this.scannerInterval = null;
+    this.currentVolumes = /* @__PURE__ */ new Map();
+    this.handlers = [];
+    this.options = {
+      scanInterval: 4e3,
+      volumesDir: "/Volumes",
+      ...options
+    };
+  }
+  /**
+   * 启动周期性扫描
+   */
+  start() {
+    if (this.scannerInterval) {
+      this.stop();
+    }
+    log.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
+    this.scan();
+    this.scannerInterval = setInterval(() => {
+      this.scan();
+    }, this.options.scanInterval);
+  }
+  /**
+   * 停止扫描
+   */
+  stop() {
+    if (this.scannerInterval) {
+      clearInterval(this.scannerInterval);
+      this.scannerInterval = null;
+      log.info("Volume scanner stopped");
+    }
+  }
+  /**
+   * 执行单次扫描
+   */
+  async scan() {
+    const volumes = [];
+    const added = [];
+    const removed = [];
+    try {
+      const detected = await this.detectVolumes();
+      volumes.push(...detected);
+    } catch (error) {
+      log.error("Volume scan error:", error);
+    }
+    const newIds = new Set(volumes.map((v) => v.id));
+    const oldIds = new Set(this.currentVolumes.keys());
+    for (const volume of volumes) {
+      if (!oldIds.has(volume.id)) {
+        added.push(volume);
+      }
+    }
+    for (const oldId of Array.from(oldIds)) {
+      if (!newIds.has(oldId)) {
+        removed.push(oldId);
+      }
+    }
+    if (added.length > 0) {
+      log.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
+    }
+    if (removed.length > 0) {
+      log.info("Volumes removed:", removed);
+    }
+    this.currentVolumes.clear();
+    for (const volume of volumes) {
+      this.currentVolumes.set(volume.id, volume);
+    }
+    if (added.length > 0 || removed.length > 0) {
+      this.notifyHandlers(volumes, added, removed);
+    }
+    return volumes;
+  }
+  /**
+   * 平台检测策略（可替换点）：枚举 /Volumes 下的可见挂载点。
+   * - 跳过隐藏项（以 '.' 开头，如 .timemachine）
+   * - 仅保留目录
+   */
+  async detectVolumes() {
+    const volumes = [];
+    let entries;
+    try {
+      entries = await fs$1.readdir(this.options.volumesDir, { withFileTypes: true });
+    } catch (error) {
+      log.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
+      return [];
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      if (!entry.isDirectory()) continue;
+      const mountPath = path__default.join(this.options.volumesDir, entry.name);
+      volumes.push({
+        id: mountPath,
+        name: entry.name,
+        mountPath,
+        isRemovable: true
+      });
+    }
+    return volumes;
+  }
+  /**
+   * 注册卷变化 handler，返回注销函数
+   */
+  onVolumeChange(handler) {
+    this.handlers.push(handler);
+    return () => {
+      const index = this.handlers.indexOf(handler);
+      if (index > -1) {
+        this.handlers.splice(index, 1);
+      }
+    };
+  }
+  /**
+   * 获取当前已检测到的卷（快照）
+   */
+  getVolumes() {
+    return Array.from(this.currentVolumes.values());
+  }
+  notifyHandlers(volumes, added, removed) {
+    for (const handler of this.handlers) {
+      try {
+        handler(volumes, added, removed);
+      } catch (error) {
+        log.error("Volume change handler error:", error);
+      }
+    }
+  }
+}
+class HostShellService {
+  /**
+   * 在系统终端中打开目录（macOS：新开 Terminal 窗口并 cd 进 dirPath）。
+   *
+   * 路径需双层转义：
+   *   1. shell 层 —— 用单引号包裹并把路径中的 `'` 转成 `'\''`（标准 POSIX 做法）；
+   *   2. AppleScript 层 —— 把上面的 shell 命令串里的 `\` 与 `"` 转义，
+   *      因为它是 osascript `-e` 的 do script 字符串内容。
+   * 用 execFile（不经 shell）传参，避免再叠加一层 shell 引号地狱。
+   *
+   * @param dirPath 要打开的本地目录绝对路径
+   * @throws 平台不支持或 osascript 调用失败时 reject（controller 转为 IPC 错误）
+   */
+  openInTerminal(dirPath) {
+    return new Promise((resolve, reject) => {
+      if (process.platform !== "darwin") {
+        reject(new Error(
+          `HostShellService.openInTerminal: platform "${process.platform}" not supported (macOS only for now)`
+        ));
+        return;
+      }
+      const normalized = path__default.resolve(dirPath);
+      console.log(`[HostShellService] Open in Terminal requested: "${normalized}"`);
+      const shellWord = `'${normalized.replace(/'/g, `'\\''`)}'`;
+      const shellCmd = `cd ${shellWord}`;
+      const appleString = shellCmd.replace(/\\/g, `\\\\`).replace(/"/g, `\\"`);
+      const script = `tell application "Terminal"
+activate
+do script "${appleString}"
+end tell`;
+      execFile("osascript", ["-e", script], (err, _stdout, stderr) => {
+        if (err) {
+          console.error(`[HostShellService] Failed to open Terminal at "${normalized}":`, err.message);
+          reject(new Error(`Failed to open Terminal at "${normalized}": ${err.message}`));
+          return;
+        }
+        if (stderr && stderr.trim()) {
+          console.warn(`[HostShellService] osascript stderr for "${normalized}": ${stderr.trim()}`);
+        }
+        console.log(`[HostShellService] Opened Terminal at "${normalized}"`);
+        resolve();
+      });
+    });
+  }
+}
 const isDev = !app.isPackaged;
 let mainWindow = null;
 const configService = new ConfigService();
@@ -2735,7 +3620,10 @@ const credentialService = new CredentialService();
 const deviceManager = new DeviceManager(configService, credentialService);
 const fileOperationManager = new FileOperationManager();
 const thumbnailService = new ThumbnailService();
+const imageDecodeService = new ImageDecodeService(deviceManager);
 const zipService = new ZipService();
+const volumeScanner = new VolumeScanner({ scanInterval: 4e3 });
+const hostShellService = new HostShellService();
 const ZIP_PATH_SEP = "::";
 function isZipVirtualPath(p) {
   return p.includes(ZIP_PATH_SEP);
@@ -2769,6 +3657,11 @@ function createWindow() {
       console.log("[Main] Pushing initial mobile devices to renderer:", currentMobileDevices.length);
       mainWindow.webContents.send("mobile:devicesChanged", currentMobileDevices);
     }
+    const currentVolumes = volumeScanner.getVolumes();
+    if (currentVolumes.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+      console.log("[Main] Pushing initial volumes to renderer:", currentVolumes.length);
+      mainWindow.webContents.send("volumes:changed", currentVolumes);
+    }
   });
   mainWindow.webContents.openDevTools({ mode: "right" });
   if (isDev) {
@@ -2781,18 +3674,16 @@ function createWindow() {
 ipcMain.handle("system:getHomeDir", () => {
   return os.homedir();
 });
+ipcMain.handle("shell:openInTerminal", async (_, dirPath) => {
+  return hostShellService.openInTerminal(dirPath);
+});
 ipcMain.handle("config:get", () => configService.getConfig());
 ipcMain.handle("config:save", (_, config) => configService.saveConfig(config));
 ipcMain.handle("device:list", () => {
   return deviceManager.getDevices();
 });
 ipcMain.handle("device:add", async (_, config, credentials) => {
-  const device = await deviceManager.addDevice(config, credentials);
-  const adapter = deviceManager.getAdapter(device.id);
-  if (adapter) {
-    fileOperationManager.registerAdapter(device.id, adapter);
-  }
-  return device;
+  return deviceManager.addDevice(config, credentials);
 });
 ipcMain.handle("device:update", async (_, deviceId, config, credentials) => {
   return deviceManager.updateDevice(deviceId, config, credentials);
@@ -2820,6 +3711,9 @@ ipcMain.handle("device:getCapabilities", (_, deviceId) => {
 });
 ipcMain.handle("device:canTransferBetween", (_, sourceDeviceId, targetDeviceId, operation) => {
   return deviceManager.canTransferBetween(sourceDeviceId, targetDeviceId, operation);
+});
+ipcMain.handle("device:pair", async (_, deviceId) => {
+  return deviceManager.pairDevice(deviceId);
 });
 ipcMain.handle("fs:list", async (_, deviceId, path2) => {
   return deviceManager.listFiles(deviceId, path2);
@@ -2888,21 +3782,22 @@ ipcMain.handle("fs:search", async (_, deviceId, path2, query) => {
   return deviceManager.search(deviceId, path2, query);
 });
 ipcMain.handle("fs:copyBetween", async (_, srcDeviceId, srcPaths, dstDeviceId, dstPath) => {
-  for (const srcPath of srcPaths) {
-    const buffer = await deviceManager.readFile(srcDeviceId, srcPath);
-    const fileName = srcPath.split("/").pop() || "file";
-    const targetPath = join(dstPath, fileName);
-    await deviceManager.writeFile(dstDeviceId, targetPath, buffer);
-  }
+  await fileOperationManager.addTaskAndWait({
+    type: "copy",
+    sourceDeviceId: srcDeviceId,
+    sourcePaths: srcPaths,
+    targetDeviceId: dstDeviceId,
+    targetPath: dstPath
+  });
 });
 ipcMain.handle("fs:moveBetween", async (_, srcDeviceId, srcPaths, dstDeviceId, dstPath) => {
-  for (const srcPath of srcPaths) {
-    const buffer = await deviceManager.readFile(srcDeviceId, srcPath);
-    const fileName = srcPath.split("/").pop() || "file";
-    const targetPath = join(dstPath, fileName);
-    await deviceManager.writeFile(dstDeviceId, targetPath, buffer);
-    await deviceManager.delete(srcDeviceId, srcPath);
-  }
+  await fileOperationManager.addTaskAndWait({
+    type: "move",
+    sourceDeviceId: srcDeviceId,
+    sourcePaths: srcPaths,
+    targetDeviceId: dstDeviceId,
+    targetPath: dstPath
+  });
 });
 ipcMain.handle("file-operation:create", async (_, params) => {
   return fileOperationManager.addTask(params);
@@ -2988,8 +3883,21 @@ ipcMain.handle("thumbnail:clearCache", async () => {
 ipcMain.handle("thumbnail:getCacheSize", async () => {
   return thumbnailService.getCacheSize();
 });
+ipcMain.handle("image:decodeNative", async (_, deviceId, filePath, opts) => {
+  const result = await imageDecodeService.decodeToRaster(deviceId, filePath, opts);
+  return result;
+});
+ipcMain.handle("volumes:list", () => {
+  return volumeScanner.getVolumes();
+});
+volumeScanner.onVolumeChange((volumes) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("volumes:changed", volumes);
+  }
+});
 app.whenReady().then(() => {
   createWindow();
+  volumeScanner.start();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

@@ -60,7 +60,7 @@ interface SearchQuery {
 
 interface DeviceConfig {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   host?: string
   port?: number
@@ -68,6 +68,7 @@ interface DeviceConfig {
   rootPath?: string
   share?: string
   domain?: string
+  url?: string
 }
 
 interface Credentials {
@@ -80,7 +81,7 @@ interface Credentials {
 
 interface Device {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   status: 'connected' | 'disconnected' | 'connecting'
   rootPath: string

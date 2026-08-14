@@ -127,22 +127,6 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-function getTypeIcon(type: string): string {
-  switch (type) {
-    case 'text':
-      return '📄'
-    case 'image':
-      return '🖼️'
-    case 'video':
-      return '🎬'
-    case 'audio':
-      return '🎵'
-    case 'pdf':
-      return '📕'
-    default:
-      return '📁'
-  }
-}
 </script>
 
 <style scoped>

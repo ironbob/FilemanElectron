@@ -59,13 +59,13 @@
           <span>SSH/SFTP Server</span>
         </div>
         <div
-          class="px-3 py-2 text-base text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-pointer flex items-center gap-2.5 transition-colors duration-100"
-          @click="addDevice('android')"
+          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover cursor-pointer flex items-center gap-2.5 transition-colors duration-100"
+          @click="addDevice('webdav')"
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16v14H4zM8 9h8M8 13h5" />
           </svg>
-          <span>Android Device</span>
+          <span>WebDAV (HTTP/HTTPS)</span>
         </div>
       </div>
     </div>
@@ -290,7 +290,7 @@ const isPreviewFullscreen = computed(() => previewStore.isFullscreen)
 
 const deviceDialog = reactive<{
   visible: boolean
-  type: 'smb' | 'ssh'
+  type: 'smb' | 'ssh' | 'webdav'
 }>({
   visible: false,
   type: 'smb'
@@ -419,6 +419,14 @@ const SshIcon = {
   }
 }
 
+const WebDAVIcon = {
+  render() {
+    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 5h16v14H4zM8 9h8M8 13h5' })
+    ])
+  }
+}
+
 const IosIcon = {
   render() {
     return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
@@ -443,6 +451,7 @@ function getDeviceIconComponent(type: string) {
     android: AndroidIcon,
     smb: SmbIcon,
     ssh: SshIcon,
+    webdav: WebDAVIcon,
     ios: IosIcon
   }
   return icons[type] || LocalIcon
@@ -454,6 +463,7 @@ function getDeviceIconColor(type: string): string {
     android: 'text-[#32d74b]',
     smb: 'text-[#ffaa33]',
     ssh: 'text-[#c084fc]',
+    webdav: 'text-[#64d2ff]',
     ios: 'text-[#0a84ff]'
   }
   return colors[type] || 'text-text-secondary'
@@ -475,14 +485,27 @@ function isActivePath(path: string): boolean {
   return tabsStore.activePane?.path === path
 }
 
-function selectDevice(device: Device) {
+async function selectDevice(device: Device) {
   // Exit fullscreen preview when navigating to a device
   if (previewStore.isFullscreen) {
     previewStore.closeFullscreen()
   }
-  if (tabsStore.activePane) {
+  const pane = tabsStore.activePane
+  if (!pane) return
+
+  try {
+    // 先完成远程设备连接，再同时切换 deviceId 与路径。此前这里仅改路径，
+    // 当 pane 停在 Android 等远程设备时，点击“本地”仍会用旧适配器发起 fs:list。
+    if (device.type !== 'local') {
+      await devicesStore.connectDevice(device.id)
+    }
+
     const rootPath = device.rootPath || '/'
-    tabsStore.navigatePane(tabsStore.activePane.id, rootPath)
+    pane.deviceId = device.id
+    tabsStore.navigatePane(pane.id, rootPath)
+  } catch (error) {
+    console.error('[AppSidebar] Failed to select device:', { deviceId: device.id, error })
+    alert(`无法连接 ${device.name}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -498,8 +521,7 @@ function navigateTo(path: string) {
 
 /**
  * 收藏夹是设备相关的（deviceId + path）。切换时把活动窗格的设备一并切到
- * 收藏项所属设备，再导航到路径。若该远程设备未连接，listFiles 会失败——
- * 用户需先在侧栏连接它（与 selectMobileDevice/selectVolume 的既有行为一致）。
+ * 收藏项所属设备，再导航到路径；主进程会按需建立尚未连接的适配器。
  */
 function isActiveFavorite(fav: Favorite): boolean {
   const p = tabsStore.activePane
@@ -536,8 +558,8 @@ function selectVolume(volume: Volume) {
   }
 }
 
-function addDevice(type: 'smb' | 'ssh' | 'android') {
-  deviceDialog.type = type === 'android' ? 'smb' : type
+function addDevice(type: 'smb' | 'ssh' | 'webdav') {
+  deviceDialog.type = type
   deviceDialog.visible = true
   showAddDeviceMenu.value = false
 }
@@ -548,25 +570,36 @@ function togglePreviewFullscreen() {
   }
 }
 
-async function handleDeviceConnect(config: { type: string; name: string; host: string; port?: number; username?: string; password?: string; share?: string }) {
-  // Add device to store
-  const deviceId = config.type + '-' + Date.now()
-  devicesStore.addDevice({
-    id: deviceId,
-    type: config.type as Device['type'],
-    name: config.name,
-    status: 'connecting',
-    rootPath: '/'
-  })
-
-  deviceDialog.visible = false
-
-  // Try to connect (placeholder - actual connection would be handled by main process)
+async function handleDeviceConnect(config: { type: 'smb' | 'ssh' | 'webdav'; name: string; host: string; url?: string; port?: number; username?: string; password?: string; share?: string }) {
+  const deviceId = `${config.type}-${Date.now()}`
+  let added = false
   try {
+    await devicesStore.addDeviceWithCredentials({
+      id: deviceId,
+      type: config.type,
+      name: config.name,
+      host: config.host,
+      url: config.url,
+      port: config.port,
+      share: config.share,
+      rootPath: '/'
+    }, {
+      username: config.username,
+      password: config.password
+    })
+    added = true
     await devicesStore.connectDevice(deviceId)
+    deviceDialog.visible = false
   } catch (error) {
     console.error('Failed to connect:', error)
-    devicesStore.updateDeviceStatus(deviceId, 'disconnected')
+    if (added) {
+      // The dialog is kept open for correction; do not leave an unusable,
+      // duplicate persisted connection behind after a failed first attempt.
+      await devicesStore.removeDeviceCompletely(deviceId).catch(() => {
+        devicesStore.updateDeviceStatus(deviceId, 'disconnected')
+      })
+    }
+    alert(`无法连接 ${config.name}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -575,15 +608,23 @@ async function handleDeviceConnect(config: { type: string; name: string; host: s
 /**
  * Select a mobile device
  */
-function selectMobileDevice(device: DetectedMobileDevice) {
+async function selectMobileDevice(device: DetectedMobileDevice) {
   // Exit fullscreen preview when navigating to a mobile device
   if (previewStore.isFullscreen) {
     previewStore.closeFullscreen()
   }
-  if (tabsStore.activePane) {
-    // Update the pane's deviceId and path
-    tabsStore.activePane.deviceId = device.id
-    tabsStore.navigatePane(tabsStore.activePane.id, '/')
+  const pane = tabsStore.activePane
+  if (!pane) return
+
+  try {
+    // 不在适配器建立前切换 pane，避免 FileList watch 立即以未连接的
+    // Android/iOS deviceId 发起 fs:list。
+    await devicesStore.connectDevice(device.id)
+    pane.deviceId = device.id
+    tabsStore.navigatePane(pane.id, '/')
+  } catch (error) {
+    console.error('[AppSidebar] Failed to select mobile device:', { deviceId: device.id, error })
+    alert(`无法连接 ${device.name}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -629,17 +670,6 @@ async function pairMobileDevice(deviceId: string) {
 function isConnected(deviceId: string): boolean {
   const device = devicesStore.getDevice(deviceId)
   return device?.status === 'connected'
-}
-
-/**
- * Remember a mobile device for auto-connect
- */
-async function rememberDevice(deviceId: string) {
-  try {
-    await devicesStore.rememberDevice(deviceId)
-  } catch (error) {
-    console.error('Failed to remember device:', error)
-  }
 }
 
 /**

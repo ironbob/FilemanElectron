@@ -9,6 +9,7 @@
           <select v-model="form.type" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded text-sm text-text-primary cursor-pointer focus:outline-none focus:border-accent-blue transition-colors">
             <option value="smb">SMB</option>
             <option value="ssh">SSH/SFTP</option>
+            <option value="webdav">WebDAV (HTTP/HTTPS)</option>
           </select>
         </div>
 
@@ -21,6 +22,14 @@
           <div class="flex items-center gap-2">
             <label class="text-sm w-20 text-text-secondary">Share:</label>
             <input v-model="form.share" type="text" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="shared_folder" />
+          </div>
+        </template>
+
+        <!-- WebDAV Fields -->
+        <template v-if="form.type === 'webdav'">
+          <div class="flex items-center gap-2">
+            <label class="text-sm w-20 text-text-secondary">URL:</label>
+            <input v-model="form.url" type="url" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="https://server.example.com/dav/" />
           </div>
         </template>
 
@@ -73,16 +82,18 @@
 import { reactive, computed } from 'vue'
 
 const props = defineProps<{
-  type?: 'smb' | 'ssh'
+  type?: 'smb' | 'ssh' | 'webdav'
 }>()
 
 const emit = defineEmits<{
   close: []
-  connect: [config: { type: string; name: string; host: string; port?: number; username?: string; password?: string; share?: string }]
+  connect: [config: { type: 'smb' | 'ssh' | 'webdav'; name: string; host: string; url?: string; port?: number; username?: string; password?: string; share?: string }]
 }>()
 
 const dialogTitle = computed(() => {
-  return props.type === 'smb' ? 'Add SMB Server' : 'Add SSH Server'
+  if (props.type === 'smb') return 'Add SMB Server'
+  if (props.type === 'ssh') return 'Add SSH/SFTP Server'
+  return 'Add WebDAV Server'
 })
 
 const form = reactive({
@@ -92,14 +103,28 @@ const form = reactive({
   port: 22,
   username: '',
   password: '',
-  share: ''
+  share: '',
+  url: ''
 })
 
 function handleConnect() {
+  if (form.type === 'smb' && (!form.host.trim() || !form.share.trim())) {
+    alert('请填写 SMB 主机地址和共享名称')
+    return
+  }
+  if (form.type === 'ssh' && !form.host.trim()) {
+    alert('请填写 SSH/SFTP 主机地址')
+    return
+  }
+  if (form.type === 'webdav' && !form.url.trim()) {
+    alert('请填写 WebDAV HTTP/HTTPS 地址')
+    return
+  }
   emit('connect', {
     type: form.type,
-    name: form.name || form.host,
+    name: form.name || form.host || form.url,
     host: form.host,
+    url: form.url,
     port: form.port,
     username: form.username,
     password: form.password,

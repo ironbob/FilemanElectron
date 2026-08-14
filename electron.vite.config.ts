@@ -13,8 +13,10 @@ export default defineConfig({
         external: [
           // Optional native dependencies - will be loaded at runtime if available
           '@aozp/smb2',
+          '@marsaud/smb2',
           'smb2',
           'ssh2',
+          'webdav',
           'adbkit',
           '@devicefarmer/adbkit'
         ]

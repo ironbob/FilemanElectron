@@ -109,14 +109,14 @@ export class SSHAdapter implements IFileSystemAdapter {
 
         const files: FileInfo[] = entries.map(entry => ({
           name: entry.filename,
-          path: path.join(dirPath, entry.filename),
+          path: path.posix.join(dirPath, entry.filename),
           isDirectory: entry.longname.startsWith('d'),
           isFile: !entry.longname.startsWith('d'),
           size: entry.attrs.size,
           modifiedTime: new Date(entry.attrs.mtime * 1000).toISOString(),
           createdTime: new Date(entry.attrs.atime * 1000).toISOString(),
           extension: !entry.longname.startsWith('d')
-            ? path.extname(entry.filename).toLowerCase()
+            ? path.posix.extname(entry.filename).toLowerCase()
             : undefined
         }))
 

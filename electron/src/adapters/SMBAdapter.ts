@@ -1,10 +1,8 @@
 import * as path from 'path'
+import SMB2 from '@marsaud/smb2'
+import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { SMB_CAPABILITIES, type DeviceCapabilities } from './capabilities'
-
-// Note: This is a placeholder implementation
-// Full SMB support requires the 'smb2' or '@aozp/smb2' package
-// which has native dependencies
 
 interface SMBConfig {
   host: string
@@ -19,9 +17,9 @@ export class SMBAdapter implements IFileSystemAdapter {
   readonly type = 'smb'
   readonly deviceId: string
   readonly name: string
-  private config: SMBConfig
+  private readonly config: SMBConfig
   private connected = false
-  private client: any = null
+  private client: SMB2 | null = null
 
   constructor(deviceId: string, name: string, config: SMBConfig) {
     this.deviceId = deviceId
@@ -33,37 +31,31 @@ export class SMBAdapter implements IFileSystemAdapter {
     return SMB_CAPABILITIES
   }
 
-  private smb2Package: any = null
-
   async connect(): Promise<void> {
+    if (!this.config.host || !this.config.share) {
+      throw new Error('SMB 连接需要主机地址和共享名称')
+    }
+    const client = new SMB2({
+      share: `\\\\${this.config.host}\\${this.config.share}`,
+      domain: this.config.domain || '',
+      username: this.config.username || '',
+      password: this.config.password || '',
+      port: this.config.port || 445
+    })
     try {
-      // Dynamic import to avoid errors if package not installed
-      const SMB2 = await import('@aozp/smb2').catch(() => null)
-
-      if (!SMB2) {
-        throw new Error('SMB package not installed. Run: npm install @aozp/smb2')
-      }
-
-      this.smb2Package = SMB2
-
-      this.client = new SMB2.default({
-        share: `\\\\${this.config.host}\\${this.config.share}`,
-        domain: this.config.domain || '',
-        username: this.config.username || '',
-        password: this.config.password || ''
-      })
-
+      // Authenticate and validate access to the share before marking connected.
+      await client.readdir('')
+      this.client = client
       this.connected = true
     } catch (error) {
-      this.connected = false
+      client.disconnect()
       throw error
     }
   }
 
   async disconnect(): Promise<void> {
-    if (this.client) {
-      this.client = null
-    }
+    this.client?.disconnect()
+    this.client = null
     this.connected = false
   }
 
@@ -71,133 +63,120 @@ export class SMBAdapter implements IFileSystemAdapter {
     return this.connected
   }
 
-  private ensureConnected(): void {
-    if (!this.connected || !this.client) {
-      throw new Error('SMB device not connected')
-    }
-  }
-
   async list(dirPath: string): Promise<FileInfo[]> {
-    this.ensureConnected()
-
-    const files: FileInfo[] = []
-
-    try {
-      const entries = await this.client.readdir(dirPath)
-
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.filename)
-        files.push({
-          name: entry.filename,
-          path: fullPath,
-          isDirectory: entry.isDirectory,
-          isFile: !entry.isDirectory,
-          size: entry.size || 0,
-          modifiedTime: entry.mtime?.toISOString() || new Date().toISOString(),
-          extension: !entry.isDirectory ? path.extname(entry.filename).toLowerCase() : undefined
-        })
+    const client = this.getClient()
+    const parent = this.remotePath(dirPath)
+    const entries = await client.readdir(parent, { stats: true })
+    return entries.map(entry => {
+      const isDirectory = entry.isDirectory()
+      return {
+        name: entry.name,
+        path: path.posix.join(this.displayPath(dirPath), entry.name),
+        isDirectory,
+        isFile: !isDirectory,
+        size: Number((entry as unknown as { size?: number }).size || 0),
+        modifiedTime: entry.mtime?.toISOString() || new Date(0).toISOString(),
+        createdTime: entry.birthtime?.toISOString() || entry.ctime?.toISOString(),
+        extension: isDirectory ? undefined : path.posix.extname(entry.name).toLowerCase()
       }
-    } catch (error) {
-      console.error('SMB list error:', error)
-    }
-
-    return files.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1
-      }
-      return a.name.localeCompare(b.name)
-    })
+    }).sort(sortDirectoriesFirst)
   }
 
   async mkdir(dirPath: string): Promise<void> {
-    this.ensureConnected()
-    await this.client.mkdir(dirPath)
+    await this.getClient().mkdir(this.remotePath(dirPath))
   }
 
   async rmdir(dirPath: string, recursive?: boolean): Promise<void> {
-    this.ensureConnected()
     if (recursive) {
-      // Need to recursively delete
-      const files = await this.list(dirPath)
-      for (const file of files) {
-        if (file.isDirectory) {
-          await this.rmdir(file.path, true)
-        } else {
-          await this.delete(file.path)
-        }
+      for (const file of await this.list(dirPath)) {
+        if (file.isDirectory) await this.rmdir(file.path, true)
+        else await this.delete(file.path)
       }
     }
-    await this.client.rmdir(dirPath)
+    await this.getClient().rmdir(this.remotePath(dirPath))
   }
 
   async readFile(filePath: string): Promise<Buffer> {
-    this.ensureConnected()
-    return this.client.readFile(filePath)
+    return this.getClient().readFile(this.remotePath(filePath))
   }
 
   async writeFile(filePath: string, data: Buffer): Promise<void> {
-    this.ensureConnected()
-    await this.client.writeFile(filePath, data)
+    await this.getClient().writeFile(this.remotePath(filePath), data)
   }
 
   async delete(targetPath: string): Promise<void> {
-    this.ensureConnected()
-    await this.client.unlink(targetPath)
+    await this.getClient().unlink(this.remotePath(targetPath))
   }
 
   async rename(oldPath: string, newPath: string): Promise<void> {
-    this.ensureConnected()
-    await this.client.rename(oldPath, newPath)
+    await this.getClient().rename(this.remotePath(oldPath), this.remotePath(newPath), { replace: true })
   }
 
   async copy(srcPath: string, dstPath: string): Promise<void> {
-    const content = await this.readFile(srcPath)
-    await this.writeFile(dstPath, content)
+    await this.writeFile(dstPath, await this.readFile(srcPath))
+  }
+
+  async openReadStream(filePath: string): Promise<Readable> {
+    return this.getClient().createReadStream(this.remotePath(filePath))
+  }
+
+  async openWriteStream(filePath: string): Promise<Writable> {
+    return this.getClient().createWriteStream(this.remotePath(filePath))
   }
 
   async stat(targetPath: string): Promise<FileStats> {
-    this.ensureConnected()
-    const stats = await this.client.stat(targetPath)
+    const stats = await this.getClient().stat(this.remotePath(targetPath))
+    const raw = stats as unknown as { size?: number; mode?: number }
     return {
-      size: stats.size,
+      size: Number(raw.size || 0),
       isDirectory: stats.isDirectory(),
-      isFile: stats.isFile(),
-      modifiedTime: stats.mtime?.toISOString() || new Date().toISOString(),
-      createdTime: stats.ctime?.toISOString() || new Date().toISOString(),
-      mode: stats.mode || 0
+      isFile: !stats.isDirectory(),
+      modifiedTime: stats.mtime?.toISOString() || new Date(0).toISOString(),
+      createdTime: stats.birthtime?.toISOString() || stats.ctime?.toISOString() || new Date(0).toISOString(),
+      mode: raw.mode || 0
     }
   }
 
   async exists(targetPath: string): Promise<boolean> {
-    try {
-      await this.stat(targetPath)
-      return true
-    } catch {
-      return false
-    }
+    return this.getClient().exists(this.remotePath(targetPath))
   }
 
   async search(dirPath: string, query: SearchQuery): Promise<FileInfo[]> {
     const results: FileInfo[] = []
-    const pattern = query.pattern.toLowerCase()
-
-    async function searchRecursive(adapter: SMBAdapter, currentPath: string): Promise<void> {
+    const pattern = query.pattern.toLocaleLowerCase()
+    const visit = async (currentPath: string): Promise<void> => {
+      let files: FileInfo[]
       try {
-        const files = await adapter.list(currentPath)
-        for (const file of files) {
-          if (file.name.toLowerCase().includes(pattern)) {
-            results.push(file)
-          }
-          if (file.isDirectory) {
-            await searchRecursive(adapter, file.path)
-          }
-        }
+        files = await this.list(currentPath)
       } catch {
-        // Skip inaccessible directories
+        return
+      }
+      for (const file of files) {
+        if (file.name.toLocaleLowerCase().includes(pattern)) results.push(file)
+        if (file.isDirectory) await visit(file.path)
       }
     }
-
-    await searchRecursive(this, dirPath)
+    await visit(dirPath)
     return results
   }
+
+  private getClient(): SMB2 {
+    if (!this.connected || !this.client) throw new Error('SMB 设备尚未连接')
+    return this.client
+  }
+
+  private remotePath(value: string): string {
+    const normalized = value.replace(/\//g, '\\').replace(/^\\+/, '')
+    return normalized
+  }
+
+  private displayPath(value: string): string {
+    const normalized = path.posix.normalize(value || '/')
+    return normalized.startsWith('/') ? normalized : `/${normalized}`
+  }
+}
+
+function sortDirectoriesFirst(a: FileInfo, b: FileInfo): number {
+  if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+  return a.name.localeCompare(b.name)
 }

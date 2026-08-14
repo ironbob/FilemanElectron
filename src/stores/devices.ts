@@ -4,7 +4,7 @@ import type { DeviceCapabilities } from '@/types/fileOperation'
 
 export interface Device {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   status: 'connected' | 'disconnected' | 'connecting'
   rootPath: string
@@ -14,7 +14,7 @@ export interface Device {
 
 export interface DeviceConfig {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   host?: string
   port?: number
@@ -22,6 +22,7 @@ export interface DeviceConfig {
   rootPath?: string
   share?: string
   domain?: string
+  url?: string
 }
 
 export interface Credentials {

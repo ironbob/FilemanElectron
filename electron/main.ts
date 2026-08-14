@@ -113,13 +113,9 @@ ipcMain.handle('device:list', (): Device[] => {
 })
 
 ipcMain.handle('device:add', async (_, config: DeviceConfig, credentials?: Credentials): Promise<Device> => {
-  const device = await deviceManager.addDevice(config, credentials)
-  // Register adapter for file operations
-  const adapter = deviceManager.getAdapter(device.id)
-  if (adapter) {
-    fileOperationManager.registerAdapter(device.id, adapter)
-  }
-  return device
+  // Remote adapters are intentionally created only on connection. Registering
+  // one here made every newly-added SMB/SSH device fail before it could connect.
+  return deviceManager.addDevice(config, credentials)
 })
 
 ipcMain.handle('device:update', async (_, deviceId: string, config: Partial<DeviceConfig>, credentials?: Credentials): Promise<void> => {

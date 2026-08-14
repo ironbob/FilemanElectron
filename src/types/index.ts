@@ -11,7 +11,7 @@ export interface FileInfo {
 
 export interface Device {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   status: 'connected' | 'disconnected' | 'connecting'
   rootPath?: string
@@ -71,6 +71,7 @@ export interface DeviceConfig {
   port?: number
   username?: string
   password?: string
+  url?: string
 }
 
 export interface Favorite {

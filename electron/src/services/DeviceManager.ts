@@ -4,6 +4,7 @@ import { LocalAdapter } from '../adapters/LocalAdapter'
 import { AndroidAdapter } from '../adapters/AndroidAdapter'
 import { SMBAdapter } from '../adapters/SMBAdapter'
 import { SSHAdapter } from '../adapters/SSHAdapter'
+import { WebDAVAdapter } from '../adapters/WebDAVAdapter'
 import { iOSAdapter, pairIosDevice } from '../adapters/iOSAdapter'
 import type { IFileSystemAdapter, FileInfo, FileStats, SearchQuery } from '../adapters/types'
 import type { DeviceCapabilities } from '../adapters/capabilities'
@@ -11,10 +12,11 @@ import { LOCAL_CAPABILITIES } from '../adapters/capabilities'
 import { MobileDeviceScanner, type DetectedDevice } from './MobileDeviceScanner'
 
 export type { DetectedDevice }
+export type { Credentials } from './CredentialService'
 
 export interface DeviceConfig {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   host?: string
   port?: number
@@ -23,6 +25,8 @@ export interface DeviceConfig {
   // SMB specific
   share?: string
   domain?: string
+  // WebDAV specific. The endpoint includes the protocol and optional port.
+  url?: string
 }
 
 export interface Device {
@@ -46,6 +50,7 @@ export class DeviceManager {
   private credentialService: CredentialService
   private mobileDeviceScanner: MobileDeviceScanner
   private autoConnectDevices: Set<string> = new Set()
+  private connectionAttempts: Map<string, Promise<void>> = new Map()
 
   constructor(configService: ConfigService, credentialService: CredentialService) {
     this.configService = configService
@@ -331,31 +336,43 @@ export class DeviceManager {
       throw new Error(`Device not found: ${deviceId}`)
     }
 
-    if (device.status === 'connected') {
+    if (device.status === 'connected' && this.adapters.has(deviceId)) {
       return
     }
 
-    this.updateDeviceStatus(deviceId, 'connecting')
+    const pending = this.connectionAttempts.get(deviceId)
+    if (pending) return pending
 
-    try {
-      // Get credentials
-      const credentials = await this.credentialService.get(deviceId)
+    const attempt = (async () => {
+      this.updateDeviceStatus(deviceId, 'connecting')
 
-      // Create adapter
-      const adapter = await this.createAdapter(device, credentials)
-      this.adapters.set(deviceId, adapter)
+      try {
+        // Get credentials
+        const credentials = await this.credentialService.get(deviceId)
 
-      // Connect
-      await adapter.connect()
+        // Create adapter
+        const adapter = await this.createAdapter(device, credentials)
+        this.adapters.set(deviceId, adapter)
 
-      device.status = 'connected'
-      this.notifyHandlers()
-    } catch (error) {
-      device.status = 'disconnected'
-      this.adapters.delete(deviceId)
-      this.notifyHandlers()
-      throw error
-    }
+        // Connect
+        await adapter.connect()
+
+        device.status = 'connected'
+        this.notifyHandlers()
+      } catch (error) {
+        const adapter = this.adapters.get(deviceId)
+        try { await adapter?.disconnect() } catch { /* 连接失败时仅清理本次会话 */ }
+        device.status = 'disconnected'
+        this.adapters.delete(deviceId)
+        this.notifyHandlers()
+        throw error
+      } finally {
+        this.connectionAttempts.delete(deviceId)
+      }
+    })()
+
+    this.connectionAttempts.set(deviceId, attempt)
+    return attempt
   }
 
   /**
@@ -459,6 +476,14 @@ export class DeviceManager {
           privateKey: credentials?.privateKey
         })
 
+      case 'webdav':
+        return new WebDAVAdapter(device.id, device.name, {
+          url: config.url || config.host || '',
+          username: credentials?.username || config.username,
+          password: credentials?.password,
+          rootPath: config.rootPath || '/'
+        })
+
       case 'ios':
         return new iOSAdapter(device.id, device.name, {
           deviceId: config.id
@@ -482,44 +507,60 @@ export class DeviceManager {
 
   // ============ File System Operations (proxied to adapters) ============
 
+  /**
+   * 文件请求的最后一道边界：已持久化的标签、IPC 或侧栏事件可能在适配器
+   * 尚未注册时访问设备。此处按需连接，避免直接向调用方泄露“无 adapter”。
+   */
+  private async getReadyAdapter(deviceId: string): Promise<IFileSystemAdapter> {
+    const adapter = this.adapters.get(deviceId)
+    if (adapter?.isConnected()) return adapter
+
+    await this.connectDevice(deviceId)
+    const connectedAdapter = this.adapters.get(deviceId)
+    if (!connectedAdapter?.isConnected()) {
+      throw new Error(`设备连接后仍不可用: ${deviceId}`)
+    }
+    return connectedAdapter
+  }
+
   async listFiles(deviceId: string, path: string): Promise<FileInfo[]> {
-    return this.getAdapter(deviceId).list(path)
+    return (await this.getReadyAdapter(deviceId)).list(path)
   }
 
   async getStats(deviceId: string, path: string): Promise<FileStats> {
-    return this.getAdapter(deviceId).stat(path)
+    return (await this.getReadyAdapter(deviceId)).stat(path)
   }
 
   async exists(deviceId: string, path: string): Promise<boolean> {
-    return this.getAdapter(deviceId).exists(path)
+    return (await this.getReadyAdapter(deviceId)).exists(path)
   }
 
   async mkdir(deviceId: string, path: string): Promise<void> {
-    return this.getAdapter(deviceId).mkdir(path)
+    return (await this.getReadyAdapter(deviceId)).mkdir(path)
   }
 
   async delete(deviceId: string, path: string): Promise<void> {
-    return this.getAdapter(deviceId).delete(path)
+    return (await this.getReadyAdapter(deviceId)).delete(path)
   }
 
   async rename(deviceId: string, oldPath: string, newPath: string): Promise<void> {
-    return this.getAdapter(deviceId).rename(oldPath, newPath)
+    return (await this.getReadyAdapter(deviceId)).rename(oldPath, newPath)
   }
 
   async readFile(deviceId: string, path: string): Promise<Buffer> {
-    return this.getAdapter(deviceId).readFile(path)
+    return (await this.getReadyAdapter(deviceId)).readFile(path)
   }
 
   async writeFile(deviceId: string, path: string, data: Buffer): Promise<void> {
-    return this.getAdapter(deviceId).writeFile(path, data)
+    return (await this.getReadyAdapter(deviceId)).writeFile(path, data)
   }
 
   async copy(deviceId: string, srcPath: string, dstPath: string): Promise<void> {
-    return this.getAdapter(deviceId).copy(srcPath, dstPath)
+    return (await this.getReadyAdapter(deviceId)).copy(srcPath, dstPath)
   }
 
   async search(deviceId: string, path: string, query: SearchQuery): Promise<FileInfo[]> {
-    return this.getAdapter(deviceId).search(path, query)
+    return (await this.getReadyAdapter(deviceId)).search(path, query)
   }
 
   /**

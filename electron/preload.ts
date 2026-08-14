@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer, shell } from 'electron'
 // Types for IPC communication
 export interface DeviceConfig {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'ios'
+  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   host?: string
   port?: number
@@ -11,6 +11,7 @@ export interface DeviceConfig {
   rootPath?: string
   share?: string
   domain?: string
+  url?: string
 }
 
 export interface Credentials {
