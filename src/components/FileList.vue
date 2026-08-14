@@ -30,6 +30,7 @@
 
       <!-- 虚拟滚动列表 -->
       <RecycleScroller
+        ref="listScrollerRef"
         class="flex-1 min-h-0"
         :items="displayedFiles"
         :item-size="LIST_ITEM_HEIGHT"
@@ -55,7 +56,12 @@
             />
             <component v-else :is="getFileIconComponent(file)" class="w-6 h-6" />
           </div>
-          <span class="flex-1 truncate text-base">{{ file.name }}</span>
+          <FileNameMatchLabel
+            class="flex-1 truncate text-base"
+            :name="file.name"
+            :highlight-indices="typeaheadHighlightFor(file)"
+            :selected="isSelected(file.path)"
+          />
           <span class="w-24 text-right text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
             {{ file.isDirectory ? '--' : formatSize(file.size) }}
           </span>
@@ -68,6 +74,7 @@
 
     <!-- Grid View: 按行分组虚拟滚动（支持大/中/小三档） -->
     <RecycleScroller
+      ref="gridScrollerRef"
       v-else-if="viewMode === 'grid'"
       class="flex-1 min-h-0 px-4 pt-4"
       :items="gridRows"
@@ -99,11 +106,12 @@
             />
             <component v-else :is="getFileIconComponent(file)" :class="gridCfg.iconClass" />
           </div>
-          <span
+          <FileNameMatchLabel
             :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary']"
-          >
-            {{ file.name }}
-          </span>
+            :name="file.name"
+            :highlight-indices="typeaheadHighlightFor(file)"
+            :selected="isSelected(file.path)"
+          />
         </div>
       </div>
     </RecycleScroller>
@@ -128,6 +136,7 @@
             v-for="file in column.files"
             :key="file.path"
             class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors duration-100"
+            :data-file-path="file.path"
             :class="[
               column.selectedPath === file.path ? 'bg-accent-blue text-white' : 'hover:bg-bg-hover text-text-primary',
               isSelected(file.path) && column.selectedPath !== file.path ? 'bg-accent-blue/30' : ''
@@ -136,12 +145,32 @@
             @dblclick="handleDoubleClick(file)"
           >
             <component :is="getFileIconComponent(file)" class="w-5 h-5 flex-shrink-0" />
-            <span class="flex-1 truncate text-base">{{ file.name }}</span>
+            <FileNameMatchLabel
+              class="flex-1 truncate text-base"
+              :name="file.name"
+              :highlight-indices="typeaheadHighlightFor(file)"
+              :selected="isSelected(file.path)"
+            />
             <svg v-if="file.isDirectory" class="w-4 h-4" :class="column.selectedPath === file.path ? 'text-white/70' : 'text-text-tertiary'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- This feedback lives in the content area so it does not compete with the filter field. -->
+    <div
+      v-if="typeahead.query.value"
+      class="pointer-events-none absolute inset-x-0 z-30 flex justify-center"
+      :class="viewMode === 'list' ? 'top-12' : 'top-3'"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="flex items-center gap-2 rounded-full border border-border bg-bg-secondary/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur">
+        <span class="max-w-48 truncate font-medium text-text-primary">{{ typeahead.query.value }}</span>
+        <span class="text-text-tertiary">{{ typeahead.matches.value.length ? `${typeahead.matches.value.length} match${typeahead.matches.value.length === 1 ? '' : 'es'}` : 'No matches' }}</span>
+        <span class="border-l border-border pl-2 text-text-tertiary">Esc clear</span>
       </div>
     </div>
 
@@ -230,6 +259,8 @@ import { useThumbnailStore } from '@/stores/thumbnail'
 import { useTabsStore } from '@/stores/tabs'
 import { useFavoritesStore } from '@/stores/favorites'
 import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
+import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
+import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
@@ -330,6 +361,8 @@ function perfLog(label: string, ...args: unknown[]) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const selectedFilesSet = computed(() => new Set(props.selectedFiles))
+const listScrollerRef = ref<{ scrollToItem?: (index: number) => void } | null>(null)
+const gridScrollerRef = ref<{ scrollToItem?: (index: number) => void } | null>(null)
 
 // ── 选择状态 ──────────────────────────────────────────────────────────────────
 // 锚点：最后一次不带 Shift 的点击项，供 Shift 范围选择使用
@@ -376,6 +409,37 @@ const displayedFiles = computed(() => {
       : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: 'base' })
     return sort.direction === 'asc' ? comparison : -comparison
   })
+})
+
+const typeahead = useTypeaheadLocator(() => displayedFiles.value)
+const typeaheadHighlights = computed(() => new Map(typeahead.matches.value.map(match => [match.file.path, match.highlightIndices])))
+
+function typeaheadHighlightFor(file: FileInfo): readonly number[] {
+  return typeaheadHighlights.value.get(file.path) ?? []
+}
+
+async function revealTypeaheadMatch(file: FileInfo) {
+  anchorPath.value = file.path
+  emit('select', [file.path])
+  const index = displayedFiles.value.findIndex(item => item.path === file.path)
+  if (index < 0) return
+
+  await nextTick()
+  if (props.viewMode === 'list') {
+    listScrollerRef.value?.scrollToItem?.(index)
+    return
+  }
+  if (props.viewMode === 'grid') {
+    gridScrollerRef.value?.scrollToItem?.(Math.floor(index / itemsPerRow.value))
+    return
+  }
+  const columnItem = Array.from(containerRef.value?.querySelectorAll<HTMLElement>('[data-file-path]') ?? [])
+    .find(element => element.dataset.filePath === file.path)
+  columnItem?.scrollIntoView({ block: 'nearest' })
+}
+
+watch(typeahead.activeMatch, match => {
+  if (match) void revealTypeaheadMatch(match.file)
 })
 
 function toggleSort(field: FileSortDescriptor['field']) {
@@ -607,20 +671,31 @@ onMounted(() => {
   }
   document.addEventListener('click', hideContextMenu)
   document.addEventListener('keydown', handleKeyDown)
+  document.addEventListener('compositionend', handleCompositionEnd)
 })
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
   document.removeEventListener('click', hideContextMenu)
   document.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('compositionend', handleCompositionEnd)
   // 确保 rubber-band 残留监听器被清理
   document.removeEventListener('mousemove', handleRubberBandMove)
   document.removeEventListener('mouseup', handleRubberBandUp)
 })
 
+function isTextEditingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null
+  return element?.tagName === 'INPUT' || element?.tagName === 'TEXTAREA' || !!element?.isContentEditable
+}
+
+function handleCompositionEnd(event: CompositionEvent) {
+  if (isTextEditingTarget(event.target)) return
+  typeahead.append(event.data)
+}
+
 function handleKeyDown(event: KeyboardEvent) {
-  const target = event.target as HTMLElement | null
-  if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
+  if (isTextEditingTarget(event.target)) return
   // Cmd/Ctrl + R: Refresh
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'r') {
     event.preventDefault()
@@ -654,11 +729,21 @@ function handleKeyDown(event: KeyboardEvent) {
     return
   }
 
+  if (event.key === 'Escape' && typeahead.query.value) {
+    event.preventDefault()
+    typeahead.clear()
+    return
+  }
+
   // Escape: Cancel rename
   if (event.key === 'Escape' && renameState.active) {
     event.preventDefault()
     cancelRename()
     return
+  }
+
+  if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.isComposing && event.key.length === 1) {
+    if (typeahead.append(event.key)) event.preventDefault()
   }
 }
 
@@ -707,6 +792,7 @@ watch(() => props.path, () => {
   thumbnailUrls.value.clear()
   pendingLoads.clear()
   anchorPath.value = null
+  typeahead.clear()
   // 切换目录时重置诊断计数
   _perf.selectCount = 0
   _perf.renderCallCount = 0

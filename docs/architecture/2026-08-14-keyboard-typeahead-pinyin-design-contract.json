@@ -1,0 +1,139 @@
+{
+  "feature": "keyboard-typeahead-pinyin",
+  "title": "文件键盘定位与拼音匹配",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-14",
+  "existing_alignment": {
+    "recognized_style": "Electron 渲染层采用 Vue 3 组件、本地 Composition API 状态和 Pinia；FilePane 拥有工具栏过滤词，FileList 拥有可见文件集合、选择和虚拟滚动。",
+    "new_code_follows": "沿用 FileList 的局部交互状态和 props/events 单向数据流；拼音匹配置于 utils，短生命周期输入缓冲置于 composable，不引入全局 store 或跨页 ViewModel。"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3",
+    "current_patterns": ["Redux/Store", "Direct View"],
+    "target_patterns": ["Redux/Store", "Direct View"],
+    "state_management": "FilePane 继续独占搜索过滤词；TabsStore 继续拥有选中项；FileList 拥有当前目录的定位输入、首个匹配项选择和滚动展示。",
+    "view_model_policy": "not_used",
+    "mvvm_suitability": "not_suitable",
+    "migration_impact": "low",
+    "impact_scope": ["FileList 局部键盘事件", "文件名展示组件", "拼音匹配工具"],
+    "migration_confirmation": "not_required",
+    "decision_reason": "该功能是同步且仅在文件列表存活期间存在的展示状态；创建 ViewModel 只会转发文本、首项匹配和滚动意图，不能形成独立且有价值的状态边界。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "FileList",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "捕获非编辑态键盘和输入法提交，选择并滚动首个匹配文件，同时渲染定位提示与安全高亮。",
+      "depends_on": ["ROLE-L02"],
+      "industry_basis": "Vue virtualized list component 与 Composition API 局部 feature state",
+      "design_principles": ["SRP", "separation_of_concerns", "dependency_direction"],
+      "code_units": ["src/components/FileList.vue"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "PinyinFileNameMatcher",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "将文件名和连续键盘输入转换为原文前缀或拼音前缀匹配结果。",
+      "depends_on": ["ROLE-D01"],
+      "industry_basis": "Adapter around pinyin-pro text matching API",
+      "design_principles": ["SRP", "DIP", "separation_of_concerns"],
+      "code_units": ["src/utils/pinyinFileNameMatcher.ts"]
+    },
+    {
+      "id": "ROLE-D01",
+      "name": "FileNameMatch",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "表达一次文件名匹配的目标、匹配策略与不可变高亮字符位置。",
+      "depends_on": [],
+      "industry_basis": "DDD value object",
+      "design_principles": ["value_object", "high_cohesion_low_coupling"],
+      "code_units": ["src/utils/pinyinFileNameMatcher.ts"]
+    }
+  ],
+  "design_contract_checks": [
+    {
+      "id": "DC-1",
+      "item": "工具栏搜索词只过滤文件；FileList 的键盘输入仅定位当前 displayedFiles，二者不共享缓冲。",
+      "principle": "separation_of_concerns",
+      "role_scope": ["ROLE-L01"]
+    },
+    {
+      "id": "DC-2",
+      "item": "FileList 只消费匹配结果并执行选择和滚动；拼音规则不得散落在列表、网格与分栏模板。",
+      "principle": "SRP",
+      "role_scope": ["ROLE-L01", "ROLE-L02"]
+    },
+    {
+      "id": "DC-3",
+      "item": "匹配结果以命名值对象传递高亮字符位置，展示组件不得插入未转义 HTML。",
+      "principle": "value_object",
+      "role_scope": ["ROLE-D01", "ROLE-L01"]
+    },
+    {
+      "id": "DC-4",
+      "item": "拼音库异常只在匹配器边界降级为无匹配并记录文件路径和查询上下文。",
+      "principle": "DIP",
+      "role_scope": ["ROLE-L02"]
+    }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "接收可定位字符或输入法提交",
+      "roles": ["ROLE-L01"],
+      "code_refs": ["src/components/FileList.vue:handleKeyDown", "src/components/FileList.vue:handleCompositionEnd"],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": "焦点位于输入框、文本区域或可编辑元素时不接管按键。"
+    },
+    {
+      "step": 2,
+      "name": "匹配当前可见文件名称",
+      "roles": ["ROLE-L01", "ROLE-L02", "ROLE-D01"],
+      "code_refs": ["src/composables/useTypeaheadLocator.ts", "src/utils/pinyinFileNameMatcher.ts:findFileNameMatches"],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "拼音库异常或无匹配时保留现有选择，只显示无匹配提示。"
+    },
+    {
+      "step": 3,
+      "name": "选择并滚动首个匹配项",
+      "roles": ["ROLE-L01"],
+      "code_refs": ["src/components/FileList.vue:revealTypeaheadMatch", "src/components/FileNameMatchLabel.vue"],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": "目标在当前排序集合中消失时不执行滚动。"
+    },
+    {
+      "step": 4,
+      "name": "清除短暂定位状态",
+      "roles": ["ROLE-L01"],
+      "code_refs": ["src/composables/useTypeaheadLocator.ts:clear", "src/components/FileList.vue:handleKeyDown"],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": "Esc 优先清除定位词；定位词为空时保留原有重命名取消行为。"
+    }
+  ],
+  "logging_standard": {
+    "library": "renderer console via existing log alias with structured context",
+    "key_nodes_instrumented": ["入口", "异常"]
+  },
+  "summary": {
+    "roles_count": 3,
+    "process_steps": 4,
+    "layer_roles": 2,
+    "domain_roles": 1
+  },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verdict": "go",
+    "notes": "用户已确认角色与交互位置。日志只记录拼音库边界异常，正常逐键定位不产生日志噪音；辅助脚本仅检查角色级代码单元，不将局部展示辅助文件作为独立架构角色。",
+    "issues": []
+  },
+  "open_questions": []
+}
