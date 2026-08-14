@@ -1,0 +1,39 @@
+{
+  "meta": {"mode": "create", "report": "report.md"},
+  "gates": [
+    {"name": "text-ui-confirmation", "status": "passed", "evidence": "Gate 0 confirmed exit 0；用户消息“确认”已记录为 DESC-01 的 user_confirmed evidence。"},
+    {"name": "blueprint", "status": "passed", "evidence": "Gate 1 exit 0；55 项通过，未声明的视觉尺寸已显式排除。"},
+    {"name": "coding-path", "status": "passed", "evidence": "change-assessment revision 3 exit 0；path=arch_first，用户已显式调用并确认架构。"},
+    {"name": "delivery", "status": "passed", "evidence": "Gate 2 exit 0；结构节点、交互状态、真实代码锚点和架构产物已对账。"}
+  ],
+  "render_diff": {
+    "status": "unavailable",
+    "reason": "没有参考截图，且本轮未取得可交互 Electron 窗口截图；不能把类型检查或构建结果作为视觉匹配证据。",
+    "result": "unverified",
+    "flag_ids": ["VISUAL-01"]
+  },
+  "self_check": [
+    {"dimension": "structure", "status": "passed", "evidence": "src/App.vue 继续按 activePanes 渲染 FilePane；tabs Store 只允许一或两个 Pane。"},
+    {"dimension": "entries", "status": "passed", "evidence": "确认口述没有声明独立按钮或菜单入口；blueprint.entries 为空且有结构化原因。"},
+    {"dimension": "dimensions", "status": "flagged", "evidence": "口述无尺寸或基准截图，不能验证面板比例、分隔条和工具栏的实际量测。", "flag_ids": ["VISUAL-01"]},
+    {"dimension": "style", "status": "flagged", "evidence": "无参考截图和 after 截图，不能验证颜色、字体、间距或拖放高亮的实际呈现。", "flag_ids": ["VISUAL-01"]},
+    {"dimension": "icons", "status": "passed", "evidence": "确认口述没有指定图标；blueprint.icons 为空且无需要对账的图标资源。"},
+    {"dimension": "states", "status": "passed", "evidence": "STATE-01 由 activePanes 实现双面板就绪；STATE-02 由 handleDragStart payload 与 App.handleDrop 的 copy 路由实现。"},
+    {"dimension": "a11y", "status": "passed", "evidence": "双栏开关包含 title、aria-label 与特殊视图 disabled 状态；FilePane 保留现有原生控件语义。"}
+  ],
+  "proportion_check": {
+    "reference_viewport": {"width_px": 1200, "height_px": 800},
+    "rendered_viewport": {"width_px": 1200, "height_px": 800},
+    "items": []
+  },
+  "tests": [
+    {"command": "npm run typecheck", "result": "passed", "evidence": "exit 0；vue-tsc --noEmit 无诊断。"},
+    {"command": "npm run build", "result": "passed", "evidence": "exit 0；electron-vite build 完成 main、preload 和 renderer。"},
+    {"command": "git diff --check", "result": "passed", "evidence": "exit 0；无空白错误。"},
+    {"command": "Electron 手动拖放验证", "result": "not_run", "evidence": "当前没有获取到可交互窗口截图；已在 VISUAL-01 中记录影响。"}
+  ],
+  "flags": [
+    {"id": "VISUAL-01", "priority": "P1", "reason": "缺少参考截图和实际 Electron 窗口渲染证据，视觉比例与拖放高亮尚未验证。", "next_action": "在 1200×800 默认窗口中打开双栏，分别从本地和远程目录拖入另一面板并保存截图。"}
+  ],
+  "waivers": []
+}

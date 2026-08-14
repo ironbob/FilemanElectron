@@ -2,6 +2,10 @@
   <div
     v-if="pane"
     class="finder-pane h-full flex flex-col overflow-hidden bg-bg-primary"
+    :class="{ 'ring-2 ring-inset ring-accent-blue bg-accent-blue/5': isDropTarget }"
+    @mousedown.capture="activatePane"
+    @dragenter.prevent="handleDragEnter"
+    @dragleave="handleDragLeave"
     @drop="handleDrop"
     @dragover.prevent
   >
@@ -316,6 +320,23 @@ const inlinePreviewFile = ref<FileInfo | null>(null)
 const inlinePreviewEnabled = ref(false)
 const previewWidth = ref(400) // Default preview width
 const isResizing = ref(false)
+const isDropTarget = ref(false)
+let dragDepth = 0
+
+function activatePane() {
+  tabsStore.setActivePane(props.paneId)
+}
+
+function handleDragEnter(event: DragEvent) {
+  if (!event.dataTransfer?.types.includes('application/json')) return
+  dragDepth += 1
+  isDropTarget.value = true
+}
+
+function handleDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) isDropTarget.value = false
+}
 
 function toggleInlinePreview() {
   inlinePreviewEnabled.value = !inlinePreviewEnabled.value
@@ -835,22 +856,9 @@ async function doRename(newName: string) {
   }
 }
 
-function handleDrop(event: DragEvent) {
-  if (event.dataTransfer) {
-    // Finder drops are handled by App.vue, which owns the target-pane routing.
-    // Do not try to parse native File data as the app's internal drag payload.
-    if (event.dataTransfer.files.length > 0) return
-
-    try {
-      const data = JSON.parse(event.dataTransfer.getData('application/json'))
-      handleOperation({
-        action: 'copy',
-        files: data.files,
-        target: pane.value?.path
-      })
-    } catch (e) {
-      console.error('Failed to parse drag data:', e)
-    }
-  }
+function handleDrop() {
+  // App.vue owns queue creation so a FilePane never duplicates a copy task.
+  dragDepth = 0
+  isDropTarget.value = false
 }
 </script>

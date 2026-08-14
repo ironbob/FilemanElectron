@@ -2,16 +2,17 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Tab, Pane, DirCompareSession, FileDiffSession, FileInfo, CompareStatus } from '@/types'
 
+const log = console
 const STORAGE_KEY = 'fileman-tabs-state'
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9)
 }
 
-function createDefaultPane(homePath: string = '/'): Pane {
+function createDefaultPane(homePath: string = '/', deviceId: string = 'local'): Pane {
   return {
     id: generateId(),
-    deviceId: 'local',
+    deviceId,
     path: homePath,
     history: [homePath],
     historyIndex: 0,
@@ -149,6 +150,29 @@ export const useTabsStore = defineStore('tabs', () => {
     if (activeTab.value) {
       activeTab.value.activePaneId = paneId
     }
+  }
+
+  /** Toggles a second directory pane for the active regular tab. */
+  function toggleActiveSplit(): boolean {
+    const tab = activeTab.value
+    if (!tab || tab.compareSession || tab.fileDiffSession || tab.panes.length < 1 || tab.panes.length > 2) {
+      return false
+    }
+
+    if (tab.panes.length === 1) {
+      const sourcePane = tab.panes[0]
+      const secondPane = createDefaultPane('/', sourcePane.deviceId)
+      tab.panes.push(secondPane)
+      tab.activePaneId = secondPane.id
+      log.info('[TabsStore] opened dual-pane workspace', { tabId: tab.id, deviceId: sourcePane.deviceId })
+      return true
+    }
+
+    const retainedPane = tab.panes[0]
+    tab.panes.splice(1)
+    tab.activePaneId = retainedPane.id
+    log.info('[TabsStore] closed dual-pane workspace', { tabId: tab.id, retainedPaneId: retainedPane.id })
+    return true
   }
 
   function navigatePane(paneId: string, newPath: string) {
@@ -350,6 +374,7 @@ export const useTabsStore = defineStore('tabs', () => {
     createTab,
     closeTab,
     setActivePane,
+    toggleActiveSplit,
     navigatePane,
     goBack,
     goForward,

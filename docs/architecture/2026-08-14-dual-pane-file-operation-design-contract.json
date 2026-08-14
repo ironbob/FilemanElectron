@@ -1,0 +1,251 @@
+{
+  "feature": "dual-pane-file-operation",
+  "title": "双目录文件操作",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-14",
+  "existing_alignment": {
+    "recognized_style": "Electron renderer 使用 Vue 3 Composition API 与 Pinia setup stores；Tab 持有 Pane 数组和活跃面板，文件复制由 fileOperations Store 经 preload IPC 排队，日志沿用结构化 console 调用。",
+    "new_code_follows": "在既有 tabs、App、FileList 和 FilePane 中进行局部扩展；保持 Pane 为目录浏览状态事实源，复制继续经 fileOperations Store，不新增路由、后端接口或名义 ViewModel。"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {
+        "name": "copy_correctness",
+        "priority": "high",
+        "scenario": "用户从远程或本地左侧面板拖动多个项目到右侧面板时，复制任务使用源面板的真实 deviceId 和文件路径。",
+        "acceptance": "拖放负载包含非空 deviceId；App 使用该值创建 copy 任务，不能回退为错误的 local 来源。"
+      },
+      {
+        "name": "state_consistency",
+        "priority": "high",
+        "scenario": "用户开启或关闭双栏后，活动标签中的面板数量和 activePaneId 保持可恢复且一致。",
+        "acceptance": "普通标签最多两个面板；activePaneId 始终指向该标签现存面板；比较和文件差异标签不参与拆分。"
+      },
+      {
+        "name": "maintainability",
+        "priority": "medium",
+        "scenario": "后续调整目录浏览或复制队列时，不需要维护第二套目录模型或复制实现。",
+        "acceptance": "双栏复用 Pane、FilePane 与 fileOperations Store；拆分规则集中在 tabs Store，拖放编码集中在 FileList。"
+      },
+      {
+        "name": "discoverability",
+        "priority": "medium",
+        "scenario": "单标签、单面板启动时，用户仍能发现并开启双目录工作区。",
+        "acceptance": "主工具栏始终显示双栏开关，不依赖仅在多标签时显示的标签栏。"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "ALT-1",
+        "summary": "扩展现有 tabs Store：向普通标签追加或移除第二个 Pane，并由 App 工具栏触发；既有 App 拖放路由继续创建复制任务。",
+        "strengths": ["复用现有 Pane 数据模型、持久化和 FilePane 渲染循环", "不复制文件操作队列和 IPC 逻辑", "改动局限在现有状态与展示边界"],
+        "weaknesses": ["tabs Store 同时需维护单栏和双栏的面板数量约束", "需要补齐 DataTransfer 中缺失的源设备字段"],
+        "risks": ["错误维护 activePaneId 会造成选择或状态栏指向不存在的面板", "错误的 source device 会使跨设备复制读取错误来源"]
+      },
+      {
+        "id": "ALT-2",
+        "summary": "新增独立 DualPaneWorkspace store 和容器组件，为双栏维护另一套目录状态后再调用现有队列。",
+        "strengths": ["双栏状态名称可独立于标签页", "新容器可隔离特定布局逻辑"],
+        "weaknesses": ["复制 Pane 的路径、历史、选择和持久化语义", "需要在新 store 与 tabs Store 之间同步活跃状态"],
+        "risks": ["两个状态事实源容易漂移", "新增容器和空壳 ViewModel 增加理解成本"]
+      }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "ALT-1 直接满足正确性、状态一致性和可维护性目标，并遵循现有 Pinia/Pane 边界；ALT-2 的隔离收益不足以抵消双重状态、持久化和导航同步风险。",
+    "top_down_check": "从用户流程推导为：工具栏切换双栏、两个独立目录面板、拖放携带来源、App 路由复制任务、队列反馈结果；每个步骤落在既有清晰边界内。",
+    "bottom_up_check": "现有 Tab 已包含 panes 和 activePaneId，App 已按 activePanes 渲染并路由内部拖放，FileList 已构造拖放 JSON，fileOperations 已提供 createCopyTask；所选方案只补足缺失连接。",
+    "risk_spikes": [],
+    "review": {
+      "mode": "user",
+      "reviewer": "用户",
+      "findings": "用户于 2026-08-14 明确确认扩展既有 tabs Store、复用现有复制队列且不引入 MVVM 的架构方案。",
+      "disposition": "按 ALT-1 实现。"
+    }
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Electron renderer",
+    "current_patterns": ["Direct View", "Redux/Store"],
+    "target_patterns": ["Direct View", "Redux/Store"],
+    "state_management": "tabs Store 是 Tab、Pane、activePaneId 的单一事实源；fileOperations Store 继续拥有复制队列；FilePane 仅持有短生命周期的拖放高亮。",
+    "view_model_policy": "not_used",
+    "mvvm_suitability": "not_suitable",
+    "migration_impact": "low",
+    "impact_scope": ["src/stores/tabs.ts", "src/App.vue", "src/components/AppTabBar.vue", "src/components/FileList.vue", "src/components/FilePane.vue", "src/types/fileOperation.ts", "src/stores/fileOperations.ts"],
+    "migration_confirmation": "not_required",
+    "decision_reason": "双栏功能围绕既有 Pinia 状态和少量局部视觉状态展开；新 ViewModel 只会代理 store action，不能缩小依赖或提升可测试性。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "TabsWorkspaceStore",
+      "role_kind": "layer",
+      "layer": "store",
+      "domain_role": null,
+      "responsibility": "维护普通标签的单双面板转换和 activePaneId 不变量。",
+      "hidden_secret": "第二面板的构造、关闭和持久化兼容规则。",
+      "change_triggers": ["双栏默认目录策略变化", "标签持久化结构变化", "面板数量上限变化"],
+      "data_owned": "tabs、activeTabId，以及每个普通 Tab 的 panes 和 activePaneId。",
+      "depends_on": [],
+      "industry_basis": "Pinia feature store 与 Vue 状态容器惯例。",
+      "design_principles": ["SRP", "information_hiding", "defensive_design"],
+      "code_units": ["src/stores/tabs.ts"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "DualPaneWorkspaceShell",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "呈现始终可达的双栏开关，并把跨面板投放转换为复制队列请求。",
+      "hidden_secret": "工具栏入口位置和拖放事件到目标面板的路由。",
+      "change_triggers": ["工作区开关布局变化", "放置目标识别规则变化", "复制动作反馈入口变化"],
+      "data_owned": "无持久状态；读取 tabs Store 和 fileOperations Store。",
+      "depends_on": ["ROLE-L01", "ROLE-L04", "ROLE-L05"],
+      "industry_basis": "Vue 页面组合组件与 props/events 单向数据流惯例。",
+      "design_principles": ["SRP", "separation_of_concerns", "dependency_direction"],
+      "code_units": ["src/App.vue", "src/components/AppTabBar.vue"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "InternalFileDragPayload",
+      "role_kind": "layer",
+      "layer": "mapper",
+      "domain_role": null,
+      "responsibility": "定义并序列化内部文件拖放的源面板、源设备和文件路径。",
+      "hidden_secret": "DataTransfer JSON 的字段兼容性和跨设备来源标识。",
+      "change_triggers": ["内部拖放协议字段变化", "拖放来源校验规则变化"],
+      "data_owned": "一次拖放事件的不可变 payload，无持久状态。",
+      "depends_on": [],
+      "industry_basis": "前端事件 DTO 与边界映射惯例。",
+      "design_principles": ["ISP", "defensive_design", "information_hiding"],
+      "code_units": ["src/types/fileOperation.ts", "src/components/FileList.vue"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "FileOperationQueueStore",
+      "role_kind": "layer",
+      "layer": "store",
+      "domain_role": null,
+      "responsibility": "接收明确的源与目标并创建可观测的文件复制队列任务。",
+      "hidden_secret": "复制任务到 preload IPC 和后台队列的调用细节。",
+      "change_triggers": ["复制任务参数变化", "冲突策略变化", "后台队列接口变化"],
+      "data_owned": "活动任务、历史任务和操作面板可见性。",
+      "depends_on": [],
+      "industry_basis": "Pinia application store 与应用服务编排惯例。",
+      "design_principles": ["SRP", "separation_of_concerns", "information_hiding"],
+      "code_units": ["src/stores/fileOperations.ts"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "FilePaneDropTarget",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "呈现单个目录面板的活跃态和短生命周期拖放目标反馈。",
+      "hidden_secret": "dragenter、dragleave 和 drop 的局部高亮生命周期。",
+      "change_triggers": ["投放反馈视觉变化", "面板活跃态交互变化"],
+      "data_owned": "当前组件实例的拖放高亮计数和活跃态呈现，不持久化。",
+      "depends_on": ["ROLE-L01"],
+      "industry_basis": "Vue feature component 与局部 presentation state 惯例。",
+      "design_principles": ["SRP", "separation_of_concerns", "high_cohesion_low_coupling"],
+      "code_units": ["src/components/FilePane.vue"]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IFC-1",
+      "name": "TabsWorkspaceStore.toggleActiveSplit",
+      "provider": "ROLE-L01",
+      "consumers": ["ROLE-L02", "ROLE-L05"],
+      "input": "无参数；使用当前 activeTab。",
+      "output": "boolean，表示是否完成普通标签的单双面板切换。",
+      "preconditions": ["当前存在非比较、非文件差异的 activeTab。"],
+      "postconditions": ["开启后 panes.length 为 2 且第二面板使用当前设备根目录。", "关闭后 panes.length 为 1 且 activePaneId 指向保留面板。"],
+      "invariants": ["普通标签的 panes.length 只能为 1 或 2。", "activePaneId 始终匹配当前标签中的 Pane。"],
+      "errors": ["特殊标签或没有活动标签时返回 false，不抛出异常；调用方不显示成功反馈。"],
+      "data_ownership": "Store 独占修改 tabs；调用方只读取结果。",
+      "transaction": "not_applicable",
+      "concurrency": "浏览器单线程状态更新；同一点击事件只执行一次切换。"
+    },
+    {
+      "id": "IFC-2",
+      "name": "InternalFileDragPayload.serialize",
+      "provider": "ROLE-L03",
+      "consumers": ["ROLE-L02"],
+      "input": "paneId、deviceId 和非空 files 路径数组。",
+      "output": "application/json DataTransfer 文本。",
+      "preconditions": ["发起拖放的文件属于指定 paneId，deviceId 非空。"],
+      "postconditions": ["解析结果保留相同 paneId、deviceId 和文件路径顺序。"],
+      "invariants": ["内部拖放 payload 必含 source deviceId，不能默认为 local。"],
+      "errors": ["JSON 解析失败时 App 记录错误并不创建复制任务。"],
+      "data_ownership": "payload 在 DataTransfer 生命周期内只读；FileList 不保存副本。",
+      "transaction": "not_applicable",
+      "concurrency": "每个 drop 事件至多解析并创建一个复制任务。"
+    },
+    {
+      "id": "IFC-3",
+      "name": "FileOperationQueueStore.createCopyTask",
+      "provider": "ROLE-L04",
+      "consumers": ["ROLE-L02"],
+      "input": "sourceDeviceId、sourcePaths、targetDeviceId、targetPath 和既有 conflictStrategy。",
+      "output": "排队的 FileOperationTask。",
+      "preconditions": ["来源和目标 Pane 存在，sourcePaths 非空，目标不是来源 Pane 本身。"],
+      "postconditions": ["队列收到 type=copy 的任务并显示任务面板。"],
+      "invariants": ["跨面板拖放始终复制，不因 Alt 键改为移动。"],
+      "errors": ["队列或 IPC 失败时沿用现有任务失败状态；App 记录带来源和目标上下文的错误。"],
+      "data_ownership": "调用方传递不可变路径快照；任务及进度归 fileOperations Store 所有。",
+      "transaction": "后台队列负责任务事务；UI 不直接写文件。",
+      "concurrency": "每个拖放创建独立任务；队列负责并发和取消语义。"
+    }
+  ],
+  "design_contract_checks": [
+    {"id": "DC-1", "item": "双栏面板状态只在 tabs Store 修改；View 不复制或持久化 Pane。", "principle": "separation_of_concerns", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L05"]},
+    {"id": "DC-2", "item": "拆分和关闭后必须保持最多两个面板及有效 activePaneId。", "principle": "defensive_design", "role_scope": ["ROLE-L01"]},
+    {"id": "DC-3", "item": "内部拖放协议必须传递 source deviceId，App 不以 local 作为内部拖放的默认来源。", "principle": "defensive_design", "role_scope": ["ROLE-L02", "ROLE-L03"]},
+    {"id": "DC-4", "item": "App 只路由复制请求，文件写入和队列状态继续由 fileOperations Store 负责。", "principle": "dependency_direction", "role_scope": ["ROLE-L02", "ROLE-L04"]},
+    {"id": "DC-5", "item": "FilePane 的拖放高亮仅为组件局部状态，不进入共享 Store。", "principle": "high_cohesion_low_coupling", "role_scope": ["ROLE-L05"]}
+  ],
+  "business_process": [
+    {"step": 1, "name": "切换双目录工作区", "roles": ["ROLE-L02", "ROLE-L01"], "code_refs": ["src/App.vue:toggleActiveSplit", "src/stores/tabs.ts:toggleActiveSplit"], "doc_ref": "业务流程图-步骤1", "exception": "活动标签为比较或文件差异视图时不切换。"},
+    {"step": 2, "name": "开始携带来源设备的文件拖放", "roles": ["ROLE-L03"], "code_refs": ["src/components/FileList.vue:handleDragStart", "src/types/fileOperation.ts:InternalFileDragPayload"], "doc_ref": "业务流程图-步骤2", "exception": "没有 DataTransfer 时不创建内部拖放 payload。"},
+    {"step": 3, "name": "高亮另一目录面板作为复制目标", "roles": ["ROLE-L05", "ROLE-L01"], "code_refs": ["src/components/FilePane.vue:handleDragEnter", "src/components/FilePane.vue:handleDragLeave"], "doc_ref": "业务流程图-步骤3", "exception": "离开或放置后清除局部高亮；同一面板不是复制目标。"},
+    {"step": 4, "name": "路由跨面板投放为复制任务", "roles": ["ROLE-L02", "ROLE-L04"], "code_refs": ["src/App.vue:handleDrop", "src/stores/fileOperations.ts:createCopyTask"], "doc_ref": "业务流程图-步骤4", "exception": "payload 非法或目标 Pane 缺失时记录错误且不创建任务。"}
+  ],
+  "logging_standard": {
+    "library": "browser console",
+    "key_nodes_instrumented": ["入口", "异常"]
+  },
+  "verification": {
+    "commands": [
+      {"command": "npm run typecheck", "result": "通过（实现后）", "evidence": "2026-08-14 exit 0，vue-tsc --noEmit 无诊断。", "status": "passed"},
+      {"command": "npm run build", "result": "通过（实现后）", "evidence": "2026-08-14 exit 0，electron-vite build 完成 main、preload 和 renderer bundle。", "status": "passed"},
+      {"command": "git diff --check", "result": "通过", "evidence": "2026-08-14 exit 0，无空白错误。", "status": "passed"}
+    ],
+    "checks": [
+      {"target": "双栏状态不变量", "method": "static_check", "evidence": "src/stores/tabs.ts:toggleActiveSplit 限制 panes 为一或两个，关闭时将 activePaneId 设为保留 Pane。", "status": "passed"},
+      {"target": "跨设备拖放来源", "method": "manual_review", "evidence": "src/components/FileList.vue:handleDragStart 写入 deviceId；src/App.vue:handleDrop 仅以 payload deviceId 调用 createCopyTask。", "status": "passed"},
+      {"target": "复制任务只创建一次", "method": "manual_review", "evidence": "src/components/FilePane.vue:handleDrop 只清理高亮；src/App.vue:handleDrop 是唯一创建内部 copy 任务的位置。", "status": "passed"},
+      {"target": "复制队列关键日志", "method": "static_check", "evidence": "src/stores/fileOperations.ts:createCopyTask 在入口、任务创建成功和异常路径记录来源、目标及错误上下文。", "status": "passed"}
+    ],
+    "unverified": [
+      {"item": "真实 Electron 窗口中的鼠标拖放与高亮动画", "impact": "静态检查不能证明原生拖放事件时序和视觉反馈。", "follow_up": "构建完成后在本地 Electron 窗口手动拖放远程和本地目录。"}
+    ]
+  },
+  "summary": {"roles_count": 5, "interfaces_count": 3, "process_steps": 4, "verification_checks": 4, "layer_roles": 5, "domain_roles": 0},
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [
+      {"gate": "architecture", "severity": "minor", "role_or_step": "ROLE-L01", "problem": "职责单一和依赖合理性由人工语义复核；辅助脚本不执行 AST 级分析。", "evidence": "辅助校验未覆盖（语义项）。"},
+      {"gate": "verification", "severity": "minor", "role_or_step": "unverified", "problem": "真实 Electron 窗口中的拖放事件时序和视觉高亮没有自动化证据。", "evidence": "类型检查和生产构建仅覆盖静态与打包路径。"}
+    ],
+    "notes": "用户已确认架构。四道门以真实代码文件、流程锚点、类型检查、构建和复制队列日志复核；职责单一、依赖合理性和原生拖放视觉时序仍需人工语义或窗口级复核。领域角色经审查未采用，因为本功能不新增文件复制、冲突处理或队列业务规则。"
+  },
+  "open_questions": [
+    {"question": "真实 Electron 窗口的拖放视觉反馈尚无自动化浏览器或端到端测试证据。", "impact": "无法仅凭类型检查证明 dragenter、dragleave 和 drop 的原生时序。", "next_stage": "构建后进行本地窗口手动验证，并保留结果。"}
+  ]
+}

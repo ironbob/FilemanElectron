@@ -38,6 +38,19 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
         </button>
+
+        <button
+          class="toolbar-btn-enhanced"
+          :class="{ active: activePanes.length === 2 }"
+          :disabled="!!activeTab?.compareSession || !!activeTab?.fileDiffSession"
+          @click="tabsStore.toggleActiveSplit()"
+          title="Toggle Dual Pane"
+          aria-label="Toggle Dual Pane"
+        >
+          <svg class="w-4 h-4" :class="activePanes.length === 2 ? 'text-accent-blue' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 012-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+          </svg>
+        </button>
         
         <!-- Settings Button -->
         <button
@@ -163,6 +176,7 @@ import { useDevicesStore } from './stores/devices'
 import { useFileOperationsStore } from './stores/fileOperations'
 import { usePreviewStore } from './stores/preview'
 import { getParentPath } from './utils/path'
+import type { InternalFileDragPayload } from './types/fileOperation'
 
 const log = console
 const previewStore = usePreviewStore()
@@ -272,39 +286,68 @@ const statusText = computed(() => {
   return 'Ready'
 })
 
+function parseInternalFileDragPayload(value: string): InternalFileDragPayload | null {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!parsed || typeof parsed !== 'object') return null
+
+    const payload = parsed as Record<string, unknown>
+    if (
+      typeof payload.paneId !== 'string' ||
+      typeof payload.deviceId !== 'string' ||
+      payload.deviceId.length === 0 ||
+      !Array.isArray(payload.files) ||
+      payload.files.length === 0 ||
+      !payload.files.every(file => typeof file === 'string')
+    ) {
+      return null
+    }
+
+    return {
+      paneId: payload.paneId,
+      deviceId: payload.deviceId,
+      files: payload.files
+    }
+  } catch {
+    return null
+  }
+}
+
 async function handleDrop(event: DragEvent, targetPaneId: string) {
   event.preventDefault()
   if (event.dataTransfer) {
-    // Preserve the app's own copy/move semantics first. A native local-file
-    // drag can also expose File objects, but its application payload retains
-    // Alt-to-move behaviour when dropped into another app pane.
     const internalDragData = event.dataTransfer.getData('application/json')
     if (internalDragData) {
+      const data = parseInternalFileDragPayload(internalDragData)
+      if (!data) {
+        console.error('[DualPaneWorkspace] Rejected invalid internal drag payload', { targetPaneId })
+        return
+      }
+
+      if (data.paneId === targetPaneId) return
+
+      const targetPane = tabsStore.findPane(targetPaneId)
+      if (!targetPane) {
+        console.error('[DualPaneWorkspace] Drop target pane was not found', { targetPaneId })
+        return
+      }
+
       try {
-        const data = JSON.parse(internalDragData)
-        if (data.paneId !== targetPaneId) {
-          const targetPane = tabsStore.findPane(targetPaneId)
-          if (targetPane) {
-            if (event.altKey) {
-              fileOpsStore.createMoveTask(
-                data.deviceId || 'local',
-                data.files,
-                targetPane.deviceId,
-                targetPane.path
-              )
-            } else {
-              fileOpsStore.createCopyTask(
-                data.deviceId || 'local',
-                data.files,
-                targetPane.deviceId,
-                targetPane.path
-              )
-            }
-            fileOpsStore.showPanel()
-          }
-        }
+        await fileOpsStore.createCopyTask(
+          data.deviceId,
+          data.files,
+          targetPane.deviceId,
+          targetPane.path
+        )
+        fileOpsStore.showPanel()
       } catch (error) {
-        console.error('Failed to handle internal drop:', error)
+        console.error('[DualPaneWorkspace] Failed to queue internal copy', {
+          sourcePaneId: data.paneId,
+          sourceDeviceId: data.deviceId,
+          targetPaneId,
+          targetDeviceId: targetPane.deviceId,
+          error
+        })
       }
       return
     }

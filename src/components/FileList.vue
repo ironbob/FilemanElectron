@@ -257,7 +257,7 @@
 import { ref, onMounted, watch, computed, reactive, h, type Component, onUnmounted, nextTick } from 'vue'
 import type { FileInfo, Column } from '@/types'
 import type { FileSortDescriptor } from '@/types/fileBrowser'
-import type { DeviceCapabilities } from '@/types/fileOperation'
+import type { DeviceCapabilities, InternalFileDragPayload } from '@/types/fileOperation'
 import { useDevicesStore } from '@/stores/devices'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { useTabsStore } from '@/stores/tabs'
@@ -1100,8 +1100,9 @@ function handleRubberBandUp(e: MouseEvent) {
 
 function handleDragStart(file: FileInfo, event: DragEvent) {
   if (event.dataTransfer) {
-    const dragData = {
+    const dragData: InternalFileDragPayload = {
       paneId: props.paneId,
+      deviceId: props.deviceId,
       files: isSelected(file.path) ? props.selectedFiles : [file.path]
     }
     event.dataTransfer.setData('application/json', JSON.stringify(dragData))

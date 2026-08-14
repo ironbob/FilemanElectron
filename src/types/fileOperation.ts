@@ -83,3 +83,10 @@ export interface CreateTaskParams {
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
 }
+
+/** Serialized into DataTransfer for file drags that stay inside the app. */
+export interface InternalFileDragPayload {
+  paneId: string
+  deviceId: string
+  files: string[]
+}

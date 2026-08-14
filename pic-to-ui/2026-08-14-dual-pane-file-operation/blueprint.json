@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "mode": "create",
+    "platform": "macOS desktop",
+    "framework": "Electron + Vue 3",
+    "screen_job": "让用户在同一工作区并排浏览两个目录，并通过拖放将文件或文件夹复制到另一侧目录。",
+    "scope": "single_screen",
+    "source_inputs": [
+      {"id": "DESC-01", "type": "verbal"}
+    ],
+    "text_ui_guard": {
+      "manifest": "text-ui-manifest.json",
+      "result": "user_confirmed",
+      "confirmed_input_ids": ["DESC-01"],
+      "confirmation_evidence": "用户消息：确认（2026-08-14，确认 DESC-01 双目录文件操作界面文本图）"
+    }
+  },
+  "structure_skeleton": {
+    "node_id": "N1",
+    "kind": "screen",
+    "children": [
+      {
+        "node_id": "N2",
+        "kind": "dual_pane_workspace",
+        "children": [
+          {
+            "node_id": "N3",
+            "kind": "directory_pane",
+            "children": [
+              {"node_id": "N4", "kind": "directory_navigation"},
+              {"node_id": "N5", "kind": "directory_content_list"}
+            ]
+          },
+          {"node_id": "N6", "kind": "split_divider"},
+          {
+            "node_id": "N7",
+            "kind": "directory_pane",
+            "children": [
+              {"node_id": "N8", "kind": "directory_navigation"},
+              {"node_id": "N9", "kind": "directory_content_list"}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "entries": [],
+  "icons": [],
+  "key_dimensions": [],
+  "states": [
+    {
+      "id": "STATE-01",
+      "kind": "dual_pane_ready",
+      "source": "input",
+      "input_anchor": "DESC-01:在一个界面中看到两个目录的内容"
+    },
+    {
+      "id": "STATE-02",
+      "kind": "drag_copy",
+      "source": "input",
+      "input_anchor": "DESC-01:可以互相之间拖动复制文件"
+    }
+  ],
+  "bitmaps": [],
+  "empty_reasons": {
+    "entries": "确认口述只明确要求目录内容之间的拖放复制，没有指定独立按钮、菜单、标签或可点击图标；拖放行为由 STATE-02 表示。",
+    "icons": "确认口述没有指定任何图标的语义、样式或位置；文本图中的导航和工具栏图标均明确标为 unspecified，不能作为既定输入事实。",
+    "key_dimensions": "确认口述没有提供可量取的尺寸、比例或基准截图；两个面板和分隔条的尺寸只能作为实现策略，不能伪造为输入事实。"
+  }
+}

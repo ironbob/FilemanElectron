@@ -1,0 +1,28 @@
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [unspecified: app title / window controls]       双目录文件操作界面        [unspecified: toolbar actions]      │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────────────────────────────┐  ┌────────────────────────────────────────────────────────┐ │
+│ │ 左侧目录                                     │  │ 右侧目录                                               │ │
+│ │ ┌──────────────────────────────────────────┐ │  │ ┌────────────────────────────────────────────────────┐ │ │
+│ │ │ [icon:back] [icon:forward] [icon:up]     │ │  │ │ [icon:back] [icon:forward] [icon:up]               │ │ │
+│ │ │ [unspecified: left directory path field] │ │  │ │ [unspecified: right directory path field]          │ │ │
+│ │ └──────────────────────────────────────────┘ │  │ └────────────────────────────────────────────────────┘ │ │
+│ │                                              │  │                                                        │ │
+│ │ ┌──────────────────────────────────────────┐ │  │ ┌────────────────────────────────────────────────────┐ │ │
+│ │ │ [icon:folder] [text: directory item]     │ │  │ │ [icon:folder] [text: directory item]               │ │ │
+│ │ │ [icon:file]   [text: file item]          │ │  │ │ [icon:file]   [text: file item]                    │ │ │
+│ │ │ [icon:file]   [text: file item]          │ │  │ │ [icon:file]   [text: file item]                    │ │ │
+│ │ │                                          │ │  │ │                                                    │ │ │
+│ │ │ [unspecified: list/grid layout, columns, │ │  │ │ [unspecified: list/grid layout, columns,           │ │ │
+│ │ │  sorting, selection and empty state]     │ │  │ │  sorting, selection and empty state]               │ │ │
+│ │ └──────────────────────────────────────────┘ │  │ └────────────────────────────────────────────────────┘ │ │
+│ └──────────────────────────────────────────────┘  └────────────────────────────────────────────────────────┘ │
+│                                                                                                              │
+│ [interaction: drag a file or folder from either directory pane and drop it into the other pane to copy]      │
+│ [unspecified: drag-over indication, copy conflict prompt, progress/error feedback, keyboard alternatives]    │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Notes:
+- 原始口述：现在规划app方便在两个窗口操作文件的功能。预期可以在一个界面中看到两个目录的内容，可以互相之间拖动复制文件。使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 进行交互和界面设计。
+- 本图将“两 个窗口”理解为同一应用界面内并排的两个目录面板；是否为两个独立系统窗口未明确。
+- 文件项名称、文件元数据、工具栏、路径控件样式及拖拽复制的反馈状态均未指定。

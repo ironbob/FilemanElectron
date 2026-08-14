@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "architecture_guard": {
+      "mode": "arch_first",
+      "assessment": "change-assessment.json",
+      "assessment_revision": 3,
+      "skill": "arch-first-code-gen",
+      "invocation": "same_agent",
+      "confirmation_mode": "user_confirmed",
+      "result": "passed",
+      "design_contract": "docs/architecture/2026-08-14-dual-pane-file-operation-design-contract.json",
+      "architecture_doc": "docs/architecture/2026-08-14-dual-pane-file-operation-arch.md",
+      "validation_evidence": "用户明确确认架构；design contract、architecture document 与 strict four-gate validation 通过。"
+    },
+    "change_scope": {
+      "production_files": [
+        "src/stores/tabs.ts",
+        "src/App.vue",
+        "src/components/AppTabBar.vue",
+        "src/components/FileList.vue",
+        "src/components/FilePane.vue",
+        "src/types/fileOperation.ts",
+        "src/stores/fileOperations.ts"
+      ],
+      "assessment_revision": 3
+    }
+  },
+  "entries": [],
+  "icons": [],
+  "structure_nodes": [
+    {"node_id": "N1", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "finder-shell"}},
+    {"node_id": "N2", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "activePanes"}},
+    {"node_id": "N3", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "FilePane"}},
+    {"node_id": "N4", "status": "delivered", "code_anchor": {"file": "src/components/FilePane.vue", "widget": "finder-pane-toolbar"}},
+    {"node_id": "N5", "status": "delivered", "code_anchor": {"file": "src/components/FilePane.vue", "widget": "FileList"}},
+    {"node_id": "N6", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "last:border-r-0"}},
+    {"node_id": "N7", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "FilePane"}},
+    {"node_id": "N8", "status": "delivered", "code_anchor": {"file": "src/components/FilePane.vue", "widget": "finder-pane-toolbar"}},
+    {"node_id": "N9", "status": "delivered", "code_anchor": {"file": "src/components/FilePane.vue", "widget": "FileList"}}
+  ],
+  "dimensions": [],
+  "states": [
+    {"state_id": "STATE-01", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "activePanes"}},
+    {"state_id": "STATE-02", "status": "delivered", "code_anchor": {"file": "src/App.vue", "widget": "handleDrop"}}
+  ]
+}

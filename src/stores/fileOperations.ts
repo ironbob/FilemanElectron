@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
 
+const log = console
+
 export interface FileOperationState {
   tasks: FileOperationTask[]
   history: FileOperationTask[]
@@ -69,14 +71,34 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       targetPath: string,
       conflictStrategy: ConflictStrategy = 'skip'
     ): Promise<FileOperationTask> {
-      return window.fileman.createFileOperation({
-        type: 'copy',
+      log.info('[FileOperations] queueing copy task', {
         sourceDeviceId,
-        sourcePaths: [...sourcePaths],
+        sourceCount: sourcePaths.length,
         targetDeviceId,
         targetPath,
         conflictStrategy
       })
+      try {
+        const task = await window.fileman.createFileOperation({
+          type: 'copy',
+          sourceDeviceId,
+          sourcePaths: [...sourcePaths],
+          targetDeviceId,
+          targetPath,
+          conflictStrategy
+        })
+        log.info('[FileOperations] copy task queued', { taskId: task.id, sourceDeviceId, targetDeviceId })
+        return task
+      } catch (error) {
+        log.error('[FileOperations] failed to queue copy task', {
+          sourceDeviceId,
+          sourceCount: sourcePaths.length,
+          targetDeviceId,
+          targetPath,
+          error
+        })
+        throw error
+      }
     },
 
     async createMoveTask(

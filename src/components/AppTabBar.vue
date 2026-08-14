@@ -66,15 +66,12 @@
 import { computed } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 
-const log = console
 const tabsStore = useTabsStore()
 
 const activeTab = computed(() => tabsStore.activeTab)
 
 function splitPane() {
-  // This would need to be implemented in the tabs store
-  // For now, it's just a placeholder
-  log.info('[FinderTabStrip] split pane requested')
+  tabsStore.toggleActiveSplit()
 }
 </script>
 

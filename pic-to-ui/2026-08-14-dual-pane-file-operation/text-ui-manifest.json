@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "screen": "双目录文件操作界面",
+    "input_mode": "verbal",
+    "input_count": 1,
+    "text_ui_count": 1
+  },
+  "inputs": [
+    {
+      "id": "DESC-01",
+      "input_type": "verbal",
+      "verbal_input": "现在规划app方便在两个窗口操作文件的功能。预期可以在一个界面中看到两个目录的内容，可以互相之间拖动复制文件。使用 [$corin:pic-to-ui](/Users/wtb/work_space/DesignSkills/skills/pic-to-ui/SKILL.md) 进行交互和界面设计。",
+      "state_label": "dual-pane-default",
+      "text_ui_file": "text-ui/DESC-01-dual-pane-default.txt",
+      "revision": 1,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "用户消息：确认（2026-08-14，确认 DESC-01 双目录文件操作界面文本图）"
+      }
+    }
+  ]
+}
