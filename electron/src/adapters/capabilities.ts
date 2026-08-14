@@ -26,6 +26,9 @@ export interface DeviceCapabilities {
 
   // Streaming (large-file transfer without full buffering)
   readonly canStream: boolean        // Supports openReadStream/openWriteStream
+  readonly canCaptureScreenshot: boolean
+  readonly canArchive: boolean
+  readonly canRecycle: boolean
 
   // Limitations
   readonly maxFileSize?: number      // Maximum file size in bytes (undefined = unlimited)
@@ -51,6 +54,9 @@ export const LOCAL_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,
   canMoveTo: true,
   canStream: true,      // fs.createReadStream/WriteStream
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true,
 }
 
 export const SMB_CAPABILITIES: DeviceCapabilities = {
@@ -69,6 +75,9 @@ export const SMB_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,
   canMoveTo: true,
   canStream: true,      // @marsaud/smb2 createReadStream/createWriteStream
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true,
 }
 
 export const SSH_CAPABILITIES: DeviceCapabilities = {
@@ -87,6 +96,9 @@ export const SSH_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,
   canMoveTo: true,
   canStream: true,      // ssh2 sftp createReadStream/WriteStream
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true,
 }
 
 export const WEBDAV_CAPABILITIES: DeviceCapabilities = {
@@ -105,6 +117,9 @@ export const WEBDAV_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,
   canMoveTo: true,
   canStream: true,
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true,
 }
 
 export const ANDROID_CAPABILITIES: DeviceCapabilities = {
@@ -123,6 +138,9 @@ export const ANDROID_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,    // Pull + delete
   canMoveTo: true,      // Push + delete source
   canStream: true,      // adbkit pull/push transfer streams
+  canCaptureScreenshot: true,
+  canArchive: true,
+  canRecycle: true,
   // Some Android directories are read-only without root
   readonlyPaths: ['/system', '/vendor', '/product', '/data/app'],
 }
@@ -143,6 +161,9 @@ export const IOS_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,    // Pull + delete
   canMoveTo: true,      // Push + delete source
   canStream: false,     // AFC has no usable stream CLI → buffer fallback
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true,
   // AFC itself is the sandbox boundary. Do not mark `/` read-only here: doing
   // so makes every write/delete action unavailable in the UI even when AFC
   // grants access to a writable container. Unsupported paths are rejected by

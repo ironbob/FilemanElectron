@@ -11,6 +11,9 @@ import { ImageDecodeService } from './src/services/ImageDecodeService'
 import { ZipService } from './src/services/ZipService'
 import { VolumeScanner } from './src/services/VolumeScanner'
 import { HostShellService } from './src/services/HostShellService'
+import { FileMetadataService } from './src/services/FileMetadataService'
+import { ArchiveService } from './src/services/ArchiveService'
+import { MobileScreenshotService } from './src/services/MobileScreenshotService'
 
 const isDev = !app.isPackaged
 
@@ -24,6 +27,9 @@ const imageDecodeService = new ImageDecodeService(deviceManager)
 const zipService = new ZipService()
 const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
 const hostShellService = new HostShellService()
+const fileMetadataService = new FileMetadataService(configService)
+const archiveService = new ArchiveService(deviceManager)
+const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 
 /** Separator used for virtual ZIP paths: "<zipFilePath>::<innerPath>" */
 const ZIP_PATH_SEP = '::'
@@ -241,6 +247,30 @@ ipcMain.handle('fs:copy', async (_, deviceId: string, srcPath: string, dstPath: 
 ipcMain.handle('fs:search', async (_, deviceId: string, path: string, query) => {
   return deviceManager.search(deviceId, path, query)
 })
+
+// ============ File Browser Metadata / Archive / Capture ============
+
+ipcMain.handle('file-metadata:get', (_, deviceId: string, filePath: string) =>
+  fileMetadataService.get(deviceId, filePath)
+)
+
+ipcMain.handle('file-metadata:setTags', (_, deviceId: string, filePath: string, tags: string[]) =>
+  fileMetadataService.setTags(deviceId, filePath, tags)
+)
+
+ipcMain.handle('file-metadata:findByTags', (_, tags: string[]) => fileMetadataService.findByTags(tags))
+
+ipcMain.handle('archive:create', (_, deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
+  archiveService.createZip(deviceId, sourcePaths, targetDirectory, archiveName)
+)
+
+ipcMain.handle('archive:extract', (_, deviceId: string, archivePath: string, targetDirectory: string) =>
+  archiveService.extractZip(deviceId, archivePath, targetDirectory)
+)
+
+ipcMain.handle('mobile:captureScreenshot', (_, deviceId: string, targetDirectory: string) =>
+  mobileScreenshotService.captureToDirectory(deviceId, targetDirectory)
+)
 
 // ============ Cross-Device Operations ============
 

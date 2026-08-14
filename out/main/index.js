@@ -1,4 +1,4 @@
-import { safeStorage, app, ipcMain, nativeImage, BrowserWindow } from "electron";
+import { safeStorage, app, shell, ipcMain, nativeImage, BrowserWindow } from "electron";
 import os from "os";
 import * as path from "path";
 import path__default, { join } from "path";
@@ -9,12 +9,13 @@ import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
 import * as fs from "fs";
 import SMB2 from "@marsaud/smb2";
 import { createClient } from "webdav";
-import { exec, execFile } from "child_process";
+import { exec, execFile, spawn } from "child_process";
 import { promisify } from "util";
 import crypto from "crypto";
 import sharp from "sharp";
 import ffmpeg from "ffmpeg-static";
 import * as zlib from "zlib";
+import { zipSync, unzipSync, strToU8 } from "fflate";
 import __cjs_url__ from "node:url";
 import __cjs_path__ from "node:path";
 import __cjs_mod__ from "node:module";
@@ -49,6 +50,9 @@ class ConfigService {
     }
     if (config.settings !== void 0) {
       this.store.set("settings", config.settings);
+    }
+    if (config.fileMetadata !== void 0) {
+      this.store.set("fileMetadata", config.fileMetadata);
     }
   }
   get(key) {
@@ -163,8 +167,11 @@ const LOCAL_CAPABILITIES = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
-  canStream: true
+  canStream: true,
   // fs.createReadStream/WriteStream
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true
 };
 const SMB_CAPABILITIES = {
   canRead: true,
@@ -183,8 +190,11 @@ const SMB_CAPABILITIES = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
-  canStream: true
+  canStream: true,
   // @marsaud/smb2 createReadStream/createWriteStream
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true
 };
 const SSH_CAPABILITIES = {
   canRead: true,
@@ -203,8 +213,11 @@ const SSH_CAPABILITIES = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
-  canStream: true
+  canStream: true,
   // ssh2 sftp createReadStream/WriteStream
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true
 };
 const WEBDAV_CAPABILITIES = {
   canRead: true,
@@ -221,7 +234,10 @@ const WEBDAV_CAPABILITIES = {
   canCopyTo: true,
   canMoveFrom: true,
   canMoveTo: true,
-  canStream: true
+  canStream: true,
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true
 };
 const ANDROID_CAPABILITIES = {
   canRead: true,
@@ -247,6 +263,9 @@ const ANDROID_CAPABILITIES = {
   // Push + delete source
   canStream: true,
   // adbkit pull/push transfer streams
+  canCaptureScreenshot: true,
+  canArchive: true,
+  canRecycle: true,
   // Some Android directories are read-only without root
   readonlyPaths: ["/system", "/vendor", "/product", "/data/app"]
 };
@@ -274,6 +293,9 @@ const IOS_CAPABILITIES = {
   // Push + delete source
   canStream: false,
   // AFC has no usable stream CLI → buffer fallback
+  canCaptureScreenshot: false,
+  canArchive: true,
+  canRecycle: true,
   // AFC itself is the sandbox boundary. Do not mark `/` read-only here: doing
   // so makes every write/delete action unavailable in the UI even when AFC
   // grants access to a writable container. Unsupported paths are rejected by
@@ -1428,7 +1450,7 @@ async function pairIosDevice(deviceId, timeoutMs = 6e4) {
   return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' };
 }
 const execAsync = promisify(exec);
-const log$3 = {
+const log$7 = {
   info: (message, ...args) => console.log(`[MobileDeviceScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[MobileDeviceScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[MobileDeviceScanner] DEBUG: ${message}`, ...args)
@@ -1453,7 +1475,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$3.info("Starting mobile device scanner", { interval: this.options.scanInterval });
+    log$7.info("Starting mobile device scanner", { interval: this.options.scanInterval });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -1466,7 +1488,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$3.info("Mobile device scanner stopped");
+      log$7.info("Mobile device scanner stopped");
     }
   }
   /**
@@ -1487,16 +1509,16 @@ class MobileDeviceScanner {
         const androidDevices = await this.scanAndroid();
         devices.push(...androidDevices);
       } else {
-        log$3.info("ADB not available, skipping Android scan");
+        log$7.info("ADB not available, skipping Android scan");
       }
       if (this.libimobiledeviceInstalled) {
         const iosDevices = await this.scanIOS();
         devices.push(...iosDevices);
       } else {
-        log$3.debug("libimobiledevice not available, skipping iOS scan");
+        log$7.debug("libimobiledevice not available, skipping iOS scan");
       }
     } catch (error) {
-      log$3.error("Mobile device scan error:", error);
+      log$7.error("Mobile device scan error:", error);
     }
     const newIds = new Set(devices.map((d) => d.id));
     const oldIds = new Set(this.currentDevices.keys());
@@ -1511,10 +1533,10 @@ class MobileDeviceScanner {
       }
     }
     if (added.length > 0) {
-      log$3.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
+      log$7.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
     }
     if (removed.length > 0) {
-      log$3.info("Devices removed:", removed);
+      log$7.info("Devices removed:", removed);
     }
     const changed = devices.some((device) => {
       const previous = this.currentDevices.get(device.id);
@@ -1559,10 +1581,10 @@ class MobileDeviceScanner {
   async checkLibimobiledeviceInstalled() {
     try {
       const { stdout, stderr } = await execAsync("which idevice_id");
-      log$3.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$7.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$3.debug("libimobiledevice check failed:", error);
+      log$7.debug("libimobiledevice check failed:", error);
       return false;
     }
   }
@@ -1572,15 +1594,15 @@ class MobileDeviceScanner {
   async checkAdbInstalled() {
     const bundled = ToolPathResolver.getAdbPath();
     if (bundled) {
-      log$3.debug("adb resolved (bundled):", bundled);
+      log$7.debug("adb resolved (bundled):", bundled);
       return true;
     }
     try {
       const { stdout, stderr } = await execAsync("which adb");
-      log$3.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$7.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$3.debug("ADB check failed:", error);
+      log$7.debug("ADB check failed:", error);
       return false;
     }
   }
@@ -1592,7 +1614,7 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`);
       if (stderr) {
-        log$3.debug("ADB command stderr:", stderr);
+        log$7.debug("ADB command stderr:", stderr);
       }
       const lines = stdout.trim().split("\n");
       for (const line of lines) {
@@ -1606,11 +1628,11 @@ class MobileDeviceScanner {
           const stateMatch = deviceInfo.match(/^(\S+)/);
           const state = stateMatch ? stateMatch[1] : "unknown";
           if (state === "offline") {
-            log$3.info("Device offline, skipping:", serial);
+            log$7.info("Device offline, skipping:", serial);
             continue;
           }
           if (state === "unauthorized") {
-            log$3.info("Device unauthorized (needs USB debugging authorization):", serial);
+            log$7.info("Device unauthorized (needs USB debugging authorization):", serial);
             devices.push({
               id: `android:${serial}`,
               type: "android",
@@ -1623,7 +1645,7 @@ class MobileDeviceScanner {
           const modelMatch = deviceInfo.match(/model:([^\s]+)/);
           if (modelMatch) {
             model = modelMatch[1].replace(/_/g, " ");
-            log$3.debug("Extracted model name:", model);
+            log$7.debug("Extracted model name:", model);
           }
           let product = "";
           const productMatch = deviceInfo.match(/product:([^\s]+)/);
@@ -1637,14 +1659,14 @@ class MobileDeviceScanner {
             model: deviceInfo
           });
         } else {
-          log$3.debug("Line did not match device pattern:", line);
+          log$7.debug("Line did not match device pattern:", line);
         }
       }
     } catch (error) {
-      log$3.error("Android scan error:", error);
+      log$7.error("Android scan error:", error);
       if (error instanceof Error) {
-        log$3.error("Error message:", error.message);
-        log$3.error("Error stack:", error.stack);
+        log$7.error("Error message:", error.message);
+        log$7.error("Error stack:", error.stack);
       }
     }
     return devices;
@@ -1657,44 +1679,44 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""');
       if (stderr) {
-        log$3.debug("idevice_id stderr:", stderr);
+        log$7.debug("idevice_id stderr:", stderr);
       }
       const udidList = stdout.trim().split("\n").filter((line) => line.trim());
       for (const udid of udidList) {
         if (!udid.trim()) continue;
-        log$3.debug("Processing iOS device:", udid);
+        log$7.debug("Processing iOS device:", udid);
         try {
           let deviceName = "iOS Device";
           try {
-            log$3.debug(`Getting device name for ${udid}...`);
+            log$7.debug(`Getting device name for ${udid}...`);
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
               `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             );
-            log$3.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
+            log$7.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
             if (nameOutput.trim()) {
               deviceName = nameOutput.trim();
             }
           } catch (nameError) {
-            log$3.debug("Failed to get device name:", nameError);
+            log$7.debug("Failed to get device name:", nameError);
           }
           let pairingStatus = "unpaired";
           try {
-            log$3.debug(`Checking pairing status for ${udid}...`);
+            log$7.debug(`Checking pairing status for ${udid}...`);
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
               `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
             );
-            log$3.debug(`idevicepair output:`, pairOutput, pairStderr);
+            log$7.debug(`idevicepair output:`, pairOutput, pairStderr);
             if (pairOutput.includes("SUCCESS")) {
               pairingStatus = "paired";
             } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
               pairingStatus = "unpaired";
-              log$3.info(`iOS device ${udid} needs pairing`);
+              log$7.info(`iOS device ${udid} needs pairing`);
             }
           } catch (pairError) {
-            log$3.debug("Failed to check pairing status:", pairError);
+            log$7.debug("Failed to check pairing status:", pairError);
             pairingStatus = "unpaired";
           }
-          log$3.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
+          log$7.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
           devices.push({
             id: `ios:${udid}`,
             type: "ios",
@@ -1702,13 +1724,13 @@ class MobileDeviceScanner {
             pairingStatus
           });
         } catch (error) {
-          log$3.error(`iOS device ${udid} scan error:`, error);
+          log$7.error(`iOS device ${udid} scan error:`, error);
         }
       }
     } catch (error) {
-      log$3.error("iOS scan error:", error);
+      log$7.error("iOS scan error:", error);
       if (error instanceof Error) {
-        log$3.error("Error message:", error.message);
+        log$7.error("Error message:", error.message);
       }
     }
     return devices;
@@ -1723,12 +1745,12 @@ class MobileDeviceScanner {
    * Notify all handlers of device changes
    */
   notifyHandlers(devices, added, removed) {
-    log$3.debug(`Notifying ${this.handlers.length} handlers`);
+    log$7.debug(`Notifying ${this.handlers.length} handlers`);
     for (const handler of this.handlers) {
       try {
         handler(devices, added, removed);
       } catch (error) {
-        log$3.error("Device change handler error:", error);
+        log$7.error("Device change handler error:", error);
       }
     }
   }
@@ -2196,8 +2218,11 @@ class DeviceManager {
           canCopyTo: true,
           canMoveFrom: true,
           canMoveTo: true,
-          canStream: false
+          canStream: false,
           // 连接后由具体适配器的 capability 覆盖
+          canCaptureScreenshot: device.type === "android",
+          canArchive: true,
+          canRecycle: true
         };
     }
   }
@@ -2373,6 +2398,7 @@ class StreamTransfer {
     }
   }
 }
+const log$6 = console;
 function generateTaskId() {
   return `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
@@ -2385,6 +2411,9 @@ class TransferTask {
     this.targetDeviceId = params.targetDeviceId;
     this.targetPath = params.targetPath;
     this.newName = params.newName;
+    this.conflictStrategy = params.conflictStrategy ?? "skip";
+    this.renameItems = params.renameItems;
+    this.restoreItems = params.restoreItems;
     this.status = "pending";
     this.progress = {
       currentFile: "",
@@ -2473,6 +2502,7 @@ class FileOperationManager {
     const task = new TransferTask(params);
     this.queue.push(task);
     this.notifyTaskAdded(task);
+    log$6.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
     this.processQueue();
     return task;
   }
@@ -2483,7 +2513,7 @@ class FileOperationManager {
     try {
       await this.executeTask(this.currentTask);
     } catch (error) {
-      console.error("[FileOperationManager] task execution error:", error);
+      log$6.error("[FileOperationManager] task execution error:", error);
     } finally {
       this.isRunning = false;
       const completedTask = this.currentTask;
@@ -2518,6 +2548,15 @@ class FileOperationManager {
           break;
         case "touch":
           await this.executeTouch(task);
+          break;
+        case "batch-rename":
+          await this.executeBatchRename(task);
+          break;
+        case "recycle":
+          await this.executeRecycle(task);
+          break;
+        case "restore":
+          await this.executeRestore(task);
           break;
       }
       if (this.cancelled) {
@@ -2559,11 +2598,12 @@ class FileOperationManager {
       for (const sourcePath of task.sourcePaths) {
         if (this.cancelled) return;
         const name = posixBaseName(sourcePath);
-        const dst = joinPosix(targetPath, name);
+        const dst = await this.resolveTargetPath(target, joinPosix(targetPath, name), task.conflictStrategy ?? "skip");
         task.setCurrentFile(name, 0);
         this.notifyTaskUpdate(task);
         const item = { sourcePath, targetPath: dst, status: "success" };
         try {
+          if (await target.exists(dst) && task.conflictStrategy === "overwrite") await target.delete(dst);
           await source.rename(sourcePath, dst);
         } catch (error) {
           item.status = "failed";
@@ -2659,14 +2699,16 @@ class FileOperationManager {
     this.notifyProgress(task, true);
     const item = { sourcePath: srcPath, targetPath: dstPath, status: "success" };
     try {
-      if (await target.exists(dstPath)) {
+      const resolvedDestination = await this.resolveTargetPath(target, dstPath, task.conflictStrategy ?? "skip");
+      if (resolvedDestination === null) {
         item.status = "skipped";
         task.recordItem(item);
         return false;
       }
+      item.targetPath = resolvedDestination;
       const startBytes = task.progress.bytesTransferred;
       const startTime = Date.now();
-      const bytes = await StreamTransfer.transferFile(source, srcPath, target, dstPath, {
+      const bytes = await StreamTransfer.transferFile(source, srcPath, target, resolvedDestination, {
         onProgress: (b) => {
           task.progress.bytesTransferred = startBytes + b;
           this.updateSpeed(task, startBytes, startTime);
@@ -2694,6 +2736,25 @@ class FileOperationManager {
     const elapsed = Date.now() - startTime;
     const delta = task.progress.bytesTransferred - startBytes;
     task.progress.speed = elapsed > 0 ? delta / elapsed * 1e3 : 0;
+  }
+  /** Returns null for skip, otherwise a writable conflict-free destination. */
+  async resolveTargetPath(target, destination, strategy) {
+    if (!await target.exists(destination)) return destination;
+    if (strategy === "skip") return null;
+    if (strategy === "overwrite") {
+      await target.delete(destination);
+      return destination;
+    }
+    const extensionIndex = posixBaseName(destination).lastIndexOf(".");
+    const parent = destination.slice(0, Math.max(0, destination.length - posixBaseName(destination).length)).replace(/\/$/, "") || "/";
+    const name = posixBaseName(destination);
+    const stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name;
+    const extension = extensionIndex > 0 ? name.slice(extensionIndex) : "";
+    for (let suffix = 1; suffix < 1e4; suffix++) {
+      const candidate = joinPosix(parent, `${stem} ${suffix}${extension}`);
+      if (!await target.exists(candidate)) return candidate;
+    }
+    throw new Error(`无法为冲突文件生成可用名称: ${destination}`);
   }
   /** 统计总量(含目录递归)。 */
   async computeTotals(source, paths) {
@@ -2766,6 +2827,79 @@ class FileOperationManager {
       throw error;
     }
     task.recordItem(item);
+  }
+  async executeBatchRename(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const items = task.renameItems ?? [];
+    if (items.length === 0) throw new Error("批量重命名缺少预览后的名称列表。");
+    task.progress.totalFiles = items.length;
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      const parent = item.sourcePath.slice(0, item.sourcePath.lastIndexOf("/")) || "/";
+      const destination = joinPosix(parent, item.newName);
+      task.setCurrentFile(item.newName, index);
+      const result = { sourcePath: item.sourcePath, targetPath: destination, status: "success" };
+      try {
+        if (await adapter.exists(destination)) throw new Error(`目标名称已存在: ${item.newName}`);
+        await adapter.rename(item.sourcePath, destination);
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
+      }
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
+  }
+  /** Local uses the platform trash; remote/mobile adapters use a same-parent hidden bin. */
+  async executeRecycle(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    task.progress.totalFiles = task.sourcePaths.length;
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      const sourcePath = task.sourcePaths[index];
+      const result = { sourcePath, status: "success" };
+      task.setCurrentFile(posixBaseName(sourcePath), index);
+      try {
+        if (task.sourceDeviceId === "local") {
+          await shell.trashItem(sourcePath);
+        } else {
+          const parent = posixDirname(sourcePath);
+          const trashDirectory = joinPosix(joinPosix(parent, ".fileman-recycle-bin"), task.id);
+          await adapter.mkdir(trashDirectory);
+          const trashPath = await this.resolveTargetPath(adapter, joinPosix(trashDirectory, posixBaseName(sourcePath)), "rename");
+          if (!trashPath) throw new Error("无法准备回收站路径");
+          await adapter.rename(sourcePath, trashPath);
+          result.targetPath = trashPath;
+        }
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
+      }
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
+  }
+  async executeRestore(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const items = task.restoreItems ?? [];
+    if (items.length === 0) throw new Error("恢复操作缺少原始路径。");
+    task.progress.totalFiles = items.length;
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      const result = { sourcePath: item.trashPath, targetPath: item.originalPath, status: "success" };
+      task.setCurrentFile(posixBaseName(item.originalPath), index);
+      try {
+        if (await adapter.exists(item.originalPath)) throw new Error(`原始位置已有同名项目: ${item.originalPath}`);
+        await adapter.rename(item.trashPath, item.originalPath);
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
+      }
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
   }
   async executeMkdir(task) {
     const adapter = this.adapters.get(task.sourceDeviceId);
@@ -2894,7 +3028,7 @@ function posixDirname(p) {
   return trimmed.slice(0, idx);
 }
 const LOG_PREFIX$1 = "[ThumbnailService]";
-function log$2(message, ...args) {
+function log$5(message, ...args) {
   console.log(`${LOG_PREFIX$1} ${message}`, ...args);
 }
 function logError$1(message, ...args) {
@@ -2945,14 +3079,14 @@ class ThumbnailService {
   constructor() {
     this.maxDiskCacheSize = 500 * 1024 * 1024;
     this.cacheDir = path__default.join(app.getPath("userData"), "thumbnails");
-    log$2("Initializing ThumbnailService");
-    log$2("Cache directory:", this.cacheDir);
+    log$5("Initializing ThumbnailService");
+    log$5("Cache directory:", this.cacheDir);
     this.ensureCacheDir();
   }
   async ensureCacheDir() {
     try {
       await fs$1.ensureDir(this.cacheDir);
-      log$2("Cache directory ensured:", this.cacheDir);
+      log$5("Cache directory ensured:", this.cacheDir);
     } catch (e) {
       logError$1("Failed to create cache directory:", e);
     }
@@ -2960,12 +3094,12 @@ class ThumbnailService {
   generateCacheKey(deviceId, filePath, size, mtime) {
     const raw = `${deviceId}:${filePath}:${size}:${mtime}`;
     const hash = crypto.createHash("md5").update(raw).digest("hex").slice(0, 16);
-    log$2("Generated cache key:", hash, "for file:", filePath);
+    log$5("Generated cache key:", hash, "for file:", filePath);
     return hash;
   }
   async getThumbnail(deviceId, filePath, size, mtime, thumbnailSize, readFile) {
     const ext = path__default.extname(filePath).toLowerCase().replace(".", "");
-    log$2("getThumbnail called:", {
+    log$5("getThumbnail called:", {
       deviceId,
       filePath,
       size,
@@ -2974,26 +3108,26 @@ class ThumbnailService {
       ext
     });
     const cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime);
-    log$2("Checking disk cache for key:", cacheKey);
+    log$5("Checking disk cache for key:", cacheKey);
     const cachedThumbnail = await this.getFromDiskCache(cacheKey);
     if (cachedThumbnail) {
-      log$2("Cache HIT for:", filePath, "key:", cacheKey);
+      log$5("Cache HIT for:", filePath, "key:", cacheKey);
       return { cacheKey, thumbnailBase64: cachedThumbnail };
     }
-    log$2("Cache MISS for:", filePath, "key:", cacheKey);
+    log$5("Cache MISS for:", filePath, "key:", cacheKey);
     if (!SUPPORTED_IMAGE_FORMATS.has(ext) && !SUPPORTED_VIDEO_FORMATS.has(ext)) {
       logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
       return null;
     }
     const dimensions = THUMBNAIL_SIZES[thumbnailSize];
-    log$2("Target dimensions:", dimensions);
+    log$5("Target dimensions:", dimensions);
     let thumbnailBuffer = null;
     const startTime = Date.now();
     if (SUPPORTED_IMAGE_FORMATS.has(ext)) {
-      log$2("Generating image thumbnail for:", filePath);
+      log$5("Generating image thumbnail for:", filePath);
       thumbnailBuffer = await this.generateImageThumbnail(filePath, deviceId, readFile, dimensions);
     } else if (SUPPORTED_VIDEO_FORMATS.has(ext)) {
-      log$2("Generating video thumbnail for:", filePath);
+      log$5("Generating video thumbnail for:", filePath);
       thumbnailBuffer = await this.generateVideoThumbnail(filePath, deviceId, readFile, dimensions);
     }
     const elapsed = Date.now() - startTime;
@@ -3001,7 +3135,7 @@ class ThumbnailService {
       logError$1("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
       return null;
     }
-    log$2(
+    log$5(
       "Thumbnail generated successfully for:",
       filePath,
       "size:",
@@ -3022,10 +3156,10 @@ class ThumbnailService {
     try {
       if (await fs$1.pathExists(cachePath)) {
         const buffer = await fs$1.readFile(cachePath);
-        log$2("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
+        log$5("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
         return buffer.toString("base64");
       } else {
-        log$2("Disk cache miss, key:", cacheKey, "path:", cachePath);
+        log$5("Disk cache miss, key:", cacheKey, "path:", cachePath);
       }
     } catch (e) {
       logError$1("Error reading disk cache:", cacheKey, e);
@@ -3036,24 +3170,24 @@ class ThumbnailService {
     const cachePath = path__default.join(this.cacheDir, `${cacheKey}.webp`);
     try {
       await fs$1.writeFile(cachePath, thumbnailBuffer);
-      log$2("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
+      log$5("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
     } catch (e) {
       logError$1("Failed to save to disk cache:", cacheKey, e);
     }
   }
   async generateImageThumbnail(filePath, deviceId, readFile, dimensions) {
     try {
-      log$2("Reading image file:", filePath, "deviceId:", deviceId);
+      log$5("Reading image file:", filePath, "deviceId:", deviceId);
       const readStartTime = Date.now();
       const fileBuffer = await readFile(deviceId, filePath);
-      log$2("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
-      log$2("Processing image with sharp, target dimensions:", dimensions);
+      log$5("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
+      log$5("Processing image with sharp, target dimensions:", dimensions);
       const processStartTime = Date.now();
       const result = await sharp(fileBuffer).resize(dimensions.width, dimensions.height, {
         fit: "cover",
         withoutEnlargement: true
       }).webp({ quality: 92 }).toBuffer();
-      log$2("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
+      log$5("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
       return result;
     } catch (e) {
       logError$1("Failed to generate image thumbnail:", filePath, e);
@@ -3065,10 +3199,10 @@ class ThumbnailService {
       logError$1("ffmpeg not available, cannot generate video thumbnail");
       return null;
     }
-    log$2("ffmpeg path:", ffmpeg);
+    log$5("ffmpeg path:", ffmpeg);
     try {
       if (deviceId === "local") {
-        log$2("Extracting video frame from local file:", filePath);
+        log$5("Extracting video frame from local file:", filePath);
         return await this.extractVideoFrameLocal(filePath, dimensions);
       }
       logWarn("Video thumbnail for remote files not yet supported, deviceId:", deviceId);
@@ -3084,11 +3218,11 @@ class ThumbnailService {
     const execFileAsync2 = util.promisify(execFile2);
     const tempDir = app.getPath("temp");
     const outputPath = path__default.join(tempDir, `thumb_${Date.now()}.webp`);
-    log$2("extractVideoFrameLocal - input:", filePath);
-    log$2("extractVideoFrameLocal - output:", outputPath);
-    log$2("extractVideoFrameLocal - dimensions:", dimensions);
+    log$5("extractVideoFrameLocal - input:", filePath);
+    log$5("extractVideoFrameLocal - output:", outputPath);
+    log$5("extractVideoFrameLocal - dimensions:", dimensions);
     try {
-      log$2("Attempting ffmpeg extraction at 1 second offset");
+      log$5("Attempting ffmpeg extraction at 1 second offset");
       const startTime = Date.now();
       await execFileAsync2(ffmpeg, [
         "-i",
@@ -3102,17 +3236,17 @@ class ThumbnailService {
         "-y",
         outputPath
       ], { timeout: 1e4 });
-      log$2("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
+      log$5("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
       const buffer = await fs$1.readFile(outputPath);
-      log$2("Read thumbnail file, size:", buffer.length, "bytes");
+      log$5("Read thumbnail file, size:", buffer.length, "bytes");
       await fs$1.unlink(outputPath).catch(() => {
       });
-      log$2("Cleaned up temp file:", outputPath);
+      log$5("Cleaned up temp file:", outputPath);
       return buffer;
     } catch (firstError) {
       logWarn("ffmpeg extraction at 1s failed, trying at 0s:", firstError);
       try {
-        log$2("Attempting ffmpeg extraction at 0 second offset");
+        log$5("Attempting ffmpeg extraction at 0 second offset");
         const startTime = Date.now();
         await execFileAsync2(ffmpeg, [
           "-i",
@@ -3126,12 +3260,12 @@ class ThumbnailService {
           "-y",
           outputPath
         ], { timeout: 1e4 });
-        log$2("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
+        log$5("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
         const buffer = await fs$1.readFile(outputPath);
-        log$2("Read thumbnail file, size:", buffer.length, "bytes");
+        log$5("Read thumbnail file, size:", buffer.length, "bytes");
         await fs$1.unlink(outputPath).catch(() => {
         });
-        log$2("Cleaned up temp file:", outputPath);
+        log$5("Cleaned up temp file:", outputPath);
         return buffer;
       } catch (secondError) {
         logError$1("ffmpeg extraction at 0s also failed:", filePath, secondError);
@@ -3140,10 +3274,10 @@ class ThumbnailService {
     }
   }
   async clearCache() {
-    log$2("Clearing disk cache at:", this.cacheDir);
+    log$5("Clearing disk cache at:", this.cacheDir);
     try {
       await fs$1.emptyDir(this.cacheDir);
-      log$2("Disk cache cleared successfully");
+      log$5("Disk cache cleared successfully");
     } catch (e) {
       logError$1("Failed to clear disk cache:", e);
     }
@@ -3152,12 +3286,12 @@ class ThumbnailService {
     let totalSize = 0;
     try {
       const files = await fs$1.readdir(this.cacheDir);
-      log$2("Calculating cache size, files count:", files.length);
+      log$5("Calculating cache size, files count:", files.length);
       for (const file of files) {
         const stat = await fs$1.stat(path__default.join(this.cacheDir, file));
         totalSize += stat.size;
       }
-      log$2("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
+      log$5("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
     } catch (e) {
       logError$1("Failed to calculate cache size:", e);
     }
@@ -3166,7 +3300,7 @@ class ThumbnailService {
 }
 const execFileAsync = promisify(execFile);
 const LOG_PREFIX = "[ImageDecodeService]";
-function log$1(...args) {
+function log$4(...args) {
   console.log(LOG_PREFIX, ...args);
 }
 function logError(...args) {
@@ -3197,7 +3331,7 @@ class ImageDecodeService {
       }
       await this.runSips(inputFile, outFile, maxDim);
       const bytes = await fs$1.readFile(outFile);
-      log$1(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
+      log$4(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
       return { buffer: bytes.toString("base64"), mime: "image/jpeg" };
     } finally {
       for (const t of temps) {
@@ -3435,7 +3569,7 @@ function dosDateToIso(date, time) {
   const seconds = (time & 31) * 2;
   return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
 }
-const log = {
+const log$3 = {
   info: (message, ...args) => console.log(`[VolumeScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[VolumeScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[VolumeScanner] DEBUG: ${message}`, ...args)
@@ -3458,7 +3592,7 @@ class VolumeScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
+    log$3.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -3471,7 +3605,7 @@ class VolumeScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log.info("Volume scanner stopped");
+      log$3.info("Volume scanner stopped");
     }
   }
   /**
@@ -3485,7 +3619,7 @@ class VolumeScanner {
       const detected = await this.detectVolumes();
       volumes.push(...detected);
     } catch (error) {
-      log.error("Volume scan error:", error);
+      log$3.error("Volume scan error:", error);
     }
     const newIds = new Set(volumes.map((v) => v.id));
     const oldIds = new Set(this.currentVolumes.keys());
@@ -3500,10 +3634,10 @@ class VolumeScanner {
       }
     }
     if (added.length > 0) {
-      log.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
+      log$3.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
     }
     if (removed.length > 0) {
-      log.info("Volumes removed:", removed);
+      log$3.info("Volumes removed:", removed);
     }
     this.currentVolumes.clear();
     for (const volume of volumes) {
@@ -3525,7 +3659,7 @@ class VolumeScanner {
     try {
       entries = await fs$1.readdir(this.options.volumesDir, { withFileTypes: true });
     } catch (error) {
-      log.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
+      log$3.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
       return [];
     }
     for (const entry of entries) {
@@ -3564,7 +3698,7 @@ class VolumeScanner {
       try {
         handler(volumes, added, removed);
       } catch (error) {
-        log.error("Volume change handler error:", error);
+        log$3.error("Volume change handler error:", error);
       }
     }
   }
@@ -3614,6 +3748,138 @@ end tell`;
     });
   }
 }
+const log$2 = console;
+class FileMetadataService {
+  constructor(configService2) {
+    this.configService = configService2;
+  }
+  get(deviceId, filePath) {
+    return this.all().find((item) => item.deviceId === deviceId && item.path === filePath) ?? { deviceId, path: filePath, tags: [], updatedAt: 0 };
+  }
+  setTags(deviceId, filePath, tags) {
+    const normalized = [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))].slice(0, 12);
+    const metadata = this.all().filter((item) => item.deviceId !== deviceId || item.path !== filePath);
+    const value = { deviceId, path: filePath, tags: normalized, updatedAt: Date.now() };
+    metadata.push(value);
+    this.save(metadata);
+    log$2.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
+    return value;
+  }
+  findByTags(tags) {
+    const required = tags.map((tag) => tag.trim()).filter(Boolean);
+    return this.all().filter((item) => required.every((tag) => item.tags.includes(tag)));
+  }
+  all() {
+    const config = this.configService.getConfig();
+    return Array.isArray(config.fileMetadata) ? config.fileMetadata : [];
+  }
+  save(fileMetadata) {
+    this.configService.saveConfig({ fileMetadata });
+  }
+}
+const log$1 = console;
+function joinPath(parent, name) {
+  return `${parent.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
+}
+function basename(filePath) {
+  return filePath.replace(/\/+$/, "").split("/").pop() || "archive";
+}
+class ArchiveService {
+  constructor(deviceManager2) {
+    this.deviceManager = deviceManager2;
+  }
+  async createZip(deviceId, sourcePaths, targetDirectory, archiveName) {
+    const entries = {};
+    for (const sourcePath of sourcePaths) {
+      await this.collect(deviceId, sourcePath, basename(sourcePath), entries);
+    }
+    const safeName = archiveName.toLowerCase().endsWith(".zip") ? archiveName : `${archiveName}.zip`;
+    const targetPath = joinPath(targetDirectory, safeName);
+    await this.deviceManager.writeFile(deviceId, targetPath, Buffer.from(zipSync(entries, { level: 6 })));
+    log$1.info("[ArchiveService] archive created", { deviceId, targetPath, entryCount: Object.keys(entries).length });
+    return { path: targetPath };
+  }
+  async extractZip(deviceId, archivePath, targetDirectory) {
+    const entries = unzipSync(await this.deviceManager.readFile(deviceId, archivePath));
+    let count = 0;
+    for (const [entryPath, data] of Object.entries(entries)) {
+      if (entryPath.includes("..") || entryPath.startsWith("/")) throw new Error(`不安全的 ZIP 条目: ${entryPath}`);
+      const outputPath = joinPath(targetDirectory, entryPath);
+      await this.ensureParentDirectories(deviceId, outputPath);
+      await this.deviceManager.writeFile(deviceId, outputPath, Buffer.from(data));
+      count++;
+    }
+    log$1.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
+    return { count };
+  }
+  async collect(deviceId, sourcePath, relativePath, entries) {
+    const stat = await this.deviceManager.getStats(deviceId, sourcePath);
+    if (stat.isFile) {
+      entries[relativePath] = await this.deviceManager.readFile(deviceId, sourcePath);
+      return;
+    }
+    const children = await this.deviceManager.listFiles(deviceId, sourcePath);
+    for (const child of children) await this.collect(deviceId, child.path, `${relativePath}/${child.name}`, entries);
+    if (children.length === 0) entries[`${relativePath}/.keep`] = strToU8("");
+  }
+  async ensureParentDirectories(deviceId, outputPath) {
+    const parts = outputPath.split("/").filter(Boolean);
+    let current = "";
+    for (const part of parts.slice(0, -1)) {
+      current = joinPath(current || "/", part);
+      if (!await this.deviceManager.exists(deviceId, current)) await this.deviceManager.mkdir(deviceId, current);
+    }
+  }
+}
+const log = console;
+function posixJoin(directory, name) {
+  return `${directory.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
+}
+function screenshotName() {
+  return `Screenshot-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19)}.png`;
+}
+class MobileScreenshotService {
+  constructor(deviceManager2) {
+    this.deviceManager = deviceManager2;
+  }
+  async captureToDirectory(deviceId, targetDirectory) {
+    const device = this.deviceManager.getDevice(deviceId);
+    if (!device || device.type !== "android") {
+      throw new Error("只有已连接的 Android 设备支持截屏。");
+    }
+    const serial = deviceId.replace(/^android:/, "");
+    log.info("[MobileScreenshotService] capture started", { deviceId, targetDirectory });
+    const png = await this.capture(serial);
+    const targetPath = posixJoin(targetDirectory, screenshotName());
+    await this.deviceManager.writeFile(deviceId, targetPath, png);
+    log.info("[MobileScreenshotService] capture saved", { deviceId, targetPath, bytes: png.length });
+    return { path: targetPath };
+  }
+  capture(serial) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(ToolPathResolver.getAdbExecutable(), ["-s", serial, "exec-out", "screencap", "-p"], {
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+      const chunks = [];
+      const errors = [];
+      child.stdout.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      child.stderr.on("data", (chunk) => errors.push(Buffer.from(chunk)));
+      child.once("error", (error) => reject(new Error(`无法启动 adb 截屏: ${error.message}`)));
+      child.once("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`Android 截屏失败(code=${code}): ${Buffer.concat(errors).toString("utf8").trim()}`));
+          return;
+        }
+        const png = Buffer.concat(chunks);
+        if (png.length < 8 || png.subarray(1, 4).toString("ascii") !== "PNG") {
+          reject(new Error("Android 截屏没有返回有效 PNG 数据。"));
+          return;
+        }
+        resolve(png);
+      });
+    });
+  }
+}
 const isDev = !app.isPackaged;
 let mainWindow = null;
 const configService = new ConfigService();
@@ -3625,6 +3891,9 @@ const imageDecodeService = new ImageDecodeService(deviceManager);
 const zipService = new ZipService();
 const volumeScanner = new VolumeScanner({ scanInterval: 4e3 });
 const hostShellService = new HostShellService();
+const fileMetadataService = new FileMetadataService(configService);
+const archiveService = new ArchiveService(deviceManager);
+const mobileScreenshotService = new MobileScreenshotService(deviceManager);
 const ZIP_PATH_SEP = "::";
 function isZipVirtualPath(p) {
   return p.includes(ZIP_PATH_SEP);
@@ -3782,6 +4051,27 @@ ipcMain.handle("fs:copy", async (_, deviceId, srcPath, dstPath) => {
 ipcMain.handle("fs:search", async (_, deviceId, path2, query) => {
   return deviceManager.search(deviceId, path2, query);
 });
+ipcMain.handle(
+  "file-metadata:get",
+  (_, deviceId, filePath) => fileMetadataService.get(deviceId, filePath)
+);
+ipcMain.handle(
+  "file-metadata:setTags",
+  (_, deviceId, filePath, tags) => fileMetadataService.setTags(deviceId, filePath, tags)
+);
+ipcMain.handle("file-metadata:findByTags", (_, tags) => fileMetadataService.findByTags(tags));
+ipcMain.handle(
+  "archive:create",
+  (_, deviceId, sourcePaths, targetDirectory, archiveName) => archiveService.createZip(deviceId, sourcePaths, targetDirectory, archiveName)
+);
+ipcMain.handle(
+  "archive:extract",
+  (_, deviceId, archivePath, targetDirectory) => archiveService.extractZip(deviceId, archivePath, targetDirectory)
+);
+ipcMain.handle(
+  "mobile:captureScreenshot",
+  (_, deviceId, targetDirectory) => mobileScreenshotService.captureToDirectory(deviceId, targetDirectory)
+);
 ipcMain.handle("fs:copyBetween", async (_, srcDeviceId, srcPaths, dstDeviceId, dstPath) => {
   await fileOperationManager.addTaskAndWait({
     type: "copy",

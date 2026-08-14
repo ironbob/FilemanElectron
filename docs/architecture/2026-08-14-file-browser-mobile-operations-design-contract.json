@@ -1,0 +1,51 @@
+{
+  "feature": "file-browser-mobile-operations",
+  "title": "文件浏览与移动设备操作",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-14",
+  "existing_alignment": {
+    "recognized_style": "Electron 主进程以 DeviceManager、适配器和 FileOperationManager 分层，渲染层使用 Vue 3 组件与 Pinia store，经 preload IPC 调用主进程服务。",
+    "new_code_follows": "沿用 Vue 组件加 Pinia 的状态所有权、主进程服务类和既有 window.fileman IPC 命名；不引入跨应用的全局 ViewModel。"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3",
+    "current_patterns": ["Redux/Store", "Direct View"],
+    "target_patterns": ["Redux/Store", "Direct View"],
+    "state_management": "TabsStore 仍拥有路径和选择；FileBrowserStore 仅拥有每窗格排序、递归搜索和最近位置；组件拥有对话框开关等局部 UI 状态。",
+    "view_model_policy": "not_used",
+    "mvvm_suitability": "not_suitable",
+    "migration_impact": "low",
+    "impact_scope": ["FilePane", "FileList", "fileOperations Pinia store", "preload IPC"],
+    "migration_confirmation": "not_required",
+    "decision_reason": "此功能在既有 Pinia 单一事实源中增加少量持久视图状态即可；全局 MVVM 迁移会扩大现有标签、预览与拖放路径的改动面。"
+  },
+  "roles": [
+    {"id":"ROLE-L01","name":"FileBrowserStore","role_kind":"layer","layer":"store","domain_role":null,"responsibility":"保存每个窗格的排序、递归搜索与最近位置展示状态。","depends_on":["ROLE-D01"],"industry_basis":"Vue Pinia feature store","design_principles":["SRP","separation_of_concerns"],"code_units":["src/stores/fileBrowser.ts"]},
+    {"id":"ROLE-L02","name":"FilePane","role_kind":"layer","layer":"view","domain_role":null,"responsibility":"呈现工具栏与对话框，并将用户意图编排到 Pinia 和 preload API。","depends_on":["ROLE-L01","ROLE-L03","ROLE-L04","ROLE-L05","ROLE-L06","ROLE-L07"],"industry_basis":"Vue container component","design_principles":["SRP","dependency_direction","separation_of_concerns"],"code_units":["src/components/FilePane.vue"]},
+    {"id":"ROLE-L03","name":"FileList","role_kind":"layer","layer":"view","domain_role":null,"responsibility":"展示排序后的列表、递归或标签集合搜索，并转发文件操作 intent。","depends_on":["ROLE-D01"],"industry_basis":"Vue virtualized list component","design_principles":["SRP","separation_of_concerns"],"code_units":["src/components/FileList.vue"]},
+    {"id":"ROLE-L04","name":"FileOperationManager","role_kind":"layer","layer":"application","domain_role":null,"responsibility":"编排队列、传输冲突策略、批量重命名与可恢复删除。","depends_on":["ROLE-D01"],"industry_basis":"Application service with adapter port","design_principles":["SRP","DIP","OCP"],"code_units":["electron/src/services/FileOperationManager.ts"]},
+    {"id":"ROLE-L05","name":"FileMetadataService","role_kind":"layer","layer":"service","domain_role":null,"responsibility":"保存按设备和路径定位的应用标签并查询标签集合。","depends_on":["ROLE-D01"],"industry_basis":"Application metadata repository service","design_principles":["SRP","DIP","separation_of_concerns"],"code_units":["electron/src/services/FileMetadataService.ts"]},
+    {"id":"ROLE-L06","name":"ArchiveService","role_kind":"layer","layer":"service","domain_role":null,"responsibility":"通过 DeviceManager 读写任意适配器上的 ZIP 创建和解压流程。","depends_on":["ROLE-D01"],"industry_basis":"Archive application service","design_principles":["SRP","DIP"],"code_units":["electron/src/services/ArchiveService.ts"]},
+    {"id":"ROLE-L07","name":"MobileScreenshotService","role_kind":"layer","layer":"infrastructure","domain_role":null,"responsibility":"执行 Android ADB 截屏并经设备适配器保存 PNG。","depends_on":["ROLE-D01"],"industry_basis":"Infrastructure adapter around ADB process","design_principles":["SRP","DIP","separation_of_concerns"],"code_units":["electron/src/services/MobileScreenshotService.ts"]},
+    {"id":"ROLE-D01","name":"FileBrowserViewState","role_kind":"domain","layer":"domain","domain_role":"value_object","responsibility":"定义排序、冲突策略、标签与批量重命名的不可变数据形状。","depends_on":[],"industry_basis":"DDD value object","design_principles":["value_object","high_cohesion_low_coupling"],"code_units":["src/types/fileBrowser.ts"]}
+  ],
+  "design_contract_checks": [
+    {"id":"DC-1","item":"FilePane 只转发 intent 和维护局部弹窗状态，不直接实现适配器或 ADB 调用。","principle":"separation_of_concerns","role_scope":["ROLE-L02"]},
+    {"id":"DC-2","item":"传输、回收和改名策略只能由 FileOperationManager 调用 IFileSystemAdapter。","principle":"DIP","role_scope":["ROLE-L04"]},
+    {"id":"DC-3","item":"标签数据以 deviceId 和 path 为键保存，禁止为了标签修改 SMB、手机或 WebDAV 文件。","principle":"separation_of_concerns","role_scope":["ROLE-L05"]},
+    {"id":"DC-4","item":"截图入口由 DeviceCapabilities 门控，iOS 和非移动设备不调用 ADB。","principle":"OCP","role_scope":["ROLE-L07"]},
+    {"id":"DC-5","item":"排序与冲突策略用命名类型表达，不以散落字符串判断业务分支。","principle":"value_object","role_scope":["ROLE-D01"]}
+  ],
+  "business_process": [
+    {"step":1,"roles":["ROLE-L02","ROLE-L03","ROLE-L01","ROLE-D01"],"code_refs":["src/components/FilePane.vue","src/components/FileList.vue","src/stores/fileBrowser.ts"],"doc_ref":"业务流程图#浏览、排序与搜索","exception":null},
+    {"step":2,"roles":["ROLE-L02","ROLE-L04","ROLE-D01"],"code_refs":["src/components/FilePane.vue","src/stores/fileOperations.ts","electron/src/services/FileOperationManager.ts"],"doc_ref":"业务流程图#目标目录与冲突策略","exception":"目标冲突按 skip、overwrite 或 rename 策略记录结果"},
+    {"step":3,"roles":["ROLE-L02","ROLE-L05"],"code_refs":["src/components/FilePane.vue","electron/src/services/FileMetadataService.ts","electron/main.ts"],"doc_ref":"业务流程图#标签集合","exception":"配置写入失败时保留原标签并显示 IPC 错误"},
+    {"step":4,"roles":["ROLE-L02","ROLE-L06"],"code_refs":["src/components/FilePane.vue","electron/src/services/ArchiveService.ts","electron/main.ts"],"doc_ref":"业务流程图#ZIP","exception":"路径穿越 ZIP 条目会中止解压"},
+    {"step":5,"roles":["ROLE-L02","ROLE-L04"],"code_refs":["src/components/FilePane.vue","src/stores/fileOperations.ts","electron/src/services/FileOperationManager.ts"],"doc_ref":"业务流程图#回收与恢复","exception":"远端原位置同名时恢复任务记录失败而不覆盖"},
+    {"step":6,"roles":["ROLE-L02","ROLE-L07"],"code_refs":["src/components/FilePane.vue","electron/src/services/MobileScreenshotService.ts","electron/main.ts"],"doc_ref":"业务流程图#Android 截屏","exception":"ADB 返回非 PNG 或非零退出码时将错误返回界面"}
+  ],
+  "logging_standard": {"library":"Electron main process console.info/console.error with structured context","key_nodes_instrumented":["入口","出口","异常","外部调用"]},
+  "summary":{"roles_count":8,"process_steps":6,"layer_roles":7,"domain_roles":1},
+  "gate":{"architecture":"go","logging":"go","coverage":"go","verdict":"go","notes":"构建与类型检查通过；契约角色仅登记负责业务路径的代码单元，日志使用现有 console 结构化上下文。","issues":[]},
+  "open_questions": []
+}

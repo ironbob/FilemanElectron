@@ -9,7 +9,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="filteredFiles.length === 0" class="flex-1 flex items-center justify-center">
+    <div v-else-if="displayedFiles.length === 0" class="flex-1 flex items-center justify-center">
       <div class="text-center text-text-tertiary">
         <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -23,15 +23,15 @@
       <!-- Header 固定在顶部，不随列表滚动 -->
       <div class="flex-shrink-0 flex items-center gap-3 px-4 py-2 bg-bg-secondary border-b border-border text-xs font-medium text-text-tertiary">
         <span class="w-6"></span>
-        <span class="flex-1">Name</span>
-        <span class="w-24 text-right">Size</span>
-        <span class="w-36 text-right">Date Modified</span>
+        <button class="flex-1 text-left hover:text-text-primary" @click="toggleSort('name')">Name {{ sortIndicator('name') }}</button>
+        <button class="w-24 text-right hover:text-text-primary" @click="toggleSort('size')">Size {{ sortIndicator('size') }}</button>
+        <button class="w-36 text-right hover:text-text-primary" @click="toggleSort('modifiedTime')">Date Modified {{ sortIndicator('modifiedTime') }}</button>
       </div>
 
       <!-- 虚拟滚动列表 -->
       <RecycleScroller
         class="flex-1 min-h-0"
-        :items="filteredFiles"
+        :items="displayedFiles"
         :item-size="LIST_ITEM_HEIGHT"
         key-field="path"
         v-slot="{ item: file }"
@@ -223,6 +223,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed, reactive, h, type Component, onUnmounted, nextTick } from 'vue'
 import type { FileInfo, Column } from '@/types'
+import type { FileSortDescriptor } from '@/types/fileBrowser'
 import type { DeviceCapabilities } from '@/types/fileOperation'
 import { useDevicesStore } from '@/stores/devices'
 import { useThumbnailStore } from '@/stores/thumbnail'
@@ -232,6 +233,8 @@ import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
+const log = console
+
 const props = defineProps<{
   paneId: string
   deviceId: string
@@ -239,6 +242,8 @@ const props = defineProps<{
   viewMode: 'list' | 'grid' | 'columns'
   selectedFiles: string[]
   searchQuery?: string
+  recursiveSearch?: boolean
+  sort?: FileSortDescriptor
   gridSize?: 'xlarge' | 'large' | 'medium' | 'small'
 }>()
 
@@ -248,6 +253,7 @@ const emit = defineEmits<{
   preview: [file: FileInfo]
   operation: [op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string }]
   loaded: [files: FileInfo[]]
+  sort: [sort: FileSortDescriptor]
 }>()
 
 const devicesStore = useDevicesStore()
@@ -256,9 +262,12 @@ const tabsStore = useTabsStore()
 const favoritesStore = useFavoritesStore()
 
 const files = ref<FileInfo[]>([])
+const searchResults = ref<FileInfo[] | null>(null)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 const loading = ref(false)
 const columnFilesMap = ref<Map<string, FileInfo[]>>(new Map())
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
+const transferTargets = ref<Map<string, { copy: boolean; move: boolean }>>(new Map())
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
 
@@ -350,14 +359,34 @@ const rubberBandStyle = computed(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const filteredFiles = computed(() => {
-  if (!props.searchQuery?.trim()) {
-    return files.value
-  }
+  const source = (props.recursiveSearch || !!props.searchQuery?.trim().match(/^tag:(.+)$/i)) && searchResults.value ? searchResults.value : files.value
+  if (!props.searchQuery?.trim()) return source
   const lowerFilter = props.searchQuery.toLowerCase().trim()
-  return files.value.filter(file =>
-    file.name.toLowerCase().includes(lowerFilter)
-  )
+  return source.filter(file => file.name.toLowerCase().includes(lowerFilter))
 })
+
+const displayedFiles = computed(() => {
+  const sort = props.sort ?? { field: 'name' as const, direction: 'asc' as const, foldersFirst: true }
+  return [...filteredFiles.value].sort((left, right) => {
+    if (sort.foldersFirst && left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1
+    const leftValue = sort.field === 'size' ? left.size : sort.field === 'modifiedTime' ? Date.parse(left.modifiedTime) : sort.field === 'extension' ? left.extension || '' : left.name
+    const rightValue = sort.field === 'size' ? right.size : sort.field === 'modifiedTime' ? Date.parse(right.modifiedTime) : sort.field === 'extension' ? right.extension || '' : right.name
+    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: 'base' })
+    return sort.direction === 'asc' ? comparison : -comparison
+  })
+})
+
+function toggleSort(field: FileSortDescriptor['field']) {
+  const current = props.sort ?? { field: 'name' as const, direction: 'asc' as const, foldersFirst: true }
+  emit('sort', { field, direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc', foldersFirst: current.foldersFirst })
+}
+
+function sortIndicator(field: FileSortDescriptor['field']) {
+  if ((props.sort?.field ?? 'name') !== field) return ''
+  return (props.sort?.direction ?? 'asc') === 'asc' ? '↑' : '↓'
+}
 
 // ── 虚拟滚动配置 ──────────────────────────────────────────────────────────────
 // List View: 每行固定高度 = py-2(16px) + text-base行高(24px) = 40px
@@ -399,10 +428,10 @@ const itemsPerRow = computed(() => {
 const gridRows = computed(() => {
   const n = itemsPerRow.value
   const result: Array<{ key: string; files: FileInfo[] }> = []
-  for (let i = 0; i < filteredFiles.value.length; i += n) {
+  for (let i = 0; i < displayedFiles.value.length; i += n) {
     result.push({
-      key: filteredFiles.value[i].path,
-      files: filteredFiles.value.slice(i, i + n),
+      key: displayedFiles.value[i].path,
+      files: displayedFiles.value.slice(i, i + n),
     })
   }
   return result
@@ -472,6 +501,13 @@ async function loadFiles() {
     // Load device capabilities
     try {
       deviceCapabilities.value = await devicesStore.getDeviceCapabilities(props.deviceId)
+      const checks = await Promise.all(devicesStore.connectedDevices
+        .filter(device => device.id !== props.deviceId)
+        .map(async device => [device.id, {
+          copy: await window.fileman.canTransferBetween(props.deviceId, device.id, 'copy'),
+          move: await window.fileman.canTransferBetween(props.deviceId, device.id, 'move')
+        }] as const))
+      transferTargets.value = new Map(checks)
     } catch (e) {
       console.warn(`[FileList#${callId}] Could not load device capabilities:`, e)
     }
@@ -528,6 +564,36 @@ watch(() => props.deviceId, (newId, oldId) => {
   loadFiles()
 })
 
+watch([() => props.searchQuery, () => props.recursiveSearch, () => props.path, () => props.deviceId], () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  const isTagCollection = !!props.searchQuery?.trim().match(/^tag:(.+)$/i)
+  if ((!props.recursiveSearch && !isTagCollection) || !props.searchQuery?.trim()) {
+    searchResults.value = null
+    return
+  }
+  searchTimer = setTimeout(async () => {
+    try {
+      const rawQuery = props.searchQuery!.trim()
+      const tagQuery = rawQuery.match(/^tag:(.+)$/i)
+      const result = tagQuery
+        ? (await window.fileman.findFilesByTags(tagQuery[1].split(','))).filter(item => item.deviceId === props.deviceId).map(item => ({
+            name: item.path.split('/').pop() || item.path,
+            path: item.path,
+            isDirectory: false,
+            isFile: true,
+            size: 0,
+            modifiedTime: new Date(item.updatedAt).toISOString(),
+            extension: item.path.includes('.') ? `.${item.path.split('.').pop()!.toLowerCase()}` : undefined
+          }))
+        : await window.fileman.search(props.deviceId, props.path, { pattern: rawQuery })
+      if ((props.recursiveSearch || isTagCollection) && props.searchQuery?.trim()) searchResults.value = result
+    } catch (error) {
+      log.warn('[FileList] recursive search failed', { deviceId: props.deviceId, path: props.path, error })
+      searchResults.value = []
+    }
+  }, 250)
+}, { immediate: true })
+
 onMounted(() => {
   // loadFiles() 已由 watch(() => props.path, ..., { immediate: true }) 在挂载前调用，无需重复
   if (containerRef.value) {
@@ -553,11 +619,32 @@ onUnmounted(() => {
 })
 
 function handleKeyDown(event: KeyboardEvent) {
+  const target = event.target as HTMLElement | null
+  if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
   // Cmd/Ctrl + R: Refresh
   if ((event.metaKey || event.ctrlKey) && event.key === 'r') {
     event.preventDefault()
     loadFiles()
     return
+  }
+
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c' && props.selectedFiles.length) {
+    event.preventDefault(); emit('operation', { action: 'copy', files: props.selectedFiles }); return
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'x' && props.selectedFiles.length) {
+    event.preventDefault(); emit('operation', { action: 'cut', files: props.selectedFiles }); return
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v') {
+    event.preventDefault(); emit('operation', { action: 'paste', files: [], target: props.path }); return
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'i' && props.selectedFiles.length === 1) {
+    event.preventDefault(); emit('operation', { action: 'info', files: props.selectedFiles }); return
+  }
+  if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'r' && props.selectedFiles.length > 1) {
+    event.preventDefault(); emit('operation', { action: 'batch-rename', files: props.selectedFiles }); return
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key === 'Backspace' && props.selectedFiles.length) {
+    event.preventDefault(); emit('operation', { action: 'delete', files: props.selectedFiles }); return
   }
 
   // Enter: Start rename (when single file selected and not already renaming)
@@ -749,11 +836,11 @@ function handleClick(file: FileInfo, event: MouseEvent) {
     // Cmd+Shift: add range from anchor to current item to existing selection
     const anchor = anchorPath.value
     if (anchor) {
-      const anchorIndex = filteredFiles.value.findIndex(f => f.path === anchor)
-      const currentIndex = filteredFiles.value.findIndex(f => f.path === file.path)
+      const anchorIndex = displayedFiles.value.findIndex(f => f.path === anchor)
+      const currentIndex = displayedFiles.value.findIndex(f => f.path === file.path)
       const start = Math.min(anchorIndex, currentIndex)
       const end = Math.max(anchorIndex, currentIndex)
-      const rangeFiles = filteredFiles.value.slice(start, end + 1).map(f => f.path)
+      const rangeFiles = displayedFiles.value.slice(start, end + 1).map(f => f.path)
       const merged = [...new Set([...props.selectedFiles, ...rangeFiles])]
       emit('select', merged)
     } else {
@@ -774,11 +861,11 @@ function handleClick(file: FileInfo, event: MouseEvent) {
   } else if (event.shiftKey) {
     const anchor = anchorPath.value
     if (anchor) {
-      const anchorIndex = filteredFiles.value.findIndex(f => f.path === anchor)
-      const currentIndex = filteredFiles.value.findIndex(f => f.path === file.path)
+      const anchorIndex = displayedFiles.value.findIndex(f => f.path === anchor)
+      const currentIndex = displayedFiles.value.findIndex(f => f.path === file.path)
       const start = Math.min(anchorIndex, currentIndex)
       const end = Math.max(anchorIndex, currentIndex)
-      const newSelection = filteredFiles.value.slice(start, end + 1).map(f => f.path)
+      const newSelection = displayedFiles.value.slice(start, end + 1).map(f => f.path)
       emit('select', newSelection)
     } else {
       anchorPath.value = file.path
@@ -977,12 +1064,13 @@ async function handleColumnClick(columnIndex: number, file: FileInfo) {
 /**
  * Get available target devices for cross-device operations
  */
-function getTargetDevices(): Array<{ label: string; action: string; deviceId: string }> {
+function getTargetDevices(operation: 'copy' | 'move'): Array<{ label: string; action: string; deviceId: string }> {
   const targets: Array<{ label: string; action: string; deviceId: string }> = []
 
   for (const device of devicesStore.connectedDevices) {
     // Skip the current device
     if (device.id === props.deviceId) continue
+    if (!transferTargets.value.get(device.id)?.[operation]) continue
 
     targets.push({
       label: device.name,
@@ -1037,7 +1125,7 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
 
     // Add cross-device copy submenu if there are other connected devices
-    const targetDevices = getTargetDevices()
+    const targetDevices = getTargetDevices('copy')
     if (caps?.canCopyFrom && targetDevices.length > 0) {
       items.push({
         label: 'Copy to Device',
@@ -1047,11 +1135,12 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
 
     // Add cross-device move submenu
-    if (caps?.canMoveFrom && targetDevices.length > 0) {
+    const moveTargetDevices = getTargetDevices('move')
+    if (caps?.canMoveFrom && moveTargetDevices.length > 0) {
       items.push({
         label: 'Move to Device',
         action: 'move-to-device-menu',
-        children: targetDevices.map(t => ({
+        children: moveTargetDevices.map(t => ({
           ...t,
           action: `move-to-device:${t.deviceId}`
         }))
@@ -1067,6 +1156,15 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
 
     items.push({ label: 'Get Info', action: 'info', shortcut: '⌘I' })
+    if (props.selectedFiles.length > 1 && caps?.canRename) {
+      items.push({ label: 'Batch Rename', action: 'batch-rename', shortcut: '⇧⌘R' })
+    }
+    if (caps?.canArchive) {
+      items.push({ label: 'Compress to ZIP', action: 'archive' })
+    }
+    if (contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
+      items.push({ label: 'Extract ZIP', action: 'extract-archive' })
+    }
 
     // Compare two directories: only when exactly 2 directories are selected
     if (props.selectedFiles.length === 2) {

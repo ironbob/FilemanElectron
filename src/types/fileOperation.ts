@@ -1,4 +1,5 @@
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch'
+export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 /**
@@ -24,6 +25,9 @@ export interface DeviceCapabilities {
   readonly canCopyTo: boolean
   readonly canMoveFrom: boolean
   readonly canMoveTo: boolean
+  readonly canCaptureScreenshot: boolean
+  readonly canArchive: boolean
+  readonly canRecycle: boolean
 
   // Limitations
   readonly maxFileSize?: number
@@ -57,6 +61,9 @@ export interface FileOperationTask {
   targetDeviceId?: string
   targetPath?: string
   newName?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
   status: FileOperationStatus
   progress: FileOperationProgress
   createdAt: number
@@ -72,4 +79,7 @@ export interface CreateTaskParams {
   targetDeviceId?: string
   targetPath?: string
   newName?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
 }

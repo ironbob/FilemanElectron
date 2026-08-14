@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
-import type {
-  FileOperationTask
-} from '@/types/fileOperation'
+import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
 
 export interface FileOperationState {
   tasks: FileOperationTask[]
   history: FileOperationTask[]
   isPanelVisible: boolean
   activeTaskCount: number
+  undoRecycle: Array<{ trashPath: string; originalPath: string }> | null
+  undoRecycleDeviceId: string | null
 }
 
 export const useFileOperationsStore = defineStore('fileOperations', {
@@ -15,7 +15,9 @@ export const useFileOperationsStore = defineStore('fileOperations', {
     tasks: [],
     history: [],
     isPanelVisible: false,
-    activeTaskCount: 0
+    activeTaskCount: 0,
+    undoRecycle: null,
+    undoRecycleDeviceId: null
   }),
   actions: {
     // Initialize store and set up event listeners
@@ -48,6 +50,12 @@ export const useFileOperationsStore = defineStore('fileOperations', {
             if (this.history.length > 100) {
               this.history = this.history.slice(0, 100)
             }
+            if (task.type === 'recycle' && task.sourceDeviceId !== 'local') {
+              this.undoRecycle = task.progress.itemResults
+                .filter(result => result.status === 'success' && result.targetPath)
+                .map(result => ({ trashPath: result.targetPath!, originalPath: result.sourcePath }))
+              this.undoRecycleDeviceId = this.undoRecycle.length ? task.sourceDeviceId : null
+            }
           }
         }
         this.updateActiveTaskCount()
@@ -58,14 +66,16 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       sourceDeviceId: string,
       sourcePaths: string[],
       targetDeviceId: string,
-      targetPath: string
+      targetPath: string,
+      conflictStrategy: ConflictStrategy = 'skip'
     ): Promise<FileOperationTask> {
       return window.fileman.createFileOperation({
         type: 'copy',
         sourceDeviceId,
         sourcePaths: [...sourcePaths],
         targetDeviceId,
-        targetPath
+        targetPath,
+        conflictStrategy
       })
     },
 
@@ -73,14 +83,16 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       sourceDeviceId: string,
       sourcePaths: string[],
       targetDeviceId: string,
-      targetPath: string
+      targetPath: string,
+      conflictStrategy: ConflictStrategy = 'skip'
     ): Promise<FileOperationTask> {
       return window.fileman.createFileOperation({
         type: 'move',
         sourceDeviceId,
         sourcePaths: [...sourcePaths],
         targetDeviceId,
-        targetPath
+        targetPath,
+        conflictStrategy
       })
     },
 
@@ -104,6 +116,23 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       })
     },
 
+    async createRecycleTask(deviceId: string, paths: string[]): Promise<FileOperationTask> {
+      return window.fileman.createFileOperation({ type: 'recycle', sourceDeviceId: deviceId, sourcePaths: [...paths] })
+    },
+
+    async undoLastRecycle(): Promise<FileOperationTask | null> {
+      if (!this.undoRecycleDeviceId || !this.undoRecycle?.length) return null
+      const task = await window.fileman.createFileOperation({
+        type: 'restore',
+        sourceDeviceId: this.undoRecycleDeviceId,
+        sourcePaths: this.undoRecycle.map(item => item.trashPath),
+        restoreItems: this.undoRecycle
+      })
+      this.undoRecycle = null
+      this.undoRecycleDeviceId = null
+      return task
+    },
+
     async createRenameTask(
       deviceId: string,
       oldPath: string,
@@ -114,6 +143,18 @@ export const useFileOperationsStore = defineStore('fileOperations', {
         sourceDeviceId: deviceId,
         sourcePaths: [oldPath],
         newName
+      })
+    },
+
+    async createBatchRenameTask(
+      deviceId: string,
+      renameItems: Array<{ sourcePath: string; newName: string }>
+    ): Promise<FileOperationTask> {
+      return window.fileman.createFileOperation({
+        type: 'batch-rename',
+        sourceDeviceId: deviceId,
+        sourcePaths: renameItems.map(item => item.sourcePath),
+        renameItems
       })
     },
 

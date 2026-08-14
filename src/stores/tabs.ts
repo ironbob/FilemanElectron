@@ -251,6 +251,17 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  /** Switches a pane to another device before navigating to a recent location. */
+  function setPaneDevice(paneId: string, deviceId: string) {
+    const pane = findPane(paneId)
+    if (!pane || pane.deviceId === deviceId) return
+    pane.deviceId = deviceId
+    pane.path = '/'
+    pane.history = ['/']
+    pane.historyIndex = 0
+    pane.selectedFiles = []
+  }
+
   function setColumns(paneId: string, columns: Array<{ path: string; selectedPath?: string }>) {
     const pane = findPane(paneId)
     if (pane) {
@@ -346,6 +357,7 @@ export const useTabsStore = defineStore('tabs', () => {
     setViewMode,
     setGridSize,
     setSelectedFiles,
+    setPaneDevice,
     setColumns,
     findPane,
     openCompareTab,

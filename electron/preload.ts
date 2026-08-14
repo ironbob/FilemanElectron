@@ -48,6 +48,9 @@ export interface DeviceCapabilities {
   readonly canMoveFrom: boolean
   readonly canMoveTo: boolean
   readonly canStream: boolean
+  readonly canCaptureScreenshot: boolean
+  readonly canArchive: boolean
+  readonly canRecycle: boolean
   readonly maxFileSize?: number
   readonly readonlyPaths?: string[]
   readonly hiddenPaths?: string[]
@@ -74,7 +77,8 @@ export interface SearchQuery {
 }
 
 // File Operation Types
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch'
+export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -103,6 +107,9 @@ export interface FileOperationTask {
   targetDeviceId?: string
   targetPath?: string
   newName?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
   status: FileOperationStatus
   progress: FileOperationProgress
   createdAt: number
@@ -118,6 +125,9 @@ export interface CreateTaskParams {
   targetDeviceId?: string
   targetPath?: string
   newName?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
 }
 
 // Mobile Device Types
@@ -243,6 +253,19 @@ const filemanAPI = {
     ipcRenderer.invoke('file-operation:getHistory'),
   clearFileOperationHistory: () =>
     ipcRenderer.invoke('file-operation:clearHistory'),
+
+  // ============ File Browser Metadata / Archive / Mobile Capture ============
+  getFileMetadata: (deviceId: string, filePath: string) =>
+    ipcRenderer.invoke('file-metadata:get', deviceId, filePath),
+  setFileTags: (deviceId: string, filePath: string, tags: string[]) =>
+    ipcRenderer.invoke('file-metadata:setTags', deviceId, filePath, tags),
+  findFilesByTags: (tags: string[]) => ipcRenderer.invoke('file-metadata:findByTags', tags),
+  createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
+    ipcRenderer.invoke('archive:create', deviceId, sourcePaths, targetDirectory, archiveName),
+  extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) =>
+    ipcRenderer.invoke('archive:extract', deviceId, archivePath, targetDirectory),
+  captureMobileScreenshot: (deviceId: string, targetDirectory: string) =>
+    ipcRenderer.invoke('mobile:captureScreenshot', deviceId, targetDirectory),
 
   // ============ File Operation Events ============
   onFileOperationAdded: (callback: (task: FileOperationTask) => void) => {

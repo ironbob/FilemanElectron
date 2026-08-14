@@ -9,6 +9,9 @@
     <div class="h-10 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
       <!-- Navigation Buttons -->
       <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
+        <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" title="Undo last remote delete" aria-label="Undo last remote delete" @click="undoRecycle">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 101.9-5.2M4 4v4h4"/></svg>
+        </button>
         <button
           class="toolbar-btn-enhanced"
           :disabled="pane.historyIndex <= 0"
@@ -20,6 +23,17 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
+        <div class="relative">
+          <button class="toolbar-btn-enhanced" title="Recent locations" aria-label="Recent locations" @click="recentMenuOpen = !recentMenuOpen">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </button>
+          <div v-if="recentMenuOpen" class="absolute left-0 top-9 z-50 max-h-64 w-72 overflow-auto rounded-lg border border-border bg-bg-secondary py-1 shadow-xl">
+            <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-tertiary">No recent locations</div>
+            <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="block w-full px-3 py-2 text-left text-xs hover:bg-bg-hover" @click="openRecentLocation(location.deviceId, location.path)">
+              <span class="block truncate text-text-primary">{{ location.path }}</span><span class="block truncate text-text-tertiary">{{ location.deviceId }}</span>
+            </button>
+          </div>
+        </div>
         <button
           class="toolbar-btn-enhanced"
           :disabled="pane.historyIndex >= pane.history.length - 1"
@@ -69,7 +83,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Search"
+          placeholder="Search or tag:work"
           class="w-36 h-8 pl-8 pr-3 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
           @keydown.escape="searchQuery = ''"
         />
@@ -77,6 +91,9 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       </div>
+      <button class="toolbar-btn-enhanced" :class="{ active: browserState.recursiveSearch }" title="Search recursively" aria-label="Search recursively" @click="browserStore.toggleRecursiveSearch(paneId)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M5.16 15A8 8 0 0018.84 9M18.84 9A8 8 0 005.16 15"/></svg>
+      </button>
 
       <!-- View Mode -->
       <div class="flex items-center bg-bg-secondary/50 rounded-lg border border-border/50 p-0.5">
@@ -110,6 +127,9 @@
 
       <!-- Actions -->
       <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
+        <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" title="Capture Android Screenshot" aria-label="Capture Android Screenshot" @click="captureScreenshot">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 5l1-2h6l1 2M12 10v4m-2-2h4"/></svg>
+        </button>
         <button
           class="toolbar-btn-enhanced"
           :disabled="!canRevealInFinder"
@@ -149,11 +169,14 @@
         :grid-size="pane.gridSize"
         :selected-files="pane.selectedFiles"
         :search-query="searchQuery"
+        :recursive-search="browserState.recursiveSearch"
+        :sort="browserState.sort"
         @select="handleSelect"
         @navigate="handleNavigate"
         @preview="handlePreview"
         @operation="handleOperation"
         @loaded="handleFilesLoaded"
+        @sort="browserStore.setSort(paneId, $event)"
       />
 
       <!-- Inline Preview Panel -->
@@ -205,6 +228,28 @@
       @close="renameDialog.visible = false"
       @confirm="doRename"
     />
+    <TargetOperationDialog
+      v-if="targetDialog.visible"
+      :mode="targetDialog.mode"
+      :count="targetDialog.files.length"
+      :devices="targetDialog.devices"
+      @close="targetDialog.visible = false"
+      @confirm="confirmTargetOperation"
+    />
+    <FileInfoDialog
+      v-if="infoDialog.file"
+      :file="infoDialog.file"
+      :device-name="currentDeviceName"
+      :tags="infoDialog.tags"
+      @close="infoDialog.file = null"
+      @save-tags="saveTags"
+    />
+    <BatchRenameDialog
+      v-if="batchRenameDialog.visible"
+      :files="batchRenameDialog.files"
+      @close="batchRenameDialog.visible = false"
+      @confirm="confirmBatchRename"
+    />
   </div>
 </template>
 
@@ -214,11 +259,20 @@ import { useTabsStore } from '@/stores/tabs'
 import { usePreviewStore } from '@/stores/preview'
 import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useClipboardStore } from '@/stores/clipboard'
+import { useDevicesStore } from '@/stores/devices'
+import { useFileBrowserStore } from '@/stores/fileBrowser'
 import FileList from './FileList.vue'
 import InlinePreview from './preview/InlinePreview.vue'
 import RenameDialog from './dialogs/RenameDialog.vue'
+import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
+import FileInfoDialog from './dialogs/FileInfoDialog.vue'
+import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import { isImageFile } from '@/utils/fileTypes'
 import type { FileInfo } from '@/types'
+import type { BatchRenameItem } from '@/types/fileBrowser'
+import type { ConflictStrategy } from '@/types/fileOperation'
+
+const log = console
 
 const props = defineProps<{
   paneId: string
@@ -228,10 +282,17 @@ const tabsStore = useTabsStore()
 const previewStore = usePreviewStore()
 const fileOpsStore = useFileOperationsStore()
 const clipboardStore = useClipboardStore()
+const devicesStore = useDevicesStore()
+const browserStore = useFileBrowserStore()
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
+const browserState = computed(() => browserStore.stateFor(props.paneId))
+const currentDevice = computed(() => devicesStore.devices.find(device => device.id === pane.value?.deviceId))
+const currentDeviceName = computed(() => currentDevice.value?.name || pane.value?.deviceId || 'Local')
+const canCaptureScreenshot = computed(() => currentDevice.value?.type === 'android')
 
 const searchQuery = ref('')
+const recentMenuOpen = ref(false)
 const loadedFiles = ref<FileInfo[]>([])
 
 // Inline preview state
@@ -262,6 +323,14 @@ const renameDialog = reactive({
   visible: false,
   filePath: ''
 })
+const targetDialog = reactive({
+  visible: false,
+  mode: 'copy' as 'copy' | 'move',
+  files: [] as string[],
+  devices: [] as Array<{ id: string; name: string; path?: string }>
+})
+const infoDialog = reactive<{ file: FileInfo | null; tags: string[] }>({ file: null, tags: [] })
+const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 
 const pathSegments = computed(() => {
   if (!pane.value) return []
@@ -429,9 +498,18 @@ function handleSelect(files: string[]) {
 
 function handleNavigate(path: string) {
   tabsStore.navigatePane(props.paneId, path)
+  if (pane.value) browserStore.rememberLocation(pane.value.deviceId, path)
   // Close inline preview when navigating
   inlinePreviewFile.value = null
   previewStore.clearInlinePreview()
+}
+
+function openRecentLocation(deviceId: string, path: string) {
+  if (!pane.value) return
+  if (pane.value.deviceId !== deviceId) tabsStore.setPaneDevice(props.paneId, deviceId)
+  tabsStore.navigatePane(props.paneId, path)
+  browserStore.rememberLocation(deviceId, path)
+  recentMenuOpen.value = false
 }
 
 function handlePreview(file: FileInfo) {
@@ -565,9 +643,40 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
 
     case 'delete':
       if (confirm(`Delete ${op.files.length} item(s)?`)) {
-        await fileOpsStore.createDeleteTask(deviceId, op.files)
+        await fileOpsStore.createRecycleTask(deviceId, op.files)
         fileOpsStore.showPanel()
         tabsStore.setSelectedFiles(props.paneId, [])
+        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+      }
+      break
+
+    case 'info': {
+      const file = loadedFiles.value.find(item => item.path === op.files[0])
+      if (!file) break
+      infoDialog.file = { ...file, ...(await window.fileman.getStats(deviceId, file.path)) }
+      infoDialog.tags = (await window.fileman.getFileMetadata(deviceId, file.path)).tags
+      break
+    }
+
+    case 'batch-rename':
+      batchRenameDialog.files = op.files
+        .map(path => loadedFiles.value.find(file => file.path === path))
+        .filter((file): file is FileInfo => !!file)
+      batchRenameDialog.visible = batchRenameDialog.files.length > 1
+      break
+
+    case 'archive': {
+      const name = prompt('Archive name:', 'Archive.zip')
+      if (name && op.files.length) {
+        await window.fileman.createArchive(deviceId, op.files, targetPath, name)
+        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+      }
+      break
+    }
+
+    case 'extract-archive':
+      if (op.files[0]) {
+        await window.fileman.extractArchive(deviceId, op.files[0], targetPath)
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
       }
       break
@@ -621,30 +730,65 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'copy-to-device':
-      if (op.targetDeviceId && op.files.length > 0) {
-        await fileOpsStore.createCopyTask(
-          deviceId,
-          op.files,
-          op.targetDeviceId,
-          '/' // Root path of target device
-        )
-        fileOpsStore.showPanel()
-      }
+      if (op.targetDeviceId && op.files.length > 0) openTargetDialog('copy', op.files, op.targetDeviceId)
       break
 
     case 'move-to-device':
-      if (op.targetDeviceId && op.files.length > 0) {
-        await fileOpsStore.createMoveTask(
-          deviceId,
-          op.files,
-          op.targetDeviceId,
-          '/' // Root path of target device
-        )
-        fileOpsStore.showPanel()
-        tabsStore.setSelectedFiles(props.paneId, [])
-      }
+      if (op.targetDeviceId && op.files.length > 0) openTargetDialog('move', op.files, op.targetDeviceId)
       break
   }
+}
+
+function openTargetDialog(mode: 'copy' | 'move', files: string[], preferredDeviceId: string) {
+  const companionPanes = tabsStore.activeTab?.panes ?? []
+  targetDialog.devices = devicesStore.connectedDevices
+    .filter(device => device.id !== pane.value?.deviceId)
+    .map(device => ({ id: device.id, name: device.name, path: companionPanes.find(other => other.deviceId === device.id)?.path || '/' }))
+    .sort((left, right) => left.id === preferredDeviceId ? -1 : right.id === preferredDeviceId ? 1 : left.name.localeCompare(right.name))
+  targetDialog.mode = mode
+  targetDialog.files = files
+  targetDialog.visible = targetDialog.devices.length > 0
+}
+
+async function confirmTargetOperation(value: { deviceId: string; targetPath: string; conflictStrategy: ConflictStrategy }) {
+  const deviceId = pane.value?.deviceId || 'local'
+  if (targetDialog.mode === 'copy') await fileOpsStore.createCopyTask(deviceId, targetDialog.files, value.deviceId, value.targetPath, value.conflictStrategy)
+  else await fileOpsStore.createMoveTask(deviceId, targetDialog.files, value.deviceId, value.targetPath, value.conflictStrategy)
+  targetDialog.visible = false
+  log.info('[FilePane] target operation queued', { mode: targetDialog.mode, targetDeviceId: value.deviceId, targetPath: value.targetPath })
+  fileOpsStore.showPanel()
+  if (targetDialog.mode === 'move') tabsStore.setSelectedFiles(props.paneId, [])
+}
+
+async function saveTags(tags: string[]) {
+  if (!infoDialog.file || !pane.value) return
+  const metadata = await window.fileman.setFileTags(pane.value.deviceId, infoDialog.file.path, tags)
+  infoDialog.tags = metadata.tags
+}
+
+async function confirmBatchRename(items: BatchRenameItem[]) {
+  const deviceId = pane.value?.deviceId || 'local'
+  await fileOpsStore.createBatchRenameTask(deviceId, items)
+  batchRenameDialog.visible = false
+  fileOpsStore.showPanel()
+  tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+}
+
+async function captureScreenshot() {
+  if (!pane.value || !canCaptureScreenshot.value) return
+  try {
+    await window.fileman.captureMobileScreenshot(pane.value.deviceId, pane.value.path)
+    tabsStore.navigatePane(props.paneId, pane.value.path)
+  } catch (error) {
+    log.error('[FilePane] screenshot capture failed', { deviceId: pane.value.deviceId, error })
+    alert(error instanceof Error ? error.message : 'Screenshot failed')
+  }
+}
+
+async function undoRecycle() {
+  await fileOpsStore.undoLastRecycle()
+  fileOpsStore.showPanel()
+  if (pane.value) tabsStore.navigatePane(props.paneId, pane.value.path)
 }
 
 async function doRename(newName: string) {

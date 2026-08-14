@@ -603,6 +603,9 @@ export class DeviceManager {
           canMoveFrom: true,
           canMoveTo: true,
           canStream: false, // 连接后由具体适配器的 capability 覆盖
+          canCaptureScreenshot: device.type === 'android',
+          canArchive: true,
+          canRecycle: true,
         }
     }
   }

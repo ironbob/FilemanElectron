@@ -3,6 +3,7 @@ import Store from 'electron-store'
 interface AppConfig {
   devices: unknown[]
   favorites: unknown[]
+  fileMetadata?: unknown[]
   settings: {
     defaultView: string
     showHiddenFiles: boolean
@@ -44,6 +45,9 @@ export class ConfigService {
     }
     if (config.settings !== undefined) {
       this.store.set('settings', config.settings)
+    }
+    if (config.fileMetadata !== undefined) {
+      this.store.set('fileMetadata', config.fileMetadata)
     }
   }
 

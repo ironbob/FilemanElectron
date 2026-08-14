@@ -1,6 +1,7 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, shell } from 'electron'
 import type { IFileSystemAdapter } from '../adapters/types'
 import { StreamTransfer, CancelledError } from './StreamTransfer'
+const log = console
 
 /**
  * L05 · FileOperationManager (application service / orchestrator)
@@ -17,7 +18,8 @@ import { StreamTransfer, CancelledError } from './StreamTransfer'
  *  - OCP —— 按 capability(canStream)选流式/缓冲策略,不改适配器。
  */
 
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch'
+export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -46,6 +48,9 @@ export interface FileOperationTask {
   targetDeviceId?: string
   targetPath?: string
   newName?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
   status: FileOperationStatus
   progress: FileOperationProgress
   createdAt: number
@@ -61,6 +66,9 @@ export interface CreateTaskParams {
   targetDeviceId?: string
   targetPath?: string
   newName?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
 }
 
 export function generateTaskId(): string {
@@ -98,6 +106,9 @@ class TransferTask implements FileOperationTask {
     this.targetDeviceId = params.targetDeviceId
     this.targetPath = params.targetPath
     this.newName = params.newName
+    this.conflictStrategy = params.conflictStrategy ?? 'skip'
+    this.renameItems = params.renameItems
+    this.restoreItems = params.restoreItems
     this.status = 'pending'
     this.progress = {
       currentFile: '',
@@ -200,6 +211,7 @@ export class FileOperationManager {
     const task = new TransferTask(params)
     this.queue.push(task)
     this.notifyTaskAdded(task)
+    log.info('[FileOperationManager] task queued', { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId })
     this.processQueue()
     return task
   }
@@ -213,7 +225,7 @@ export class FileOperationManager {
     try {
       await this.executeTask(this.currentTask)
     } catch (error) {
-      console.error('[FileOperationManager] task execution error:', error)
+      log.error('[FileOperationManager] task execution error:', error)
     } finally {
       this.isRunning = false
       const completedTask = this.currentTask
@@ -250,6 +262,15 @@ export class FileOperationManager {
           break
         case 'touch':
           await this.executeTouch(task)
+          break
+        case 'batch-rename':
+          await this.executeBatchRename(task)
+          break
+        case 'recycle':
+          await this.executeRecycle(task)
+          break
+        case 'restore':
+          await this.executeRestore(task)
           break
       }
 
@@ -301,11 +322,12 @@ export class FileOperationManager {
       for (const sourcePath of task.sourcePaths) {
         if (this.cancelled) return
         const name = posixBaseName(sourcePath)
-        const dst = joinPosix(targetPath, name)
+        const dst = await this.resolveTargetPath(target, joinPosix(targetPath, name), task.conflictStrategy ?? 'skip')
         task.setCurrentFile(name, 0)
         this.notifyTaskUpdate(task)
         const item: FileOperationItemResult = { sourcePath, targetPath: dst, status: 'success' }
         try {
+          if (await target.exists(dst) && task.conflictStrategy === 'overwrite') await target.delete(dst)
           await source.rename(sourcePath, dst)
         } catch (error) {
           item.status = 'failed'
@@ -442,19 +464,19 @@ export class FileOperationManager {
     const item: FileOperationItemResult = { sourcePath: srcPath, targetPath: dstPath, status: 'success' }
 
     try {
-      // 目标已存在:跳过(覆盖询问留作后续增强,见需求 §12.1 假设3)。
-      if (await target.exists(dstPath)) {
+      const resolvedDestination = await this.resolveTargetPath(target, dstPath, task.conflictStrategy ?? 'skip')
+      // Skip retains source data. Overwrite and rename are resolved before transfer.
+      if (resolvedDestination === null) {
         item.status = 'skipped'
         task.recordItem(item)
-        // 冲突策略为 skip 时必须保留源文件；不能把“目标已存在”当成已验证的
-        // 同一内容，否则移动会造成数据丢失。
         return false
       }
+      item.targetPath = resolvedDestination
 
       const startBytes = task.progress.bytesTransferred
       const startTime = Date.now()
 
-      const bytes = await StreamTransfer.transferFile(source, srcPath, target, dstPath, {
+      const bytes = await StreamTransfer.transferFile(source, srcPath, target, resolvedDestination, {
         onProgress: (b) => {
           task.progress.bytesTransferred = startBytes + b
           this.updateSpeed(task, startBytes, startTime)
@@ -488,6 +510,30 @@ export class FileOperationManager {
     const elapsed = Date.now() - startTime
     const delta = task.progress.bytesTransferred - startBytes
     task.progress.speed = elapsed > 0 ? (delta / elapsed) * 1000 : 0
+  }
+
+  /** Returns null for skip, otherwise a writable conflict-free destination. */
+  private async resolveTargetPath(
+    target: IFileSystemAdapter,
+    destination: string,
+    strategy: ConflictStrategy
+  ): Promise<string | null> {
+    if (!(await target.exists(destination))) return destination
+    if (strategy === 'skip') return null
+    if (strategy === 'overwrite') {
+      await target.delete(destination)
+      return destination
+    }
+    const extensionIndex = posixBaseName(destination).lastIndexOf('.')
+    const parent = destination.slice(0, Math.max(0, destination.length - posixBaseName(destination).length)).replace(/\/$/, '') || '/'
+    const name = posixBaseName(destination)
+    const stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name
+    const extension = extensionIndex > 0 ? name.slice(extensionIndex) : ''
+    for (let suffix = 1; suffix < 10_000; suffix++) {
+      const candidate = joinPosix(parent, `${stem} ${suffix}${extension}`)
+      if (!(await target.exists(candidate))) return candidate
+    }
+    throw new Error(`无法为冲突文件生成可用名称: ${destination}`)
   }
 
   /** 统计总量(含目录递归)。 */
@@ -577,6 +623,82 @@ export class FileOperationManager {
       throw error
     }
     task.recordItem(item)
+  }
+
+  private async executeBatchRename(task: TransferTask): Promise<void> {
+    const adapter = this.adapters.get(task.sourceDeviceId)
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
+    const items = task.renameItems ?? []
+    if (items.length === 0) throw new Error('批量重命名缺少预览后的名称列表。')
+    task.progress.totalFiles = items.length
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index]
+      const parent = item.sourcePath.slice(0, item.sourcePath.lastIndexOf('/')) || '/'
+      const destination = joinPosix(parent, item.newName)
+      task.setCurrentFile(item.newName, index)
+      const result: FileOperationItemResult = { sourcePath: item.sourcePath, targetPath: destination, status: 'success' }
+      try {
+        if (await adapter.exists(destination)) throw new Error(`目标名称已存在: ${item.newName}`)
+        await adapter.rename(item.sourcePath, destination)
+      } catch (error) {
+        result.status = 'failed'
+        result.error = error instanceof Error ? error.message : String(error)
+      }
+      task.recordItem(result)
+      this.notifyTaskUpdate(task)
+    }
+  }
+
+  /** Local uses the platform trash; remote/mobile adapters use a same-parent hidden bin. */
+  private async executeRecycle(task: TransferTask): Promise<void> {
+    const adapter = this.adapters.get(task.sourceDeviceId)
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
+    task.progress.totalFiles = task.sourcePaths.length
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      const sourcePath = task.sourcePaths[index]
+      const result: FileOperationItemResult = { sourcePath, status: 'success' }
+      task.setCurrentFile(posixBaseName(sourcePath), index)
+      try {
+        if (task.sourceDeviceId === 'local') {
+          await shell.trashItem(sourcePath)
+        } else {
+          const parent = posixDirname(sourcePath)
+          const trashDirectory = joinPosix(joinPosix(parent, '.fileman-recycle-bin'), task.id)
+          await adapter.mkdir(trashDirectory)
+          const trashPath = await this.resolveTargetPath(adapter, joinPosix(trashDirectory, posixBaseName(sourcePath)), 'rename')
+          if (!trashPath) throw new Error('无法准备回收站路径')
+          await adapter.rename(sourcePath, trashPath)
+          result.targetPath = trashPath
+        }
+      } catch (error) {
+        result.status = 'failed'
+        result.error = error instanceof Error ? error.message : String(error)
+      }
+      task.recordItem(result)
+      this.notifyTaskUpdate(task)
+    }
+  }
+
+  private async executeRestore(task: TransferTask): Promise<void> {
+    const adapter = this.adapters.get(task.sourceDeviceId)
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
+    const items = task.restoreItems ?? []
+    if (items.length === 0) throw new Error('恢复操作缺少原始路径。')
+    task.progress.totalFiles = items.length
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index]
+      const result: FileOperationItemResult = { sourcePath: item.trashPath, targetPath: item.originalPath, status: 'success' }
+      task.setCurrentFile(posixBaseName(item.originalPath), index)
+      try {
+        if (await adapter.exists(item.originalPath)) throw new Error(`原始位置已有同名项目: ${item.originalPath}`)
+        await adapter.rename(item.trashPath, item.originalPath)
+      } catch (error) {
+        result.status = 'failed'
+        result.error = error instanceof Error ? error.message : String(error)
+      }
+      task.recordItem(result)
+      this.notifyTaskUpdate(task)
+    }
   }
 
   private async executeMkdir(task: TransferTask): Promise<void> {

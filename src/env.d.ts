@@ -124,6 +124,9 @@ interface DeviceCapabilities {
   readonly canMoveFrom: boolean
   readonly canMoveTo: boolean
   readonly canStream: boolean
+  readonly canCaptureScreenshot: boolean
+  readonly canArchive: boolean
+  readonly canRecycle: boolean
   readonly maxFileSize?: number
   readonly readonlyPaths?: string[]
   readonly hiddenPaths?: string[]
@@ -194,6 +197,14 @@ interface Window {
     cancelFileOperation: (taskId: string) => void
     retryFileOperation: (taskId: string) => Promise<FileOperationTask | null>
     clearFileOperationHistory: () => void
+
+    // File browser metadata, ZIP actions and capability-gated mobile capture
+    getFileMetadata: (deviceId: string, filePath: string) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>
+    setFileTags: (deviceId: string, filePath: string, tags: string[]) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>
+    findFilesByTags: (tags: string[]) => Promise<Array<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>>
+    createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) => Promise<{ path: string }>
+    extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) => Promise<{ count: number }>
+    captureMobileScreenshot: (deviceId: string, targetDirectory: string) => Promise<{ path: string }>
 
     // File Operations Events
     onFileOperationAdded: (callback: (task: FileOperationTask) => void) => () => void
@@ -272,7 +283,7 @@ interface Window {
 
 // ============ File Operation Types ============
 
-type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch'
+type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
 type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 type FileOperationItemStatus = 'success' | 'skipped' | 'failed'
 
@@ -317,4 +328,7 @@ interface CreateTaskParams {
   targetPath?: string
   targetDeviceId?: string
   newName?: string
+  conflictStrategy?: 'skip' | 'overwrite' | 'rename'
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
 }
