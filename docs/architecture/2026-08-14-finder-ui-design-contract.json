@@ -1,0 +1,128 @@
+{
+  "feature": "finder-ui",
+  "title": "Finder 风格界面层",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-14",
+  "existing_alignment": {
+    "recognized_style": "Electron renderer 使用 Vue 3 Composition API 与 Pinia setup stores；页面组件直接消费 tabs、devices、favorites、fileBrowser、preview 等 store，UI 日志沿用 console。",
+    "new_code_follows": "保留既有组件与 Pinia 状态边界，以 scoped Finder CSS token 和轻量 SVG registry 叠加表现层，不新增路由、后端接口、持久化模型或空壳 ViewModel。"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Electron renderer",
+    "current_patterns": ["Direct View", "Redux/Store"],
+    "target_patterns": ["Direct View", "Redux/Store"],
+    "state_management": "Pinia stores remain the single source of truth for tabs, file-browser view state, devices, favorites, previews, and operations; the Finder UI layer holds no business state.",
+    "view_model_policy": "not_used",
+    "mvvm_suitability": "not_suitable",
+    "migration_impact": "none",
+    "impact_scope": ["App shell presentation", "sidebar presentation", "file-pane presentation", "tab-strip presentation", "shared Finder styles and SVG resources"],
+    "migration_confirmation": "not_required",
+    "decision_reason": "The change is visual composition over existing stores. A ViewModel would only proxy existing store state and actions, weakening rather than clarifying the established state boundary."
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "FinderShell",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "组合 Finder 窗口标题栏、侧边栏、标签栏、文件区域和状态栏，同时保留既有组件的行为入口。",
+      "depends_on": ["ROLE-L04", "ROLE-L05"],
+      "industry_basis": "Vue 页面组合组件与组件化 UI 分层惯例。",
+      "design_principles": ["SRP", "separation_of_concerns"],
+      "code_units": ["src/App.vue"]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "FinderSidebar",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "呈现位置、设备和收藏导航的 Finder 分组外观，并把选择意图交给现有 stores。",
+      "depends_on": ["ROLE-L04"],
+      "industry_basis": "Vue smart component：视图消费共享 Store 并通过事件触发用户意图。",
+      "design_principles": ["SRP", "separation_of_concerns", "dependency_direction"],
+      "code_units": ["src/components/AppSidebar.vue"]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "FinderFilePane",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "呈现 Finder 样式路径栏、导航、搜索和视图控件，并继续调用既有文件浏览与标签页 Store。",
+      "depends_on": ["ROLE-L04", "ROLE-L05"],
+      "industry_basis": "Vue feature component 与 Pinia 单向状态消费惯例。",
+      "design_principles": ["SRP", "separation_of_concerns", "dependency_direction"],
+      "code_units": ["src/components/FilePane.vue"]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "FinderUiKit",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "提供受 Finder shell 作用域限制的颜色、间距、分隔线、选中态和控件样式 token。",
+      "depends_on": [],
+      "industry_basis": "Design token 与 scoped design-system stylesheet 做法。",
+      "design_principles": ["SRP", "high_cohesion_low_coupling", "separation_of_concerns"],
+      "code_units": ["src/styles/finder-ui.css"]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "FinderIconRegistry",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "映射已登记来源的 SVG 图标资源，并以无障碍文本规则输出可复用图标。",
+      "depends_on": [],
+      "industry_basis": "前端静态资源 registry 与可复用 presentational component 做法。",
+      "design_principles": ["SRP", "DIP", "ISP"],
+      "code_units": ["src/components/FinderIcon.vue"]
+    },
+    {
+      "id": "ROLE-L06",
+      "name": "FinderTabStrip",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "呈现紧凑 Finder 风格标签栏，并将标签切换和关闭委派给现有 tabs Store。",
+      "depends_on": ["ROLE-L04"],
+      "industry_basis": "Vue reusable view component 与 Pinia Store 消费惯例。",
+      "design_principles": ["SRP", "separation_of_concerns", "dependency_direction"],
+      "code_units": ["src/components/AppTabBar.vue"]
+    }
+  ],
+  "design_contract_checks": [
+    {"id": "DC-1", "item": "Finder UI 只改变呈现层；文件、设备、预览和传输状态继续由既有 Pinia stores 持有。", "principle": "separation_of_concerns", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-L06"]},
+    {"id": "DC-2", "item": "所有 Finder 视觉 token 必须限定在 .finder-shell 内，避免影响非主窗口的全局业务样式。", "principle": "high_cohesion_low_coupling", "role_scope": ["ROLE-L04"]},
+    {"id": "DC-3", "item": "图标由一个资源 registry 映射；调用方只依赖语义名称，不重复嵌入路径数据。", "principle": "DIP", "role_scope": ["ROLE-L05", "ROLE-L03"]},
+    {"id": "DC-4", "item": "主窗口和子组件依赖 UI Kit 与 icon registry，不让样式或资源层反向依赖业务组件。", "principle": "dependency_direction", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-L04", "ROLE-L05", "ROLE-L06"]},
+    {"id": "DC-5", "item": "不为纯表现层创建仅转发 Pinia actions 的 ViewModel，保持既有状态所有权清晰。", "principle": "SRP", "role_scope": ["ROLE-L01", "ROLE-L02", "ROLE-L03", "ROLE-L06"]}
+  ],
+  "business_process": [
+    {"step": 1, "name": "装配 Finder 主窗口", "roles": ["ROLE-L01", "ROLE-L04", "ROLE-L05"], "code_refs": ["src/App.vue", "src/styles/finder-ui.css", "src/components/FinderIcon.vue"], "doc_ref": "业务流程图-步骤1", "exception": "深色主题由已有 theme 状态切换，未改变主题持久化逻辑。"},
+    {"step": 2, "name": "选择 Finder 侧边栏位置", "roles": ["ROLE-L02", "ROLE-L04"], "code_refs": ["src/components/AppSidebar.vue"], "doc_ref": "业务流程图-步骤2", "exception": "设备连接或位置读取失败时继续沿用 AppSidebar 既有错误处理。"},
+    {"step": 3, "name": "使用 Finder 文件面板导航和搜索", "roles": ["ROLE-L03", "ROLE-L05"], "code_refs": ["src/components/FilePane.vue", "src/components/FinderIcon.vue"], "doc_ref": "业务流程图-步骤3", "exception": "历史边界时保留既有禁用行为，文件操作失败沿用既有错误处理。"},
+    {"step": 4, "name": "切换 Finder 风格标签", "roles": ["ROLE-L06", "ROLE-L04"], "code_refs": ["src/components/AppTabBar.vue"], "doc_ref": "业务流程图-步骤4", "exception": "仅一个标签时保留既有关闭限制。"}
+  ],
+  "logging_standard": {
+    "library": "browser console",
+    "key_nodes_instrumented": ["入口", "异常"]
+  },
+  "summary": {"roles_count": 6, "process_steps": 4, "layer_roles": 6, "domain_roles": 0},
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verdict": "go",
+    "issues": [
+      {"gate": "architecture", "severity": "minor", "role_or_step": "ROLE-L04", "problem": "此 UI feature 不新增 DDD 领域角色，因为不修改文件、设备或传输的业务不变量。", "evidence": "辅助校验未覆盖（领域建模适用性语义项）"},
+      {"gate": "architecture", "severity": "minor", "role_or_step": "ROLE-L04", "problem": "样式作用域和职责单一性由人工复核，辅助脚本不会执行 CSS 选择器语义分析。", "evidence": "辅助校验未覆盖（职责边界语义项）"}
+    ],
+    "notes": "用户于 2026-08-14 明确确认角色清单。结构校验用于确认角色、文件与流程的对应关系；职责边界和 CSS 作用域由设计原则人工复核。"
+  },
+  "open_questions": [
+    {"question": "尚未收到 Finder 参考截图。", "impact": "颜色、字号和各项比例只能对齐已确认的文本 UI 基线，无法声明像素级匹配。", "next_stage": "收到截图后新增截图文本图确认，并进行同配置渲染对比。"}
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "meta": {"mode":"repair","report":"report.md"},
+  "gates": [
+    {"name":"text-ui-confirmation","status":"passed","evidence":"Gate 0 confirmed exit 0; user message on 2026-08-14: 确认."},
+    {"name":"blueprint","status":"passed","evidence":"validate_blueprint.py passed after the confirmed text UI contract."},
+    {"name":"repair-audit","status":"passed","evidence":"validate_repair.py --phase audit passed with six traceable mismatches."},
+    {"name":"coding-path","status":"passed","evidence":"change-assessment revision 2 selected arch_first; user explicitly invoked arch-first-code-gen and confirmed roles."},
+    {"name":"delivery","status":"passed","evidence":"validate_delivery.py passed with 297 checks, including source-traced SVG assets."},
+    {"name":"repair-closure","status":"passed","evidence":"validate_repair.py --phase closure passed; visual mismatches remain explicitly flagged rather than claimed matched."}
+  ],
+  "render_diff": {"status":"unavailable","reason":"No Finder reference screenshot was attached and this workspace has no configured Electron screenshot runner.","result":"unverified","flag_ids":["MISMATCH-01","MISMATCH-04"]},
+  "self_check": [
+    {"dimension":"structure","status":"passed","evidence":"Finder shell, window bar, sidebar, path bar, content list, and status bar have code anchors validated by Gate 2."},
+    {"dimension":"entries","status":"passed","evidence":"All ten confirmed entries have real event or store anchors; sharing copies selected paths and tags opens the existing metadata dialog."},
+    {"dimension":"dimensions","status":"flagged","evidence":"No screenshot measurement baseline exists.","flag_ids":["DIM-01","DIM-02","DIM-03","DIM-04","DIM-05"]},
+    {"dimension":"style","status":"flagged","evidence":"Finder UI Kit is implemented, but visual color, blur, and spacing cannot be compared without a reference render.","flag_ids":["MISMATCH-04"]},
+    {"dimension":"icons","status":"passed","evidence":"All 18 semantic icons are source-traced Lucide SVG files, referenced by FinderIconRegistry and verified by Gate 2."},
+    {"dimension":"states","status":"flagged","evidence":"Selected and empty-state treatments are inferred and have no visual screenshot evidence.","flag_ids":["STATE-02","STATE-03","MISMATCH-06"]},
+    {"dimension":"a11y","status":"passed","evidence":"New share/tag buttons have titles and aria-labels; FinderIcon uses alt or aria-hidden according to decorative usage."}
+  ],
+  "proportion_check": {
+    "reference_viewport":{"width_px":1,"height_px":1},
+    "rendered_viewport":{"width_px":1,"height_px":1},
+    "items":[
+      {"dimension_id":"DIM-01","reference":{"numerator_px":1,"denominator_px":1},"rendered":{"numerator_px":1,"denominator_px":1},"deviation_pct":0,"tolerance_pct":5,"status":"unverified","evidence":"Schema sentinel only: no actual reference or rendered viewport exists, so no ratio is asserted.","flag_ids":["DIM-01"]},
+      {"dimension_id":"DIM-02","reference":{"numerator_px":1,"denominator_px":1},"rendered":{"numerator_px":1,"denominator_px":1},"deviation_pct":0,"tolerance_pct":5,"status":"unverified","evidence":"Schema sentinel only: no actual reference or rendered spacing measurement exists.","flag_ids":["DIM-02"]},
+      {"dimension_id":"DIM-03","reference":{"numerator_px":1,"denominator_px":1},"rendered":{"numerator_px":1,"denominator_px":1},"deviation_pct":0,"tolerance_pct":5,"status":"unverified","evidence":"Schema sentinel only: no actual typography measurement exists.","flag_ids":["DIM-03"]},
+      {"dimension_id":"DIM-04","reference":{"numerator_px":1,"denominator_px":1},"rendered":{"numerator_px":1,"denominator_px":1},"deviation_pct":0,"tolerance_pct":5,"status":"unverified","evidence":"Schema sentinel only: no actual toolbar control measurement exists.","flag_ids":["DIM-04"]},
+      {"dimension_id":"DIM-05","reference":{"numerator_px":1,"denominator_px":1},"rendered":{"numerator_px":1,"denominator_px":1},"deviation_pct":0,"tolerance_pct":5,"status":"unverified","evidence":"Schema sentinel only: no actual file-grid measurement exists.","flag_ids":["DIM-05"]}
+    ]
+  },
+  "tests":[
+    {"command":"npm run typecheck","result":"passed","evidence":"exit 0"},
+    {"command":"npm run build","result":"passed","evidence":"exit 0"},
+    {"command":"arch-first-code-gen validators","result":"passed","evidence":"validate_contract.py, validate_doc.py, and validate_gate.py all passed."}
+  ],
+  "flags":[
+    {"id":"DIM-01","priority":"P1","reason":"No sidebar proportion reference exists.","next_action":"Measure against a Finder screenshot."},
+    {"id":"DIM-02","priority":"P1","reason":"No toolbar and divider spacing reference exists.","next_action":"Measure against a Finder screenshot."},
+    {"id":"DIM-03","priority":"P1","reason":"No typography ratio reference exists.","next_action":"Measure against a Finder screenshot."},
+    {"id":"DIM-04","priority":"P1","reason":"No toolbar control size reference exists.","next_action":"Measure against a Finder screenshot."},
+    {"id":"DIM-05","priority":"P1","reason":"No grid-spacing reference exists.","next_action":"Measure against a Finder screenshot."},
+    {"id":"STATE-02","priority":"P1","reason":"Selected-state visual treatment is inferred.","next_action":"Compare selected state with a Finder screenshot."},
+    {"id":"STATE-03","priority":"P1","reason":"Empty-state visual treatment is inferred.","next_action":"Compare empty state with a Finder screenshot."},
+    {"id":"MISMATCH-01","priority":"P1","reason":"No reference or after window image exists.","next_action":"Capture both images and run visual comparison."},
+    {"id":"MISMATCH-02","priority":"P1","reason":"Toolbar placement lacks visual reference evidence.","next_action":"Capture both images and run visual comparison."},
+    {"id":"MISMATCH-03","priority":"P1","reason":"Sidebar hierarchy lacks visual reference evidence.","next_action":"Capture both images and run visual comparison."},
+    {"id":"MISMATCH-04","priority":"P1","reason":"Finder visual token values have no image comparison baseline.","next_action":"Capture both images and measure DIM items."},
+    {"id":"MISMATCH-05","priority":"P2","reason":"Icon placement and sizing lack visual reference evidence.","next_action":"Compare rendered icons with the Finder screenshot."},
+    {"id":"MISMATCH-06","priority":"P1","reason":"State treatments lack visual reference evidence.","next_action":"Compare selected and empty screenshots."}
+  ],
+  "waivers":[]
+}

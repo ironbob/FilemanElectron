@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "architecture_guard": {
+      "mode": "arch_first",
+      "assessment": "change-assessment.json",
+      "assessment_revision": 2,
+      "skill": "arch-first-code-gen",
+      "invocation": "same_agent",
+      "confirmation_mode": "user_confirmed",
+      "result": "passed",
+      "design_contract": "docs/architecture/2026-08-14-finder-ui-design-contract.json",
+      "architecture_doc": "docs/architecture/2026-08-14-finder-ui-arch.md",
+      "validation_evidence": "User confirmed architecture roles; validate_contract.py, validate_doc.py, and validate_gate.py passed."
+    },
+    "change_scope": {
+      "production_files": ["src/main.ts", "src/App.vue", "src/components/AppSidebar.vue", "src/components/AppTabBar.vue", "src/components/FilePane.vue", "src/components/FinderIcon.vue", "src/styles/finder-ui.css"],
+      "assessment_revision": 2
+    }
+  },
+  "entries": [
+    {"entry_id":"ENTRY-01","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"tabsStore.goBack"}},
+    {"entry_id":"ENTRY-02","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"tabsStore.goForward"}},
+    {"entry_id":"ENTRY-03","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"tabsStore.setViewMode"}},
+    {"entry_id":"ENTRY-04","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"copySelectedPaths"}},
+    {"entry_id":"ENTRY-05","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"editSelectedTags"}},
+    {"entry_id":"ENTRY-06","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"searchQuery"}},
+    {"entry_id":"ENTRY-07","status":"delivered","code_anchor":{"file":"src/components/AppSidebar.vue","widget":"favoritesStore"}},
+    {"entry_id":"ENTRY-08","status":"delivered","code_anchor":{"file":"src/components/AppSidebar.vue","widget":"volumesStore"}},
+    {"entry_id":"ENTRY-09","status":"delivered","code_anchor":{"file":"src/components/AppSidebar.vue","widget":"favoritesStore"}},
+    {"entry_id":"ENTRY-10","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"browserStore.setSort"}}
+  ],
+  "icons": [
+    {"icon_id":"ICON-01","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"x","file":"src/assets/finder-icons/x.svg","code_reference":"x","search_trace":[{"site":"Lucide","query":"window close x","search_url":"https://lucide.dev/icons/x","result":"found"}]}},
+    {"icon_id":"ICON-02","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"minus","file":"src/assets/finder-icons/minus.svg","code_reference":"minus","search_trace":[{"site":"Lucide","query":"window minimize minus","search_url":"https://lucide.dev/icons/minus","result":"found"}]}},
+    {"icon_id":"ICON-03","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"maximize-2","file":"src/assets/finder-icons/maximize-2.svg","code_reference":"maximize2","search_trace":[{"site":"Lucide","query":"window zoom maximize","search_url":"https://lucide.dev/icons/maximize-2","result":"found"}]}},
+    {"icon_id":"ICON-04","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"arrow-left","file":"src/assets/finder-icons/arrow-left.svg","code_reference":"arrowLeft","search_trace":[{"site":"Lucide","query":"back arrow left","search_url":"https://lucide.dev/icons/arrow-left","result":"found"}]}},
+    {"icon_id":"ICON-05","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"arrow-right","file":"src/assets/finder-icons/arrow-right.svg","code_reference":"arrowRight","search_trace":[{"site":"Lucide","query":"forward arrow right","search_url":"https://lucide.dev/icons/arrow-right","result":"found"}]}},
+    {"icon_id":"ICON-06","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"layout-grid","file":"src/assets/finder-icons/layout-grid.svg","code_reference":"layoutGrid","search_trace":[{"site":"Lucide","query":"view options layout grid","search_url":"https://lucide.dev/icons/layout-grid","result":"found"}]}},
+    {"icon_id":"ICON-07","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"share","file":"src/assets/finder-icons/share.svg","code_reference":"share","search_trace":[{"site":"Lucide","query":"share","search_url":"https://lucide.dev/icons/share","result":"found"}]}},
+    {"icon_id":"ICON-08","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"tags","file":"src/assets/finder-icons/tags.svg","code_reference":"tags","search_trace":[{"site":"Lucide","query":"tags","search_url":"https://lucide.dev/icons/tags","result":"found"}]}},
+    {"icon_id":"ICON-09","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"search","file":"src/assets/finder-icons/search.svg","code_reference":"search","search_trace":[{"site":"Lucide","query":"search","search_url":"https://lucide.dev/icons/search","result":"found"}]}},
+    {"icon_id":"ICON-10","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"radio-tower","file":"src/assets/finder-icons/radio-tower.svg","code_reference":"radioTower","search_trace":[{"site":"Lucide","query":"AirDrop radio tower","search_url":"https://lucide.dev/icons/radio-tower","result":"found"}]}},
+    {"icon_id":"ICON-11","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"clock-3","file":"src/assets/finder-icons/clock-3.svg","code_reference":"clock3","search_trace":[{"site":"Lucide","query":"recents clock","search_url":"https://lucide.dev/icons/clock-3","result":"found"}]}},
+    {"icon_id":"ICON-12","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"app-window","file":"src/assets/finder-icons/app-window.svg","code_reference":"appWindow","search_trace":[{"site":"Lucide","query":"applications app window","search_url":"https://lucide.dev/icons/app-window","result":"found"}]}},
+    {"icon_id":"ICON-13","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"monitor","file":"src/assets/finder-icons/monitor.svg","code_reference":"monitor","search_trace":[{"site":"Lucide","query":"desktop monitor","search_url":"https://lucide.dev/icons/monitor","result":"found"}]}},
+    {"icon_id":"ICON-14","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"file-text","file":"src/assets/finder-icons/file-text.svg","code_reference":"fileText","search_trace":[{"site":"Lucide","query":"documents file text","search_url":"https://lucide.dev/icons/file-text","result":"found"}]}},
+    {"icon_id":"ICON-15","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"hard-drive","file":"src/assets/finder-icons/hard-drive.svg","code_reference":"hardDrive","search_trace":[{"site":"Lucide","query":"disk hard drive","search_url":"https://lucide.dev/icons/hard-drive","result":"found"}]}},
+    {"icon_id":"ICON-16","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"circle","file":"src/assets/finder-icons/circle.svg","code_reference":"circle","search_trace":[{"site":"Lucide","query":"tag color circle","search_url":"https://lucide.dev/icons/circle","result":"found"}]}},
+    {"icon_id":"ICON-17","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"folder","file":"src/assets/finder-icons/folder.svg","code_reference":"folder","search_trace":[{"site":"Lucide","query":"file folder","search_url":"https://lucide.dev/icons/folder","result":"found"}]}},
+    {"icon_id":"ICON-18","status":"delivered","code_anchor":{"file":"src/components/FinderIcon.vue","widget":"FINDER_ICONS"},"asset":{"type":"downloaded","source":"Lucide","source_site":"Lucide","name":"arrow-up-down","file":"src/assets/finder-icons/arrow-up-down.svg","code_reference":"arrowUpDown","search_trace":[{"site":"Lucide","query":"sort arrow up down","search_url":"https://lucide.dev/icons/arrow-up-down","result":"found"}]}}
+  ],
+  "structure_nodes": [
+    {"node_id":"N1","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"finder-shell"}},
+    {"node_id":"N2","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"finder-window-titlebar"}},
+    {"node_id":"N2-1","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"finder-traffic-light-inset"}},
+    {"node_id":"N2-2","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"finder-window-titlebar"}},
+    {"node_id":"N2-3","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"searchQuery"}},
+    {"node_id":"N3","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"AppSidebar"}},
+    {"node_id":"N3-1","status":"delivered","code_anchor":{"file":"src/components/AppSidebar.vue","widget":"finder-sidebar"}},
+    {"node_id":"N3-2","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"FilePane"}},
+    {"node_id":"N3-2-1","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"pathSegments"}},
+    {"node_id":"N3-2-2","status":"delivered","code_anchor":{"file":"src/components/FilePane.vue","widget":"FileList"}},
+    {"node_id":"N4","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"statusText"}}
+  ],
+  "dimensions": [
+    {"dimension_id":"DIM-01","status":"flagged","reason":"No Finder screenshot was supplied, so sidebar-to-content proportion has no reference measurement."},
+    {"dimension_id":"DIM-02","status":"flagged","reason":"No reference screenshot provides measurable toolbar, divider, or content spacing ratios."},
+    {"dimension_id":"DIM-03","status":"flagged","reason":"No reference screenshot provides a verifiable sidebar-heading to navigation-font ratio."},
+    {"dimension_id":"DIM-04","status":"flagged","reason":"No reference screenshot provides a verifiable toolbar-icon to control-height ratio."},
+    {"dimension_id":"DIM-05","status":"flagged","reason":"No reference screenshot provides a file-grid spacing baseline."}
+  ],
+  "states": [
+    {"state_id":"STATE-01","status":"delivered","code_anchor":{"file":"src/App.vue","widget":"finder-shell"}},
+    {"state_id":"STATE-02","status":"flagged","reason":"The selected Finder treatment is inferred and cannot be visually verified without the requested screenshot."},
+    {"state_id":"STATE-03","status":"flagged","reason":"The empty Finder treatment is inferred and cannot be visually verified without the requested screenshot."}
+  ]
+}

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full bg-bg-sidebar flex flex-col overflow-hidden">
+  <div class="finder-sidebar h-full bg-bg-sidebar flex flex-col overflow-hidden">
     <!-- Devices Section -->
     <div class="py-3">
       <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Locations</div>
@@ -272,6 +272,7 @@ import type { Device, DetectedMobileDevice } from '@/stores/devices'
 import type { Volume } from '@/stores/volumes'
 import type { Favorite } from '@/types'
 
+const log = console
 const devicesStore = useDevicesStore()
 const tabsStore = useTabsStore()
 const previewStore = usePreviewStore()
@@ -371,12 +372,12 @@ onMounted(() => {
   loadFavorites()
   favoritesStore.load()
   // Set up mobile device listener
-  console.log('[AppSidebar] Setting up mobile device listener')
+  log.info('[FinderSidebar] setting up mobile device listener')
   devicesStore.setupMobileDeviceListener()
   // Check if libimobiledevice is installed
   devicesStore.checkLibimobiledeviceInstalled()
   // Load external volumes + subscribe to mount/unmount changes
-  console.log('[AppSidebar] Setting up volumes')
+  log.info('[FinderSidebar] setting up volumes')
   volumesStore.loadVolumes()
   volumesStore.setupVolumesListener()
 })

@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "mode": "repair",
+    "target_screen": "Fileman 主文件管理窗口及其共享 Finder 风格层",
+    "stage": "pre_code",
+    "revision": 2,
+    "user_forced_arch_first": false
+  },
+  "estimate": {
+    "production_files": 7,
+    "change_size": "medium",
+    "ui_only": false,
+    "logic_change": "local_wiring"
+  },
+  "evidence": [
+    "repair-audit.json: MISMATCH-01..06 cover root structure, pane toolbar placement, sidebar organization, tokens, icons, and state styling.",
+    "src/App.vue owns the root window structure and application-level toolbar actions.",
+    "src/components/FilePane.vue owns navigation, search, view-mode, and file actions that a Finder toolbar must visually and structurally coordinate.",
+    "src/components/AppSidebar.vue owns device, location, favorite, and preview navigation data bindings.",
+    "src/style.css provides shared tokens and component classes used throughout the application.",
+    "A reusable Finder icon/resource layer and style contract would be consumed by multiple existing components and dialogs."
+  ],
+  "risk_flags": {
+    "navigation_change": true,
+    "state_ownership_change": false,
+    "data_flow_change": false,
+    "api_or_persistence_change": false,
+    "new_dependency": false,
+    "cross_layer_change": true,
+    "shared_component_or_token_change": true,
+    "multiple_screens": true,
+    "architecture_role_change": false
+  },
+  "decision": {
+    "path": "arch_first",
+    "rationale": "The requested reusable Finder design spans root chrome, the file-pane interaction surface, sidebar navigation, shared styles, icon resources, and the wider application. Coordinating those existing responsibilities changes shared UI contracts and navigation presentation, so direct screen-local styling would be unsafe."
+  }
+}

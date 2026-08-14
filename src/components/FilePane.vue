@@ -1,12 +1,12 @@
 <template>
   <div
     v-if="pane"
-    class="h-full flex flex-col overflow-hidden bg-bg-primary"
+    class="finder-pane h-full flex flex-col overflow-hidden bg-bg-primary"
     @drop="handleDrop"
     @dragover.prevent
   >
     <!-- Toolbar -->
-    <div class="h-10 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
+    <div class="finder-pane-toolbar h-10 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
       <!-- Navigation Buttons -->
       <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
         <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" title="Undo last remote delete" aria-label="Undo last remote delete" @click="undoRecycle">
@@ -19,9 +19,7 @@
           title="Go Back"
           aria-label="Go Back"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
+          <FinderIcon name="arrowLeft" />
         </button>
         <div class="relative">
           <button class="toolbar-btn-enhanced" title="Recent locations" aria-label="Recent locations" @click="recentMenuOpen = !recentMenuOpen">
@@ -41,9 +39,7 @@
           title="Go Forward"
           aria-label="Go Forward"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
+          <FinderIcon name="arrowRight" />
         </button>
         <button
           class="toolbar-btn-enhanced"
@@ -87,9 +83,7 @@
           class="w-36 h-8 pl-8 pr-3 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
           @keydown.escape="searchQuery = ''"
         />
-        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
+        <FinderIcon name="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
       </div>
       <button class="toolbar-btn-enhanced" :class="{ active: browserState.recursiveSearch }" title="Search recursively" aria-label="Search recursively" @click="browserStore.toggleRecursiveSearch(paneId)">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M5.16 15A8 8 0 0018.84 9M18.84 9A8 8 0 005.16 15"/></svg>
@@ -110,6 +104,25 @@
           <component :is="mode.icon" class="w-3.5 h-3.5" />
         </button>
       </div>
+
+      <button
+        class="toolbar-btn-enhanced"
+        :disabled="!pane?.selectedFiles.length"
+        title="Copy selected paths for sharing"
+        aria-label="Copy selected paths for sharing"
+        @click="copySelectedPaths"
+      >
+        <FinderIcon name="share" />
+      </button>
+      <button
+        class="toolbar-btn-enhanced"
+        :disabled="!pane?.selectedFiles.length"
+        title="Edit selected item tags"
+        aria-label="Edit selected item tags"
+        @click="editSelectedTags"
+      >
+        <FinderIcon name="tags" />
+      </button>
 
       <!-- Inline Preview Toggle -->
       <button
@@ -255,6 +268,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, h, type Component, watch } from 'vue'
+import FinderIcon from './FinderIcon.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { usePreviewStore } from '@/stores/preview'
 import { useFileOperationsStore } from '@/stores/fileOperations'
@@ -294,6 +308,8 @@ const canCaptureScreenshot = computed(() => currentDevice.value?.type === 'andro
 const searchQuery = ref('')
 const recentMenuOpen = ref(false)
 const loadedFiles = ref<FileInfo[]>([])
+
+log.info('[FinderFilePane] initialized', { paneId: props.paneId })
 
 // Inline preview state
 const inlinePreviewFile = ref<FileInfo | null>(null)
@@ -566,6 +582,23 @@ function startResize(event: MouseEvent) {
 
 function handleFilesLoaded(files: FileInfo[]) {
   loadedFiles.value = files
+}
+
+async function copySelectedPaths() {
+  const selectedPaths = pane.value?.selectedFiles ?? []
+  if (!selectedPaths.length) return
+  try {
+    await navigator.clipboard.writeText(selectedPaths.join('\n'))
+    log.info('[FinderFilePane] copied selected paths for sharing', { count: selectedPaths.length })
+  } catch (error) {
+    log.error('[FinderFilePane] failed to copy selected paths', { error })
+  }
+}
+
+function editSelectedTags() {
+  const selectedPath = pane.value?.selectedFiles[0]
+  if (!selectedPath) return
+  void handleOperation({ action: 'info', files: [selectedPath] })
 }
 
 // Clear inline preview when pane changes

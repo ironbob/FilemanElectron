@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "mode": "repair",
+    "platform": "macOS desktop",
+    "framework": "Electron + Vue 3",
+    "screen_job": "让用户在一个 Finder 风格窗口中浏览位置、切换目录视图并执行文件管理操作。",
+    "scope": "single_screen",
+    "source_inputs": [
+      {"id": "DESC-01", "type": "verbal"}
+    ],
+    "text_ui_guard": {
+      "manifest": "text-ui-manifest.json",
+      "result": "user_confirmed",
+      "confirmed_input_ids": ["DESC-01"],
+      "confirmation_evidence": "User message on 2026-08-14: 确认"
+    }
+  },
+  "structure_skeleton": {
+    "node_id": "N1",
+    "kind": "screen",
+    "children": [
+      {
+        "node_id": "N2",
+        "kind": "header",
+        "children": [
+          {"node_id": "N2-1", "kind": "window_controls"},
+          {"node_id": "N2-2", "kind": "toolbar"},
+          {"node_id": "N2-3", "kind": "search"}
+        ]
+      },
+      {
+        "node_id": "N3",
+        "kind": "hstack",
+        "children": [
+          {"node_id": "N3-1", "kind": "sidebar"},
+          {
+            "node_id": "N3-2",
+            "kind": "vstack",
+            "children": [
+              {"node_id": "N3-2-1", "kind": "path_bar"},
+              {"node_id": "N3-2-2", "kind": "content_list"}
+            ]
+          }
+        ]
+      },
+      {"node_id": "N4", "kind": "footer"}
+    ]
+  },
+  "entries": [
+    {"id": "ENTRY-01", "kind": "icon_button", "semantic": "后退到上一个浏览位置", "input_anchor": "DESC-01:toolbar:left"},
+    {"id": "ENTRY-02", "kind": "icon_button", "semantic": "前进到下一个浏览位置", "input_anchor": "DESC-01:toolbar:left"},
+    {"id": "ENTRY-03", "kind": "icon_button", "semantic": "选择内容展示方式", "input_anchor": "DESC-01:toolbar:center"},
+    {"id": "ENTRY-04", "kind": "icon_button", "semantic": "复制当前选中内容的路径以供分享", "input_anchor": "DESC-01:toolbar:center"},
+    {"id": "ENTRY-05", "kind": "icon_button", "semantic": "编辑当前选中内容的标签", "input_anchor": "DESC-01:toolbar:center"},
+    {"id": "ENTRY-06", "kind": "button", "semantic": "搜索当前文件范围", "input_anchor": "DESC-01:toolbar:right"},
+    {"id": "ENTRY-07", "kind": "menu_item", "semantic": "切换收藏位置", "input_anchor": "DESC-01:sidebar:favorites"},
+    {"id": "ENTRY-08", "kind": "menu_item", "semantic": "切换磁盘或连接位置", "input_anchor": "DESC-01:sidebar:locations"},
+    {"id": "ENTRY-09", "kind": "menu_item", "semantic": "按标签筛选内容", "input_anchor": "DESC-01:sidebar:tags"},
+    {"id": "ENTRY-10", "kind": "icon_button", "semantic": "切换排序方式", "input_anchor": "DESC-01:path-bar:right"}
+  ],
+  "icons": [
+    {"id": "ICON-01", "semantic": "窗口关闭", "input_anchor": "DESC-01:header:top-left", "location": "window controls"},
+    {"id": "ICON-02", "semantic": "窗口最小化", "input_anchor": "DESC-01:header:top-left", "location": "window controls"},
+    {"id": "ICON-03", "semantic": "窗口缩放", "input_anchor": "DESC-01:header:top-left", "location": "window controls"},
+    {"id": "ICON-04", "semantic": "后退箭头", "input_anchor": "DESC-01:toolbar:left", "location": "toolbar"},
+    {"id": "ICON-05", "semantic": "前进箭头", "input_anchor": "DESC-01:toolbar:left", "location": "toolbar"},
+    {"id": "ICON-06", "semantic": "视图选项", "input_anchor": "DESC-01:toolbar:center", "location": "toolbar"},
+    {"id": "ICON-07", "semantic": "分享", "input_anchor": "DESC-01:toolbar:center", "location": "toolbar"},
+    {"id": "ICON-08", "semantic": "标签", "input_anchor": "DESC-01:toolbar:center", "location": "toolbar"},
+    {"id": "ICON-09", "semantic": "搜索", "input_anchor": "DESC-01:toolbar:right", "location": "toolbar"},
+    {"id": "ICON-10", "semantic": "隔空投送", "input_anchor": "DESC-01:sidebar:favorites", "location": "sidebar"},
+    {"id": "ICON-11", "semantic": "最近使用", "input_anchor": "DESC-01:sidebar:favorites", "location": "sidebar"},
+    {"id": "ICON-12", "semantic": "应用程序", "input_anchor": "DESC-01:sidebar:favorites", "location": "sidebar"},
+    {"id": "ICON-13", "semantic": "桌面", "input_anchor": "DESC-01:sidebar:favorites", "location": "sidebar"},
+    {"id": "ICON-14", "semantic": "文稿", "input_anchor": "DESC-01:sidebar:favorites", "location": "sidebar"},
+    {"id": "ICON-15", "semantic": "磁盘位置", "input_anchor": "DESC-01:sidebar:locations", "location": "sidebar"},
+    {"id": "ICON-16", "semantic": "彩色标签", "input_anchor": "DESC-01:sidebar:tags", "location": "sidebar"},
+    {"id": "ICON-17", "semantic": "文件或文件夹", "input_anchor": "DESC-01:content", "location": "content"},
+    {"id": "ICON-18", "semantic": "排序", "input_anchor": "DESC-01:path-bar:right", "location": "path bar"}
+  ],
+  "key_dimensions": [
+    {"id": "DIM-01", "what": "widget_size", "ratio_note": "侧边栏宽度相对窗口内容区为较窄固定栏；口述未提供可量取截图，比例待验证。"},
+    {"id": "DIM-02", "what": "spacing", "ratio_note": "双层顶部栏、侧边栏与主内容区域由细分隔线明确分层；具体高度和间距未指定。"},
+    {"id": "DIM-03", "what": "fontsize", "ratio_note": "侧边栏分组标题应明显小于常规导航项文字；未提供精确字号比例。"},
+    {"id": "DIM-04", "what": "widget_size", "ratio_note": "工具栏图标按钮应小于搜索框高度，维持 macOS 紧凑控制密度；无像素基准。"},
+    {"id": "DIM-05", "what": "spacing", "ratio_note": "文件网格在内容区域中以均匀列距排列；列数与间距随窗口宽度响应，具体值未指定。"}
+  ],
+  "states": [
+    {"id": "STATE-01", "kind": "default", "source": "input", "input_anchor": "DESC-01:finder-main-window"},
+    {"id": "STATE-02", "kind": "selected", "source": "inferred"},
+    {"id": "STATE-03", "kind": "empty", "source": "inferred"}
+  ],
+  "bitmaps": [],
+  "empty_reasons": {}
+}

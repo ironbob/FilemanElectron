@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "screen": "macOS Finder 风格主窗口",
+    "input_mode": "verbal",
+    "input_count": 1,
+    "text_ui_count": 1
+  },
+  "inputs": [
+    {
+      "id": "DESC-01",
+      "input_type": "verbal",
+      "verbal_input": "app需要完全实现apple finder的ui风格，接一个finder的截图，将风格固定住，使用 pic-to-ui 来还原。注意图标可以使用 pic-to-ui 中的图标网站提供。设计一套可复用的mac finder风格，应用到整个app。",
+      "state_label": "finder-main-window",
+      "text_ui_file": "text-ui/DESC-01-finder-main-window.txt",
+      "revision": 1,
+      "confirmation": {
+        "status": "user_confirmed",
+        "confirmed_by": "user",
+        "evidence": "User message on 2026-08-14: 确认"
+      }
+    }
+  ]
+}

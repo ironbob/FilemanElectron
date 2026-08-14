@@ -1,9 +1,9 @@
 <template>
-  <div class="h-screen flex flex-col bg-bg-primary" :data-theme="theme">
+  <div class="h-screen flex flex-col bg-bg-primary finder-shell" :data-theme="theme">
     <!-- Title Bar / Toolbar (macOS style) -->
-    <div class="h-12 bg-bg-toolbar flex items-center px-4 border-b border-border app-drag overflow-visible">
+    <div class="finder-window-titlebar h-12 bg-bg-toolbar flex items-center px-4 border-b border-border app-drag overflow-visible">
       <!-- Left spacer for macOS traffic lights (native buttons via hiddenInset) -->
-      <div class="w-16"></div>
+      <div class="w-16 finder-traffic-light-inset"></div>
 
       <!-- Center Title -->
       <div class="flex-1 text-center text-sm font-medium text-text-secondary">
@@ -161,6 +161,7 @@ import { useDevicesStore } from './stores/devices'
 import { useFileOperationsStore } from './stores/fileOperations'
 import { usePreviewStore } from './stores/preview'
 
+const log = console
 const previewStore = usePreviewStore()
 
 const tabsStore = useTabsStore()
@@ -197,6 +198,8 @@ onMounted(() => {
   if (savedSidebarWidth >= SIDEBAR_MIN_WIDTH) {
     sidebarWidth.value = Math.min(SIDEBAR_MAX_WIDTH, savedSidebarWidth)
   }
+
+  log.info('[FinderShell] initialized', { theme: theme.value, sidebarWidth: sidebarWidth.value })
 })
 
 function toggleTheme() {

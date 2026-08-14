@@ -1,5 +1,5 @@
 <template>
-  <div class="h-11 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border overflow-x-auto">
+  <div class="finder-tab-strip h-11 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border overflow-x-auto">
     <!-- Tabs -->
     <div
       v-for="tab in tabsStore.tabs"
@@ -66,6 +66,7 @@
 import { computed } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 
+const log = console
 const tabsStore = useTabsStore()
 
 const activeTab = computed(() => tabsStore.activeTab)
@@ -73,7 +74,7 @@ const activeTab = computed(() => tabsStore.activeTab)
 function splitPane() {
   // This would need to be implemented in the tabs store
   // For now, it's just a placeholder
-  console.log('Split pane - needs implementation')
+  log.info('[FinderTabStrip] split pane requested')
 }
 </script>
 

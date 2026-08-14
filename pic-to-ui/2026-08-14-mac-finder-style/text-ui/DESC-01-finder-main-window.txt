@@ -1,0 +1,34 @@
+Finder 风格主窗口（口述基线；未提供截图）
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [window-control:close] [window-control:minimize] [window-control:zoom]  [unspecified:title] │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [icon:back] [icon:forward]  [icon:view-options]  [icon:share] [icon:tags]  ┌──────────────┐ │
+│                                                                       [icon:search] Search │ │
+├───────────────────┬─────────────────────────────────────────────────────────────────────────┤
+│ Favorites         │ [unspecified:breadcrumb/path bar]                         [icon:sort]    │
+│  [icon:airdrop]  │─────────────────────────────────────────────────────────────────────────│
+│  AirDrop          │                                                                         │
+│  [icon:recents]  │     [icon:file-or-folder]    [icon:file-or-folder]    [icon:file-or-folder] │
+│  Recents          │     [unspecified:item name] [unspecified:item name] [unspecified:item name]│
+│  [icon:applications] │                                                                       │
+│  Applications     │     [unspecified:content presentation = icon/list/gallery/columns]      │
+│  [icon:desktop]  │                                                                         │
+│  Desktop          │                                                                         │
+│  [icon:documents]│                                                                         │
+│  Documents        │                                                                         │
+│                   │                                                                         │
+│ Locations         │                                                                         │
+│  [icon:drive]    │                                                                         │
+│  [unspecified:disk]│                                                                        │
+│                   │                                                                         │
+│ Tags              │                                                                         │
+│  [tag-color]     │                                                                         │
+├───────────────────┴─────────────────────────────────────────────────────────────────────────┤
+│ [unspecified:status item count]                                  [unspecified:status/action] │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Notes:
+- 原始口述："app需要完全实现apple finder的ui风格，接一个finder的截图，将风格固定住，使用 pic-to-ui 来还原。注意图标可以使用 pic-to-ui 中的图标网站提供。设计一套可复用的mac finder风格，应用到整个app。"
+- 当前仅收到风格目标，尚未收到 Finder 截图；本图以一个可复用的 Finder 主窗口骨架作为待确认范围。
+- [unspecified:*] 均为口述未明确的内容，不应视为已确认的产品或视觉事实。
