@@ -12,13 +12,13 @@
 :root {
   color-scheme: dark;
 
-  /* Base Colors - 更鲜亮的 macOS 风格 */
-  --bg-primary: #1e1e2e;        /* 主背景 - 深蓝紫调 */
-  --bg-secondary: #252538;      /* 次级背景 - 稍亮的蓝紫 */
-  --bg-tertiary: #2d2d44;       /* 三级背景 - 输入框等 */
-  --bg-sidebar: #1a1a28;        /* 侧边栏 - 深色背景 */
-  --bg-toolbar: #252538;        /* 工具栏 */
-  --bg-statusbar: #1a1a28;      /* 状态栏 */
+  /* Base Colors - 中性灰，对齐 Finder 暗色 */
+  --bg-primary: #1e1e20;        /* 主背景 - 中性深灰 */
+  --bg-secondary: #242426;      /* 次级背景 - 稍亮的中性灰 */
+  --bg-tertiary: #2e2e30;       /* 三级背景 - 输入框等 */
+  --bg-sidebar: #1b1b1d;        /* 侧边栏 - 深色背景 */
+  --bg-toolbar: #242426;        /* 工具栏 */
+  --bg-statusbar: #1b1b1d;      /* 状态栏 */
   --bg-selected: #0a84ff;       /* 选中状态 - macOS 系统蓝 */
   --bg-hover: rgba(255, 255, 255, 0.06);  /* 悬停 - 半透明白 */
   --bg-active: rgba(255, 255, 255, 0.1);  /* 激活状态 */
@@ -30,8 +30,8 @@
 
   /* Text Colors - 鲜亮的文字 */
   --text-primary: #ffffff;
-  --text-secondary: #a0a0b8;    /* 紫灰色调次要文字 */
-  --text-tertiary: #6e6e8a;     /* 三级文字 */
+  --text-secondary: #a1a1a6;    /* 中性灰次要文字 */
+  --text-tertiary: #6e6e73;     /* 三级文字 */
   --text-selected: #ffffff;
   --text-accent: #0a84ff;       /* 强调文字 - 系统蓝 */
 
@@ -68,7 +68,7 @@
 
   /* Icon Colors - 文件类型图标颜色 */
   --icon-folder: #5ac8fa;       /* 文件夹 - 亮青色 */
-  --icon-document: #a0a0b8;     /* 文档 - 灰色 */
+  --icon-document: #a1a1a6;     /* 文档 - 灰色 */
   --icon-image: #32d74b;        /* 图片 - 鲜绿 */
   --icon-video: #ff4d4d;        /* 视频 - 鲜红 */
   --icon-audio: #c084fc;        /* 音频 - 亮紫 */
@@ -89,7 +89,7 @@
   --shadow-glow-purple: 0 0 20px rgba(192, 132, 252, 0.3);
 
   /* Glassmorphism - 毛玻璃效果 */
-  --glass-bg: rgba(30, 30, 46, 0.75);
+  --glass-bg: rgba(30, 30, 32, 0.75);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-blur: blur(20px);
 
@@ -130,7 +130,7 @@
 
   /* Text Colors */
   --text-primary: #1d1d1f;
-  --text-secondary: #3c3c43;
+  --text-secondary: #6e6e73;
   --text-tertiary: #8e8e93;
   --text-selected: #ffffff;
   --text-accent: #007aff;
@@ -922,7 +922,7 @@ button {
    ======================================== */
 
 .status-bar {
-  background: linear-gradient(180deg, var(--bg-statusbar) 0%, rgba(26, 26, 40, 0.95) 100%);
+  background: var(--bg-statusbar);
   border-top: 1px solid var(--border-color);
   box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
 }

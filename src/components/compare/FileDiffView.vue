@@ -326,7 +326,7 @@ const statusLabel = computed(() => {
 
 const statusBadgeClass = computed(() => {
   switch (props.session.status) {
-    case 'metadata-equal': return 'bg-slate-500/15 text-slate-300'
+    case 'metadata-equal': return 'bg-bg-active text-text-secondary'
     case 'content-equal': return 'bg-green-500/15 text-green-400'
     case 'different':   return 'bg-red-500/20 text-red-400'
     case 'left-newer':

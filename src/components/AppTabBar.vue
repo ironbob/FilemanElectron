@@ -30,7 +30,7 @@
         class="close-button"
         :class="[
           tab.id === tabsStore.activeTabId ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-60',
-          tab.id === tabsStore.activeTabId ? 'text-text-secondary hover:bg-black/10 hover:text-text-primary active:bg-black/20' : 'text-text-secondary hover:bg-black/20 hover:text-text-primary active:bg-black/30'
+          tab.id === tabsStore.activeTabId ? 'text-text-secondary hover:bg-bg-hover hover:text-text-primary active:bg-bg-active' : 'text-text-secondary hover:bg-bg-active hover:text-text-primary active:bg-bg-active'
         ]"
         @click.stop="tabsStore.closeTab(tab.id)"
         :aria-label="`Close ${tab.title}`"
@@ -55,7 +55,7 @@
 
     <!-- Split Pane Button -->
     <button
-      v-if="activeTab && activeTab.panes.length < 2"
+      v-if="false"
       class="action-button ml-auto"
       @click="splitPane"
       title="Split Pane"
@@ -69,13 +69,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import type { InternalFileDragPayload } from '@/types/fileOperation'
 
 const tabsStore = useTabsStore()
-
-const activeTab = computed(() => tabsStore.activeTab)
 
 function splitPane() {
   tabsStore.toggleActiveSplit()
@@ -130,7 +128,7 @@ div {
 
 
 .tab-item-inactive {
-  @apply text-text-secondary hover:bg-black/5 hover:text-text-primary;
+  @apply text-text-secondary hover:bg-bg-hover hover:text-text-primary;
 }
 
 .tab-item-active {
@@ -143,8 +141,8 @@ div {
 }
 
 .action-button {
-  @apply h-7 w-7 flex items-center justify-center text-text-secondary hover:text-accent-blue hover:bg-black/5 rounded-md transition-all duration-200;
-  @apply active:bg-black/10;
+  @apply h-7 w-7 flex items-center justify-center text-text-secondary hover:text-accent-blue hover:bg-bg-hover rounded-md transition-all duration-200;
+  @apply active:bg-bg-active;
   flex-shrink: 0;
 }
 </style>

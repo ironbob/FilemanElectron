@@ -2,26 +2,32 @@
    file, device, and preview behavior continues to live in existing stores. */
 .finder-shell {
   --finder-canvas: #ffffff;
-  --finder-chrome: rgba(246, 246, 248, 0.92);
-  --finder-sidebar: rgba(238, 238, 242, 0.82);
-  --finder-divider: rgba(60, 60, 67, 0.18);
+  --finder-chrome: rgba(255, 255, 255, 0.76);
+  --finder-sidebar: #ffffff;
+  --finder-divider: rgba(60, 60, 67, 0.12);
   --finder-label: #1d1d1f;
   --finder-secondary-label: #6e6e73;
   --finder-selection: #0a84ff;
-  --finder-control: rgba(118, 118, 128, 0.12);
+  --finder-control: rgba(118, 118, 128, 0.10);
+  --finder-list-header: rgba(255, 255, 255, 0.92);
+  --finder-zebra: rgba(118, 118, 128, 0.045);
+  --finder-row-hover: rgba(118, 118, 128, 0.09);
   background: var(--finder-canvas) !important;
   color: var(--finder-label);
 }
 
 .finder-shell[data-theme='dark'] {
   --finder-canvas: #1e1e20;
-  --finder-chrome: rgba(42, 42, 44, 0.92);
-  --finder-sidebar: rgba(39, 39, 41, 0.86);
-  --finder-divider: rgba(255, 255, 255, 0.14);
+  --finder-chrome: rgba(40, 40, 42, 0.92);
+  --finder-sidebar: rgba(30, 30, 32, 0.86);
+  --finder-divider: rgba(255, 255, 255, 0.12);
   --finder-label: #f5f5f7;
   --finder-secondary-label: #a1a1a6;
   --finder-selection: #0a84ff;
   --finder-control: rgba(118, 118, 128, 0.28);
+  --finder-list-header: rgba(40, 40, 42, 0.92);
+  --finder-zebra: rgba(118, 118, 128, 0.06);
+  --finder-row-hover: rgba(118, 118, 128, 0.13);
 }
 
 .finder-shell .bg-bg-primary { background-color: var(--finder-canvas) !important; }
@@ -44,6 +50,7 @@
 
 .finder-shell .finder-sidebar {
   border-right: 1px solid var(--finder-divider);
+  background-color: var(--finder-sidebar) !important;
   backdrop-filter: saturate(150%) blur(20px);
   -webkit-backdrop-filter: saturate(150%) blur(20px);
 }
@@ -83,9 +90,12 @@
 }
 
 .finder-shell .toolbar-btn-enhanced {
-  width: 28px;
-  height: 28px;
-  border-radius: 5px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   color: var(--finder-secondary-label);
 }
 
@@ -104,6 +114,55 @@
   border-color: var(--finder-divider) !important;
 }
 
+/* Tabs share the native titlebar instead of taking a second row. */
+.finder-window-titlebar .finder-tab-strip {
+  height: 44px !important;
+  padding: 6px 0 6px 4px;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.finder-window-titlebar .finder-tab-strip .tab-item-active {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+.finder-shell .sidebar-utility-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  color: var(--finder-secondary-label);
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.finder-shell .sidebar-utility-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--finder-label);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+
+.finder-shell .sidebar-utility-button.active {
+  background: var(--finder-selection);
+  border-color: var(--finder-selection);
+  color: #fff;
+}
+
+.finder-shell .sidebar-utility-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.finder-shell[data-theme='dark'] .toolbar-btn-enhanced,
+.finder-shell[data-theme='dark'] .sidebar-utility-button {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* Finder's list view is dense: a 20px-ish header followed by compact, muted
    zebra rows. These rules are intentionally component-scoped, so grids and
    comparison panes retain their own behavior. */
@@ -111,7 +170,7 @@
   height: 25px;
   padding-top: 0;
   padding-bottom: 0;
-  background: rgba(250, 250, 251, 0.92) !important;
+  background: var(--finder-list-header) !important;
   font-size: 11px;
   font-weight: 500;
 }
@@ -128,11 +187,11 @@
 }
 
 .finder-shell .vue-recycle-scroller__item-view:nth-child(even) .finder-list-row:not(.bg-accent-blue) {
-  background: rgba(118, 118, 128, 0.075);
+  background: var(--finder-zebra);
 }
 
 .finder-shell .finder-list-row:hover:not(.bg-accent-blue) {
-  background: rgba(118, 118, 128, 0.13) !important;
+  background: var(--finder-row-hover) !important;
 }
 
 .finder-shell .finder-tab-strip .tab-item {

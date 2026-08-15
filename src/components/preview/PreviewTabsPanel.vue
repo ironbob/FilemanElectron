@@ -33,7 +33,7 @@
         class="close-button"
         :class="[
           tab.id === activeTabId ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-60',
-          tab.id === activeTabId ? 'text-text-secondary hover:bg-black/10 hover:text-text-primary active:bg-black/20' : 'text-text-secondary hover:bg-black/20 hover:text-text-primary active:bg-black/30'
+          tab.id === activeTabId ? 'text-text-secondary hover:bg-bg-hover hover:text-text-primary active:bg-bg-active' : 'text-text-secondary hover:bg-bg-active hover:text-text-primary active:bg-bg-active'
         ]"
         @click.stop="emit('close-tab', tab.id)"
       >
@@ -145,7 +145,7 @@ onUnmounted(() => {
 }
 
 .tab-item-inactive {
-  @apply text-text-secondary hover:bg-black/5 hover:text-text-primary;
+  @apply text-text-secondary hover:bg-bg-hover hover:text-text-primary;
 }
 
 .tab-item-active {

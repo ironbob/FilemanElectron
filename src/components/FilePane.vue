@@ -67,7 +67,7 @@
           <!-- ZIP badge shown when browsing inside an archive -->
           <span
             v-if="isInsideZip"
-            class="flex-shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 mr-1"
+            class="flex-shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-accent-orange/20 text-accent-orange dark:text-orange-300 border border-accent-orange/30 mr-1"
           >ZIP</span>
           <template v-for="(segment, index) in pathSegments" :key="index">
             <button

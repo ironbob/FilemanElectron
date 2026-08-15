@@ -1,5 +1,6 @@
 <template>
   <div class="finder-sidebar h-full bg-bg-sidebar flex flex-col overflow-hidden">
+    <div class="finder-sidebar-content flex-1 min-h-0 overflow-y-auto">
     <!-- Devices Section -->
     <div class="py-3">
       <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Locations</div>
@@ -116,12 +117,12 @@
           >
             <span
               v-if="device.pairingStatus === 'unpaired'"
-              class="px-1.5 py-0.5 text-xs bg-gray-400 rounded"
+              class="px-1.5 py-0.5 text-xs bg-text-tertiary text-white rounded"
             >未配对</span>
-            <span v-else-if="device.pairingStatus === 'pairing'" class="px-1.5 py-0.5 text-xs bg-yellow-500 rounded animate-pulse">
+            <span v-else-if="device.pairingStatus === 'pairing'" class="px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded animate-pulse">
               Pairing...
             </span>
-            <span v-else-if="device.pairingStatus === 'paired'" class="px-1.5 py-0.5 text-xs bg-green-500 rounded">
+            <span v-else-if="device.pairingStatus === 'paired'" class="px-1.5 py-0.5 text-xs bg-green-500 text-white rounded">
               ✓ Paired
             </span>
           </span>
@@ -171,20 +172,20 @@
 
       <!-- libimobiledevice warning -->
       <div v-if="!libimobiledeviceInstalled" class="px-4 py-3">
-        <div class="flex items-center gap-2 p-2 bg-yellow-50/30 dark:bg-yellow-50/10 border border-yellow-400 rounded">
-          <svg class="w-5 h-5 text-yellow-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center gap-2 p-2 bg-yellow-50/30 dark:bg-yellow-50/10 border border-yellow-400/50 rounded">
+          <svg class="w-5 h-5 text-yellow-500 dark:text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 0v14a2 2m0 4h0m-6 6h6-6 12a6 0z" />
           </svg>
           <div class="flex-1">
-            <span class="text-sm text-yellow-700">iOS Support</span>
-            <span class="text-xs text-yellow-600">Install libimobiledevice for iOS device support</span>
+            <span class="text-sm text-yellow-700 dark:text-yellow-400">iOS Support</span>
+            <span class="text-xs text-yellow-600 dark:text-yellow-400">Install libimobiledevice for iOS device support</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Places (system locations: Home / Desktop / ...) -->
-    <div class="py-3 border-t border-border flex-1 overflow-auto">
+    <div class="py-3 border-t border-border">
       <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Places</div>
       <div class="space-y-0.5 px-2">
         <div
@@ -235,6 +236,8 @@
       </div>
     </div>
 
+    </div>
+
     <!-- Preview Section (Bottom) -->
     <div class="mt-auto border-t border-border">
       <div
@@ -255,6 +258,27 @@
           {{ previewTabCount }}
         </span>
       </div>
+    </div>
+
+    <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" aria-label="Application tools">
+      <button
+        class="sidebar-utility-button"
+        @click="emit('toggle-theme')"
+        :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        :aria-label="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+      >
+        <svg v-if="theme === 'dark'" class="w-4 h-4 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+        <svg v-else class="w-4 h-4 text-accent-indigo" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+      </button>
+      <button class="sidebar-utility-button" :class="{ active: isFileOperationsVisible }" @click="emit('toggle-file-operations')" title="File Operations" aria-label="File Operations">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+      </button>
+      <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" title="Toggle Dual Pane" aria-label="Toggle Dual Pane">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 012-2M9 7a2 2 0 012-2h2a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
+      </button>
+      <button class="sidebar-utility-button" @click="emit('open-settings')" title="Settings" aria-label="Settings">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+      </button>
     </div>
 
     <!-- Device Dialog -->
@@ -285,6 +309,20 @@ const tabsStore = useTabsStore()
 const previewStore = usePreviewStore()
 const volumesStore = useVolumesStore()
 const favoritesStore = useFavoritesStore()
+
+defineProps<{
+  theme: 'light' | 'dark'
+  isFileOperationsVisible: boolean
+  isDualPaneActive: boolean
+  isSplitToggleDisabled: boolean
+}>()
+
+const emit = defineEmits<{
+  'toggle-theme': []
+  'toggle-file-operations': []
+  'toggle-dual-pane': []
+  'open-settings': []
+}>()
 
 const showAddDeviceMenu = ref(false)
 

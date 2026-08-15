@@ -28,7 +28,7 @@
         <span
           class="px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0"
           :class="{
-            'bg-gray-500/20 text-gray-400': task.status === 'pending',
+            'bg-bg-active text-text-secondary': task.status === 'pending',
             'bg-blue-500 text-white': task.status === 'running',
             'bg-green-500 text-white': task.status === 'completed',
             'bg-red-500 text-white': task.status === 'failed',

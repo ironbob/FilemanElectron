@@ -1,17 +1,15 @@
 <template>
   <div class="h-screen flex flex-col bg-bg-primary finder-shell" :data-theme="theme">
-    <!-- Title Bar / Toolbar (macOS style) -->
+    <!-- Title bar: tabs share this row with the native window controls. -->
     <div class="finder-window-titlebar h-12 bg-bg-toolbar flex items-center px-4 border-b border-border app-drag overflow-visible">
       <!-- Left spacer for macOS traffic lights (native buttons via hiddenInset) -->
       <div class="w-16 finder-traffic-light-inset"></div>
 
-      <!-- Center Title -->
-      <div class="flex-1 text-center text-sm font-medium text-text-secondary">
-        {{ appTitle }}
-      </div>
+      <!-- Keep tabs in the title bar to reclaim their former dedicated row. -->
+      <AppTabBar class="flex-1 min-w-0 app-no-drag" />
 
-      <!-- Right Actions -->
-      <div class="flex items-center gap-1.5 app-no-drag bg-bg-secondary/30 rounded-lg p-0.5 overflow-visible">
+      <!-- Global actions moved to the fixed sidebar utility area. -->
+      <div v-if="false" class="flex items-center gap-1.5 app-no-drag bg-bg-secondary/30 rounded-lg p-0.5 overflow-visible">
         <button
           class="toolbar-btn-enhanced"
           @click="toggleTheme"
@@ -73,6 +71,14 @@
       <AppSidebar
         class="flex-shrink-0 overflow-hidden"
         :style="{ width: sidebarWidth + 'px' }"
+        :theme="theme"
+        :is-file-operations-visible="fileOpsStore.isPanelVisible"
+        :is-dual-pane-active="activePanes.length === 2"
+        :is-split-toggle-disabled="!!activeTab?.compareSession || !!activeTab?.fileDiffSession"
+        @toggle-theme="toggleTheme"
+        @toggle-file-operations="fileOpsStore.togglePanel()"
+        @toggle-dual-pane="tabsStore.toggleActiveSplit()"
+        @open-settings="showSettingsDialog = true"
       />
 
       <!-- Sidebar Resize Handle -->
@@ -85,10 +91,6 @@
 
       <!-- Main Area -->
       <div class="flex-1 flex flex-col overflow-hidden bg-bg-primary relative">
-        <!-- Keep the tab strip mounted even for the first tab: its New Tab control
-             is the only discoverable way to create the second workspace. -->
-        <AppTabBar />
-
         <!-- Content Area with File Panes -->
         <div class="flex-1 flex overflow-hidden">
           <!-- File Panes Container -->
@@ -260,13 +262,6 @@ function startSidebarResize(event: MouseEvent) {
 }
 
 const activeTab = computed(() => tabsStore.activeTab)
-
-const appTitle = computed(() => {
-  if (activeTab.value) {
-    return activeTab.value.title
-  }
-  return 'Fileman'
-})
 
 const activePanes = computed(() => {
   if (!activeTab.value) return []
