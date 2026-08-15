@@ -14,6 +14,7 @@ import type {
   ContentVerificationProgress,
   DirectoryStatsRequest,
   DirectoryStatsProgress,
+  MediaInfoSummary,
   FileOperationTask,
   CreateTaskParams,
   DetectedMobileDevice,
@@ -73,6 +74,10 @@ const filemanAPI = {
     ipcRenderer.invoke(CH.invoke.fsDirStatsStart, request) as Promise<{ taskId: string }>,
   cancelDirectoryStats: (taskId: string) =>
     ipcRenderer.invoke(CH.invoke.fsDirStatsCancel, taskId) as Promise<boolean>,
+
+  // ============ Media Info (属性弹窗多媒体元数据) ============
+  getMediaInfo: (deviceId: string, filePath: string): Promise<MediaInfoSummary | null> =>
+    ipcRenderer.invoke(CH.invoke.fsMediaInfo, deviceId, filePath),
 
   // ============ Cross-Device Operations ============
   copyBetweenDevices: (

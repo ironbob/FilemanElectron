@@ -51,6 +51,7 @@ export const CH = {
     fsImportExternal: 'fs:importExternal',
     fsDirStatsStart: 'fs:dirStats:start',
     fsDirStatsCancel: 'fs:dirStats:cancel',
+    fsMediaInfo: 'fs:mediaInfo',
     // compare:
     compareVerifyStart: 'compare:verify:start',
     compareVerifyCancel: 'compare:verify:cancel',

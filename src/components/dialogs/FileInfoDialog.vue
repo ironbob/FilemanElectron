@@ -28,69 +28,67 @@
           <div class="rounded-lg bg-bg-tertiary/50 p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <template v-if="isSingle">
-                <dt class="text-text-tertiary">种类</dt><dd class="text-text-primary">{{ kindLabel }}</dd>
-                <dt class="text-text-tertiary">大小</dt>
-                <dd class="text-text-primary">
-                  <template v-if="!file.isDirectory">{{ formatSize(file.size) }}</template>
-                  <template v-else>
-                    {{ scan ? formatSize(scan.totalBytes) : '—' }}
-                    <span v-if="scanStatus === 'scanning'" class="ml-2 text-xs text-text-tertiary">
-                      正在计算… 已扫描 {{ scannedCount }} 项
-                    </span>
-                    <span v-else-if="scanStatus === 'failed'" class="ml-2 text-xs text-red-400">计算失败：{{ scanMessage }}</span>
-                    <span v-else-if="scanStatus === 'cancelled'" class="ml-2 text-xs text-text-tertiary">已取消</span>
-                  </template>
-                </dd>
-                <template v-if="file.isDirectory && scan && scanStatus === 'completed'">
-                  <dt class="text-text-tertiary">项目数</dt><dd class="text-text-primary">{{ scan.fileCount }} 个文件，{{ scan.directoryCount }} 个文件夹</dd>
-                </template>
-                <dt class="text-text-tertiary">位置</dt><dd class="break-all text-text-primary">{{ locationLabel }}</dd>
-                <dt class="text-text-tertiary">设备</dt><dd class="text-text-primary">{{ deviceName }}</dd>
-                <dt class="text-text-tertiary">修改时间</dt><dd class="text-text-primary">{{ formatDate(stats?.modifiedTime ?? file.modifiedTime) }}</dd>
-                <dt v-if="!isZipEntry" class="text-text-tertiary">创建时间</dt>
-                <dd v-if="!isZipEntry" class="text-text-primary">{{ formatDate(stats?.createdTime ?? file.createdTime) }}</dd>
-              </template>
-              <template v-else>
-                <dt class="text-text-tertiary">项目</dt>
-                <dd class="text-text-primary">{{ files.length }} 项（{{ selectionFileCount }} 个文件，{{ selectionDirCount }} 个文件夹）</dd>
-                <dt class="text-text-tertiary">总大小</dt>
-                <dd class="text-text-primary">
-                  {{ formatSize(aggregateBytes) }}
-                  <span v-if="scanStatus === 'scanning'" class="ml-2 text-xs text-text-tertiary">
+                <InfoRow label="种类" :value="kindLabel" />
+                <!-- 大小：文件夹实时累计，进度/失败说明只作展示不进复制内容 -->
+                <InfoRow label="大小" :copy-value="singleSizeCopy">
+                  <span class="min-w-0 flex-1 break-all">
+                    {{ !file.isDirectory ? formatSize(file.size) : scan ? formatSize(scan.totalBytes) : '—' }}
+                  </span>
+                  <span v-if="file.isDirectory && scanStatus === 'scanning'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">
                     正在计算… 已扫描 {{ scannedCount }} 项
                   </span>
-                  <span v-else-if="scanStatus === 'failed'" class="ml-2 text-xs text-red-400">计算失败：{{ scanMessage }}</span>
-                  <span v-else-if="scanStatus === 'cancelled'" class="ml-2 text-xs text-text-tertiary">已取消</span>
-                </dd>
-                <dt class="text-text-tertiary">设备</dt><dd class="text-text-primary">{{ deviceName }}</dd>
-                <dt class="text-text-tertiary">位置</dt><dd class="break-all text-text-primary">{{ multiLocationLabel }}</dd>
+                  <span v-else-if="file.isDirectory && scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">
+                    计算失败：{{ scanMessage }}
+                  </span>
+                  <span v-else-if="file.isDirectory && scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">已取消</span>
+                </InfoRow>
+                <InfoRow label="项目数" :value="itemCountLabel" />
+                <InfoRow label="位置" :value="locationLabel" />
+                <InfoRow label="设备" :value="deviceName" />
+                <InfoRow label="修改时间" :value="modifiedLabel" />
+                <InfoRow v-if="!isZipEntry" label="创建时间" :value="createdLabel" />
+              </template>
+              <template v-else>
+                <InfoRow label="项目" :value="selectionLabel" />
+                <InfoRow label="总大小" :copy-value="formatSize(aggregateBytes)">
+                  <span class="min-w-0 flex-1 break-all">{{ formatSize(aggregateBytes) }}</span>
+                  <span v-if="scanStatus === 'scanning'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">
+                    正在计算… 已扫描 {{ scannedCount }} 项
+                  </span>
+                  <span v-else-if="scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">计算失败：{{ scanMessage }}</span>
+                  <span v-else-if="scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">已取消</span>
+                </InfoRow>
+                <InfoRow label="设备" :value="deviceName" />
+                <InfoRow label="位置" :value="multiLocationLabel" />
               </template>
             </dl>
           </div>
         </section>
 
         <!-- ── 详细信息 ─────────────────────────────────────── -->
-        <section>
+        <section v-if="isSingle && (file.extension || showPermissions || zipEntry)">
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">详细信息</h4>
           <div class="rounded-lg bg-bg-tertiary/50 p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <template v-if="isSingle">
-                <dt class="text-text-tertiary">扩展名</dt><dd class="text-text-primary">{{ file.extension || '—' }}</dd>
-                <template v-if="showPermissions">
-                  <dt class="text-text-tertiary">权限</dt><dd class="font-mono text-text-primary">{{ formatPermissions(stats?.mode) }}</dd>
-                </template>
+                <InfoRow label="扩展名" :value="file.extension" />
+                <InfoRow v-if="showPermissions" label="权限" mono :value="stats?.mode != null ? formatPermissions(stats.mode) : undefined" />
                 <template v-if="zipEntry">
-                  <dt class="text-text-tertiary">压缩后大小</dt><dd class="text-text-primary">{{ formatSize(zipEntry.compressedSize) }}</dd>
-                  <dt class="text-text-tertiary">压缩率</dt>
-                  <dd class="text-text-primary">{{ zipEntry.size > 0 ? Math.round((zipEntry.compressedSize / zipEntry.size) * 100) + '%' : '—' }}</dd>
-                  <dt class="text-text-tertiary">压缩方法</dt>
-                  <dd class="text-text-primary">{{ zipEntry.compressionMethod === 8 ? 'Deflate' : zipEntry.compressionMethod === 0 ? 'Stored' : '未知（' + zipEntry.compressionMethod + '）' }}</dd>
+                  <InfoRow label="压缩后大小" :value="formatSize(zipEntry.compressedSize)" />
+                  <InfoRow label="压缩率" :value="ratioLabel" />
+                  <InfoRow label="压缩方法" :value="compressionLabel" />
                 </template>
               </template>
-              <template v-else>
-                <dt class="text-text-tertiary">备注</dt>
-                <dd class="text-text-tertiary">多选时仅显示聚合信息</dd>
-              </template>
+            </dl>
+          </div>
+        </section>
+
+        <!-- ── 媒体（单选且识别到媒体元数据时显示） ────────────── -->
+        <section v-if="isSingle && mediaRows.length > 0">
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">媒体</h4>
+          <div class="rounded-lg bg-bg-tertiary/50 p-3">
+            <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
+              <InfoRow v-for="row in mediaRows" :key="row.label" :label="row.label" :value="row.value" :copy-value="row.copyValue" />
             </dl>
           </div>
         </section>
@@ -110,22 +108,37 @@
       </div>
 
       <!-- Footer -->
-      <div class="flex flex-shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3">
-        <button
-          v-if="scanStatus === 'scanning'"
-          type="button"
-          class="rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
-          @click="cancelScan"
-        >
-          取消计算
-        </button>
+      <div class="flex flex-shrink-0 items-center justify-between border-t border-border px-5 py-3">
         <button
           type="button"
-          class="rounded bg-bg-tertiary px-4 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
-          @click="$emit('close')"
+          class="flex items-center gap-1.5 rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          @click="copyAll"
         >
-          关闭
+          <svg v-if="!copiedAll" class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <svg v-else class="h-3.5 w-3.5 text-accent-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          {{ copiedAll ? '已复制' : '复制全部' }}
         </button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="scanStatus === 'scanning'"
+            type="button"
+            class="rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
+            @click="cancelScan"
+          >
+            取消计算
+          </button>
+          <button
+            type="button"
+            class="rounded bg-bg-tertiary px-4 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
+            @click="$emit('close')"
+          >
+            关闭
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -133,13 +146,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import exifr from 'exifr'
 import type { FileInfo } from '@/types'
-import type { FileStats } from '@shared/types'
+import { getMimeType } from '@/types/preview'
+import type { FileStats, MediaInfoSummary } from '@shared/types'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { formatSize } from '@/utils/path'
 import { formatPermissions } from '@/utils/permissions'
 import { getFileCategory, isImageFile, needsNativeDecode } from '@/utils/fileTypes'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
+import { copyToClipboard } from '@/utils/clipboard'
+import InfoRow from '@/components/InfoRow.vue'
 
 const props = defineProps<{
   deviceId: string
@@ -188,7 +205,28 @@ const locationLabel = computed(() =>
 )
 const multiLocationLabel = computed(() => {
   const first = props.files[0]
-  return first ? (isZipVirtualPath(first.path) ? first.path : parentDirectory(first.path)) : '—'
+  return first ? (isZipVirtualPath(first.path) ? first.path : parentDirectory(first.path)) : ''
+})
+
+const modifiedLabel = computed(() => formatDate(stats.value?.modifiedTime ?? file.value.modifiedTime))
+const createdLabel = computed(() => formatDate(stats.value?.createdTime ?? file.value.createdTime))
+const itemCountLabel = computed(() =>
+  file.value.isDirectory && scan.value && scanStatus.value === 'completed'
+    ? `${scan.value.fileCount} 个文件，${scan.value.directoryCount} 个文件夹`
+    : undefined
+)
+const selectionLabel = computed(() =>
+  `${props.files.length} 项（${selectionFileCount.value} 个文件，${selectionDirCount.value} 个文件夹）`
+)
+const ratioLabel = computed(() =>
+  zipEntry.value && zipEntry.value.size > 0
+    ? `${Math.round((zipEntry.value.compressedSize / zipEntry.value.size) * 100)}%`
+    : undefined
+)
+const compressionLabel = computed(() => {
+  if (!zipEntry.value) return undefined
+  const method = zipEntry.value.compressionMethod
+  return method === 8 ? 'Deflate' : method === 0 ? 'Stored' : `未知（${method}）`
 })
 
 // ── 异步数据 ──────────────────────────────────────────────────────────────────
@@ -268,6 +306,16 @@ onMounted(async () => {
     }
   }
 
+  // ── 媒体元数据（单选、非目录、非 ZIP 内条目） ──────────────────────────────
+  if (isSingle.value && !file.value.isDirectory && !isZipEntry.value && file.value.extension) {
+    const category = getFileCategory(file.value.extension)
+    if (category === 'video' || category === 'audio') {
+      try { media.value = await window.fileman.getMediaInfo(props.deviceId, file.value.path) } catch { /* 非媒体/失败 → 隐藏媒体区 */ }
+    } else if (category === 'image') {
+      try { await loadImageMeta() } catch (e) { console.warn('[FileInfoDialog] image meta failed', e) }
+    }
+  }
+
   // 选中含目录即启动递归统计（ZIP 内目录在主进程走中央目录求和，瞬时完成）
   const folderPaths = props.files.filter(f => f.isDirectory).map(f => f.path)
   if (folderPaths.length > 0) {
@@ -300,6 +348,163 @@ const aggregateBytes = computed(() =>
     + (scan.value?.totalBytes ?? 0)
 )
 
+/** 单选「大小」行的复制内容（不含进度说明；未扫描完的目录复制当前累计值） */
+const singleSizeCopy = computed(() =>
+  !file.value.isDirectory
+    ? formatSize(file.value.size)
+    : scan.value ? formatSize(scan.value.totalBytes) : undefined
+)
+
+// ── 媒体元数据 ────────────────────────────────────────────────────────────────
+// 音视频：主进程 MediaInfoLib WASM（本期仅本地，远程返回 null → 隐藏媒体区）
+const media = ref<MediaInfoSummary | null>(null)
+// 图片：渲染端解码取尺寸 + exifr 解析 EXIF（所有设备；图片文件体积可控）
+const imageMeta = ref<{
+  width?: number
+  height?: number
+  camera?: string
+  takenAt?: string
+  iso?: number
+  fNumber?: number
+  exposure?: string
+  focalLength?: number
+} | null>(null)
+
+/** 媒体区行（v-for 渲染 + 复制全部共用） */
+const mediaRows = computed(() => {
+  const rows: Array<{ label: string; value: string; copyValue?: string }> = []
+  const m = media.value
+  if (m) {
+    if (m.format) rows.push({ label: '格式', value: m.format })
+    if (m.durationSeconds) rows.push({ label: '时长', value: formatDuration(m.durationSeconds) })
+    const v = m.video
+    if (v) {
+      if (v.width && v.height) rows.push({ label: '分辨率', value: `${v.width} × ${v.height}`, copyValue: `${v.width}x${v.height}` })
+      if (v.frameRate) rows.push({ label: '帧率', value: `${v.frameRate} fps` })
+      if (v.codec) rows.push({ label: '视频编码', value: v.bitDepth ? `${v.codec}（${v.bitDepth}-bit）` : v.codec, copyValue: v.codec })
+      if (v.bitrate) rows.push({ label: '视频码率', value: formatBitrate(v.bitrate) })
+    }
+    const a = m.audio
+    if (a) {
+      if (a.codec) rows.push({ label: '音频编码', value: a.codec })
+      if (a.sampleRate) rows.push({ label: '采样率', value: `${(a.sampleRate / 1000).toFixed(1).replace(/\.0$/, '')} kHz` })
+      if (a.channels) rows.push({ label: '声道', value: `${a.channels} 声道` })
+      if (a.bitrate) rows.push({ label: '音频码率', value: formatBitrate(a.bitrate) })
+    }
+    if (m.overallBitrate) rows.push({ label: '总码率', value: formatBitrate(m.overallBitrate) })
+  }
+  const im = imageMeta.value
+  if (im) {
+    if (im.width && im.height) {
+      const mp = ((im.width * im.height) / 1e6).toFixed(1)
+      rows.push({ label: '尺寸', value: `${im.width} × ${im.height}（${mp} MP）`, copyValue: `${im.width}x${im.height}` })
+    }
+    if (im.camera) rows.push({ label: '相机', value: im.camera })
+    if (im.takenAt) rows.push({ label: '拍摄时间', value: im.takenAt })
+    if (im.iso) rows.push({ label: 'ISO', value: String(im.iso) })
+    if (im.fNumber) rows.push({ label: '光圈', value: `f/${im.fNumber}` })
+    if (im.exposure) rows.push({ label: '快门', value: im.exposure })
+    if (im.focalLength) rows.push({ label: '焦距', value: `${im.focalLength} mm` })
+  }
+  return rows
+})
+
+/** 图片元数据：Image 元素取尺寸 + exifr 解析拍摄参数 */
+async function loadImageMeta(): Promise<void> {
+  const f = file.value
+  const base64 = await window.fileman.readFile(props.deviceId, f.path)
+  const bytes = base64ToArrayBuffer(base64)
+
+  // 尺寸：blob → Image 解码（HEIC 等 Chromium 不能解码的格式会失败，仅降级为 EXIF）
+  try {
+    const blob = new Blob([bytes], { type: getMimeType(f.extension ?? '') })
+    const url = URL.createObjectURL(blob)
+    try {
+      const img = new Image()
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('decode failed'))
+        img.src = url
+      })
+      imageMeta.value = { ...imageMeta.value, width: img.naturalWidth, height: img.naturalHeight }
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  } catch { /* HEIC/RAW：尺寸未知，继续解析 EXIF */ }
+
+  try {
+    const data = await exifr.parse(bytes)
+    if (data) {
+      const exposure = typeof data.ExposureTime === 'number' && data.ExposureTime > 0
+        ? (data.ExposureTime < 1 ? `1/${Math.round(1 / data.ExposureTime)} s` : `${data.ExposureTime} s`)
+        : undefined
+      imageMeta.value = {
+        ...imageMeta.value,
+        camera: [data.Make, data.Model].filter(Boolean).join(' ').trim() || undefined,
+        takenAt: data.DateTimeOriginal instanceof Date ? data.DateTimeOriginal.toLocaleString() : undefined,
+        iso: typeof data.ISO === 'number' ? data.ISO : undefined,
+        fNumber: typeof data.FNumber === 'number' ? data.FNumber : undefined,
+        exposure,
+        focalLength: typeof data.FocalLength === 'number' ? data.FocalLength : undefined,
+      }
+    }
+  } catch { /* 无 EXIF（PNG/SVG 等）→ 仅尺寸 */ }
+
+  if (!imageMeta.value || Object.keys(imageMeta.value).length === 0) imageMeta.value = null
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes.buffer
+}
+
+// ── 复制全部 ──────────────────────────────────────────────────────────────────
+const copiedAll = ref(false)
+let copiedAllTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 当前弹窗所有可见信息 → 「标签: 值」纯文本 */
+function buildSummaryText(): string {
+  const lines: string[] = []
+  if (isSingle.value) {
+    lines.push(`名称: ${file.value.name}`)
+    lines.push(`路径: ${file.value.path}`)
+    lines.push(`种类: ${kindLabel.value}`)
+    if (singleSizeCopy.value) lines.push(`大小: ${singleSizeCopy.value}`)
+    if (itemCountLabel.value) lines.push(`项目数: ${itemCountLabel.value}`)
+    lines.push(`位置: ${locationLabel.value}`)
+    lines.push(`设备: ${props.deviceName}`)
+    if (modifiedLabel.value) lines.push(`修改时间: ${modifiedLabel.value}`)
+    if (!isZipEntry.value && createdLabel.value) lines.push(`创建时间: ${createdLabel.value}`)
+    if (file.value.extension) lines.push(`扩展名: ${file.value.extension}`)
+    if (showPermissions.value && stats.value?.mode != null) lines.push(`权限: ${formatPermissions(stats.value.mode)}`)
+    if (zipEntry.value) {
+      lines.push(`压缩后大小: ${formatSize(zipEntry.value.compressedSize)}`)
+      if (ratioLabel.value) lines.push(`压缩率: ${ratioLabel.value}`)
+      if (compressionLabel.value) lines.push(`压缩方法: ${compressionLabel.value}`)
+    }
+  } else {
+    lines.push(`项目: ${selectionLabel.value}`)
+    lines.push(`总大小: ${formatSize(aggregateBytes.value)}`)
+    lines.push(`设备: ${props.deviceName}`)
+    if (multiLocationLabel.value) lines.push(`位置: ${multiLocationLabel.value}`)
+  }
+  for (const row of mediaRows.value) lines.push(`${row.label}: ${row.value}`)
+  if (isSingle.value && !isZipEntry.value && tagText.value.trim()) lines.push(`标签: ${tagText.value}`)
+  return lines.join('\n')
+}
+
+async function copyAll() {
+  if (await copyToClipboard(buildSummaryText())) {
+    copiedAll.value = true
+    if (copiedAllTimer) clearTimeout(copiedAllTimer)
+    copiedAllTimer = setTimeout(() => { copiedAll.value = false }, 1500)
+  }
+}
+
+onUnmounted(() => { if (copiedAllTimer) clearTimeout(copiedAllTimer) })
+
 // ── 标签（单选） ──────────────────────────────────────────────────────────────
 const tagText = ref('')
 function save() {
@@ -307,9 +512,25 @@ function save() {
   emit('saveTags', tags)
 }
 
+/** 秒 → h:mm:ss / m:ss */
+function formatDuration(seconds: number): string {
+  const s = Math.round(seconds)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m)
+  const ss = String(sec).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
+/** bps → Mbps / kbps */
+function formatBitrate(bps: number): string {
+  return bps >= 1e6 ? `${(bps / 1e6).toFixed(2)} Mbps` : `${Math.round(bps / 1e3)} kbps`
+}
+
 function formatDate(iso?: string): string {
-  if (!iso) return '—'
+  if (!iso) return ''
   const time = Date.parse(iso)
-  return Number.isNaN(time) ? '—' : new Date(time).toLocaleString()
+  return Number.isNaN(time) ? '' : new Date(time).toLocaleString()
 }
 </script>

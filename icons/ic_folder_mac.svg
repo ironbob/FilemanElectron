@@ -1,1 +1,25 @@
-<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg t="1758585166859" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6715" xmlns:xlink="http://www.w3.org/1999/xlink" width="256" height="256"><path d="M0 195.584h962.56c33.792 0 61.44 27.648 61.44 61.44v649.216c0 33.792-27.648 61.44-61.44 61.44h-901.12c-33.792 0-61.44-27.648-61.44-61.44v-710.656z" fill="#76C7FF" p-id="6716"></path><path d="M0 107.52c0-22.528 18.432-40.96 40.96-40.96h313.344c16.384 0 30.72 6.144 43.008 17.408l114.688 111.616h-512v-88.064z" fill="#A9E3FF" p-id="6717"></path></svg>
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="256" height="256">
+  <defs>
+    <linearGradient id="folderTab" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#BFE4FF"/>
+      <stop offset="1" stop-color="#8CC9FB"/>
+    </linearGradient>
+    <linearGradient id="folderBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7CC0F9"/>
+      <stop offset="1" stop-color="#5FA9EF"/>
+    </linearGradient>
+    <linearGradient id="folderFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#A8D8FF"/>
+      <stop offset="0.15" stop-color="#7FC0F9"/>
+      <stop offset="1" stop-color="#57A4EC"/>
+    </linearGradient>
+  </defs>
+  <!-- 背板（含左侧标签页轮廓） -->
+  <path d="M132 82 h248 c40 0 58 10 88 36 l46 46 h358 c44 0 80 36 80 80 v582 c0 44 -36 80 -80 80 H132 c-44 0 -80 -36 -80 -80 V162 c0 -44 36 -80 80 -80 z" fill="url(#folderBack)"/>
+  <!-- 顶部标签页 -->
+  <path d="M132 82 h248 c40 0 58 10 88 36 l46 46 H52 v-2 c0 -44 36 -80 80 -80 z" fill="url(#folderTab)"/>
+  <!-- 前面板 -->
+  <path d="M52 402 c0 -44 36 -80 80 -80 h760 c44 0 80 36 80 80 v424 c0 44 -36 80 -80 80 H132 c-44 0 -80 -36 -80 -80 z" fill="url(#folderFront)"/>
+  <!-- 前面板顶部高光，营造立体感 -->
+  <path d="M132 322 h760 c24 0 44 16 50 38 H82 c6 -22 26 -38 50 -38 z" fill="#D3ECFF" opacity="0.7"/>
+</svg>

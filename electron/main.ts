@@ -16,6 +16,7 @@ import { ArchiveService } from './src/services/ArchiveService'
 import { MobileScreenshotService } from './src/services/MobileScreenshotService'
 import { ContentVerificationService, type ContentVerificationRequest } from './src/services/ContentVerificationService'
 import { DirectoryStatsService } from './src/services/DirectoryStatsService'
+import { MediaInfoService } from './src/services/MediaInfoService'
 import { CH } from './src/ipc/channels'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { DirectoryStatsRequest } from '@shared/types'
@@ -38,6 +39,7 @@ const archiveService = new ArchiveService(deviceManager)
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService)
+const mediaInfoService = new MediaInfoService()
 
 // ZIP 虚拟路径协议（"<zipFilePath>::<innerPath>"）的解析/构造统一在
 // @shared/zipPath（main 与 renderer 共用的单一事实源），此处不再本地实现。
@@ -237,6 +239,11 @@ ipcMain.handle(CH.invoke.fsDirStatsStart, (event, request: DirectoryStatsRequest
 
 ipcMain.handle(CH.invoke.fsDirStatsCancel, (_, taskId: string) => {
   return directoryStatsService.cancel(taskId)
+})
+
+// ============ Media info (属性弹窗多媒体元数据，本期仅本地) ============
+ipcMain.handle(CH.invoke.fsMediaInfo, (_, deviceId: string, filePath: string) => {
+  return mediaInfoService.analyze(deviceId, filePath)
 })
 
 // ============ ZIP browsing IPC Handlers ============

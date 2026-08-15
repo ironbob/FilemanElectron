@@ -89,12 +89,23 @@
           v-model="searchQuery"
           type="text"
           placeholder="Search or tag:work"
-          class="w-36 h-8 px-3 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
+          class="w-36 h-8 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
+          :class="searchQuery ? 'pr-7 pl-3' : 'px-3'"
           @focus="searchHistoryOpen = true"
           @blur="searchHistoryOpen = false"
           @keydown.enter="commitSearch"
-          @keydown.escape="searchQuery = ''; searchHistoryOpen = false"
+          @keydown.escape="clearSearch"
         />
+        <button
+          v-if="searchQuery"
+          class="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+          title="Clear search"
+          aria-label="Clear search"
+          @mousedown.prevent
+          @click="clearSearch"
+        >
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
         <div
           v-if="searchHistoryOpen && filteredSearchHistory.length > 0"
           class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto rounded-lg border border-border py-1 shadow-xl"
@@ -383,6 +394,10 @@ const filteredSearchHistory = computed(() => {
 })
 function commitSearch() {
   browserStore.rememberSearch(searchQuery.value)
+  searchHistoryOpen.value = false
+}
+function clearSearch() {
+  searchQuery.value = ''
   searchHistoryOpen.value = false
 }
 function applySearchHistory(item: string) {

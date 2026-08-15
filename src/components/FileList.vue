@@ -39,10 +39,10 @@
         v-slot="{ item: file }"
       >
         <div
-          class="finder-list-row file-item flex items-center gap-2 px-4 transition-colors duration-100"
+          class="finder-list-row file-item flex items-center gap-2 px-4 rounded-md transition-colors duration-100"
           :data-file-path="file.path"
           :style="{ height: LIST_ITEM_HEIGHT + 'px' }"
-          :class="isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary hover:bg-bg-hover'"
+          :class="isSelected(file.path) ? 'finder-selected finder-selected-text' : 'text-text-primary'"
           draggable="true"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
@@ -63,13 +63,13 @@
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
           />
-          <span class="w-40 text-left text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
+          <span class="w-40 text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ formatDate(file.modifiedTime) }}
           </span>
-          <span class="w-20 text-right text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
+          <span class="w-20 text-right text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ file.isDirectory ? '--' : formatSize(file.size) }}
           </span>
-          <span class="w-24 truncate text-left text-sm" :class="isSelected(file.path) ? 'text-white/70' : 'text-text-tertiary'">
+          <span class="w-24 truncate text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ fileKind(file) }}
           </span>
         </div>
@@ -93,25 +93,30 @@
         <div
           v-for="file in row.files"
           :key="file.path"
-          class="file-item flex flex-col items-center p-2 rounded-lg transition-all duration-100 overflow-hidden"
+          class="file-item flex flex-col items-center p-2 rounded-lg overflow-hidden"
           :data-file-path="file.path"
-          :class="isSelected(file.path) ? 'bg-accent-blue text-white' : 'hover:bg-gray-100/40 dark:hover:bg-gray-700/40'"
           draggable="true"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
-          <div :class="['flex items-center justify-center rounded-md mb-2 flex-shrink-0 overflow-hidden bg-bg-tertiary/50', gridCfg.thumbClass]">
-            <img
-              v-if="getThumbnailUrl(file, gridCfg.thumbKey)"
-              :src="getThumbnailUrl(file, gridCfg.thumbKey)!"
-              class="w-full h-full object-cover"
-              @error="thumbnailUrls.delete(`${file.path}:${gridCfg.thumbKey}`)"
-            />
-            <component v-else :is="getFileIconComponent(file)" :class="gridCfg.iconClass" />
+          <!-- Finder 式选中：仅图标周围一圈略大的灰色圆角底，未选中时无底色 -->
+          <div
+            class="flex items-center justify-center rounded-lg mb-2 flex-shrink-0 p-1.5 transition-colors duration-100"
+            :class="isSelected(file.path) ? 'finder-selected' : ''"
+          >
+            <div :class="['flex items-center justify-center rounded-md overflow-hidden', gridCfg.thumbClass]">
+              <img
+                v-if="getThumbnailUrl(file, gridCfg.thumbKey)"
+                :src="getThumbnailUrl(file, gridCfg.thumbKey)!"
+                class="w-full h-full object-cover"
+                @error="thumbnailUrls.delete(`${file.path}:${gridCfg.thumbKey}`)"
+              />
+              <component v-else :is="getFileIconComponent(file)" :class="gridCfg.iconClass" />
+            </div>
           </div>
           <FileNameMatchLabel
-            :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary']"
+            :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected finder-selected-text' : 'text-text-primary']"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
@@ -142,8 +147,8 @@
             class="flex items-center gap-2.5 px-3 py-2 transition-colors duration-100"
             :data-file-path="file.path"
             :class="[
-              column.selectedPath === file.path ? 'bg-accent-blue text-white' : 'hover:bg-bg-hover text-text-primary',
-              isSelected(file.path) && column.selectedPath !== file.path ? 'bg-accent-blue/30' : ''
+              column.selectedPath === file.path ? 'finder-selected finder-selected-text' : 'text-text-primary',
+              isSelected(file.path) && column.selectedPath !== file.path ? 'bg-bg-active' : ''
             ]"
             @click="handleColumnClick(index, file)"
             @dblclick="handleDoubleClick(file)"
@@ -155,7 +160,7 @@
               :highlight-indices="typeaheadHighlightFor(file)"
               :selected="isSelected(file.path)"
             />
-            <svg v-if="file.isDirectory" class="w-4 h-4" :class="column.selectedPath === file.path ? 'text-white/70' : 'text-text-tertiary'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-if="file.isDirectory" class="w-4 h-4" :class="column.selectedPath === file.path ? 'opacity-70' : 'text-text-tertiary'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
@@ -1895,6 +1900,15 @@ function handleContextMenuAction(action: string) {
 </script>
 
 <style scoped>
+/* Finder 式灰色选中：图标底/文字底/整行高亮共用（颜色随主题变量） */
+.finder-selected {
+  background-color: var(--finder-selection-bg);
+}
+
+.finder-selected-text {
+  color: var(--finder-selection-text);
+}
+
 .context-menu {
   @apply min-w-[180px] bg-bg-secondary border border-border rounded-lg shadow-lg py-1 z-50;
 }

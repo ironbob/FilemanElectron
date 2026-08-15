@@ -15,6 +15,8 @@ import sharp from "sharp";
 import ffmpeg from "ffmpeg-static";
 import * as zlib from "zlib";
 import { zipSync, unzipSync, strToU8 } from "fflate";
+import { open, stat } from "fs/promises";
+import mediaInfoFactory from "mediainfo.js";
 import __cjs_url__ from "node:url";
 import __cjs_path__ from "node:path";
 import __cjs_mod__ from "node:module";
@@ -2540,10 +2542,10 @@ class StreamTransfer {
    * 因而只有该检查通过后 FileOperationManager 才会删除源文件。
    */
   static async verifyTargetSize(target, dstPath, expectedBytes) {
-    const stat = await target.stat(dstPath);
-    if (!stat.isFile || stat.size !== expectedBytes) {
+    const stat2 = await target.stat(dstPath);
+    if (!stat2.isFile || stat2.size !== expectedBytes) {
       throw new Error(
-        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat.size} 字节`
+        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat2.size} 字节`
       );
     }
   }
@@ -2584,6 +2586,7 @@ const CH = {
     fsImportExternal: "fs:importExternal",
     fsDirStatsStart: "fs:dirStats:start",
     fsDirStatsCancel: "fs:dirStats:cancel",
+    fsMediaInfo: "fs:mediaInfo",
     // compare:
     compareVerifyStart: "compare:verify:start",
     compareVerifyCancel: "compare:verify:cancel",
@@ -3536,8 +3539,8 @@ class ThumbnailService {
       const files = await fs$1.readdir(this.cacheDir);
       log$8("Calculating cache size, files count:", files.length);
       for (const file of files) {
-        const stat = await fs$1.stat(path__default.join(this.cacheDir, file));
-        totalSize += stat.size;
+        const stat2 = await fs$1.stat(path__default.join(this.cacheDir, file));
+        totalSize += stat2.size;
       }
       log$8("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
     } catch (e) {
@@ -3627,14 +3630,14 @@ class ZipService {
   // ── Public API ─────────────────────────────────────────────────────────────
   /** Load the ZIP file into memory and parse its central directory (cached by mtime). */
   _load(zipFilePath) {
-    const stat = fs.statSync(zipFilePath);
+    const stat2 = fs.statSync(zipFilePath);
     const cached = this._cache.get(zipFilePath);
-    if (cached && cached.mtimeMs === stat.mtimeMs) return cached;
-    console.log(`[ZipService] Parsing: ${zipFilePath} (${stat.size} bytes)`);
+    if (cached && cached.mtimeMs === stat2.mtimeMs) return cached;
+    console.log(`[ZipService] Parsing: ${zipFilePath} (${stat2.size} bytes)`);
     const buf = fs.readFileSync(zipFilePath);
     const entries = this._parseCentralDirectory(buf, zipFilePath);
     console.log(`[ZipService] Found ${entries.length} entries in ${zipFilePath}`);
-    const entry = { mtimeMs: stat.mtimeMs, buf, entries };
+    const entry = { mtimeMs: stat2.mtimeMs, buf, entries };
     this._cache.set(zipFilePath, entry);
     return entry;
   }
@@ -4060,8 +4063,8 @@ class ArchiveService {
     return { count };
   }
   async collect(deviceId, sourcePath, relativePath, entries) {
-    const stat = await this.deviceManager.getStats(deviceId, sourcePath);
-    if (stat.isFile) {
+    const stat2 = await this.deviceManager.getStats(deviceId, sourcePath);
+    if (stat2.isFile) {
       entries[relativePath] = await this.deviceManager.readFile(deviceId, sourcePath);
       return;
     }
@@ -4349,6 +4352,78 @@ function joinPosix(dir, name) {
   if (dir === "" || dir === "/") return "/" + name;
   return dir.endsWith("/") ? dir + name : dir + "/" + name;
 }
+function num(value) {
+  if (value == null) return void 0;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : void 0;
+}
+class MediaInfoService {
+  instance = null;
+  initPromise = null;
+  async getInstance() {
+    if (this.instance) return this.instance;
+    if (!this.initPromise) {
+      this.initPromise = mediaInfoFactory({ format: "object" }).then((instance) => {
+        this.instance = instance;
+        return instance;
+      });
+    }
+    return this.initPromise;
+  }
+  async analyze(deviceId, filePath) {
+    if (deviceId !== "local") return null;
+    const fh = await open(filePath, "r");
+    try {
+      const { size } = await stat(filePath);
+      const mi = await this.getInstance();
+      const result = await mi.analyzeData(
+        size,
+        (chunkSize, offset) => this.readChunk(fh, offset, chunkSize)
+      );
+      return this.summarize(result);
+    } finally {
+      await fh.close();
+    }
+  }
+  async readChunk(fh, offset, chunkSize) {
+    const buffer = Buffer.alloc(Math.max(0, chunkSize));
+    const { bytesRead } = await fh.read(buffer, 0, buffer.length, offset);
+    return new Uint8Array(buffer.subarray(0, bytesRead));
+  }
+  summarize(result) {
+    const tracks = result?.media?.track;
+    if (!tracks || tracks.length === 0) return null;
+    const general = tracks.find((t) => t["@type"] === "General");
+    const video = tracks.find((t) => t["@type"] === "Video");
+    const audio = tracks.find((t) => t["@type"] === "Audio");
+    if (!general && !video && !audio) return null;
+    const summary = {};
+    if (general) {
+      summary.format = typeof general.Format === "string" ? general.Format : void 0;
+      summary.durationSeconds = num(general.Duration);
+      summary.overallBitrate = num(general.OverallBitRate);
+    }
+    if (video) {
+      summary.video = {
+        codec: typeof video.Format === "string" ? video.Format : void 0,
+        width: num(video.Width),
+        height: num(video.Height),
+        frameRate: num(video.FrameRate),
+        bitrate: num(video.BitRate) ?? num(video.BitRate_Nominal),
+        bitDepth: num(video.BitDepth)
+      };
+    }
+    if (audio) {
+      summary.audio = {
+        codec: typeof audio.Format === "string" ? audio.Format : void 0,
+        sampleRate: num(audio.SamplingRate),
+        channels: num(audio.Channels),
+        bitrate: num(audio.BitRate) ?? num(audio.BitRate_Nominal)
+      };
+    }
+    return summary;
+  }
+}
 const isDev = !app.isPackaged;
 const log = console;
 let mainWindow = null;
@@ -4366,6 +4441,7 @@ const archiveService = new ArchiveService(deviceManager);
 const mobileScreenshotService = new MobileScreenshotService(deviceManager);
 const contentVerificationService = new ContentVerificationService(deviceManager);
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService);
+const mediaInfoService = new MediaInfoService();
 const localAdapter = deviceManager.getAdapter("local");
 if (localAdapter) {
   fileOperationManager.registerAdapter("local", localAdapter);
@@ -4507,6 +4583,9 @@ ipcMain.handle(CH.invoke.fsDirStatsStart, (event, request) => {
 });
 ipcMain.handle(CH.invoke.fsDirStatsCancel, (_, taskId) => {
   return directoryStatsService.cancel(taskId);
+});
+ipcMain.handle(CH.invoke.fsMediaInfo, (_, deviceId, filePath) => {
+  return mediaInfoService.analyze(deviceId, filePath);
 });
 ipcMain.handle(CH.invoke.zipList, async (_, zipFilePath, internalPath) => {
   try {

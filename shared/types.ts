@@ -146,6 +146,29 @@ export interface DirectoryStatsProgress {
   message?: string           // failed 时的错误摘要
 }
 
+// ============ Media Info (属性弹窗多媒体元数据) ============
+
+/** MediaInfoLib 提取结果的归一化摘要（数值字段已收敛为 number） */
+export interface MediaInfoSummary {
+  format?: string            // 容器格式（MPEG-4 / MPEG Audio / Matroska …）
+  durationSeconds?: number
+  overallBitrate?: number    // bps
+  video?: {
+    codec?: string           // AVC / HEVC / VP9 …
+    width?: number
+    height?: number
+    frameRate?: number
+    bitrate?: number         // bps
+    bitDepth?: number
+  }
+  audio?: {
+    codec?: string           // AAC / MPEG Audio / Opus …
+    sampleRate?: number      // Hz
+    channels?: number
+    bitrate?: number         // bps
+  }
+}
+
 // ============ File Operation Types ============
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'

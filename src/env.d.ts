@@ -36,6 +36,7 @@ type ContentVerificationPair = import('@shared/types').ContentVerificationPair
 type ContentVerificationProgress = import('@shared/types').ContentVerificationProgress
 type DirectoryStatsRequest = import('@shared/types').DirectoryStatsRequest
 type DirectoryStatsProgress = import('@shared/types').DirectoryStatsProgress
+type MediaInfoSummary = import('@shared/types').MediaInfoSummary
 type DeviceConfig = import('@shared/types').DeviceConfig
 type Credentials = import('@shared/types').Credentials
 type Device = import('@shared/types').Device
@@ -85,6 +86,9 @@ interface Window {
     // Directory stats (属性弹窗递归统计) — progress 终态即为结果
     startDirectoryStats: (request: DirectoryStatsRequest) => Promise<{ taskId: string }>
     cancelDirectoryStats: (taskId: string) => Promise<boolean>
+
+    // Media info (属性弹窗多媒体元数据；非媒体或远程文件返回 null)
+    getMediaInfo: (deviceId: string, filePath: string) => Promise<MediaInfoSummary | null>
 
     // Cross-Device Operations
     copyBetweenDevices: (

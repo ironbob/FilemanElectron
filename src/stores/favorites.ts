@@ -45,7 +45,9 @@ export const useFavoritesStore = defineStore('favorites', () => {
 
   async function persist(): Promise<void> {
     try {
-      await window.fileman.saveConfig({ favorites: favorites.value })
+      // favorites.value 是深层 reactive Proxy，无法跨 contextBridge/IPC 结构化克隆
+      // （"An object could not be cloned"），必须先展开成普通对象再发送。
+      await window.fileman.saveConfig({ favorites: favorites.value.map(f => ({ ...f })) })
     } catch (e) {
       console.error('[FavoritesStore] persist failed:', e)
     }
