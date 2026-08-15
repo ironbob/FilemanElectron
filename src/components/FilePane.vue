@@ -2,7 +2,6 @@
   <div
     v-if="pane"
     class="finder-pane file-pane h-full flex flex-col overflow-hidden bg-bg-primary"
-    :class="{ 'bg-accent-blue/5': isDropTarget }"
     @mousedown.capture="handlePaneMouseDown"
     @dragenter.prevent="handleDragEnter"
     @dragleave="handleDragLeave"
@@ -68,6 +67,16 @@
             v-if="isInsideZip"
             class="flex-shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-accent-orange/20 text-accent-orange dark:text-orange-300 border border-accent-orange/30 mr-1"
           >ZIP</span>
+          <!-- Git 分支 chip（本地仓库目录，只读） -->
+          <span
+            v-if="gitBranchInfo"
+            class="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent-indigo/15 text-accent-indigo border border-accent-indigo/30 mr-1 max-w-40 truncate"
+            :title="gitBranchInfo.title"
+          >
+            <svg class="w-2.5 h-2.5 inline-block mr-0.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 3v12m0 0a3 3 0 100 6 3 3 0 000-6zm12-6a3 3 0 100-6 3 3 0 000 6zm0 0a9 9 0 01-9 9" />
+            </svg>{{ gitBranchInfo.label }}
+          </span>
           <template v-for="(segment, index) in pathSegments" :key="index">
             <button
               class="max-w-32 truncate text-[13px] transition-colors font-medium flex-shrink-0"
@@ -218,7 +227,12 @@
     </div>
 
     <!-- Main Content Area with File List and Inline Preview -->
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex overflow-hidden relative">
+      <!-- 拖拽「落区」高亮：内容区圆角薄纱 + 内侧描边，与文件夹行高亮同一视觉语言；
+           纯浮层（pointer-events-none），不参与布局、不拦截拖拽事件 -->
+      <Transition name="drop-zone-fade">
+        <div v-if="isDropTarget" class="pane-drop-zone pointer-events-none absolute inset-1.5 z-[5] rounded-xl"></div>
+      </Transition>
       <!-- File List -->
       <FileList
         :key="directoryLoadKey"
@@ -338,6 +352,19 @@
       @close="batchRenameDialog.visible = false"
       @confirm="confirmBatchRename"
     />
+    <ChecksumDialog
+      v-if="checksumDialog.visible"
+      :items="checksumDialog.items"
+      :algo="checksumDialog.algo"
+      @close="checksumDialog.visible = false"
+    />
+    <SymlinkDialog
+      v-if="symlinkDialog.visible"
+      :device-id="pane?.deviceId || 'local'"
+      :dir-path="pane?.path || '/'"
+      @close="symlinkDialog.visible = false"
+      @confirm="refreshCurrentDirectory(); symlinkDialog.visible = false"
+    />
   </div>
 </template>
 
@@ -345,6 +372,7 @@
 import { ref, computed, reactive, h, type Component, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import FinderIcon from './FinderIcon.vue'
 import { useTabsStore } from '@/stores/tabs'
+import { useGitStatusStore } from '@/stores/gitStatus'
 import { usePreviewStore } from '@/stores/preview'
 import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useClipboardStore } from '@/stores/clipboard'
@@ -356,12 +384,15 @@ import RenameDialog from './dialogs/RenameDialog.vue'
 import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
 import FileInfoDialog from './dialogs/FileInfoDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
+import ChecksumDialog from './dialogs/ChecksumDialog.vue'
+import SymlinkDialog from './dialogs/SymlinkDialog.vue'
 import { isImageFile } from '@/utils/fileTypes'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
 import { hideDropHint } from '@/utils/dropHint'
 import { useDragSessionStore } from '@/stores/dragSession'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
+import type { ChecksumAlgo, ChecksumItem } from '@shared/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
 import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
 
@@ -372,6 +403,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const gitStatusStore = useGitStatusStore()
 const previewStore = usePreviewStore()
 const fileOpsStore = useFileOperationsStore()
 const clipboardStore = useClipboardStore()
@@ -512,6 +544,8 @@ const targetDialog = reactive({
 })
 const infoDialog = reactive<{ files: FileInfo[] }>({ files: [] })
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
+const checksumDialog = reactive<{ visible: boolean; items: ChecksumItem[]; algo: ChecksumAlgo }>({ visible: false, items: [], algo: 'sha256' })
+const symlinkDialog = reactive({ visible: false })
 
 const pathSegments = computed(() => {
   if (!pane.value) return []
@@ -521,6 +555,21 @@ const pathSegments = computed(() => {
 
 /** True when the current pane is browsing inside a ZIP archive. */
 const isInsideZip = computed(() => isZipVirtualPath(pane.value?.path ?? ''))
+
+/** Git 分支 chip 文案（本地仓库目录才有；ahead/behind 附在 title）。 */
+const gitBranchInfo = computed<{ label: string; title: string } | null>(() => {
+  if (!pane.value || pane.value.deviceId !== 'local') return null
+  const status = gitStatusStore.statusFor(pane.value.deviceId, pane.value.path)
+  if (!status?.isRepo || !status.branch) return null
+  const arrows = [
+    status.ahead ? `↑${status.ahead}` : '',
+    status.behind ? `↓${status.behind}` : ''
+  ].filter(Boolean).join(' ')
+  return {
+    label: arrows ? `${status.branch} ${arrows}` : status.branch,
+    title: `Git 仓库：${status.repoRoot ?? ''}${arrows ? `（领先/落后 ${arrows}）` : ''}`
+  }
+})
 
 /**
  * 宿主集成（Finder）是否可用：仅本地设备、且不在 ZIP 虚拟路径内。
@@ -706,6 +755,8 @@ function closeRecentMenuOnOutsideClick(event: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.addEventListener('click', closeSearchHistoryOnOutsideClick, true)
+  // 命令面板「刷新当前目录」的广播（仅活动面板响应）
+  document.addEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
   stopFileOperationUpdates = window.fileman.onFileOperationUpdated(task => {
     if (!pendingDirectoryRefreshes.has(task.id) && !taskTouchesThisDirectory(task)) return
     if (!['completed', 'failed', 'cancelled'].includes(task.status)) return
@@ -725,9 +776,17 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.removeEventListener('click', closeSearchHistoryOnOutsideClick, true)
+  document.removeEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
   stopFileOperationUpdates?.()
   stopFileOperationUpdates = null
 })
+
+/** 命令面板刷新广播处理：仅当前活动面板响应（非活动面板并行挂载多个）。 */
+function handleRefreshBroadcast(): void {
+  if (tabsStore.activePane?.id === props.paneId) {
+    refreshCurrentDirectory()
+  }
+}
 
 function openCreateDialog(kind: 'file' | 'folder') {
   createDialog.kind = kind
@@ -938,7 +997,7 @@ watch(() => pane.value?.path, () => {
   inlinePreviewFile.value = null
 })
 
-async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move' }) {
+async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move'; checksumItems?: ChecksumItem[] }) {
   const targetPath = op.target || pane.value?.path || '/'
   const deviceId = pane.value?.deviceId || 'local'
 
@@ -1065,6 +1124,16 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         .map(path => loadedFiles.value.find(file => file.path === path))
         .filter((file): file is FileInfo => !!file)
       batchRenameDialog.visible = batchRenameDialog.files.length > 1
+      break
+    case 'new-symlink':
+      symlinkDialog.visible = true
+      break
+    case 'checksum':
+      // 1-2 个文件的哈希/对比弹窗（FileList 已附带条目元数据）
+      if (op.checksumItems && op.checksumItems.length >= 1) {
+        checksumDialog.items = op.checksumItems
+        checksumDialog.visible = true
+      }
       break
 
     case 'archive': {
@@ -1204,6 +1273,24 @@ function handleDrop() {
 /* container-type 只挂在工具栏容器上（见模板注释），不要放回 .file-pane */
 .file-pane-toolbar-container {
   container-type: inline-size;
+}
+
+/* 拖拽悬停面板时的「落区」：内容区圆角蓝薄纱 + 内侧描边。
+   与 FileList 的 .drop-target-row 同一视觉语言（color-mix 蓝色渐层 + inset 描边），
+   层级低于文件夹行高亮（行是更精确的目标），淡入淡出避免闪烁。 */
+.pane-drop-zone {
+  background-color: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent-blue) 40%, transparent);
+}
+
+.drop-zone-fade-enter-active,
+.drop-zone-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.drop-zone-fade-enter-from,
+.drop-zone-fade-leave-to {
+  opacity: 0;
 }
 
 .file-pane-toolbar {
