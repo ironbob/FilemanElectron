@@ -128,7 +128,7 @@
                 :pane-id="pane.id"
                 class="flex-1 border-r border-border last:border-r-0"
                 @drop="handleDrop($event, pane.id)"
-                @dragover.prevent
+                @dragover="handlePaneDragOver($event, pane.id)"
               />
             </template>
           </div>
@@ -188,8 +188,16 @@ import { useDevicesStore } from './stores/devices'
 import { useFileOperationsStore } from './stores/fileOperations'
 import { usePreviewStore } from './stores/preview'
 import { useSettingsStore } from './stores/settings'
+import { useDragSessionStore } from './stores/dragSession'
 import { getParentPath } from './utils/path'
-import type { InternalFileDragPayload } from './types/fileOperation'
+import { isZipVirtualPath } from '@shared/zipPath'
+import {
+  extractDragSource,
+  isSelfOrDescendant,
+  peekDragSource,
+  queueTransfer,
+  resolveDropAction
+} from './utils/dragTransfer'
 
 const log = console
 const previewStore = usePreviewStore()
@@ -198,6 +206,7 @@ const tabsStore = useTabsStore()
 const devicesStore = useDevicesStore()
 const fileOpsStore = useFileOperationsStore()
 const settingsStore = useSettingsStore()
+const dragSessionStore = useDragSessionStore()
 
 const theme = ref<'light' | 'dark'>('dark')
 const showSettingsDialog = ref(false)
@@ -234,7 +243,46 @@ onMounted(() => {
     sidebarWidth.value = Math.min(SIDEBAR_MAX_WIDTH, savedSidebarWidth)
   }
 
+  // 拖拽会话防陈旧清理：应用内任何新拖拽必先经过 pointerdown；
+  // HTML5 拖拽结束（含取消/拖出窗口）触发 dragend；drop 用冒泡阶段挂载，
+  // 在所有落点处理器之后运行，覆盖「落到标签栏等未消费会话的区域」的情况。
+  // 原生拖拽拖出到 Finder 后无 App 内事件，由落点侧的文件名匹配兜底（dragTransfer.ts）。
+  window.addEventListener('pointerdown', clearDragSession, true)
+  window.addEventListener('dragend', clearDragSession, true)
+  window.addEventListener('drop', clearDragSession)
+  document.addEventListener('dragleave', convertToNativeDragOnWindowExit)
+
   log.info('[FinderShell] initialized', { theme: theme.value, sidebarWidth: sidebarWidth.value })
+})
+
+/**
+ * HTML5 拖拽拖出窗口边界时转原生拖拽（webContents.startDrag），
+ * 使文件可以拖到 Finder / 其他应用。Electron 的原生拖拽不会向源窗口派发
+ * dragover/drop（electron#7118），因此不能在 dragstart 时直接劫持，
+ * 只能在光标已经离开窗口、应用内放置不可能发生时再转换。
+ */
+function convertToNativeDragOnWindowExit(event: DragEvent) {
+  if (event.relatedTarget) return // 仍在文档内移动
+  const payload = dragSessionStore.peek()
+  if (!payload) return
+  if (payload.deviceId !== 'local' || payload.files.some(filePath => isZipVirtualPath(filePath))) return
+
+  log.info('[DnD][App] drag left window → converting to native drag', {
+    paneId: payload.paneId,
+    fileCount: payload.files.length
+  })
+  window.fileman.startNativeDrag(payload.files)
+}
+
+function clearDragSession() {
+  dragSessionStore.clear()
+}
+
+onUnmounted(() => {
+  window.removeEventListener('pointerdown', clearDragSession, true)
+  window.removeEventListener('dragend', clearDragSession, true)
+  window.removeEventListener('drop', clearDragSession)
+  document.removeEventListener('dragleave', convertToNativeDragOnWindowExit)
 })
 
 function toggleTheme() {
@@ -296,77 +344,126 @@ const statusText = computed(() => {
   return 'Ready'
 })
 
-function parseInternalFileDragPayload(value: string): InternalFileDragPayload | null {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    if (!parsed || typeof parsed !== 'object') return null
+/** dragover 高频触发，仅在判定变化时输出日志 */
+let lastPaneDragOverDecision = ''
 
-    const payload = parsed as Record<string, unknown>
-    if (
-      typeof payload.paneId !== 'string' ||
-      typeof payload.deviceId !== 'string' ||
-      payload.deviceId.length === 0 ||
-      !Array.isArray(payload.files) ||
-      payload.files.length === 0 ||
-      !payload.files.every(file => typeof file === 'string')
-    ) {
-      return null
-    }
+function handlePaneDragOver(event: DragEvent, targetPaneId: string) {
+  const dataTransfer = event.dataTransfer
+  if (!dataTransfer) return
 
-    return {
-      paneId: payload.paneId,
-      deviceId: payload.deviceId,
-      files: payload.files
+  const targetPane = tabsStore.findPane(targetPaneId)
+  if (!targetPane) return
+
+  const source = peekDragSource(event, dragSessionStore)
+  if (!source) {
+    // 外部（Finder）拖入：仅当面板可写目录时接受
+    const accepted = dataTransfer.types.includes('Files') && !isZipVirtualPath(targetPane.path)
+    const decision = `external:${accepted}`
+    if (lastPaneDragOverDecision !== decision) {
+      lastPaneDragOverDecision = decision
+      log.info('[DnD][App] pane dragover (external drag)', { accepted, targetPaneId })
     }
-  } catch {
-    return null
+    if (accepted) {
+      event.preventDefault()
+      dataTransfer.dropEffect = 'copy'
+    }
+    return
   }
+
+  if (source.paneId === targetPaneId) {
+    const decision = 'same-pane'
+    if (lastPaneDragOverDecision !== decision) {
+      lastPaneDragOverDecision = decision
+      log.info('[DnD][App] pane dragover skipped: same pane', { targetPaneId, sourcePaneId: source.paneId })
+    }
+    return // 同面板背景放置无效
+  }
+  if (isZipVirtualPath(targetPane.path)) {
+    log.info('[DnD][App] pane dragover skipped: target pane inside zip', { targetPaneId })
+    return
+  }
+  if (isSelfOrDescendant(source.files, targetPane.path)) {
+    log.info('[DnD][App] pane dragover skipped: target is self/descendant', { targetPaneId, targetPath: targetPane.path })
+    return
+  }
+  lastPaneDragOverDecision = ''
+
+  event.preventDefault()
+  // 光标反馈：Option/跨设备 copy，同设备 move（drop 时按 altKey 重新判定）
+  const dropEffect = event.altKey || source.deviceId !== targetPane.deviceId ? 'copy' : 'move'
+  dataTransfer.dropEffect = dropEffect
 }
 
 async function handleDrop(event: DragEvent, targetPaneId: string) {
   event.preventDefault()
-  if (event.dataTransfer) {
-    const internalDragData = event.dataTransfer.getData('application/json')
-    if (internalDragData) {
-      const data = parseInternalFileDragPayload(internalDragData)
-      if (!data) {
-        console.error('[DualPaneWorkspace] Rejected invalid internal drag payload', { targetPaneId })
-        return
-      }
+  const targetPane = tabsStore.findPane(targetPaneId)
+  if (!targetPane) {
+    console.error('[DualPaneWorkspace] Drop target pane was not found', { targetPaneId })
+    return
+  }
 
-      if (data.paneId === targetPaneId) return
+  log.info('[DnD][App] pane drop', {
+    targetPaneId,
+    targetDeviceId: targetPane.deviceId,
+    targetPath: targetPane.path
+  })
 
-      const targetPane = tabsStore.findPane(targetPaneId)
-      if (!targetPane) {
-        console.error('[DualPaneWorkspace] Drop target pane was not found', { targetPaneId })
-        return
-      }
-
-      try {
-        await fileOpsStore.createCopyTask(
-          data.deviceId,
-          data.files,
-          targetPane.deviceId,
-          targetPane.path
-        )
-        fileOpsStore.showPanel()
-      } catch (error) {
-        console.error('[DualPaneWorkspace] Failed to queue internal copy', {
-          sourcePaneId: data.paneId,
-          sourceDeviceId: data.deviceId,
-          targetPaneId,
-          targetDeviceId: targetPane.deviceId,
-          error
-        })
-      }
+  const source = extractDragSource(event, dragSessionStore)
+  if (source) {
+    // 应用内拖拽（JSON payload 或原生拖拽会话回落）
+    if (source.paneId === targetPaneId) {
+      log.info('[DnD][App] pane drop skipped: same pane', { targetPaneId })
+      return
+    }
+    if (isZipVirtualPath(targetPane.path)) {
+      log.info('[DnD][App] pane drop skipped: target pane inside zip')
+      return
+    }
+    if (isSelfOrDescendant(source.files, targetPane.path)) {
+      log.info('[DnD][App] pane drop skipped: target is self/descendant', { targetPath: targetPane.path })
       return
     }
 
+    const action = await resolveDropAction(source.deviceId, targetPane.deviceId, event)
+    if (!action) {
+      log.warn('[DnD][App] pane drop rejected: transfer not allowed', {
+        sourceDeviceId: source.deviceId,
+        targetDeviceId: targetPane.deviceId
+      })
+      return
+    }
+
+    try {
+      const task = await queueTransfer(fileOpsStore, source, action, targetPane)
+      log.info('[DnD][App] pane drop → task queued', {
+        taskId: task.id,
+        type: task.type,
+        sourceDeviceId: source.deviceId,
+        targetDeviceId: targetPane.deviceId,
+        targetPath: targetPane.path,
+        fileCount: source.files.length
+      })
+    } catch (error) {
+      console.error('[DnD][App] Failed to queue internal transfer', {
+        sourcePaneId: source.paneId,
+        sourceDeviceId: source.deviceId,
+        targetPaneId,
+        targetDeviceId: targetPane.deviceId,
+        action,
+        error
+      })
+    }
+    return
+  }
+
+  if (event.dataTransfer) {
     const externalFiles = Array.from(event.dataTransfer.files)
     if (externalFiles.length > 0) {
-      const targetPane = tabsStore.findPane(targetPaneId)
-      if (!targetPane) return
-
+      log.info('[DnD][App] pane drop → external (Finder) import', {
+        targetPaneId,
+        fileCount: externalFiles.length,
+        names: externalFiles.map(file => file.name)
+      })
       try {
         await fileOpsStore.importExternalFiles(externalFiles, targetPane.deviceId, targetPane.path)
         fileOpsStore.showPanel()

@@ -379,13 +379,26 @@ const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
 
 /** Start a native macOS drag for local files so Finder can receive them. */
 ipcMain.on(CH.send.dragStartNative, (event, sourcePaths: unknown) => {
-  if (!Array.isArray(sourcePaths)) return
+  if (!Array.isArray(sourcePaths)) {
+    console.warn('[DnD][main] dragStartNative rejected: payload is not an array', { sourcePaths })
+    return
+  }
   const files = sourcePaths.filter(
     (sourcePath): sourcePath is string => typeof sourcePath === 'string' && path.isAbsolute(sourcePath) && fs.existsSync(sourcePath)
   )
+  console.info('[DnD][main] dragStartNative', {
+    received: sourcePaths.length,
+    accepted: files.length,
+    rejected: sourcePaths.filter(p => !files.includes(p as string))
+  })
   if (files.length === 0) return
 
-  event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON })
+  try {
+    event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON })
+    console.info('[DnD][main] startDrag invoked', { fileCount: files.length })
+  } catch (error) {
+    console.error('[DnD][main] startDrag failed', { files, error })
+  }
 })
 
 // ============ File Operation IPC Handlers ============

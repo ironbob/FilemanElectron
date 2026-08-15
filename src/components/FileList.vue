@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="flex-1 flex flex-col overflow-hidden relative" @contextmenu.prevent="showContextMenu" @mousedown="handleContainerMouseDown">
+  <div ref="containerRef" class="flex-1 flex flex-col overflow-hidden relative" @contextmenu.prevent="showContextMenu" @mousedown="handleContainerMouseDown" @dragover="clearDropTargetHighlight">
     <!-- Loading State -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-3 text-text-tertiary">
@@ -42,10 +42,15 @@
           class="finder-list-row file-item flex items-center gap-2 px-4 rounded-md transition-colors duration-100"
           :data-file-path="file.path"
           :style="{ height: LIST_ITEM_HEIGHT + 'px' }"
-          :class="isSelected(file.path) ? 'finder-selected finder-selected-text' : 'text-text-primary'"
+          :class="[
+            isSelected(file.path) ? 'finder-selected finder-selected-text' : 'text-text-primary',
+            dropTargetPath === file.path ? 'drop-target-row' : ''
+          ]"
           draggable="true"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
+          @dragover="handleRowDragOver(file, $event)"
+          @drop="handleRowDrop(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
           <div class="w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
@@ -95,9 +100,12 @@
           :key="file.path"
           class="file-item flex flex-col items-center p-2 rounded-lg overflow-hidden"
           :data-file-path="file.path"
+          :class="dropTargetPath === file.path ? 'drop-target-row' : ''"
           draggable="true"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
+          @dragover="handleRowDragOver(file, $event)"
+          @drop="handleRowDrop(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
           <!-- Finder 式选中：仅图标周围一圈略大的灰色圆角底，未选中时无底色 -->
@@ -271,6 +279,13 @@ import { useTabsStore } from '@/stores/tabs'
 import { useFavoritesStore } from '@/stores/favorites'
 import { useSettingsStore } from '@/stores/settings'
 import { usePreviewStore } from '@/stores/preview'
+import { useDragSessionStore } from '@/stores/dragSession'
+import {
+  extractDragSource,
+  isFolderDropTarget,
+  isSelfOrDescendant,
+  resolveDropAction
+} from '@/utils/dragTransfer'
 import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
@@ -296,7 +311,7 @@ const emit = defineEmits<{
   select: [files: string[]]
   navigate: [path: string]
   preview: [file: FileInfo]
-  operation: [op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string }]
+  operation: [op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move' }]
   loaded: [files: FileInfo[]]
   sort: [sort: FileSortDescriptor]
 }>()
@@ -307,6 +322,7 @@ const tabsStore = useTabsStore()
 const favoritesStore = useFavoritesStore()
 const settingsStore = useSettingsStore()
 const previewStore = usePreviewStore()
+const dragSessionStore = useDragSessionStore()
 
 const files = ref<FileInfo[]>([])
 const searchResults = ref<FileInfo[] | null>(null)
@@ -315,6 +331,8 @@ const loading = ref(false)
 const columnFilesMap = ref<Map<string, FileInfo[]>>(new Map())
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
 const transferTargets = ref<Map<string, { copy: boolean; move: boolean }>>(new Map())
+/** 当前拖拽悬停的文件夹行（放置目标高亮） */
+const dropTargetPath = ref<string | null>(null)
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
 
@@ -1454,34 +1472,122 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
     }
     event.dataTransfer.setData('application/json', JSON.stringify(dragData))
     event.dataTransfer.effectAllowed = 'copyMove'
+    // 原生拖拽的 payload 在落点不可读，会话记录是应用内识别源的唯一途径
+    dragSessionStore.begin(dragData)
 
-    // Electron can hand an existing *local* path to Finder through
-    // webContents.startDrag. Remote/mobile files do not have a local path and
-    // deliberately retain the existing in-app drag behaviour instead.
-    if (props.deviceId === 'local' && !dragData.files.some(filePath => isZipVirtualPath(filePath))) {
-      event.preventDefault()
-      window.fileman.startNativeDrag(dragData.files)
-    }
+    // 注意：这里不能立即 webContents.startDrag 劫持。Electron 的原生拖拽不会向
+    // 源窗口派发 dragover/drop（electron#7118），应用内双面板拖放会完全失效。
+    // 保持 HTML5 拖拽；拖出窗口边界时由 App.vue 的 dragleave 监听转原生拖拽。
+    log.info('[DnD][FileList] dragstart (html5)', {
+      paneId: props.paneId,
+      deviceId: props.deviceId,
+      fileCount: dragData.files.length,
+      files: dragData.files
+    })
   }
 }
 
-function handleDrop(event: DragEvent, targetPath: string) {
+function clearDropTargetHighlight() {
+  dropTargetPath.value = null
+}
+
+/** dragover 高频触发，仅在判定变化时输出日志 */
+let lastRowDragOverDecision = ''
+
+function handleRowDragOver(file: FileInfo, event: DragEvent) {
+  const reason = !isFolderDropTarget(file)
+    ? 'not-a-folder'
+    : isZipVirtualPath(props.path)
+      ? 'pane-inside-zip'
+      : !dragSessionStore.isActive
+        ? 'external-drag'
+        : ''
+  if (reason) {
+    if (lastRowDragOverDecision !== reason) {
+      lastRowDragOverDecision = reason
+      log.info('[DnD][FileList] row dragover skipped', { reason, path: file.path })
+    }
+    return
+  }
+  lastRowDragOverDecision = ''
+
+  event.preventDefault()
+  event.stopPropagation()
+  dropTargetPath.value = file.path
+
+  // 光标反馈：同设备默认 move / 跨设备 copy（drop 时按 altKey 重新判定）
+  if (event.dataTransfer) {
+    const source = dragSessionStore.peek()
+    event.dataTransfer.dropEffect =
+      event.altKey || !source || source.deviceId !== props.deviceId ? 'copy' : 'move'
+  }
+}
+
+async function handleRowDrop(file: FileInfo, event: DragEvent) {
+  log.info('[DnD][FileList] row drop', { targetPath: file.path, paneId: props.paneId, deviceId: props.deviceId })
+  if (!isFolderDropTarget(file) || isZipVirtualPath(props.path)) {
+    log.info('[DnD][FileList] row drop skipped: not a valid folder target', { path: file.path })
+    return
+  }
+
+  const source = extractDragSource(event, dragSessionStore)
+  if (!source) return // 外部 Finder 拖入或无法识别，放行冒泡到面板背景
+
+  event.preventDefault()
+  event.stopPropagation()
+  dropTargetPath.value = null
+
+  if (isSelfOrDescendant(source.files, file.path)) {
+    log.info('[DnD][FileList] row drop rejected: target is self/descendant', { targetPath: file.path })
+    return
+  }
+
+  const action = await resolveDropAction(source.deviceId, props.deviceId, event)
+  if (!action) {
+    log.warn('[DnD][FileList] row drop rejected: no action resolved', { targetPath: file.path })
+    return
+  }
+
+  log.info('[DnD][FileList] row drop accepted → emit drop-transfer', {
+    targetPath: file.path,
+    mode: action,
+    sourceDeviceId: source.deviceId,
+    fileCount: source.files.length
+  })
+  emit('operation', {
+    action: 'drop-transfer',
+    files: source.files,
+    target: file.path,
+    sourceDeviceId: source.deviceId,
+    sourcePaneId: source.paneId,
+    mode: action
+  })
+}
+
+async function handleDrop(event: DragEvent, targetPath: string) {
   event.preventDefault()
   if (event.dataTransfer) {
     // Native Finder drops bubble to App.vue, which can route the local source
     // paths into any connected target device via the transfer queue.
     if (event.dataTransfer.files.length > 0) return
 
-    try {
-      const data = JSON.parse(event.dataTransfer.getData('application/json'))
-      emit('operation', {
-        action: 'copy',
-        files: data.files,
-        target: targetPath
-      })
-    } catch (e) {
-      console.error('Failed to parse drag data:', e)
-    }
+    const source = extractDragSource(event, dragSessionStore)
+    if (!source) return
+
+    if (isSelfOrDescendant(source.files, targetPath)) return
+
+    const action = await resolveDropAction(source.deviceId, props.deviceId, event)
+    if (!action) return
+
+    event.stopPropagation()
+    emit('operation', {
+      action: 'drop-transfer',
+      files: source.files,
+      target: targetPath,
+      sourceDeviceId: source.deviceId,
+      sourcePaneId: source.paneId,
+      mode: action
+    })
   }
 }
 
@@ -1912,6 +2018,13 @@ function handleContextMenuAction(action: string) {
 
 .finder-selected-text {
   color: var(--finder-selection-text);
+}
+
+/* 拖拽悬停的文件夹行高亮（放置目标） */
+.drop-target-row {
+  background-color: var(--finder-selection-bg);
+  outline: 1px solid var(--accent-blue);
+  outline-offset: -1px;
 }
 
 .context-menu {

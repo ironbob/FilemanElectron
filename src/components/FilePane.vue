@@ -7,7 +7,6 @@
     @dragenter.prevent="handleDragEnter"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
-    @dragover.prevent
   >
     <!-- Toolbar -->
     <!-- container-type 只放在工具栏容器上：若放在 .file-pane 上，containment 会让
@@ -358,6 +357,8 @@ import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
 import FileInfoDialog from './dialogs/FileInfoDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import { isImageFile } from '@/utils/fileTypes'
+import { parentDirectoryOf } from '@/utils/dragTransfer'
+import { useDragSessionStore } from '@/stores/dragSession'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
@@ -375,6 +376,7 @@ const fileOpsStore = useFileOperationsStore()
 const clipboardStore = useClipboardStore()
 const devicesStore = useDevicesStore()
 const browserStore = useFileBrowserStore()
+const dragSessionStore = useDragSessionStore()
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
 const browserState = computed(() => browserStore.stateFor(props.paneId))
@@ -454,7 +456,19 @@ function handlePaneMouseDown(event: MouseEvent) {
 }
 
 function handleDragEnter(event: DragEvent) {
-  if (!event.dataTransfer?.types.includes('application/json')) return
+  // 原生拖拽（local 文件走 startNativeDrag）没有 application/json 类型，
+  // 以 dragSession 识别应用内拖拽，保证高亮环对所有内部拖拽生效
+  const isInternalDrag =
+    !!event.dataTransfer?.types.includes('application/json') || dragSessionStore.isActive
+  if (!isInternalDrag && !(event.dataTransfer?.types.includes('Files'))) return
+  if (dragDepth === 0) {
+    log.info('[DnD][FilePane] dragenter', {
+      paneId: props.paneId,
+      isInternalDrag,
+      sessionActive: dragSessionStore.isActive,
+      types: event.dataTransfer ? [...event.dataTransfer.types] : []
+    })
+  }
   dragDepth += 1
   isDropTarget.value = true
 }
@@ -689,10 +703,18 @@ onMounted(() => {
   document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.addEventListener('click', closeSearchHistoryOnOutsideClick, true)
   stopFileOperationUpdates = window.fileman.onFileOperationUpdated(task => {
-    if (!pendingDirectoryRefreshes.has(task.id)) return
+    if (!pendingDirectoryRefreshes.has(task.id) && !taskTouchesThisDirectory(task)) return
     if (!['completed', 'failed', 'cancelled'].includes(task.status)) return
     pendingDirectoryRefreshes.delete(task.id)
-    if (task.status === 'completed') refreshCurrentDirectory()
+    if (task.status === 'completed') {
+      log.info('[DnD][FilePane] refreshing directory after task completion', {
+        paneId: props.paneId,
+        taskId: task.id,
+        taskType: task.type,
+        path: pane.value?.path
+      })
+      refreshCurrentDirectory()
+    }
   })
 })
 
@@ -775,6 +797,23 @@ async function confirmGoToDialog() {
 function joinChildPath(directory: string, name: string): string {
   const normalizedDirectory = directory === '/' ? '' : directory.replace(/\/+$/, '')
   return `${normalizedDirectory}/${name}`
+}
+
+/**
+ * 拖拽等非本面板排队的传输任务是否影响当前目录：
+ * - copy/move 目标为本面板当前目录（含 App.vue 面板背景放置、其他面板排队）；
+ * - move 源位于本面板当前目录（跨面板移动后源面板需要刷新）。
+ */
+function taskTouchesThisDirectory(task: FileOperationTask): boolean {
+  if (task.type !== 'copy' && task.type !== 'move') return false
+  const deviceId = pane.value?.deviceId
+  const currentPath = pane.value?.path
+  if (!deviceId || !currentPath) return false
+  if (task.targetDeviceId === deviceId && task.targetPath === currentPath) return true
+  if (task.type === 'move' && task.sourceDeviceId === deviceId) {
+    return task.sourcePaths.some(sourcePath => parentDirectoryOf(sourcePath) === currentPath)
+  }
+  return false
 }
 
 function trackDirectoryRefresh(task: FileOperationTask) {
@@ -895,7 +934,7 @@ watch(() => pane.value?.path, () => {
   inlinePreviewFile.value = null
 })
 
-async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string }) {
+async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move' }) {
   const targetPath = op.target || pane.value?.path || '/'
   const deviceId = pane.value?.deviceId || 'local'
 
@@ -909,6 +948,39 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         tabsStore.openCompareTab(deviceId, op.files[0], deviceId, op.files[1])
       }
       break
+
+    case 'drop-transfer': {
+      // 拖放置放（文件夹行 / columns 列），mode 已经过能力校验
+      const sourceDeviceId = op.sourceDeviceId || deviceId
+      if (op.files.length === 0 || isZipVirtualPath(targetPath)) {
+        log.info('[DnD][FilePane] drop-transfer skipped', { targetPath, fileCount: op.files.length })
+        break
+      }
+      try {
+        const task = op.mode === 'move'
+          ? await fileOpsStore.createMoveTask(sourceDeviceId, op.files, deviceId, targetPath)
+          : await fileOpsStore.createCopyTask(sourceDeviceId, op.files, deviceId, targetPath)
+        log.info('[DnD][FilePane] drop-transfer → task queued', {
+          taskId: task.id,
+          type: task.type,
+          sourceDeviceId,
+          targetDeviceId: deviceId,
+          targetPath,
+          fileCount: op.files.length
+        })
+        fileOpsStore.showPanel()
+        trackDirectoryRefresh(task)
+      } catch (error) {
+        log.error('[DnD][FilePane] Failed to queue drop transfer', {
+          sourceDeviceId,
+          targetDeviceId: deviceId,
+          targetPath,
+          mode: op.mode,
+          error
+        })
+      }
+      break
+    }
 
     case 'copy':
       console.log('[FilePane] Copy action - setting clipboard:', {
