@@ -1474,6 +1474,7 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
     event.dataTransfer.effectAllowed = 'copyMove'
     // 原生拖拽的 payload 在落点不可读，会话记录是应用内识别源的唯一途径
     dragSessionStore.begin(dragData)
+    applyFinderDragImage(event, dragData.files.length)
 
     // 注意：这里不能立即 webContents.startDrag 劫持。Electron 的原生拖拽不会向
     // 源窗口派发 dragover/drop（electron#7118），应用内双面板拖放会完全失效。
@@ -1485,6 +1486,77 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
       files: dragData.files
     })
   }
+}
+
+// ── Finder 式拖拽图标 ─────────────────────────────────────────────────────────
+// HTML5 默认拖拽快照是整行 DOM，这里换成「跟随鼠标的小图标 + 多选数量角标」。
+// setDragImage 要求元素已渲染：先挂在 body 上（移出视口），拖拽结束后移除。
+
+let dragImageCleanupTimer: ReturnType<typeof setTimeout> | null = null
+
+function removeDragImage(dragImage: HTMLElement | null) {
+  dragImage?.remove()
+  if (dragImageCleanupTimer) {
+    clearTimeout(dragImageCleanupTimer)
+    dragImageCleanupTimer = null
+  }
+}
+
+function applyFinderDragImage(event: DragEvent, fileCount: number) {
+  const dataTransfer = event.dataTransfer
+  if (!dataTransfer) return
+
+  const row = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const iconClone = row?.querySelector('img, svg')?.cloneNode(true) ?? null
+  const iconSize = 48
+
+  const wrap = document.createElement('div')
+  wrap.style.cssText =
+    `position:fixed;left:-9999px;top:-9999px;pointer-events:none;z-index:2147483647;` +
+    `display:flex;align-items:center;justify-content:center;width:${iconSize + 16}px;height:${iconSize + 16}px;opacity:0.9;`
+
+  const iconBox = document.createElement('div')
+  iconBox.style.cssText = `position:relative;width:${iconSize}px;height:${iconSize}px;display:flex;align-items:center;justify-content:center;`
+
+  if (iconClone instanceof HTMLElement || iconClone instanceof SVGElement) {
+    iconClone.style.width = `${iconSize}px`
+    iconClone.style.height = `${iconSize}px`
+    iconClone.style.objectFit = 'contain'
+    iconBox.appendChild(iconClone)
+  } else {
+    // 兜底：没有可克隆的图标时显示占位方块
+    const fallback = document.createElement('div')
+    fallback.style.cssText =
+      `width:${iconSize}px;height:${iconSize}px;border-radius:8px;background:var(--bg-tertiary);border:1px solid var(--border);`
+    iconBox.appendChild(fallback)
+  }
+
+  if (fileCount > 1) {
+    const badge = document.createElement('div')
+    badge.textContent = String(fileCount)
+    badge.style.cssText =
+      'position:absolute;right:-9px;bottom:-9px;min-width:20px;height:20px;padding:0 5px;' +
+      'border-radius:9999px;background:var(--accent-blue);color:#fff;font-size:12px;font-weight:600;' +
+      'display:flex;align-items:center;justify-content:center;box-sizing:border-box;'
+    iconBox.appendChild(badge)
+  }
+
+  wrap.appendChild(iconBox)
+  document.body.appendChild(wrap)
+
+  const size = iconSize + 16
+  dataTransfer.setDragImage(wrap, size / 2, size / 2)
+
+  // 快照在拖拽启动后的一帧生成，dragend（含拖出转换后回不到窗口的情况）+
+  // 超时兜底移除，避免泄漏到下一次拖拽
+  removeDragImage(document.body.querySelector('.fileman-drag-image'))
+  wrap.className = 'fileman-drag-image'
+  const remove = () => {
+    removeDragImage(wrap)
+    window.removeEventListener('dragend', remove)
+  }
+  window.addEventListener('dragend', remove)
+  dragImageCleanupTimer = setTimeout(remove, 10_000)
 }
 
 function clearDropTargetHighlight() {
