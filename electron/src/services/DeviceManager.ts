@@ -9,11 +9,11 @@ import { iOSAdapter, pairIosDevice } from '../adapters/iOSAdapter'
 import type { IFileSystemAdapter, FileInfo, FileStats, SearchQuery } from '../adapters/types'
 import type { DeviceCapabilities } from '../adapters/capabilities'
 import { LOCAL_CAPABILITIES, DEFAULT_REMOTE_CAPABILITIES } from '../adapters/capabilities'
-import { MobileDeviceScanner, type DetectedDevice } from './MobileDeviceScanner'
+import { MobileDiscoveryService } from './MobileDiscoveryService'
+import { AdapterConnectionManager } from './AdapterConnectionManager'
 
-const log = console
-
-export type { DetectedDevice }
+export type { DetectedDevice } from './MobileDiscoveryService'
+import type { DetectedDevice } from './MobileDiscoveryService'
 export type { Credentials } from './CredentialService'
 // 域类型正典在 @shared/types（跨进程单一事实源），re-export 兼容既有引用。
 export type { DeviceConfig, Device } from '@shared/types'
@@ -21,32 +21,42 @@ import type { DeviceConfig, Device } from '@shared/types'
 
 export type DeviceEventHandler = (devices: Device[]) => void
 
+/**
+ * DeviceManager —— 设备门面（注册表 + 文件操作代理入口）
+ *
+ * RISK-03 拆分后本类只保留两类职责：
+ *  1. 设备注册表与配置/凭据持久化（addDevice/updateDevice/unregisterDevice…）；
+ *  2. 文件系统操作代理入口（listFiles/readFile…，一行委托到就绪适配器）。
+ *
+ * 连接生命周期已拆出 AdapterConnectionManager（adapters 注册表 + 并发去重 +
+ * 连接协议），移动设备发现已拆出 MobileDiscoveryService（扫描器 + 自动连接
+ * 偏好）。本类保留全部公共方法签名作为门面，main.ts 调用面零改动。
+ *
+ * 拆分依据：SRP（设备清单 vs 连接生命周期 vs 设备发现是独立变化轴）；
+ * DIP（连接器经注入的 AdapterFactory 依赖抽象，不依赖具体适配器构造）。
+ */
 export class DeviceManager {
   private devices: Map<string, Device> = new Map()
-  private adapters: Map<string, IFileSystemAdapter> = new Map()
   private handlers: DeviceEventHandler[] = []
   private configService: ConfigService
   private credentialService: CredentialService
-  private mobileDeviceScanner: MobileDeviceScanner
-  private autoConnectDevices: Set<string> = new Set()
-  private connectionAttempts: Map<string, Promise<void>> = new Map()
+  private mobileDiscovery: MobileDiscoveryService
+  private connections: AdapterConnectionManager
 
   constructor(configService: ConfigService, credentialService: CredentialService) {
     this.configService = configService
     this.credentialService = credentialService
 
-    // Initialize mobile device scanner
-    const config = this.configService.getConfig()
-    const autoConnectList = (config?.settings?.autoConnectDevices as string[]) || []
+    // 移动设备发现（扫描生命周期由组合根显式启动，构造无副作用）
+    this.mobileDiscovery = new MobileDiscoveryService(configService)
+    this.mobileDiscovery.onDeviceChange(this.handleMobileDeviceDiscovered.bind(this))
 
-    this.autoConnectDevices = new Set(autoConnectList || [])
-    this.mobileDeviceScanner = new MobileDeviceScanner({
-      scanInterval: 3000,
-      autoConnectDevices: autoConnectList
-    })
-
-    // Handle device discovery events
-    this.mobileDeviceScanner.onDeviceChange(this.handleMobileDeviceDiscovered.bind(this))
+    // 连接生命周期（工厂与状态回报注入，依赖方向保持在 DeviceManager 之下）
+    this.connections = new AdapterConnectionManager(
+      credentialService,
+      (device, credentials) => this.createAdapter(device, credentials),
+      { onStatus: (deviceId, status) => this.updateDeviceStatus(deviceId, status) }
+    )
 
     // Register local device (always available)
     this.registerDevice({
@@ -58,14 +68,10 @@ export class DeviceManager {
     })
 
     // Create local adapter immediately
-    this.adapters.set('local', new LocalAdapter())
+    this.connections.setAdapter('local', new LocalAdapter())
 
     // Load saved devices from config
     this.loadSavedDevices()
-
-    // Note: mobile device scanning is NOT auto-started here. The composition
-    // root (electron/main.ts, app.whenReady) starts it explicitly, alongside
-    // VolumeScanner — keeping lifecycle side effects out of constructors.
   }
 
   /**
@@ -101,7 +107,7 @@ export class DeviceManager {
       console.log('[DeviceManager] Processing new device:', device.id, device.name)
 
       // Check if we should auto-connect
-      const shouldAutoConnect = this.autoConnectDevices.has(device.id)
+      const shouldAutoConnect = this.mobileDiscovery.hasAutoConnect(device.id)
 
       // Register as temporary mobile device (not saved to config)
       this.registerDevice({
@@ -193,7 +199,7 @@ export class DeviceManager {
    */
   async unregisterDevice(deviceId: string): Promise<void> {
     // Disconnect first
-    if (this.adapters.has(deviceId)) {
+    if (this.connections.hasAdapter(deviceId)) {
       await this.disconnectDevice(deviceId)
     }
 
@@ -308,52 +314,14 @@ export class DeviceManager {
   }
 
   /**
-   * Connect to a device
+   * Connect to a device（连接协议与并发去重见 AdapterConnectionManager）
    */
   async connectDevice(deviceId: string): Promise<void> {
     const device = this.devices.get(deviceId)
     if (!device) {
       throw new Error(`Device not found: ${deviceId}`)
     }
-
-    if (device.status === 'connected' && this.adapters.has(deviceId)) {
-      return
-    }
-
-    const pending = this.connectionAttempts.get(deviceId)
-    if (pending) return pending
-
-    const attempt = (async () => {
-      this.updateDeviceStatus(deviceId, 'connecting')
-
-      try {
-        // Get credentials
-        const credentials = await this.credentialService.get(deviceId)
-
-        // Create adapter
-        const adapter = await this.createAdapter(device, credentials)
-        this.adapters.set(deviceId, adapter)
-
-        // Connect
-        await adapter.connect()
-
-        device.status = 'connected'
-        this.notifyHandlers()
-      } catch (error) {
-        const adapter = this.adapters.get(deviceId)
-        try { await adapter?.disconnect() } catch { /* 连接失败时仅清理本次会话 */ }
-        device.status = 'disconnected'
-        this.adapters.delete(deviceId)
-        log.error(`[DeviceManager] 设备连接失败 (${deviceId}):`, error)
-        this.notifyHandlers()
-        throw error
-      } finally {
-        this.connectionAttempts.delete(deviceId)
-      }
-    })()
-
-    this.connectionAttempts.set(deviceId, attempt)
-    return attempt
+    return this.connections.connect(device)
   }
 
   /**
@@ -362,26 +330,14 @@ export class DeviceManager {
   async disconnectDevice(deviceId: string): Promise<void> {
     const device = this.devices.get(deviceId)
     if (!device) return
-
-    const adapter = this.adapters.get(deviceId)
-    if (adapter) {
-      await adapter.disconnect()
-      this.adapters.delete(deviceId)
-    }
-
-    device.status = 'disconnected'
-    this.notifyHandlers()
+    return this.connections.disconnect(device)
   }
 
   /**
    * Get adapter for a device
    */
   getAdapter(deviceId: string): IFileSystemAdapter {
-    const adapter = this.adapters.get(deviceId)
-    if (!adapter) {
-      throw new Error(`No adapter for device: ${deviceId}. Device may not be connected.`)
-    }
-    return adapter
+    return this.connections.getAdapter(deviceId)
   }
 
   /**
@@ -493,11 +449,11 @@ export class DeviceManager {
    * 尚未注册时访问设备。此处按需连接，避免直接向调用方泄露“无 adapter”。
    */
   private async getReadyAdapter(deviceId: string): Promise<IFileSystemAdapter> {
-    const adapter = this.adapters.get(deviceId)
+    const adapter = this.connections.tryGetAdapter(deviceId)
     if (adapter?.isConnected()) return adapter
 
     await this.connectDevice(deviceId)
-    const connectedAdapter = this.adapters.get(deviceId)
+    const connectedAdapter = this.connections.tryGetAdapter(deviceId)
     if (!connectedAdapter?.isConnected()) {
       throw new Error(`设备连接后仍不可用: ${deviceId}`)
     }
@@ -555,7 +511,7 @@ export class DeviceManager {
     }
 
     // If adapter exists, get capabilities from it
-    const adapter = this.adapters.get(deviceId)
+    const adapter = this.connections.tryGetAdapter(deviceId)
     if (adapter) {
       return adapter.getCapabilities()
     }
@@ -586,80 +542,68 @@ export class DeviceManager {
     }
   }
 
-  // ============ Mobile Device Operations ============
+  // ============ Mobile Device Operations（门面：委托 MobileDiscoveryService） ============
 
   /**
    * Start mobile device scanning
    */
   startMobileDeviceScan(): void {
-    this.mobileDeviceScanner.start()
+    this.mobileDiscovery.start()
   }
 
   /**
    * Stop mobile device scanning
    */
   stopMobileDeviceScan(): void {
-    this.mobileDeviceScanner.stop()
+    this.mobileDiscovery.stop()
   }
 
   /**
    * Perform immediate mobile device scan
    */
   async scanMobileDevicesNow(): Promise<DetectedDevice[]> {
-    return this.mobileDeviceScanner.scan()
+    return this.mobileDiscovery.scan()
   }
 
   /**
    * Remember a mobile device for auto-connect
    */
   async rememberMobileDevice(deviceId: string): Promise<void> {
-    this.autoConnectDevices.add(deviceId)
-    await this.saveAutoConnectDevices()
+    return this.mobileDiscovery.rememberDevice(deviceId)
   }
 
   /**
    * Forget a mobile device (remove from auto-connect)
    */
   async forgetMobileDevice(deviceId: string): Promise<void> {
-    this.autoConnectDevices.delete(deviceId)
-    await this.saveAutoConnectDevices()
+    return this.mobileDiscovery.forgetDevice(deviceId)
   }
 
   /**
    * Get list of auto-connect device IDs
    */
   getAutoConnectDevices(): string[] {
-    return Array.from(this.autoConnectDevices)
+    return this.mobileDiscovery.getAutoConnectDevices()
   }
 
   /**
    * Check if libimobiledevice is installed
    */
   async isLibimobiledeviceInstalled(): Promise<boolean> {
-    return this.mobileDeviceScanner.checkLibimobiledeviceInstalled()
+    return this.mobileDiscovery.isLibimobiledeviceInstalled()
   }
 
   /**
    * Get all detected mobile devices
    */
   getDetectedMobileDevices(): DetectedDevice[] {
-    return this.mobileDeviceScanner.getDevices()
+    return this.mobileDiscovery.getDevices()
   }
 
   /**
    * Get a specific detected mobile device
    */
   getDetectedMobileDevice(deviceId: string): DetectedDevice | undefined {
-    return this.mobileDeviceScanner.getDevice(deviceId)
-  }
-
-  /**
-   * Save auto-connect devices to config
-   */
-  private async saveAutoConnectDevices(): Promise<void> {
-    const config = this.configService.getConfig() || { devices: [], favorites: [], settings: {} }
-    config.settings = config.settings || {}
-    config.settings.autoConnectDevices = this.getAutoConnectDevices()
-    this.configService.saveConfig(config)
+    return this.mobileDiscovery.getDevice(deviceId)
   }
 }

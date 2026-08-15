@@ -1478,6 +1478,7 @@ function handleContextMenuAction(action: string) {
   })
   emit('operation', { action, files: props.selectedFiles })
 }
+
 </script>
 
 <style scoped>

@@ -474,12 +474,12 @@ class LocalAdapter {
     return regex.test(name);
   }
 }
-const log$d = console;
+const log$e = console;
 async function loadOptional(id, loader) {
   try {
     return await loader();
   } catch (error) {
-    log$d.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
+    log$e.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
     throw new Error(
       `可选依赖 ${id} 不可用，对应设备类型已禁用（原始错误：${error instanceof Error ? error.message : String(error)}）。请安装该依赖后重启应用。`
     );
@@ -524,7 +524,7 @@ class ToolPathResolver {
     this.cachedAdb = void 0;
   }
 }
-const log$c = console;
+const log$d = console;
 let adbkitModule = null;
 async function getAdbkit() {
   if (!adbkitModule) {
@@ -576,7 +576,7 @@ class AndroidAdapter {
       this.connected = false;
       this.device = null;
       this.client = null;
-      log$c.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
+      log$d.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
       throw error;
     }
   }
@@ -789,7 +789,7 @@ function sortFiles(files) {
     return a.name.localeCompare(b.name);
   });
 }
-const log$b = console;
+const log$c = console;
 class SMBAdapter {
   type = "smb";
   deviceId;
@@ -823,7 +823,7 @@ class SMBAdapter {
       this.connected = true;
     } catch (error) {
       client.disconnect();
-      log$b.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
+      log$c.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
       throw error;
     }
   }
@@ -1518,7 +1518,7 @@ async function pairIosDevice(deviceId, timeoutMs = 6e4) {
   return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' };
 }
 const execAsync = promisify(exec);
-const log$a = {
+const log$b = {
   info: (message, ...args) => console.log(`[MobileDeviceScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[MobileDeviceScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[MobileDeviceScanner] DEBUG: ${message}`, ...args)
@@ -1544,7 +1544,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$a.info("Starting mobile device scanner", { interval: this.options.scanInterval });
+    log$b.info("Starting mobile device scanner", { interval: this.options.scanInterval });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -1557,7 +1557,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$a.info("Mobile device scanner stopped");
+      log$b.info("Mobile device scanner stopped");
     }
   }
   /**
@@ -1578,16 +1578,16 @@ class MobileDeviceScanner {
         const androidDevices = await this.scanAndroid();
         devices.push(...androidDevices);
       } else {
-        log$a.info("ADB not available, skipping Android scan");
+        log$b.info("ADB not available, skipping Android scan");
       }
       if (this.libimobiledeviceInstalled) {
         const iosDevices = await this.scanIOS();
         devices.push(...iosDevices);
       } else {
-        log$a.debug("libimobiledevice not available, skipping iOS scan");
+        log$b.debug("libimobiledevice not available, skipping iOS scan");
       }
     } catch (error) {
-      log$a.error("Mobile device scan error:", error);
+      log$b.error("Mobile device scan error:", error);
     }
     const newIds = new Set(devices.map((d) => d.id));
     const oldIds = new Set(this.currentDevices.keys());
@@ -1602,10 +1602,10 @@ class MobileDeviceScanner {
       }
     }
     if (added.length > 0) {
-      log$a.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
+      log$b.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
     }
     if (removed.length > 0) {
-      log$a.info("Devices removed:", removed);
+      log$b.info("Devices removed:", removed);
     }
     const changed = devices.some((device) => {
       const previous = this.currentDevices.get(device.id);
@@ -1650,10 +1650,10 @@ class MobileDeviceScanner {
   async checkLibimobiledeviceInstalled() {
     try {
       const { stdout, stderr } = await execAsync("which idevice_id");
-      log$a.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$b.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$a.debug("libimobiledevice check failed:", error);
+      log$b.debug("libimobiledevice check failed:", error);
       return false;
     }
   }
@@ -1663,15 +1663,15 @@ class MobileDeviceScanner {
   async checkAdbInstalled() {
     const bundled = ToolPathResolver.getAdbPath();
     if (bundled) {
-      log$a.debug("adb resolved (bundled):", bundled);
+      log$b.debug("adb resolved (bundled):", bundled);
       return true;
     }
     try {
       const { stdout, stderr } = await execAsync("which adb");
-      log$a.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$b.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$a.debug("ADB check failed:", error);
+      log$b.debug("ADB check failed:", error);
       return false;
     }
   }
@@ -1683,7 +1683,7 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`);
       if (stderr) {
-        log$a.debug("ADB command stderr:", stderr);
+        log$b.debug("ADB command stderr:", stderr);
       }
       const lines = stdout.trim().split("\n");
       for (const line of lines) {
@@ -1697,11 +1697,11 @@ class MobileDeviceScanner {
           const stateMatch = deviceInfo.match(/^(\S+)/);
           const state = stateMatch ? stateMatch[1] : "unknown";
           if (state === "offline") {
-            log$a.info("Device offline, skipping:", serial);
+            log$b.info("Device offline, skipping:", serial);
             continue;
           }
           if (state === "unauthorized") {
-            log$a.info("Device unauthorized (needs USB debugging authorization):", serial);
+            log$b.info("Device unauthorized (needs USB debugging authorization):", serial);
             devices.push({
               id: `android:${serial}`,
               type: "android",
@@ -1714,7 +1714,7 @@ class MobileDeviceScanner {
           const modelMatch = deviceInfo.match(/model:([^\s]+)/);
           if (modelMatch) {
             model = modelMatch[1].replace(/_/g, " ");
-            log$a.debug("Extracted model name:", model);
+            log$b.debug("Extracted model name:", model);
           }
           let product = "";
           const productMatch = deviceInfo.match(/product:([^\s]+)/);
@@ -1728,14 +1728,14 @@ class MobileDeviceScanner {
             model: deviceInfo
           });
         } else {
-          log$a.debug("Line did not match device pattern:", line);
+          log$b.debug("Line did not match device pattern:", line);
         }
       }
     } catch (error) {
-      log$a.error("Android scan error:", error);
+      log$b.error("Android scan error:", error);
       if (error instanceof Error) {
-        log$a.error("Error message:", error.message);
-        log$a.error("Error stack:", error.stack);
+        log$b.error("Error message:", error.message);
+        log$b.error("Error stack:", error.stack);
       }
     }
     return devices;
@@ -1748,44 +1748,44 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""');
       if (stderr) {
-        log$a.debug("idevice_id stderr:", stderr);
+        log$b.debug("idevice_id stderr:", stderr);
       }
       const udidList = stdout.trim().split("\n").filter((line) => line.trim());
       for (const udid of udidList) {
         if (!udid.trim()) continue;
-        log$a.debug("Processing iOS device:", udid);
+        log$b.debug("Processing iOS device:", udid);
         try {
           let deviceName = "iOS Device";
           try {
-            log$a.debug(`Getting device name for ${udid}...`);
+            log$b.debug(`Getting device name for ${udid}...`);
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
               `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             );
-            log$a.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
+            log$b.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
             if (nameOutput.trim()) {
               deviceName = nameOutput.trim();
             }
           } catch (nameError) {
-            log$a.debug("Failed to get device name:", nameError);
+            log$b.debug("Failed to get device name:", nameError);
           }
           let pairingStatus = "unpaired";
           try {
-            log$a.debug(`Checking pairing status for ${udid}...`);
+            log$b.debug(`Checking pairing status for ${udid}...`);
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
               `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
             );
-            log$a.debug(`idevicepair output:`, pairOutput, pairStderr);
+            log$b.debug(`idevicepair output:`, pairOutput, pairStderr);
             if (pairOutput.includes("SUCCESS")) {
               pairingStatus = "paired";
             } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
               pairingStatus = "unpaired";
-              log$a.info(`iOS device ${udid} needs pairing`);
+              log$b.info(`iOS device ${udid} needs pairing`);
             }
           } catch (pairError) {
-            log$a.debug("Failed to check pairing status:", pairError);
+            log$b.debug("Failed to check pairing status:", pairError);
             pairingStatus = "unpaired";
           }
-          log$a.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
+          log$b.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
           devices.push({
             id: `ios:${udid}`,
             type: "ios",
@@ -1793,13 +1793,13 @@ class MobileDeviceScanner {
             pairingStatus
           });
         } catch (error) {
-          log$a.error(`iOS device ${udid} scan error:`, error);
+          log$b.error(`iOS device ${udid} scan error:`, error);
         }
       }
     } catch (error) {
-      log$a.error("iOS scan error:", error);
+      log$b.error("iOS scan error:", error);
       if (error instanceof Error) {
-        log$a.error("Error message:", error.message);
+        log$b.error("Error message:", error.message);
       }
     }
     return devices;
@@ -1814,12 +1814,12 @@ class MobileDeviceScanner {
    * Notify all handlers of device changes
    */
   notifyHandlers(devices, added, removed) {
-    log$a.debug(`Notifying ${this.handlers.length} handlers`);
+    log$b.debug(`Notifying ${this.handlers.length} handlers`);
     for (const handler of this.handlers) {
       try {
         handler(devices, added, removed);
       } catch (error) {
-        log$a.error("Device change handler error:", error);
+        log$b.error("Device change handler error:", error);
       }
     }
   }
@@ -1839,27 +1839,175 @@ class MobileDeviceScanner {
 function sameDetectedDevice(a, b) {
   return a.id === b.id && a.type === b.type && a.name === b.name && a.model === b.model && a.pairingStatus === b.pairingStatus;
 }
-const log$9 = console;
-class DeviceManager {
-  devices = /* @__PURE__ */ new Map();
-  adapters = /* @__PURE__ */ new Map();
-  handlers = [];
-  configService;
-  credentialService;
-  mobileDeviceScanner;
-  autoConnectDevices = /* @__PURE__ */ new Set();
-  connectionAttempts = /* @__PURE__ */ new Map();
-  constructor(configService2, credentialService2) {
+const log$a = console;
+class MobileDiscoveryService {
+  constructor(configService2) {
     this.configService = configService2;
-    this.credentialService = credentialService2;
     const config = this.configService.getConfig();
     const autoConnectList = config?.settings?.autoConnectDevices || [];
     this.autoConnectDevices = new Set(autoConnectList || []);
-    this.mobileDeviceScanner = new MobileDeviceScanner({
+    this.scanner = new MobileDeviceScanner({
       scanInterval: 3e3,
       autoConnectDevices: autoConnectList
     });
-    this.mobileDeviceScanner.onDeviceChange(this.handleMobileDeviceDiscovered.bind(this));
+  }
+  scanner;
+  autoConnectDevices = /* @__PURE__ */ new Set();
+  /**
+   * 订阅发现事件（total/added/removed 三段语义与 MobileDeviceScanner 一致），
+   * 返回取消订阅函数。发现结果的设备注册/自动连接编排归 DeviceManager。
+   */
+  onDeviceChange(handler) {
+    return this.scanner.onDeviceChange(handler);
+  }
+  /** Start mobile device scanning */
+  start() {
+    this.scanner.start();
+  }
+  /** Stop mobile device scanning */
+  stop() {
+    this.scanner.stop();
+  }
+  /** Perform an immediate scan */
+  async scan() {
+    return this.scanner.scan();
+  }
+  /** 指定设备是否配置了自动连接 */
+  hasAutoConnect(deviceId) {
+    return this.autoConnectDevices.has(deviceId);
+  }
+  /** Remember a mobile device for auto-connect */
+  async rememberDevice(deviceId) {
+    this.autoConnectDevices.add(deviceId);
+    await this.saveAutoConnectDevices();
+    log$a.log(`[MobileDiscovery] remembered auto-connect device: ${deviceId}`);
+  }
+  /** Forget a mobile device (remove from auto-connect) */
+  async forgetDevice(deviceId) {
+    this.autoConnectDevices.delete(deviceId);
+    await this.saveAutoConnectDevices();
+    log$a.log(`[MobileDiscovery] forgot auto-connect device: ${deviceId}`);
+  }
+  /** Get list of auto-connect device IDs */
+  getAutoConnectDevices() {
+    return Array.from(this.autoConnectDevices);
+  }
+  /** Check if libimobiledevice is installed */
+  async isLibimobiledeviceInstalled() {
+    return this.scanner.checkLibimobiledeviceInstalled();
+  }
+  /** Get all detected mobile devices */
+  getDevices() {
+    return this.scanner.getDevices();
+  }
+  /** Get a specific detected mobile device */
+  getDevice(deviceId) {
+    return this.scanner.getDevice(deviceId);
+  }
+  /** Save auto-connect devices to config */
+  async saveAutoConnectDevices() {
+    const config = this.configService.getConfig() || { devices: [], favorites: [], settings: {} };
+    config.settings = config.settings || {};
+    config.settings.autoConnectDevices = this.getAutoConnectDevices();
+    this.configService.saveConfig(config);
+  }
+}
+const log$9 = console;
+class AdapterConnectionManager {
+  constructor(credentialService2, factory, hooks) {
+    this.credentialService = credentialService2;
+    this.factory = factory;
+    this.hooks = hooks;
+  }
+  adapters = /* @__PURE__ */ new Map();
+  connectionAttempts = /* @__PURE__ */ new Map();
+  /** 适配器是否已注册（连接中/已连接均算） */
+  hasAdapter(deviceId) {
+    return this.adapters.has(deviceId);
+  }
+  /** 取已注册适配器（无则抛错；需要安全探测用 tryGetAdapter） */
+  getAdapter(deviceId) {
+    const adapter = this.adapters.get(deviceId);
+    if (!adapter) {
+      throw new Error(`No adapter for device: ${deviceId}. Device may not be connected.`);
+    }
+    return adapter;
+  }
+  /** 取已注册适配器（无则 undefined），不抛错 */
+  tryGetAdapter(deviceId) {
+    return this.adapters.get(deviceId);
+  }
+  /** 直接注册适配器（local 常驻适配器等无需 connect 流程的场景） */
+  setAdapter(deviceId, adapter) {
+    this.adapters.set(deviceId, adapter);
+  }
+  /**
+   * 连接设备：凭据 → 工厂建适配器 → adapter.connect()。
+   * 状态经 hooks.onStatus 回报（connecting → connected / disconnected）。
+   */
+  async connect(device) {
+    const deviceId = device.id;
+    if (device.status === "connected" && this.adapters.has(deviceId)) {
+      return;
+    }
+    const pending = this.connectionAttempts.get(deviceId);
+    if (pending) return pending;
+    const attempt = (async () => {
+      this.hooks.onStatus(deviceId, "connecting");
+      try {
+        const credentials = await this.credentialService.get(deviceId);
+        const adapter = await this.factory(device, credentials);
+        this.adapters.set(deviceId, adapter);
+        await adapter.connect();
+        this.hooks.onStatus(deviceId, "connected");
+      } catch (error) {
+        const adapter = this.adapters.get(deviceId);
+        try {
+          await adapter?.disconnect();
+        } catch {
+        }
+        this.adapters.delete(deviceId);
+        log$9.error(`[AdapterConnection] 设备连接失败 (${deviceId}):`, error);
+        this.hooks.onStatus(deviceId, "disconnected");
+        throw error;
+      } finally {
+        this.connectionAttempts.delete(deviceId);
+      }
+    })();
+    this.connectionAttempts.set(deviceId, attempt);
+    return attempt;
+  }
+  /**
+   * 断开设备：断开并注销适配器，状态回报 disconnected。
+   * 设备对象必须存在（由 DeviceManager 查好传入）。
+   */
+  async disconnect(device) {
+    const deviceId = device.id;
+    const adapter = this.adapters.get(deviceId);
+    if (adapter) {
+      await adapter.disconnect();
+      this.adapters.delete(deviceId);
+    }
+    this.hooks.onStatus(deviceId, "disconnected");
+  }
+}
+class DeviceManager {
+  devices = /* @__PURE__ */ new Map();
+  handlers = [];
+  configService;
+  credentialService;
+  mobileDiscovery;
+  connections;
+  constructor(configService2, credentialService2) {
+    this.configService = configService2;
+    this.credentialService = credentialService2;
+    this.mobileDiscovery = new MobileDiscoveryService(configService2);
+    this.mobileDiscovery.onDeviceChange(this.handleMobileDeviceDiscovered.bind(this));
+    this.connections = new AdapterConnectionManager(
+      credentialService2,
+      (device, credentials) => this.createAdapter(device, credentials),
+      { onStatus: (deviceId, status) => this.updateDeviceStatus(deviceId, status) }
+    );
     this.registerDevice({
       id: "local",
       type: "local",
@@ -1867,7 +2015,7 @@ class DeviceManager {
       status: "connected",
       rootPath: "/"
     });
-    this.adapters.set("local", new LocalAdapter());
+    this.connections.setAdapter("local", new LocalAdapter());
     this.loadSavedDevices();
   }
   /**
@@ -1893,7 +2041,7 @@ class DeviceManager {
     }
     for (const device of added) {
       console.log("[DeviceManager] Processing new device:", device.id, device.name);
-      const shouldAutoConnect = this.autoConnectDevices.has(device.id);
+      const shouldAutoConnect = this.mobileDiscovery.hasAutoConnect(device.id);
       this.registerDevice({
         id: device.id,
         type: device.type,
@@ -1970,7 +2118,7 @@ class DeviceManager {
    * Unregister a device
    */
   async unregisterDevice(deviceId) {
-    if (this.adapters.has(deviceId)) {
+    if (this.connections.hasAdapter(deviceId)) {
       await this.disconnectDevice(deviceId);
     }
     this.devices.delete(deviceId);
@@ -2057,44 +2205,14 @@ class DeviceManager {
     this.notifyHandlers();
   }
   /**
-   * Connect to a device
+   * Connect to a device（连接协议与并发去重见 AdapterConnectionManager）
    */
   async connectDevice(deviceId) {
     const device = this.devices.get(deviceId);
     if (!device) {
       throw new Error(`Device not found: ${deviceId}`);
     }
-    if (device.status === "connected" && this.adapters.has(deviceId)) {
-      return;
-    }
-    const pending = this.connectionAttempts.get(deviceId);
-    if (pending) return pending;
-    const attempt = (async () => {
-      this.updateDeviceStatus(deviceId, "connecting");
-      try {
-        const credentials = await this.credentialService.get(deviceId);
-        const adapter = await this.createAdapter(device, credentials);
-        this.adapters.set(deviceId, adapter);
-        await adapter.connect();
-        device.status = "connected";
-        this.notifyHandlers();
-      } catch (error) {
-        const adapter = this.adapters.get(deviceId);
-        try {
-          await adapter?.disconnect();
-        } catch {
-        }
-        device.status = "disconnected";
-        this.adapters.delete(deviceId);
-        log$9.error(`[DeviceManager] 设备连接失败 (${deviceId}):`, error);
-        this.notifyHandlers();
-        throw error;
-      } finally {
-        this.connectionAttempts.delete(deviceId);
-      }
-    })();
-    this.connectionAttempts.set(deviceId, attempt);
-    return attempt;
+    return this.connections.connect(device);
   }
   /**
    * Disconnect from a device
@@ -2102,23 +2220,13 @@ class DeviceManager {
   async disconnectDevice(deviceId) {
     const device = this.devices.get(deviceId);
     if (!device) return;
-    const adapter = this.adapters.get(deviceId);
-    if (adapter) {
-      await adapter.disconnect();
-      this.adapters.delete(deviceId);
-    }
-    device.status = "disconnected";
-    this.notifyHandlers();
+    return this.connections.disconnect(device);
   }
   /**
    * Get adapter for a device
    */
   getAdapter(deviceId) {
-    const adapter = this.adapters.get(deviceId);
-    if (!adapter) {
-      throw new Error(`No adapter for device: ${deviceId}. Device may not be connected.`);
-    }
-    return adapter;
+    return this.connections.getAdapter(deviceId);
   }
   /**
    * Update device status
@@ -2221,10 +2329,10 @@ class DeviceManager {
    * 尚未注册时访问设备。此处按需连接，避免直接向调用方泄露“无 adapter”。
    */
   async getReadyAdapter(deviceId) {
-    const adapter = this.adapters.get(deviceId);
+    const adapter = this.connections.tryGetAdapter(deviceId);
     if (adapter?.isConnected()) return adapter;
     await this.connectDevice(deviceId);
-    const connectedAdapter = this.adapters.get(deviceId);
+    const connectedAdapter = this.connections.tryGetAdapter(deviceId);
     if (!connectedAdapter?.isConnected()) {
       throw new Error(`设备连接后仍不可用: ${deviceId}`);
     }
@@ -2268,7 +2376,7 @@ class DeviceManager {
     if (!device) {
       throw new Error(`Device not found: ${deviceId}`);
     }
-    const adapter = this.adapters.get(deviceId);
+    const adapter = this.connections.tryGetAdapter(deviceId);
     if (adapter) {
       return adapter.getCapabilities();
     }
@@ -2291,71 +2399,60 @@ class DeviceManager {
       return sourceCaps.canMoveFrom && targetCaps.canMoveTo;
     }
   }
-  // ============ Mobile Device Operations ============
+  // ============ Mobile Device Operations（门面：委托 MobileDiscoveryService） ============
   /**
    * Start mobile device scanning
    */
   startMobileDeviceScan() {
-    this.mobileDeviceScanner.start();
+    this.mobileDiscovery.start();
   }
   /**
    * Stop mobile device scanning
    */
   stopMobileDeviceScan() {
-    this.mobileDeviceScanner.stop();
+    this.mobileDiscovery.stop();
   }
   /**
    * Perform immediate mobile device scan
    */
   async scanMobileDevicesNow() {
-    return this.mobileDeviceScanner.scan();
+    return this.mobileDiscovery.scan();
   }
   /**
    * Remember a mobile device for auto-connect
    */
   async rememberMobileDevice(deviceId) {
-    this.autoConnectDevices.add(deviceId);
-    await this.saveAutoConnectDevices();
+    return this.mobileDiscovery.rememberDevice(deviceId);
   }
   /**
    * Forget a mobile device (remove from auto-connect)
    */
   async forgetMobileDevice(deviceId) {
-    this.autoConnectDevices.delete(deviceId);
-    await this.saveAutoConnectDevices();
+    return this.mobileDiscovery.forgetDevice(deviceId);
   }
   /**
    * Get list of auto-connect device IDs
    */
   getAutoConnectDevices() {
-    return Array.from(this.autoConnectDevices);
+    return this.mobileDiscovery.getAutoConnectDevices();
   }
   /**
    * Check if libimobiledevice is installed
    */
   async isLibimobiledeviceInstalled() {
-    return this.mobileDeviceScanner.checkLibimobiledeviceInstalled();
+    return this.mobileDiscovery.isLibimobiledeviceInstalled();
   }
   /**
    * Get all detected mobile devices
    */
   getDetectedMobileDevices() {
-    return this.mobileDeviceScanner.getDevices();
+    return this.mobileDiscovery.getDevices();
   }
   /**
    * Get a specific detected mobile device
    */
   getDetectedMobileDevice(deviceId) {
-    return this.mobileDeviceScanner.getDevice(deviceId);
-  }
-  /**
-   * Save auto-connect devices to config
-   */
-  async saveAutoConnectDevices() {
-    const config = this.configService.getConfig() || { devices: [], favorites: [], settings: {} };
-    config.settings = config.settings || {};
-    config.settings.autoConnectDevices = this.getAutoConnectDevices();
-    this.configService.saveConfig(config);
+    return this.mobileDiscovery.getDevice(deviceId);
   }
 }
 class CancelledError extends Error {

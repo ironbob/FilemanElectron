@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="pane"
-    class="finder-pane h-full flex flex-col overflow-hidden bg-bg-primary"
+    class="finder-pane file-pane h-full flex flex-col overflow-hidden bg-bg-primary"
     :class="{ 'ring-2 ring-inset ring-accent-blue bg-accent-blue/5': isDropTarget }"
     @mousedown.capture="handlePaneMouseDown"
     @dragenter.prevent="handleDragEnter"
@@ -10,9 +10,9 @@
     @dragover.prevent
   >
     <!-- Toolbar -->
-    <div class="finder-pane-toolbar h-10 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
+    <div class="finder-pane-toolbar file-pane-toolbar h-10 min-w-0 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
       <!-- Navigation Buttons -->
-      <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
+      <div class="file-pane-toolbar-nav flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
         <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" title="Undo last remote delete" aria-label="Undo last remote delete" @click="undoRecycle">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 101.9-5.2M4 4v4h4"/></svg>
         </button>
@@ -58,8 +58,8 @@
       </div>
 
       <!-- Path Breadcrumb -->
-      <div class="flex-1 mx-2 flex items-center">
-        <div class="flex items-center gap-1 px-3 py-1.5 bg-bg-secondary/50 rounded-lg border border-border/50 hover:border-border transition-colors overflow-hidden">
+      <div class="file-pane-toolbar-breadcrumb min-w-0 flex-1 mx-2 flex items-center">
+        <div class="file-pane-toolbar-breadcrumb-content min-w-0 w-full flex items-center gap-1 px-3 py-1.5 bg-bg-secondary/50 rounded-lg border border-border/50 hover:border-border transition-colors overflow-hidden">
           <!-- ZIP badge shown when browsing inside an archive -->
           <span
             v-if="isInsideZip"
@@ -67,7 +67,7 @@
           >ZIP</span>
           <template v-for="(segment, index) in pathSegments" :key="index">
             <button
-              class="text-[13px] transition-colors cursor-pointer font-medium flex-shrink-0"
+              class="max-w-32 truncate text-[13px] transition-colors cursor-pointer font-medium flex-shrink-0"
               :class="isZipBoundarySegment(index) ? 'text-orange-400 hover:text-orange-300' : 'text-text-secondary hover:text-accent-blue'"
               @click="navigateToSegment(index)"
             >
@@ -79,7 +79,7 @@
       </div>
 
       <!-- Search -->
-      <div class="relative">
+      <div class="file-pane-toolbar-search relative flex-shrink-0">
         <input
           v-model="searchQuery"
           type="text"
@@ -89,12 +89,12 @@
         />
         <FinderIcon name="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
       </div>
-      <button class="toolbar-btn-enhanced" :class="{ active: browserState.recursiveSearch }" title="Search recursively" aria-label="Search recursively" @click="browserStore.toggleRecursiveSearch(paneId)">
+      <button class="file-pane-toolbar-search-mode toolbar-btn-enhanced flex-shrink-0" :class="{ active: browserState.recursiveSearch }" title="Search recursively" aria-label="Search recursively" @click="browserStore.toggleRecursiveSearch(paneId)">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M5.16 15A8 8 0 0018.84 9M18.84 9A8 8 0 005.16 15"/></svg>
       </button>
 
       <!-- View Mode -->
-      <div class="flex items-center bg-bg-secondary/50 rounded-lg border border-border/50 p-0.5">
+      <div class="file-pane-toolbar-view flex flex-shrink-0 items-center bg-bg-secondary/50 rounded-lg border border-border/50 p-0.5">
         <button
           v-for="mode in viewModes"
           :key="mode.value"
@@ -110,7 +110,7 @@
       </div>
 
       <button
-        class="toolbar-btn-enhanced"
+        class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
         title="Copy selected paths for sharing"
         aria-label="Copy selected paths for sharing"
@@ -119,7 +119,7 @@
         <FinderIcon name="share" />
       </button>
       <button
-        class="toolbar-btn-enhanced"
+        class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
         title="Edit selected item tags"
         aria-label="Edit selected item tags"
@@ -130,7 +130,7 @@
 
       <!-- Inline Preview Toggle -->
       <button
-        class="toolbar-btn-enhanced"
+        class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
         :class="{ active: inlinePreviewEnabled }"
         title="Toggle inline preview (single-click preview)"
         aria-label="Toggle inline preview"
@@ -143,7 +143,7 @@
       </button>
 
       <!-- Actions -->
-      <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
+      <div class="file-pane-toolbar-actions flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
         <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" title="Capture Android Screenshot" aria-label="Capture Android Screenshot" @click="captureScreenshot">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 5l1-2h6l1 2M12 10v4m-2-2h4"/></svg>
         </button>
@@ -161,12 +161,12 @@
             <path stroke-linecap="round" stroke-width="2" d="M18 17.5l1.5 1.5" />
           </svg>
         </button>
-        <button class="toolbar-btn-enhanced" title="New Folder" aria-label="New Folder" @click="handleOperation({ action: 'mkdir', files: [] })">
+        <button class="toolbar-btn-enhanced" title="New Folder" aria-label="New Folder" @click="openCreateDialog('folder')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
           </svg>
         </button>
-        <button class="toolbar-btn-enhanced" title="New File" aria-label="New File" @click="handleOperation({ action: 'touch', files: [] })">
+        <button class="toolbar-btn-enhanced" title="New File" aria-label="New File" @click="openCreateDialog('file')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -178,6 +178,7 @@
     <div class="flex-1 flex overflow-hidden">
       <!-- File List -->
       <FileList
+        :key="directoryLoadKey"
         class="flex-1 min-w-0"
         :pane-id="paneId"
         :device-id="pane.deviceId"
@@ -239,6 +240,18 @@
     </template>
 
     <!-- Operation Dialog -->
+    <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
+      <form class="w-80 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="createDialog.kind === 'file' ? 'Create File' : 'Create Folder'" @submit.prevent="confirmCreateDialog">
+        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.kind === 'file' ? 'New File' : 'New Folder' }}</h3>
+        <p class="mb-4 text-sm text-text-tertiary">Created in {{ pane?.path || '/' }}</p>
+        <input ref="createNameInputRef" v-model="createDialog.name" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none" :placeholder="createDialog.kind === 'file' ? 'example.txt' : 'Folder name'" @input="createDialog.error = ''" @keydown.escape.prevent="closeCreateDialog" />
+        <p v-if="createDialog.error" class="mt-2 text-xs text-accent-red">{{ createDialog.error }}</p>
+        <div class="mt-4 flex justify-end gap-2">
+          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeCreateDialog">Cancel</button>
+          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">Create</button>
+        </div>
+      </form>
+    </div>
     <RenameDialog
       v-if="renameDialog.visible"
       :file-path="renameDialog.filePath"
@@ -271,7 +284,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, h, type Component, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, h, type Component, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import FinderIcon from './FinderIcon.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { usePreviewStore } from '@/stores/preview'
@@ -289,7 +302,7 @@ import { isImageFile } from '@/utils/fileTypes'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
-import type { ConflictStrategy } from '@/types/fileOperation'
+import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
 
 const log = console
 
@@ -314,6 +327,16 @@ const searchQuery = ref('')
 const recentMenuOpen = ref(false)
 const recentMenuRef = ref<HTMLElement | null>(null)
 const loadedFiles = ref<FileInfo[]>([])
+const directoryLoadKey = ref(0)
+const createNameInputRef = ref<HTMLInputElement | null>(null)
+const createDialog = reactive({
+  visible: false,
+  kind: 'file' as 'file' | 'folder',
+  name: '',
+  error: ''
+})
+const pendingDirectoryRefreshes = new Set<string>()
+let stopFileOperationUpdates: (() => void) | null = null
 
 log.info('[FinderFilePane] initialized', { paneId: props.paneId })
 
@@ -552,11 +575,76 @@ function closeRecentMenuOnOutsideClick(event: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
+  stopFileOperationUpdates = window.fileman.onFileOperationUpdated(task => {
+    if (!pendingDirectoryRefreshes.has(task.id)) return
+    if (!['completed', 'failed', 'cancelled'].includes(task.status)) return
+    pendingDirectoryRefreshes.delete(task.id)
+    if (task.status === 'completed') refreshCurrentDirectory()
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', closeRecentMenuOnOutsideClick, true)
+  stopFileOperationUpdates?.()
+  stopFileOperationUpdates = null
 })
+
+function openCreateDialog(kind: 'file' | 'folder') {
+  createDialog.kind = kind
+  createDialog.name = kind === 'file' ? 'untitled.txt' : 'New Folder'
+  createDialog.error = ''
+  createDialog.visible = true
+  void nextTick(() => createNameInputRef.value?.select())
+}
+
+function closeCreateDialog() {
+  createDialog.visible = false
+  createDialog.error = ''
+}
+
+function joinChildPath(directory: string, name: string): string {
+  const normalizedDirectory = directory === '/' ? '' : directory.replace(/\/+$/, '')
+  return `${normalizedDirectory}/${name}`
+}
+
+function trackDirectoryRefresh(task: FileOperationTask) {
+  if (['completed', 'failed', 'cancelled'].includes(task.status)) {
+    if (task.status === 'completed') refreshCurrentDirectory()
+    return
+  }
+  pendingDirectoryRefreshes.add(task.id)
+  // A user can create an item immediately after opening a tab, before this
+  // pane's completion subscription is mounted. Refresh once shortly after
+  // queueing as a fallback; the completion event remains the normal path.
+  window.setTimeout(() => {
+    if (pendingDirectoryRefreshes.has(task.id)) refreshCurrentDirectory()
+  }, 150)
+}
+
+function refreshCurrentDirectory() {
+  directoryLoadKey.value++
+}
+
+async function confirmCreateDialog() {
+  const name = createDialog.name.trim()
+  if (!name || name === '.' || name === '..' || name.includes('/')) {
+    createDialog.error = 'Enter a valid name without a slash.'
+    return
+  }
+
+  const deviceId = pane.value?.deviceId || 'local'
+  const targetPath = joinChildPath(pane.value?.path || '/', name)
+  try {
+    const task = createDialog.kind === 'file'
+      ? await fileOpsStore.createTouchTask(deviceId, targetPath)
+      : await fileOpsStore.createMkdirTask(deviceId, targetPath)
+    trackDirectoryRefresh(task)
+    fileOpsStore.showPanel()
+    closeCreateDialog()
+  } catch (error) {
+    createDialog.error = error instanceof Error ? error.message : 'Could not create the item.'
+  }
+}
 
 function handlePreview(file: FileInfo) {
   if (!file.isDirectory) {
@@ -762,23 +850,11 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'mkdir':
-      const folderName = prompt('New folder name:')
-      if (folderName) {
-        const newPath = targetPath + '/' + folderName
-        await fileOpsStore.createMkdirTask(deviceId, newPath)
-        fileOpsStore.showPanel()
-        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
-      }
+      openCreateDialog('folder')
       break
 
     case 'touch':
-      const fileName = prompt('New file name:')
-      if (fileName) {
-        const newPath = targetPath + '/' + fileName
-        await fileOpsStore.createTouchTask(deviceId, newPath)
-        fileOpsStore.showPanel()
-        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
-      }
+      openCreateDialog('file')
       break
 
     case 'open':
@@ -873,6 +949,42 @@ function handleDrop() {
 </script>
 
 <style scoped>
+.file-pane {
+  container-type: inline-size;
+}
+
+.file-pane-toolbar {
+  flex-wrap: nowrap;
+}
+
+@container (max-width: 760px) {
+  .file-pane-toolbar {
+    gap: 0.25rem;
+    padding-inline: 0.5rem !important;
+  }
+
+  .file-pane-toolbar-breadcrumb,
+  .file-pane-toolbar-optional {
+    display: none;
+  }
+
+  .file-pane-toolbar-search input,
+  .file-pane-toolbar-search input:focus {
+    width: 7.5rem;
+  }
+}
+
+@container (max-width: 540px) {
+  .file-pane-toolbar-search-mode {
+    display: none;
+  }
+
+  .file-pane-toolbar-search input,
+  .file-pane-toolbar-search input:focus {
+    width: 6rem;
+  }
+}
+
 .recent-locations-menu {
   /* Do not use bg-bg-secondary here: Finder's toolbar skin intentionally makes
      that utility translucent for button groups, which makes a popup unreadable. */
