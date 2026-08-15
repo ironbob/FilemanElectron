@@ -1,6 +1,6 @@
 <template>
   <div
-    class="finder-tab-strip h-11 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border overflow-x-auto transition-colors"
+    class="finder-tab-strip app-drag h-11 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border overflow-x-auto transition-colors"
     :class="folderDragOver ? 'border-b-2 border-b-accent-blue bg-accent-blue/5' : ''"
     @dragover.prevent="onFolderDragOver"
     @dragleave="onFolderDragLeave"
@@ -126,6 +126,7 @@ div {
 
 .tab-item {
   @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 ease-in-out select-none;
+  -webkit-app-region: no-drag; /* 标签栏整体可拖动窗口，tab 本身豁免 */
   min-height: 28px;
   flex-shrink: 0;
 }
@@ -147,6 +148,7 @@ div {
 .action-button {
   @apply h-7 w-7 flex items-center justify-center text-text-secondary hover:text-accent-blue hover:bg-bg-hover rounded-md transition-all duration-200;
   @apply active:bg-bg-active;
+  -webkit-app-region: no-drag; /* 标签栏整体可拖动窗口，按钮豁免 */
   flex-shrink: 0;
 }
 </style>

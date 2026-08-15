@@ -231,6 +231,20 @@ html, body, #app {
 }
 
 /* ========================================
+   Window Drag Regions (macOS hiddenInset title bar)
+   全局工具类：可拖动区域及其内部的交互豁免。必须在全局定义——
+   组件 scoped 样式的属性选择器无法命中其它组件内的元素。
+   ======================================== */
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ========================================
    Scrollbar Styling (macOS style)
    ======================================== */
 

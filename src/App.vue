@@ -5,8 +5,9 @@
       <!-- Left spacer for macOS traffic lights (native buttons via hiddenInset) -->
       <div class="w-16 finder-traffic-light-inset"></div>
 
-      <!-- Keep tabs in the title bar to reclaim their former dedicated row. -->
-      <AppTabBar class="flex-1 min-w-0 app-no-drag" />
+      <!-- Keep tabs in the title bar to reclaim their former dedicated row.
+           标签栏本身可拖动窗口（Finder 语义）；tab 与按钮在组件内标记 app-no-drag。 -->
+      <AppTabBar class="flex-1 min-w-0" />
 
       <!-- Global actions moved to the fixed sidebar utility area. -->
       <div v-if="false" class="flex items-center gap-1.5 app-no-drag bg-bg-secondary/30 rounded-lg p-0.5 overflow-visible">
@@ -422,11 +423,5 @@ onUnmounted(() => {
 
 <style scoped>
 /* macOS traffic light positioning */
-.app-drag {
-  -webkit-app-region: drag;
-}
-
-.app-no-drag {
-  -webkit-app-region: no-drag;
-}
+/* .app-drag / .app-no-drag 已移至 style.css 全局定义 */
 </style>
