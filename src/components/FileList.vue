@@ -214,7 +214,9 @@
     <!-- Context Menu -->
     <div
       v-if="contextMenu.visible"
+      ref="contextMenuRef"
       class="context-menu fixed animate-fade-in"
+      :class="{ 'context-menu-flipped': contextMenuFlipped }"
       :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
     >
       <template v-for="item in contextMenu.items" :key="item.action">
@@ -262,6 +264,8 @@ import { useDevicesStore } from '@/stores/devices'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { useTabsStore } from '@/stores/tabs'
 import { useFavoritesStore } from '@/stores/favorites'
+import { useSettingsStore } from '@/stores/settings'
+import { usePreviewStore } from '@/stores/preview'
 import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
@@ -296,6 +300,8 @@ const devicesStore = useDevicesStore()
 const thumbnailStore = useThumbnailStore()
 const tabsStore = useTabsStore()
 const favoritesStore = useFavoritesStore()
+const settingsStore = useSettingsStore()
+const previewStore = usePreviewStore()
 
 const files = ref<FileInfo[]>([])
 const searchResults = ref<FileInfo[] | null>(null)
@@ -307,6 +313,12 @@ const transferTargets = ref<Map<string, { copy: boolean; move: boolean }>>(new M
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
 
+/** 隐藏文件开关关闭时过滤 dotfile（'..' 是 ZIP 视图的父目录项，始终保留） */
+function filterHiddenFiles(list: FileInfo[]): FileInfo[] {
+  if (settingsStore.settings.showHiddenFiles) return list
+  return list.filter(file => file.name === '..' || !file.name.startsWith('.'))
+}
+
 const columns = computed<Array<{ path: string; files: FileInfo[]; selectedPath?: string }>>({
   get() {
     const storedColumns = pane.value?.columns
@@ -315,7 +327,7 @@ const columns = computed<Array<{ path: string; files: FileInfo[]; selectedPath?:
     }
     return storedColumns.map(col => ({
       path: col.path,
-      files: columnFilesMap.value.get(col.path) || [],
+      files: filterHiddenFiles(columnFilesMap.value.get(col.path) || []),
       selectedPath: col.selectedPath
     }))
   },
@@ -398,9 +410,10 @@ const rubberBandStyle = computed(() => {
 
 const filteredFiles = computed(() => {
   const source = (props.recursiveSearch || !!props.searchQuery?.trim().match(/^tag:(.+)$/i)) && searchResults.value ? searchResults.value : files.value
-  if (!props.searchQuery?.trim()) return source
+  const visible = filterHiddenFiles(source)
+  if (!props.searchQuery?.trim()) return visible
   const lowerFilter = props.searchQuery.toLowerCase().trim()
-  return source.filter(file => file.name.toLowerCase().includes(lowerFilter))
+  return visible.filter(file => file.name.toLowerCase().includes(lowerFilter))
 })
 
 const displayedFiles = computed(() => {
@@ -458,6 +471,18 @@ async function revealTypeaheadMatch(file: FileInfo) {
 
 watch(typeahead.activeMatch, match => {
   if (match) void revealTypeaheadMatch(match.file)
+})
+
+// Quick Look ↑↓ 步进时列表滚动跟随（仅 session 归属的 pane 响应）
+watch(() => (previewStore.quickLookOpen ? previewStore.quickLookFile?.path ?? null : null), path => {
+  if (!path || !previewStore.quickLookOpen) return
+  if (previewStore.quickLook?.paneId !== props.paneId) return
+  if (props.viewMode === 'columns') {
+    revealColumnItem(path)
+  } else {
+    const index = displayedFiles.value.findIndex(item => item.path === path)
+    if (index >= 0) void revealIndex(index)
+  }
 })
 
 function toggleSort(field: FileSortDescriptor['field']) {
@@ -730,6 +755,32 @@ function handleKeyDown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Backspace' && props.selectedFiles.length) {
     event.preventDefault(); emit('operation', { action: 'delete', files: props.selectedFiles }); return
   }
+  // ⌘⇧.: 显示/隐藏隐藏文件。开关型操作必须带活动窗格守卫——
+  // 每个 FileList 都在 document 上挂了监听，双触发会互相抵消。
+  if ((event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey
+      && (event.key === '.' || event.key === '>' || event.code === 'Period')) {
+    if (tabsStore.activePane?.id !== props.paneId) return
+    event.preventDefault()
+    void settingsStore.toggleShowHiddenFiles()
+    return
+  }
+  // ⌘O：打开当前项（与 ⌘↓ 同义）
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey
+      && event.key.toLowerCase() === 'o') {
+    if (tabsStore.activePane?.id !== props.paneId) return
+    if (renameState.active) return
+    event.preventDefault()
+    openCurrentItem()
+    return
+  }
+  // ⇧⌘G：前往文件夹
+  if ((event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey
+      && event.key.toLowerCase() === 'g') {
+    if (tabsStore.activePane?.id !== props.paneId) return
+    event.preventDefault()
+    emit('operation', { action: 'goto', files: [] })
+    return
+  }
 
   // ── 方向键文件导航（Finder 语义；仅活动窗格响应）──────────────────────────
   if (ARROW_KEYS.has(event.key) || event.key === 'Home' || event.key === 'End') {
@@ -759,6 +810,31 @@ function handleKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape' && renameState.active) {
     event.preventDefault()
     cancelRename()
+    return
+  }
+
+  // Space：Quick Look（无修饰、非 IME 合成、typeahead 未激活；必须在 typeahead
+  // 分支之前——连续输入中的空格属于 query 的一部分）
+  if (event.code === 'Space' && !event.metaKey && !event.ctrlKey && !event.altKey
+      && !event.shiftKey && !event.isComposing && !typeahead.query.value) {
+    if (renameState.active) return
+    if (tabsStore.activePane?.id !== props.paneId) return
+    let file: FileInfo | null = null
+    // ↑↓ 步进必须跟随可见顺序：columns 取当前列，其余取排序后的 displayedFiles
+    let list: FileInfo[] = displayedFiles.value
+    if (props.viewMode === 'columns') {
+      const cur = getColumnsCursor()
+      if (cur && cur.row >= 0) {
+        list = columns.value[cur.col].files
+        file = list[cur.row] ?? null
+      }
+    } else {
+      file = getOpenTarget()
+    }
+    if (file) {
+      event.preventDefault()
+      previewStore.openQuickLook(file, props.deviceId, props.paneId, list)
+    }
     return
   }
 
@@ -1192,6 +1268,18 @@ function handleColumnsArrow(event: KeyboardEvent): void {
   revealColumnItem(file.path)
 }
 
+/** 打开当前项（⌘↓ / ⌘O 共用）：columns 视图走列光标，其余走选中目标 */
+function openCurrentItem(): void {
+  if (props.viewMode === 'columns') {
+    const cur = getColumnsCursor()
+    const file = cur && cur.row >= 0 ? columns.value[cur.col].files[cur.row] : null
+    if (cur && file) void handleColumnClick(cur.col, file)
+  } else {
+    const file = getOpenTarget()
+    if (file) handleDoubleClick(file)
+  }
+}
+
 /** 方向键导航总入口（Finder 语义） */
 function handleArrowNavigation(event: KeyboardEvent): void {
   const key = event.key
@@ -1202,14 +1290,7 @@ function handleArrowNavigation(event: KeyboardEvent): void {
   }
   // Cmd/Ctrl+Down：打开当前项
   if ((event.metaKey || event.ctrlKey) && key === 'ArrowDown') {
-    if (props.viewMode === 'columns') {
-      const cur = getColumnsCursor()
-      const file = cur && cur.row >= 0 ? columns.value[cur.col].files[cur.row] : null
-      if (cur && file) void handleColumnClick(cur.col, file)
-    } else {
-      const file = getOpenTarget()
-      if (file) handleDoubleClick(file)
-    }
+    openCurrentItem()
     return
   }
   if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -1459,6 +1540,12 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     // 收藏当前文件夹（本地/远程均可，含 ZIP 内部路径）
     items.push({ label: '---', action: '__divider__' })
     items.push({ label: '添加到收藏夹', action: 'add-favorite-current' })
+    items.push({
+      label: settingsStore.settings.showHiddenFiles ? 'Hide Hidden Files' : 'Show Hidden Files',
+      action: 'toggle-hidden',
+      shortcut: '⌘⇧.'
+    })
+    items.push({ label: 'Go to Folder…', action: 'goto', shortcut: '⇧⌘G' })
 
     // 宿主集成：在终端打开当前目录（仅本地、非 ZIP）
     if (isHostShellAvailable()) {
@@ -1467,7 +1554,7 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
   } else {
     // File/folder context menu
-    items.push({ label: 'Open', action: 'open' })
+    items.push({ label: 'Open', action: 'open', shortcut: '⌘O' })
 
     if (caps?.canCopyFrom) {
       items.push({ label: 'Copy', action: 'copy', shortcut: '⌘C' })
@@ -1566,6 +1653,32 @@ function parentDirectory(p: string): string {
   return i <= 0 ? '/' : p.slice(0, i)
 }
 
+// 菜单元素引用：用于渲染后测量尺寸并钳制在视口内
+const contextMenuRef = ref<HTMLElement | null>(null)
+// 右侧空间不足以展开子菜单时，子菜单改为向左弹出
+const contextMenuFlipped = ref(false)
+
+const CONTEXT_MENU_VIEWPORT_MARGIN = 8
+const SUBMENU_RESERVE = 180 // 子菜单最小宽度 + 余量
+
+/**
+ * 菜单默认向右/向下展开：靠近视口右/下边缘时会被遮挡，
+ * 渲染后测量实际尺寸，把菜单位置回退到视口内。
+ */
+async function clampContextMenuToViewport() {
+  await nextTick()
+  const el = contextMenuRef.value
+  if (!el || !contextMenu.visible) return
+  const rect = el.getBoundingClientRect()
+  contextMenuFlipped.value = window.innerWidth - rect.right < SUBMENU_RESERVE
+  if (rect.right > window.innerWidth - CONTEXT_MENU_VIEWPORT_MARGIN) {
+    contextMenu.x = Math.max(CONTEXT_MENU_VIEWPORT_MARGIN, window.innerWidth - rect.width - CONTEXT_MENU_VIEWPORT_MARGIN)
+  }
+  if (rect.bottom > window.innerHeight - CONTEXT_MENU_VIEWPORT_MARGIN) {
+    contextMenu.y = Math.max(CONTEXT_MENU_VIEWPORT_MARGIN, window.innerHeight - rect.height - CONTEXT_MENU_VIEWPORT_MARGIN)
+  }
+}
+
 function showContextMenu(event: MouseEvent) {
   contextMenuSelectedFiles.value = [...props.selectedFiles]
   // 空白右键：terminal 目标为当前目录
@@ -1574,6 +1687,7 @@ function showContextMenu(event: MouseEvent) {
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
   contextMenu.items = buildContextMenuItems(true)
+  void clampContextMenuToViewport()
 }
 
 function showFileContextMenu(event: MouseEvent, file: FileInfo) {
@@ -1590,6 +1704,7 @@ function showFileContextMenu(event: MouseEvent, file: FileInfo) {
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
   contextMenu.items = buildContextMenuItems(false)
+  void clampContextMenuToViewport()
 }
 
 function hideContextMenu() {
@@ -1705,6 +1820,18 @@ function handleContextMenuAction(action: string) {
     return
   }
 
+  // 显示/隐藏隐藏文件（空白菜单）
+  if (action === 'toggle-hidden') {
+    void settingsStore.toggleShowHiddenFiles()
+    return
+  }
+
+  // 前往文件夹（空白菜单）
+  if (action === 'goto') {
+    emit('operation', { action: 'goto', files: [] })
+    return
+  }
+
   // Check for cross-device copy action
   if (action.startsWith('copy-to-device:')) {
     const targetDeviceId = action.substring('copy-to-device:'.length)
@@ -1777,6 +1904,12 @@ function handleContextMenuAction(action: string) {
 
 .context-menu-item:hover .context-submenu {
   @apply block;
+}
+
+/* 主菜单贴近视口右边缘时，子菜单改为向左弹出，避免被遮挡 */
+.context-menu-flipped .context-submenu {
+  left: auto;
+  right: 100%;
 }
 
 .animate-fade-in {

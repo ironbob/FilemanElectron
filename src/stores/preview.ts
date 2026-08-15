@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, shallowRef } from 'vue'
 import type { FileInfo } from '@/types'
-import type { PreviewTab, PreviewType, ImageBrowserSession } from '@/types/preview'
+import type { PreviewTab, PreviewType, ImageBrowserSession, QuickLookSession } from '@/types/preview'
 import { getPreviewType, getMimeType, IMAGE_PREVIEW_SIZE_LIMIT } from '@/types/preview'
 
 const log = (message: string, ...args: any[]) => {
@@ -103,6 +103,38 @@ export const usePreviewStore = defineStore('preview', () => {
     imageBrowser.value = null
     imageBrowserOpen.value = false
     log('Closed image browser')
+  }
+
+  // ── Quick Look session（空格键瞬态预览） ─────────────────────────────────────
+  // 仿 imageBrowser 模式：与 preview tab 系统解耦，↑↓ 只换 index，
+  // 内容加载/清理由各 Preview*Content 自行管理。
+  const quickLook = shallowRef<QuickLookSession | null>(null)
+  const quickLookOpen = ref(false)
+  const quickLookFile = computed<FileInfo | null>(
+    () => (quickLook.value && quickLook.value.files[quickLook.value.index]) || null
+  )
+
+  function openQuickLook(file: FileInfo, deviceId: string, paneId: string, files: FileInfo[]) {
+    const idx = files.findIndex(f => f.path === file.path)
+    const list = files.length > 0 ? files : [file]
+    quickLook.value = { paneId, deviceId, files: list, index: Math.max(0, idx) }
+    quickLookOpen.value = true
+    log('Opened quick look:', file.name, 'of', list.length, 'items')
+  }
+
+  function stepQuickLook(delta: number) {
+    const s = quickLook.value
+    if (!s) return
+    const next = Math.max(0, Math.min(s.index + delta, s.files.length - 1))
+    if (next !== s.index) {
+      quickLook.value = { ...s, index: next }
+    }
+  }
+
+  function closeQuickLook() {
+    quickLook.value = null
+    quickLookOpen.value = false
+    log('Closed quick look')
   }
 
   const activeTab = computed(() => {
@@ -414,5 +446,11 @@ export const usePreviewStore = defineStore('preview', () => {
     prevImage,
     goToImage,
     closeImageBrowser,
+    quickLook,
+    quickLookOpen,
+    quickLookFile,
+    openQuickLook,
+    stepQuickLook,
+    closeQuickLook,
   }
 })

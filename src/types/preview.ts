@@ -37,6 +37,18 @@ export interface ImageBrowserSession {
   index: number
 }
 
+/**
+ * Space-Quick-Look session（Finder Quick Look 等价物）：单文件瞬态预览，
+ * 不进 preview tab 系统。files 是打开瞬间按可见顺序排列的快照，
+ * ↑↓ 只换 index（clamp 不循环），关闭后选中停留在最后浏览项。
+ */
+export interface QuickLookSession {
+  paneId: string
+  deviceId: string
+  files: FileInfo[]
+  index: number
+}
+
 export interface MediaMetadata {
   duration?: number
   width?: number

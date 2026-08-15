@@ -228,6 +228,7 @@
         @contextmenu.prevent="closeGridSizeMenu"
       ></div>
       <div
+        ref="gridSizeMenuRef"
         class="fixed z-50 min-w-[170px] py-1 bg-bg-secondary border border-border rounded-lg shadow-lg animate-fade-in"
         :style="{ left: gridSizeMenu.x + 'px', top: gridSizeMenu.y + 'px' }"
       >
@@ -254,6 +255,19 @@
         <div class="mt-4 flex justify-end gap-2">
           <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeCreateDialog">Cancel</button>
           <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">Create</button>
+        </div>
+      </form>
+    </div>
+    <!-- Go to Folder Dialog (⇧⌘G) -->
+    <div v-if="goToDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeGoToDialog">
+      <form class="w-96 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" aria-label="Go to Folder" @submit.prevent="confirmGoToDialog">
+        <h3 class="mb-1 text-lg font-medium text-text-primary">Go to Folder</h3>
+        <p class="mb-4 text-sm text-text-tertiary">Enter an absolute path on {{ currentDeviceName || 'this device' }}</p>
+        <input ref="goToNameInputRef" v-model="goToDialog.path" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 font-mono text-sm text-text-primary focus:border-accent-blue focus:outline-none" placeholder="/usr/local" @input="goToDialog.error = ''" @keydown.escape.prevent="closeGoToDialog" />
+        <p v-if="goToDialog.error" class="mt-2 text-xs text-accent-red">{{ goToDialog.error }}</p>
+        <div class="mt-4 flex justify-end gap-2">
+          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeGoToDialog">Cancel</button>
+          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">Go</button>
         </div>
       </form>
     </div>
@@ -338,6 +352,13 @@ const createDialog = reactive({
   visible: false,
   kind: 'file' as 'file' | 'folder',
   name: '',
+  error: ''
+})
+// ⇧⌘G 前往文件夹对话框
+const goToNameInputRef = ref<HTMLInputElement | null>(null)
+const goToDialog = reactive({
+  visible: false,
+  path: '',
   error: ''
 })
 const pendingDirectoryRefreshes = new Set<string>()
@@ -478,16 +499,32 @@ const gridSizeOptions = [
   { value: 'small' as const, label: 'Small Icons' }
 ]
 const gridSizeMenu = reactive({ visible: false, x: 0, y: 0 })
+const gridSizeMenuRef = ref<HTMLElement | null>(null)
 const activeGridSize = computed(() => pane.value?.gridSize ?? 'large')
+
+const MENU_VIEWPORT_MARGIN = 8
+
+/** 菜单默认向右/向下展开：渲染后测量实际尺寸，靠近视口边缘时回退到视口内 */
+async function clampGridSizeMenuToViewport() {
+  await nextTick()
+  const el = gridSizeMenuRef.value
+  if (!el || !gridSizeMenu.visible) return
+  const rect = el.getBoundingClientRect()
+  if (rect.right > window.innerWidth - MENU_VIEWPORT_MARGIN) {
+    gridSizeMenu.x = Math.max(MENU_VIEWPORT_MARGIN, window.innerWidth - rect.width - MENU_VIEWPORT_MARGIN)
+  }
+  if (rect.bottom > window.innerHeight - MENU_VIEWPORT_MARGIN) {
+    gridSizeMenu.y = Math.max(MENU_VIEWPORT_MARGIN, window.innerHeight - rect.height - MENU_VIEWPORT_MARGIN)
+  }
+}
 
 function onViewButtonContextMenu(value: string, e: MouseEvent) {
   // 仅网格按钮响应右键 → 弹出规格菜单
   if (value !== 'grid') return
-  const menuW = 180
-  const menuH = 168
-  gridSizeMenu.x = Math.min(e.clientX, window.innerWidth - menuW)
-  gridSizeMenu.y = Math.min(e.clientY, window.innerHeight - menuH)
+  gridSizeMenu.x = e.clientX
+  gridSizeMenu.y = e.clientY
   gridSizeMenu.visible = true
+  void clampGridSizeMenuToViewport()
 }
 function closeGridSizeMenu() {
   gridSizeMenu.visible = false
@@ -605,6 +642,62 @@ function openCreateDialog(kind: 'file' | 'folder') {
 function closeCreateDialog() {
   createDialog.visible = false
   createDialog.error = ''
+}
+
+// ── ⇧⌘G 前往文件夹 ───────────────────────────────────────────────────────────
+
+function openGoToDialog() {
+  // Finder 行为：预填当前路径并全选，直接输入即替换
+  goToDialog.path = pane.value?.path || '/'
+  goToDialog.error = ''
+  goToDialog.visible = true
+  void nextTick(() => goToNameInputRef.value?.select())
+}
+
+function closeGoToDialog() {
+  goToDialog.visible = false
+  goToDialog.error = ''
+}
+
+async function confirmGoToDialog() {
+  const raw = goToDialog.path.trim()
+  if (!raw) {
+    goToDialog.error = 'Enter a path.'
+    return
+  }
+  // 规范化：去尾部斜杠（根目录除外）
+  const path = raw === '/' ? '/' : raw.replace(/\/+$/, '')
+
+  // ZIP 虚拟路径内：同一压缩包内跳转，无法用 exists 校验（inner 条目不是文件系统路径）
+  if (isZipVirtualPath(path)) {
+    if (!isZipVirtualPath(pane.value?.path ?? '')) {
+      goToDialog.error = 'Enter a filesystem path (ZIP virtual paths only inside a ZIP).'
+      return
+    }
+    tabsStore.navigatePane(props.paneId, path)
+    closeGoToDialog()
+    return
+  }
+  if (!path.startsWith('/')) {
+    goToDialog.error = 'Enter an absolute path.'
+    return
+  }
+
+  const deviceId = pane.value?.deviceId || 'local'
+  try {
+    const stats = await window.fileman.getStats(deviceId, path)
+    if (!stats.isDirectory) {
+      goToDialog.error = 'Not a folder.'
+      return
+    }
+  } catch (e) {
+    goToDialog.error = `Folder not found: ${path}`
+    return
+  }
+
+  tabsStore.navigatePane(props.paneId, path)
+  if (pane.value) browserStore.rememberLocation(pane.value.deviceId, path)
+  closeGoToDialog()
 }
 
 function joinChildPath(directory: string, name: string): string {
@@ -736,6 +829,10 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
   const deviceId = pane.value?.deviceId || 'local'
 
   switch (op.action) {
+    case 'goto':
+      openGoToDialog()
+      break
+
     case 'compare-dirs':
       if (op.files.length === 2) {
         tabsStore.openCompareTab(deviceId, op.files[0], deviceId, op.files[1])

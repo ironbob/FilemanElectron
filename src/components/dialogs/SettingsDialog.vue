@@ -45,6 +45,32 @@
           </div>
         </section>
 
+        <!-- Files Section -->
+        <section>
+          <h4 class="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
+            <svg class="w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            Files
+          </h4>
+
+          <div class="bg-bg-tertiary/50 rounded-lg p-3 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-text-primary">Show hidden files</div>
+                <div class="text-xs text-text-tertiary mt-0.5">Dotfiles and hidden entries (⌘⇧.)</div>
+              </div>
+              <button
+                class="px-3 py-1.5 rounded text-sm transition-colors cursor-pointer"
+                :class="showHiddenFiles ? 'bg-accent-blue text-white' : 'bg-bg-hover text-text-secondary hover:text-text-primary'"
+                @click="toggleShowHiddenFiles"
+              >
+                {{ showHiddenFiles ? 'On' : 'Off' }}
+              </button>
+            </div>
+          </div>
+        </section>
+
         <!-- Appearance Section (placeholder for future) -->
         <section>
           <h4 class="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
@@ -90,12 +116,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useThumbnailStore } from '@/stores/thumbnail'
+import { useSettingsStore } from '@/stores/settings'
 
 defineEmits<{
   close: []
 }>()
 
 const thumbnailStore = useThumbnailStore()
+const settingsStore = useSettingsStore()
+
+const showHiddenFiles = computed(() => settingsStore.settings.showHiddenFiles)
+
+function toggleShowHiddenFiles() {
+  void settingsStore.toggleShowHiddenFiles()
+}
 
 const theme = ref<'light' | 'dark' | 'system'>('dark')
 const clearingCache = ref(false)

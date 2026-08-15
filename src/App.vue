@@ -127,6 +127,8 @@
         <PreviewFullscreen />
         <!-- Image browser overlay (folder-aware viewer; supersedes PreviewFullscreen for images) -->
         <ImageBrowserOverlay />
+        <!-- Quick Look overlay (space-key transient preview; single file, ↑↓ to step) -->
+        <QuickLookOverlay />
       </div>
     </div>
 
@@ -168,6 +170,7 @@ import FilePane from './components/FilePane.vue'
 import FileOperationPanel from './components/FileOperationPanel.vue'
 import PreviewFullscreen from './components/preview/PreviewFullscreen.vue'
 import ImageBrowserOverlay from './components/preview/ImageBrowserOverlay.vue'
+import QuickLookOverlay from './components/preview/QuickLookOverlay.vue'
 import SettingsDialog from './components/dialogs/SettingsDialog.vue'
 import DirCompareView from './components/compare/DirCompareView.vue'
 import FileDiffView from './components/compare/FileDiffView.vue'
@@ -175,6 +178,7 @@ import { useTabsStore } from './stores/tabs'
 import { useDevicesStore } from './stores/devices'
 import { useFileOperationsStore } from './stores/fileOperations'
 import { usePreviewStore } from './stores/preview'
+import { useSettingsStore } from './stores/settings'
 import { getParentPath } from './utils/path'
 import type { InternalFileDragPayload } from './types/fileOperation'
 
@@ -184,6 +188,7 @@ const previewStore = usePreviewStore()
 const tabsStore = useTabsStore()
 const devicesStore = useDevicesStore()
 const fileOpsStore = useFileOperationsStore()
+const settingsStore = useSettingsStore()
 
 const theme = ref<'light' | 'dark'>('dark')
 const showSettingsDialog = ref(false)
@@ -210,6 +215,9 @@ onMounted(() => {
 
   // Initialize file operations store
   fileOpsStore.initialize()
+
+  // Load app settings (hidden-files toggle etc.)
+  void settingsStore.load()
 
   // Restore sidebar width
   const savedSidebarWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
