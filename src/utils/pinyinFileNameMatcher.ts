@@ -43,6 +43,9 @@ export function matchFileName(file: FileInfo, query: string): FileNameMatch | nu
     return null
   }
   if (!pinyinIndices || pinyinIndices.length === 0) return null
+  // precision: 'start' 只保证命中拼音音节的开头，不保证命中文件名的开头；
+  // 这里再约束命中的字符必须从文件名第 0 位连续开始（如输入 ch 不能命中"王念川"的"川"）
+  if (!pinyinIndices.every((index, i) => index === i)) return null
   return { file, highlightIndices: pinyinIndices, strategy: 'pinyin-prefix' }
 }
 

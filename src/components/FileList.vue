@@ -423,24 +423,37 @@ function typeaheadHighlightFor(file: FileInfo): readonly number[] {
   return typeaheadHighlights.value.get(file.path) ?? []
 }
 
+/** 将 displayedFiles[index] 滚动到可见位置（list/grid 虚拟滚动） */
+async function revealIndex(index: number): Promise<void> {
+  if (index < 0) return
+  await nextTick()
+  if (props.viewMode === 'list') {
+    listScrollerRef.value?.scrollToItem?.(index)
+  } else if (props.viewMode === 'grid') {
+    gridScrollerRef.value?.scrollToItem?.(Math.floor(index / itemsPerRow.value))
+  }
+}
+
+/** columns 视图：将指定 data-file-path 元素滚动到可见 */
+function revealColumnItem(path: string): void {
+  void nextTick(() => {
+    const element = Array.from(containerRef.value?.querySelectorAll<HTMLElement>('[data-file-path]') ?? [])
+      .find(el => el.dataset.filePath === path)
+    element?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  })
+}
+
 async function revealTypeaheadMatch(file: FileInfo) {
   anchorPath.value = file.path
   emit('select', [file.path])
   const index = displayedFiles.value.findIndex(item => item.path === file.path)
   if (index < 0) return
 
-  await nextTick()
-  if (props.viewMode === 'list') {
-    listScrollerRef.value?.scrollToItem?.(index)
+  if (props.viewMode === 'columns') {
+    revealColumnItem(file.path)
     return
   }
-  if (props.viewMode === 'grid') {
-    gridScrollerRef.value?.scrollToItem?.(Math.floor(index / itemsPerRow.value))
-    return
-  }
-  const columnItem = Array.from(containerRef.value?.querySelectorAll<HTMLElement>('[data-file-path]') ?? [])
-    .find(element => element.dataset.filePath === file.path)
-  columnItem?.scrollIntoView({ block: 'nearest' })
+  await revealIndex(index)
 }
 
 watch(typeahead.activeMatch, match => {
@@ -718,6 +731,17 @@ function handleKeyDown(event: KeyboardEvent) {
     event.preventDefault(); emit('operation', { action: 'delete', files: props.selectedFiles }); return
   }
 
+  // ── 方向键文件导航（Finder 语义；仅活动窗格响应）──────────────────────────
+  if (ARROW_KEYS.has(event.key) || event.key === 'Home' || event.key === 'End') {
+    if (renameState.active) return                         // 内联重命名中不响应
+    if (tabsStore.activePane?.id !== props.paneId) return   // 双窗格/多标签：仅活动窗格
+    const t = event.target as Node | null                  // 焦点在其它可交互元素（如视频播放器）上时不抢占
+    if (t && t !== document.body && !containerRef.value?.contains(t)) return
+    event.preventDefault()
+    handleArrowNavigation(event)
+    return
+  }
+
   // Enter: Start rename (when single file selected and not already renaming)
   if (event.key === 'Enter' && !renameState.active && props.selectedFiles.length === 1) {
     event.preventDefault()
@@ -980,6 +1004,246 @@ function handleDoubleClick(file: FileInfo) {
     emit('preview', file)
   }
 }
+
+// ── 方向键文件导航（Finder 语义） ────────────────────────────────────────────
+
+const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+
+/** 键盘导航光标索引：anchorPath → 选中项 → 首项 */
+function getCursorIndex(): number {
+  const list = displayedFiles.value
+  if (!list.length) return -1
+  if (anchorPath.value) {
+    const i = list.findIndex(f => f.path === anchorPath.value)
+    if (i >= 0) return i
+  }
+  for (const p of props.selectedFiles) {
+    const i = list.findIndex(f => f.path === p)
+    if (i >= 0) return i
+  }
+  return 0
+}
+
+/** 普通方向键的目标索引（list/grid；边界处返回 current 表示原地不动） */
+function computeTargetIndex(current: number, key: string): number {
+  const len = displayedFiles.value.length
+  if (props.viewMode === 'grid') {
+    const per = itemsPerRow.value
+    if (key === 'ArrowLeft') return current % per > 0 ? current - 1 : current
+    if (key === 'ArrowRight') return current < len - 1 ? current + 1 : current
+    if (key === 'ArrowUp') return Math.max(0, current - per)
+    if (key === 'ArrowDown') return Math.min(len - 1, current + per)
+    return current
+  }
+  // list 视图：仅上下移动
+  if (key === 'ArrowUp') return Math.max(0, current - 1)
+  if (key === 'ArrowDown') return Math.min(len - 1, current + 1)
+  return current
+}
+
+/** 普通方向键：移动光标并单选 */
+function moveCursorTo(target: number): void {
+  const file = displayedFiles.value[target]
+  if (!file) return
+  anchorPath.value = file.path
+  emit('select', [file.path])
+  void revealIndex(target)
+}
+
+/**
+ * Shift+方向键：以 anchorPath 为锚点，向按键方向扩展/收缩选区。
+ * 始终把选区替换为 anchor→focus 的连续区间：远离锚点时扩展，
+ * 折返时 focus 越过当前选区边缘向锚点靠拢即收缩。
+ */
+function extendRangeSelection(key: string, cursor: number): void {
+  const list = displayedFiles.value
+  if (!list.length || cursor < 0) return
+  if (!ARROW_KEYS.has(key) && key !== 'Home' && key !== 'End') return
+  // 锚点缺失时，以当前光标为锚点（与 Shift+Click 的兜底行为一致）
+  if (!anchorPath.value) {
+    anchorPath.value = list[cursor]?.path ?? null
+    if (!anchorPath.value) return
+  }
+  const anchorIdx = list.findIndex(f => f.path === anchorPath.value)
+  if (anchorIdx < 0) {
+    anchorPath.value = null
+    return
+  }
+
+  const step = (key === 'ArrowUp' || key === 'ArrowDown') && props.viewMode === 'grid'
+    ? itemsPerRow.value
+    : 1
+  let focus: number
+  if (key === 'Home') {
+    focus = 0
+  } else if (key === 'End') {
+    focus = list.length - 1
+  } else {
+    // 当前选区的活动边缘：向下扩展取 hi，向上收缩/扩展取 lo
+    const selectedIdx = props.selectedFiles
+      .map(p => list.findIndex(f => f.path === p))
+      .filter(i => i >= 0)
+    const lo = selectedIdx.length ? Math.min(anchorIdx, ...selectedIdx) : anchorIdx
+    const hi = selectedIdx.length ? Math.max(anchorIdx, ...selectedIdx) : anchorIdx
+    const downward = key === 'ArrowDown' || key === 'ArrowRight'
+    focus = Math.max(0, Math.min(list.length - 1, (downward ? hi : lo) + (downward ? step : -step)))
+  }
+  const [start, end] = [Math.min(anchorIdx, focus), Math.max(anchorIdx, focus)]
+  emit('select', list.slice(start, end + 1).map(f => f.path))
+  void revealIndex(focus)
+}
+
+/** Cmd+Down 的打开目标（需已有选中/锚点，与 Finder 一致不在无选中时打开） */
+function getOpenTarget(): FileInfo | null {
+  const path = anchorPath.value ?? props.selectedFiles[props.selectedFiles.length - 1]
+  if (!path) return null
+  const idx = displayedFiles.value.findIndex(f => f.path === path)
+  return idx >= 0 ? displayedFiles.value[idx] : null
+}
+
+/** columns 视图光标：[列索引, 行索引]；row 为 -1 表示尚未定位 */
+function getColumnsCursor(): { col: number; row: number } | null {
+  const cols = columns.value
+  if (!cols.length) return null
+  const candidates = [anchorPath.value, ...props.selectedFiles].filter(Boolean) as string[]
+  for (const p of candidates) {
+    for (let c = cols.length - 1; c >= 0; c--) {
+      const r = cols[c].files.findIndex(f => f.path === p)
+      if (r >= 0) return { col: c, row: r }
+    }
+  }
+  for (let c = cols.length - 1; c >= 0; c--) {
+    const sp = cols[c].selectedPath
+    if (sp) {
+      const r = cols[c].files.findIndex(f => f.path === sp)
+      if (r >= 0) return { col: c, row: r }
+    }
+  }
+  return { col: cols.length - 1, row: -1 }
+}
+
+/** 更新某列的高亮（经 columns computed setter 写回 store，files 自动保留） */
+function setColumnSelectedPath(colIdx: number, path: string): void {
+  columns.value = columns.value.map((c, i) => (i === colIdx ? { ...c, selectedPath: path } : c))
+}
+
+/** columns 视图方向键导航 */
+function handleColumnsArrow(event: KeyboardEvent): void {
+  const cur = getColumnsCursor()
+  if (!cur) return
+  const cols = columns.value
+  const rows = cols[cur.col].files.length
+  const key = event.key
+
+  // Right：目录 → 展开下一列（等价单击）；文件/未定位 → 无操作
+  if (key === 'ArrowRight' && !event.shiftKey) {
+    const file = cur.row >= 0 ? cols[cur.col].files[cur.row] : null
+    if (file?.isDirectory) void handleColumnClick(cur.col, file)
+    return
+  }
+  // Left：收起到上一列，选中上一列中展开的文件夹
+  if (key === 'ArrowLeft' && !event.shiftKey) {
+    if (cur.col === 0) return
+    const parentPath = cols[cur.col - 1].selectedPath
+    if (!parentPath) return
+    columns.value = cols.slice(0, cur.col)
+    anchorPath.value = parentPath
+    emit('select', [parentPath])
+    revealColumnItem(parentPath)
+    return
+  }
+  if (!ARROW_KEYS.has(key) && key !== 'Home' && key !== 'End') return
+
+  // Up/Down（含 Shift 列内范围）；未定位时 Up 取末行、Down 取首行
+  let row = cur.row
+  if (row < 0) {
+    row = key === 'ArrowUp' ? rows - 1 : 0
+    const first = cols[cur.col].files[row]
+    if (first) {
+      anchorPath.value = first.path
+      setColumnSelectedPath(cur.col, first.path)
+      emit('select', [first.path])
+      revealColumnItem(first.path)
+    }
+    return
+  }
+  const target = key === 'Home' ? 0
+    : key === 'End' ? rows - 1
+    : key === 'ArrowUp' ? Math.max(0, row - 1)
+    : Math.min(rows - 1, row + 1)
+  if (target === row) return
+  const file = cols[cur.col].files[target]
+
+  if (event.shiftKey) {
+    // 锚点不在本列时，以当前行为锚重新开始
+    if (!anchorPath.value) anchorPath.value = cols[cur.col].files[row]?.path ?? null
+    let anchorRow = cols[cur.col].files.findIndex(f => f.path === anchorPath.value)
+    if (anchorRow < 0) {
+      anchorPath.value = cols[cur.col].files[row]?.path ?? null
+      anchorRow = row
+    }
+    const [start, end] = [Math.min(anchorRow, target), Math.max(anchorRow, target)]
+    emit('select', cols[cur.col].files.slice(start, end + 1).map(f => f.path))
+  } else {
+    anchorPath.value = file.path
+    setColumnSelectedPath(cur.col, file.path)
+    emit('select', [file.path])
+  }
+  revealColumnItem(file.path)
+}
+
+/** 方向键导航总入口（Finder 语义） */
+function handleArrowNavigation(event: KeyboardEvent): void {
+  const key = event.key
+  // Cmd/Ctrl+Up：返回上级目录（goUp 内部处理 ZIP '::' 虚拟路径）
+  if ((event.metaKey || event.ctrlKey) && key === 'ArrowUp') {
+    tabsStore.goUp(props.paneId)
+    return
+  }
+  // Cmd/Ctrl+Down：打开当前项
+  if ((event.metaKey || event.ctrlKey) && key === 'ArrowDown') {
+    if (props.viewMode === 'columns') {
+      const cur = getColumnsCursor()
+      const file = cur && cur.row >= 0 ? columns.value[cur.col].files[cur.row] : null
+      if (cur && file) void handleColumnClick(cur.col, file)
+    } else {
+      const file = getOpenTarget()
+      if (file) handleDoubleClick(file)
+    }
+    return
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey) return
+
+  if (props.viewMode === 'columns') {
+    handleColumnsArrow(event)
+    return
+  }
+
+  const list = displayedFiles.value
+  if (!list.length) return
+  const cursor = getCursorIndex()
+  if (event.shiftKey) {
+    extendRangeSelection(key, cursor)
+    return
+  }
+
+  // 无选中时：Down/Home 选首项，Up/End 选末项
+  if (props.selectedFiles.length === 0 && anchorPath.value === null) {
+    moveCursorTo(key === 'ArrowUp' || key === 'End' ? list.length - 1 : 0)
+    return
+  }
+  if (key === 'Home') {
+    moveCursorTo(0)
+    return
+  }
+  if (key === 'End') {
+    moveCursorTo(list.length - 1)
+    return
+  }
+  const target = computeTargetIndex(cursor, key)
+  if (target !== cursor) moveCursorTo(target)
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── 拖动框选 (Rubber-band Selection) ─────────────────────────────────────────
 

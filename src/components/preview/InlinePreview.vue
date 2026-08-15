@@ -1,10 +1,11 @@
 <template>
-  <div v-if="file" class="h-full flex flex-col bg-bg-secondary border-l border-border">
+  <div class="h-full flex flex-col bg-bg-secondary border-l border-border">
     <!-- Header -->
     <div class="flex items-center justify-between px-3 py-2 bg-bg-tertiary border-b border-border">
-      <span class="text-xs font-medium text-text-primary truncate">{{ file.name }}</span>
+      <span class="text-xs font-medium text-text-primary truncate">{{ file?.name || 'Preview' }}</span>
       <div class="flex items-center gap-1">
         <button
+          v-if="file && !file.isDirectory"
           class="p-1 rounded hover:bg-bg-hover text-text-secondary transition-colors"
           title="Open in full preview"
           @click="openInFullPreview"
@@ -27,9 +28,54 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-auto p-3">
+      <!-- Empty placeholder：开启预览但无单个选中项 -->
+      <div v-if="!file" class="flex flex-col items-center justify-center h-full text-text-tertiary">
+        <svg class="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12h.01M12 12h.01M9 12h.01M7.5 5h9a2 2 0 012 2v10a2 2 0 01-2 2h-9a2 2 0 01-2-2V7a2 2 0 012-2z" />
+        </svg>
+        <p class="text-xs mt-2">Select a file to preview</p>
+      </div>
+
       <!-- Loading -->
-      <div v-if="loading" class="flex items-center justify-center h-full">
+      <div v-else-if="loading" class="flex items-center justify-center h-full">
         <div class="w-5 h-5 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
+      </div>
+
+      <!-- Folder Info：选中文件夹时展示名称/日期/权限等元信息 -->
+      <div v-else-if="file.isDirectory" class="flex flex-col h-full">
+        <div class="flex flex-col items-center py-6 text-text-tertiary">
+          <svg class="w-12 h-12 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+          </svg>
+          <p class="text-sm font-medium text-text-primary mt-2 text-center break-all px-2">{{ file.name }}</p>
+          <p class="text-xs mt-1">Folder</p>
+        </div>
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between gap-3">
+            <span class="text-text-tertiary flex-shrink-0">Kind</span>
+            <span class="text-text-secondary text-right">Folder</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-text-tertiary flex-shrink-0">Size</span>
+            <span class="text-text-secondary text-right">—</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-text-tertiary flex-shrink-0">Modified</span>
+            <span class="text-text-secondary text-right break-all">{{ formatDate(file.modifiedTime) }}</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-text-tertiary flex-shrink-0">Created</span>
+            <span class="text-text-secondary text-right break-all">{{ formatDate(folderStats?.createdTime ?? file.createdTime) }}</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-text-tertiary flex-shrink-0">Permissions</span>
+            <span class="text-text-secondary text-right font-mono">{{ formatPermissions(folderStats?.mode) }}</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-text-tertiary flex-shrink-0">Where</span>
+            <span class="text-text-secondary text-right break-all" :title="file.path">{{ parentPath(file.path) }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- Image Preview -->
@@ -112,7 +158,7 @@ const log = (message: string, ...args: any[]) => {
 const FILE_SIZE_LIMIT = 10 * 1024 * 1024 // 10MB
 
 const props = defineProps<{
-  file: FileInfo
+  file: FileInfo | null
   deviceId: string
 }>()
 
@@ -126,8 +172,10 @@ const loading = ref(false)
 const textContent = ref('')
 const imageSrc = ref('')
 const isFileTooLarge = ref(false)
+// 文件夹元信息（createdTime/mode 来自 fs:stat，FileInfo 中未必有）
+const folderStats = ref<FileStats | null>(null)
 
-const previewType = computed(() => getPreviewType(props.file))
+const previewType = computed(() => (props.file ? getPreviewType(props.file) : 'unknown'))
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binaryString = atob(base64)
@@ -139,15 +187,31 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 async function loadContent() {
+  if (!props.file) {
+    // 清空选中：释放残留的图片 blob URL
+    if (imageSrc.value) {
+      URL.revokeObjectURL(imageSrc.value)
+      imageSrc.value = ''
+    }
+    return
+  }
   log('Loading content for file:', props.file.name, 'size:', props.file.size)
 
   loading.value = true
   textContent.value = ''
   isFileTooLarge.value = false
+  folderStats.value = null
 
   if (imageSrc.value) {
     URL.revokeObjectURL(imageSrc.value)
     imageSrc.value = ''
+  }
+
+  // 文件夹：不读内容，改拉取元信息（createdTime/权限）
+  if (props.file.isDirectory) {
+    loading.value = false
+    void loadFolderStats()
+    return
   }
 
   // Check file size for text files
@@ -189,8 +253,40 @@ function handleImageError() {
   imageSrc.value = ''
 }
 
+/** 拉取文件夹元信息（失败时静默降级为仅显示 FileInfo 字段） */
+async function loadFolderStats() {
+  if (!props.file) return
+  try {
+    folderStats.value = await window.fileman.getStats(props.deviceId, props.file.path)
+  } catch (e) {
+    log('Failed to load folder stats:', e)
+  }
+}
+
+function formatDate(iso?: string): string {
+  if (!iso) return '—'
+  const time = Date.parse(iso)
+  return Number.isNaN(time) ? '—' : new Date(time).toLocaleString()
+}
+
+/** 数值 mode 转类 Unix rwx 字符串，如 0o755 → "rwxr-xr-x" */
+function formatPermissions(mode?: number): string {
+  if (mode == null) return '—'
+  let result = ''
+  for (let shift = 6; shift >= 0; shift -= 3) {
+    const bits = (mode >> shift) & 7
+    result += (bits & 4 ? 'r' : '-') + (bits & 2 ? 'w' : '-') + (bits & 1 ? 'x' : '-')
+  }
+  return result
+}
+
+function parentPath(path: string): string {
+  const idx = path.lastIndexOf('/')
+  return idx <= 0 ? '/' : path.slice(0, idx)
+}
+
 function openInFullPreview() {
-  previewStore.openPreview(props.file, props.deviceId)
+  if (props.file) previewStore.openPreview(props.file, props.deviceId)
 }
 
 function close() {

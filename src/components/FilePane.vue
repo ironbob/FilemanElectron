@@ -10,7 +10,11 @@
     @dragover.prevent
   >
     <!-- Toolbar -->
-    <div class="finder-pane-toolbar file-pane-toolbar h-10 min-w-0 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
+    <!-- container-type 只放在工具栏容器上：若放在 .file-pane 上，containment 会让
+         pane 成为 position:fixed 后代（右键菜单、模态弹窗）的包含块，
+         导致 fixed 定位相对 pane 而非视口，菜单位置随侧边栏宽度偏移 -->
+    <div class="file-pane-toolbar-container">
+      <div class="finder-pane-toolbar file-pane-toolbar h-10 min-w-0 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
       <!-- Navigation Buttons -->
       <div class="file-pane-toolbar-nav flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
         <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" title="Undo last remote delete" aria-label="Undo last remote delete" @click="undoRecycle">
@@ -172,6 +176,7 @@
           </svg>
         </button>
       </div>
+      </div>
     </div>
 
     <!-- Main Content Area with File List and Inline Preview -->
@@ -197,8 +202,8 @@
         @sort="browserStore.setSort(paneId, $event)"
       />
 
-      <!-- Inline Preview Panel -->
-      <template v-if="inlinePreviewFile && !inlinePreviewFile.isDirectory">
+      <!-- Inline Preview Panel：开启时始终显示，选中文件夹时展示文件夹信息 -->
+      <template v-if="inlinePreviewEnabled">
         <!-- Resize Handle -->
         <div
           class="w-1 bg-border hover:bg-accent-blue cursor-col-resize flex-shrink-0 transition-colors"
@@ -374,11 +379,11 @@ function toggleInlinePreview() {
     inlinePreviewFile.value = null
     previewStore.clearInlinePreview()
   } else {
-    // When enabling, immediately show preview for current selection if any
+    // When enabling, immediately show preview for current selection if any（含文件夹）
     const selectedFiles = pane.value?.selectedFiles || []
     if (selectedFiles.length === 1) {
       const file = loadedFiles.value.find(f => f.path === selectedFiles[0])
-      if (file && !file.isDirectory) {
+      if (file) {
         inlinePreviewFile.value = file
         previewStore.setInlinePreview(file, pane.value?.deviceId || 'local')
       }
@@ -532,11 +537,11 @@ function handleSelect(files: string[]) {
 
   if (!inlinePreviewEnabled.value) return
 
-  // Show inline preview for single-file selection when enabled
+  // Show inline preview for single selection when enabled（文件夹也显示，展示其信息）
   if (files.length === 1) {
     const selectedPath = files[0]
     const file = loadedFiles.value.find(f => f.path === selectedPath)
-    if (file && !file.isDirectory) {
+    if (file) {
       inlinePreviewFile.value = file
       previewStore.setInlinePreview(file, pane.value?.deviceId || 'local')
     } else {
@@ -669,6 +674,8 @@ function handlePreview(file: FileInfo) {
 }
 
 function closeInlinePreview() {
+  // 面板开启期间常驻，关闭按钮直接关掉整个内联预览
+  inlinePreviewEnabled.value = false
   inlinePreviewFile.value = null
   previewStore.clearInlinePreview()
 }
@@ -949,7 +956,8 @@ function handleDrop() {
 </script>
 
 <style scoped>
-.file-pane {
+/* container-type 只挂在工具栏容器上（见模板注释），不要放回 .file-pane */
+.file-pane-toolbar-container {
   container-type: inline-size;
 }
 
