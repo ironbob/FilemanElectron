@@ -25,7 +25,7 @@
     <!-- Add Device Button -->
     <div class="px-4 py-2 border-t border-border">
       <button
-        class="w-full flex items-center justify-center gap-2.5 px-3 py-2 rounded-md text-base text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors cursor-pointer"
+        class="w-full flex items-center justify-center gap-2.5 px-3 py-2 rounded-md text-base text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
         @click="showAddDeviceMenu = !showAddDeviceMenu"
         aria-label="Add Device"
       >
@@ -41,7 +41,7 @@
         class="mt-1 bg-bg-secondary rounded-lg border border-border shadow-lg overflow-hidden animate-fade-in"
       >
         <div
-          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover cursor-pointer flex items-center gap-2.5 transition-colors duration-100"
+          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('smb')"
         >
           <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,7 +50,7 @@
           <span>SMB Share</span>
         </div>
         <div
-          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover cursor-pointer flex items-center gap-2.5 transition-colors duration-100"
+          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('ssh')"
         >
           <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +59,7 @@
           <span>SSH/SFTP Server</span>
         </div>
         <div
-          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover cursor-pointer flex items-center gap-2.5 transition-colors duration-100"
+          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('webdav')"
         >
           <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

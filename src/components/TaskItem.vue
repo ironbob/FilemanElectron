@@ -146,7 +146,7 @@
           {{ endpointLabel(sourceDeviceId, primarySourcePath) }}
         </span>
         <button
-          class="shrink-0 text-accent-blue hover:underline cursor-pointer"
+          class="shrink-0 text-accent-blue hover:underline"
           :title="`Locate source: ${primarySourcePath}`"
           @click="locateEndpoint('source', sourceDeviceId, primarySourcePath)"
         >
@@ -159,7 +159,7 @@
           {{ endpointLabel(destinationDeviceId, destinationPath) }}
         </span>
         <button
-          class="shrink-0 text-accent-blue hover:underline cursor-pointer"
+          class="shrink-0 text-accent-blue hover:underline"
           :title="`Locate destination: ${destinationPath}`"
           @click="locateEndpoint('destination', destinationDeviceId, destinationPath)"
         >
@@ -172,21 +172,21 @@
     <div class="flex items-center gap-2 pt-2 border-t border-border">
       <button
         v-if="task.status === 'running' || task.status === 'pending'"
-        class="px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 rounded transition-colors cursor-pointer"
+        class="px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 rounded transition-colors"
         @click="$emit('cancel', task.id)"
       >
         Cancel
       </button>
       <button
         v-if="task.status === 'failed'"
-        class="px-3 py-1.5 text-xs text-blue-400 hover:bg-blue-500/20 rounded transition-colors cursor-pointer"
+        class="px-3 py-1.5 text-xs text-blue-400 hover:bg-blue-500/20 rounded transition-colors"
         @click="$emit('retry', task.id)"
       >
         Retry
       </button>
       <button
         v-if="task.status === 'completed' && firstResultPath"
-        class="px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover rounded transition-colors cursor-pointer"
+        class="px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover rounded transition-colors"
         @click="showInFolder(firstResultPath)"
       >
         Open copied item in Finder

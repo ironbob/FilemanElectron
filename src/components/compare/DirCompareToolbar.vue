@@ -124,7 +124,7 @@
       <span class="text-xs text-text-tertiary">规则:</span>
       <select
         :value="rule"
-        class="text-xs bg-transparent text-text-primary border-none outline-none cursor-pointer"
+        class="text-xs bg-transparent text-text-primary border-none outline-none"
         @change="$emit('update:rule', ($event.target as HTMLSelectElement).value as CompareRule)"
       >
         <option value="name">按名称</option>
@@ -227,7 +227,7 @@ function setFilter(preset: 'all' | 'diff' | 'only' | 'equal') {
 
 <style scoped>
 .filter-btn {
-  @apply px-2.5 py-1 text-xs rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors cursor-pointer;
+  @apply px-2.5 py-1 text-xs rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors;
 }
 
 /* Per-button accent colors — override toolbar-btn-enhanced defaults */

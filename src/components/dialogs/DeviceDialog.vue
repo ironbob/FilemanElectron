@@ -6,7 +6,7 @@
       <div class="grid gap-4 mb-4">
         <div class="flex items-center gap-2">
           <label class="text-sm w-20 text-text-secondary">Type:</label>
-          <select v-model="form.type" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded text-sm text-text-primary cursor-pointer focus:outline-none focus:border-accent-blue transition-colors">
+          <select v-model="form.type" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors">
             <option value="smb">SMB</option>
             <option value="ssh">SSH/SFTP</option>
             <option value="webdav">WebDAV (HTTP/HTTPS)</option>
@@ -62,13 +62,13 @@
 
       <div class="flex justify-end gap-2 mt-4">
         <button
-          class="px-3 py-1.5 rounded text-sm text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded text-sm text-text-secondary hover:bg-bg-hover transition-colors"
           @click="$emit('close')"
         >
           Cancel
         </button>
         <button
-          class="px-3 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors"
           @click="handleConnect"
         >
           Connect

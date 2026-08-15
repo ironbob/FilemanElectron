@@ -71,7 +71,7 @@
           >ZIP</span>
           <template v-for="(segment, index) in pathSegments" :key="index">
             <button
-              class="max-w-32 truncate text-[13px] transition-colors cursor-pointer font-medium flex-shrink-0"
+              class="max-w-32 truncate text-[13px] transition-colors font-medium flex-shrink-0"
               :class="isZipBoundarySegment(index) ? 'text-orange-400 hover:text-orange-300' : 'text-text-secondary hover:text-accent-blue'"
               @click="navigateToSegment(index)"
             >
@@ -102,7 +102,7 @@
         <button
           v-for="mode in viewModes"
           :key="mode.value"
-          class="w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all cursor-pointer"
+          class="w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all"
           :class="pane.viewMode === mode.value ? 'bg-accent-blue text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
           :title="mode.value === 'grid' ? `${mode.label} (right-click for sizes)` : mode.label"
           :aria-label="mode.label"
@@ -236,7 +236,7 @@
         <div
           v-for="opt in gridSizeOptions"
           :key="opt.value"
-          class="flex items-center gap-2 px-3 py-1.5 text-sm text-text-primary hover:bg-accent-blue hover:text-white cursor-pointer transition-colors"
+          class="flex items-center gap-2 px-3 py-1.5 text-sm text-text-primary hover:bg-accent-blue hover:text-white transition-colors"
           @click="chooseGridSize(opt.value)"
         >
           <span class="w-4 text-xs">{{ activeGridSize === opt.value ? '✓' : '' }}</span>

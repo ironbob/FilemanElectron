@@ -27,7 +27,7 @@
         <!-- Playback Speed -->
         <select
           v-model="playbackSpeed"
-          class="text-xs bg-transparent text-text-secondary border-none outline-none cursor-pointer px-1"
+          class="text-xs bg-transparent text-text-secondary border-none outline-none px-1"
           @change="handleSpeedChange"
         >
           <option value="0.5">0.5x</option>
@@ -95,7 +95,7 @@
         <video
           ref="videoRef"
           :src="videoSrc"
-          class="max-w-full max-h-full h-full object-contain rounded-lg shadow-md cursor-pointer"
+          class="max-w-full max-h-full h-full object-contain rounded-lg shadow-md"
           preload="metadata"
           @loadedmetadata="handleVideoLoad"
           @error="handleVideoError"
@@ -115,7 +115,7 @@
         <div class="backdrop-blur-xl bg-black/50 rounded-2xl p-3 shadow-lg">
           <!-- Progress Bar -->
           <div
-            class="relative h-1 bg-white/20 rounded-full cursor-pointer mb-3 group"
+            class="relative h-1 bg-white/20 rounded-full mb-3 group"
             @click="seekTo"
             @mousedown="startDrag"
           >
@@ -200,7 +200,7 @@
                 min="0"
                 max="1"
                 step="0.05"
-                class="w-0 group-hover/volume:w-16 h-1 bg-white/30 rounded-full appearance-none cursor-pointer transition-all duration-200 overflow-hidden"
+                class="w-0 group-hover/volume:w-16 h-1 bg-white/30 rounded-full appearance-none transition-all duration-200 overflow-hidden"
                 @input="handleVolumeInput"
               />
             </div>
@@ -631,7 +631,6 @@ input[type="range"]::-webkit-slider-thumb {
   height: 12px;
   background: white;
   border-radius: 50%;
-  cursor: pointer;
   margin-top: -4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }

@@ -85,7 +85,7 @@ div {
 }
 
 .tab-item {
-  @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-200 ease-in-out select-none;
+  @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 ease-in-out select-none;
   min-height: 28px;
   flex-shrink: 0;
 }
@@ -100,12 +100,12 @@ div {
 }
 
 .close-button {
-  @apply w-4 h-4 flex items-center justify-center rounded-full transition-all duration-200 cursor-pointer;
+  @apply w-4 h-4 flex items-center justify-center rounded-full transition-all duration-200;
   flex-shrink: 0;
 }
 
 .action-button {
-  @apply h-7 w-7 flex items-center justify-center text-text-secondary hover:text-accent-blue hover:bg-black/5 cursor-pointer rounded-md transition-all duration-200;
+  @apply h-7 w-7 flex items-center justify-center text-text-secondary hover:text-accent-blue hover:bg-black/5 rounded-md transition-all duration-200;
   @apply active:bg-black/10;
   flex-shrink: 0;
 }

@@ -12,13 +12,13 @@
       />
       <div class="flex justify-end gap-2 mt-4">
         <button
-          class="px-3 py-1.5 rounded text-sm text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded text-sm text-text-secondary hover:bg-bg-hover transition-colors"
           @click="$emit('close')"
         >
           Cancel
         </button>
         <button
-          class="px-3 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors"
           @click="confirm"
         >
           Rename

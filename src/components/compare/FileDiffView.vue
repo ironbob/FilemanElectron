@@ -175,7 +175,7 @@
           <div class="w-px h-4 bg-border flex-shrink-0" />
           <span class="text-text-tertiary">右侧</span>
           <input type="range" min="0" max="100" v-model.number="blendPercent"
-            class="w-20 cursor-pointer" style="accent-color: var(--accent-blue)" />
+            class="w-20" style="accent-color: var(--accent-blue)" />
           <span class="text-text-secondary w-7">{{ blendPercent }}%</span>
         </template>
         <!-- Image dimensions -->
@@ -702,7 +702,6 @@ onUnmounted(() => {
   font-size: 11px;
   border-radius: 4px;
   color: var(--text-secondary);
-  cursor: pointer;
   user-select: none;
   border: none;
   background: transparent;

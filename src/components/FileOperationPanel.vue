@@ -16,7 +16,7 @@
         <!-- Tab Switcher -->
         <div class="flex items-center bg-bg-secondary rounded-lg p-0.5">
           <button
-            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer"
+            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             :class="activeTab === 'active' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary'"
             @click="activeTab = 'active'"
           >
@@ -30,7 +30,7 @@
             </span>
           </button>
           <button
-            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer"
+            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             :class="activeTab === 'history' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary'"
             @click="activeTab = 'history'"
           >
@@ -49,13 +49,13 @@
       <div class="flex items-center gap-2">
         <button
           v-if="activeTab === 'history' && historyCount > 0"
-          class="px-3 py-1.5 text-xs text-text-secondary hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+          class="px-3 py-1.5 text-xs text-text-secondary hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
           @click="clearHistory"
         >
           Clear All
         </button>
         <button
-          class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded transition-colors cursor-pointer"
+          class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded transition-colors"
           @click="$emit('close')"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

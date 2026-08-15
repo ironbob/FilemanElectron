@@ -39,7 +39,7 @@
         v-slot="{ item: file }"
       >
         <div
-          class="finder-list-row file-item flex items-center gap-2 px-4 cursor-pointer transition-colors duration-100"
+          class="finder-list-row file-item flex items-center gap-2 px-4 transition-colors duration-100"
           :data-file-path="file.path"
           :style="{ height: LIST_ITEM_HEIGHT + 'px' }"
           :class="isSelected(file.path) ? 'bg-accent-blue text-white' : 'text-text-primary hover:bg-bg-hover'"
@@ -93,9 +93,9 @@
         <div
           v-for="file in row.files"
           :key="file.path"
-          class="file-item flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all duration-100 overflow-hidden"
+          class="file-item flex flex-col items-center p-2 rounded-lg transition-all duration-100 overflow-hidden"
           :data-file-path="file.path"
-          :class="isSelected(file.path) ? 'bg-gray-300/40 dark:bg-gray-600/40' : 'hover:bg-gray-100/40 dark:hover:bg-gray-700/40'"
+          :class="isSelected(file.path) ? 'bg-accent-blue text-white' : 'hover:bg-gray-100/40 dark:hover:bg-gray-700/40'"
           draggable="true"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
@@ -139,7 +139,7 @@
           <div
             v-for="file in column.files"
             :key="file.path"
-            class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors duration-100"
+            class="flex items-center gap-2.5 px-3 py-2 transition-colors duration-100"
             :data-file-path="file.path"
             :class="[
               column.selectedPath === file.path ? 'bg-accent-blue text-white' : 'hover:bg-bg-hover text-text-primary',
@@ -1878,7 +1878,7 @@ function handleContextMenuAction(action: string) {
 }
 
 .context-menu-item {
-  @apply flex items-center justify-between px-3 py-2 text-base text-text-primary cursor-pointer hover:bg-accent-blue hover:text-white transition-colors relative;
+  @apply flex items-center justify-between px-3 py-2 text-base text-text-primary hover:bg-accent-blue hover:text-white transition-colors relative;
 }
 
 .context-menu-item.disabled {

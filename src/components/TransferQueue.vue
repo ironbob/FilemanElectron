@@ -75,14 +75,14 @@
         <div class="flex justify-end gap-2 mt-2">
           <button
             v-if="task.status === 'running' || task.status === 'pending'"
-            class="text-xs text-text-tertiary hover:text-[#ff5f57] transition-colors cursor-pointer"
+            class="text-xs text-text-tertiary hover:text-[#ff5f57] transition-colors"
             @click="transfersStore.cancelTask(task.id)"
           >
             Cancel
           </button>
           <button
             v-if="task.status === 'failed'"
-            class="text-xs text-accent-blue hover:text-accent-hover transition-colors cursor-pointer"
+            class="text-xs text-accent-blue hover:text-accent-hover transition-colors"
           >
             Retry
           </button>
@@ -96,7 +96,7 @@
         {{ transfersStore.completedTasks.length }} completed
       </span>
       <button
-        class="text-xs text-accent-blue hover:text-accent-hover transition-colors cursor-pointer"
+        class="text-xs text-accent-blue hover:text-accent-hover transition-colors"
         @click="transfersStore.clearCompleted"
       >
         Clear All

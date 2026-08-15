@@ -1251,7 +1251,6 @@ onUnmounted(() => {
   margin: 0.8em 0;
 }
 .md-rendered :deep(summary) {
-  cursor: pointer;
   font-weight: 500;
   color: var(--text-secondary);
   user-select: none;

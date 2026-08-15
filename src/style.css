@@ -329,7 +329,6 @@ select {
   color: var(--text-primary);
   padding: 4px 8px;
   outline: none;
-  cursor: pointer;
 }
 
 select:focus {
@@ -339,7 +338,6 @@ select:focus {
 button {
   font-family: inherit;
   font-size: 14px;
-  cursor: pointer;
 }
 
 /* ========================================
@@ -387,7 +385,6 @@ button {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   outline: none;
 }
@@ -430,7 +427,6 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  cursor: pointer;
   color: var(--text-primary);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -823,7 +819,6 @@ button {
   gap: 10px;
   padding: 6px 10px;
   border-radius: 6px;
-  cursor: pointer;
   transition: all 0.15s ease;
 }
 
@@ -886,7 +881,6 @@ button {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  cursor: pointer;
   transition: all 0.15s ease;
   outline: none;
 }
@@ -960,7 +954,9 @@ button {
   transition: all 0.12s ease;
 }
 
-.file-item:hover {
+/* 选中行持有 Tailwind 的 .bg-accent-blue（特异性 0,1,0），会被本规则的
+   :hover（0,2,0）盖成灰底——导致"选中 + hover"变灰底白字。排除选中态。 */
+.file-item:hover:not(.bg-accent-blue) {
   background-color: var(--bg-hover);
 }
 

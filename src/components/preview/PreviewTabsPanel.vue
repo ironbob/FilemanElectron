@@ -139,7 +139,7 @@ onUnmounted(() => {
 }
 
 .tab-item {
-  @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-200 ease-in-out select-none;
+  @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 ease-in-out select-none;
   min-height: 28px;
   flex-shrink: 0;
 }
@@ -153,7 +153,7 @@ onUnmounted(() => {
 }
 
 .close-button {
-  @apply w-4 h-4 flex items-center justify-center rounded-full transition-all duration-200 cursor-pointer;
+  @apply w-4 h-4 flex items-center justify-center rounded-full transition-all duration-200;
   flex-shrink: 0;
 }
 </style>

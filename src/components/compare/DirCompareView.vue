@@ -98,7 +98,7 @@
       v-slot="{ item: entry, index }"
     >
       <div
-        class="compare-row flex items-center border-b border-border/20 cursor-pointer transition-colors duration-75 select-none"
+        class="compare-row flex items-center border-b border-border/20 transition-colors duration-75 select-none"
         :style="{ height: ITEM_HEIGHT + 'px' }"
         :class="rowClass(entry, index)"
         :data-index="index"
@@ -647,7 +647,7 @@ onUnmounted(() => {
   @apply min-w-[160px] bg-bg-secondary border border-border rounded-lg shadow-xl py-1;
 }
 .ctx-menu-item {
-  @apply px-3 py-1.5 text-[13px] text-text-primary cursor-pointer hover:bg-accent-blue hover:text-white transition-colors;
+  @apply px-3 py-1.5 text-[13px] text-text-primary hover:bg-accent-blue hover:text-white transition-colors;
 }
 
 .animate-fade-in {

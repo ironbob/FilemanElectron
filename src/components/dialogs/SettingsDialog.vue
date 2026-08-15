@@ -5,7 +5,7 @@
       <div class="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 class="text-base font-medium text-text-primary">Settings</h3>
         <button
-          class="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+          class="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
           @click="$emit('close')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -35,7 +35,7 @@
                 </div>
               </div>
               <button
-                class="px-3 py-1.5 rounded text-sm bg-bg-hover hover:bg-red-500/20 text-text-secondary hover:text-red-400 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-3 py-1.5 rounded text-sm bg-bg-hover hover:bg-red-500/20 text-text-secondary hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="clearingCache"
                 @click="clearThumbnailCache"
               >
@@ -61,7 +61,7 @@
                 <div class="text-xs text-text-tertiary mt-0.5">Dotfiles and hidden entries (⌘⇧.)</div>
               </div>
               <button
-                class="px-3 py-1.5 rounded text-sm transition-colors cursor-pointer"
+                class="px-3 py-1.5 rounded text-sm transition-colors"
                 :class="showHiddenFiles ? 'bg-accent-blue text-white' : 'bg-bg-hover text-text-secondary hover:text-text-primary'"
                 @click="toggleShowHiddenFiles"
               >
@@ -88,7 +88,7 @@
                 <button
                   v-for="t in themes"
                   :key="t.value"
-                  class="px-2.5 py-1 rounded text-xs transition-all cursor-pointer"
+                  class="px-2.5 py-1 rounded text-xs transition-all"
                   :class="theme === t.value ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
                   @click="setTheme(t.value)"
                 >
@@ -103,7 +103,7 @@
       <!-- Footer -->
       <div class="flex justify-end px-4 py-3 border-t border-border">
         <button
-          class="px-4 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors cursor-pointer"
+          class="px-4 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors"
           @click="$emit('close')"
         >
           Done
