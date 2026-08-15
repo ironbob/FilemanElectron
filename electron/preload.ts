@@ -12,6 +12,8 @@ import type {
   SearchQuery,
   ContentVerificationPair,
   ContentVerificationProgress,
+  DirectoryStatsRequest,
+  DirectoryStatsProgress,
   FileOperationTask,
   CreateTaskParams,
   DetectedMobileDevice,
@@ -66,6 +68,12 @@ const filemanAPI = {
   cancelContentVerification: (taskId: string) =>
     ipcRenderer.invoke(CH.invoke.compareVerifyCancel, taskId) as Promise<boolean>,
 
+  // ============ Directory Stats (属性弹窗递归统计) ============
+  startDirectoryStats: (request: DirectoryStatsRequest) =>
+    ipcRenderer.invoke(CH.invoke.fsDirStatsStart, request) as Promise<{ taskId: string }>,
+  cancelDirectoryStats: (taskId: string) =>
+    ipcRenderer.invoke(CH.invoke.fsDirStatsCancel, taskId) as Promise<boolean>,
+
   // ============ Cross-Device Operations ============
   copyBetweenDevices: (
     srcDeviceId: string,
@@ -112,6 +120,11 @@ const filemanAPI = {
     const handler = (_event: Electron.IpcRendererEvent, progress: ContentVerificationProgress) => callback(progress)
     ipcRenderer.on(CH.push.compareVerificationProgress, handler)
     return () => ipcRenderer.removeListener(CH.push.compareVerificationProgress, handler)
+  },
+  onDirectoryStatsProgress: (callback: (progress: DirectoryStatsProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: DirectoryStatsProgress) => callback(progress)
+    ipcRenderer.on(CH.push.dirStatsProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.dirStatsProgress, handler)
   },
 
   // ============ Shell Operations ============

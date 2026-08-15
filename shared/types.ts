@@ -127,6 +127,25 @@ export interface ContentVerificationProgress {
   message?: string
 }
 
+// ============ Directory Stats (属性弹窗递归统计) ============
+
+export interface DirectoryStatsRequest {
+  sessionId: string          // 渲染端生成，每次弹窗实例一个；重开弹窗自动取消旧任务
+  deviceId: string
+  paths: string[]            // 可含 ZIP 虚拟路径（"<zipFilePath>::<innerPath>"）
+}
+
+export interface DirectoryStatsProgress {
+  sessionId: string
+  taskId: string
+  status: 'scanning' | 'completed' | 'cancelled' | 'failed'
+  fileCount: number          // 已扫到的文件数
+  directoryCount: number     // 已扫到的目录数
+  totalBytes: number         // 文件大小累计
+  currentPath?: string
+  message?: string           // failed 时的错误摘要
+}
+
 // ============ File Operation Types ============
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'

@@ -746,7 +746,7 @@ function handleKeyDown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v') {
     event.preventDefault(); emit('operation', { action: 'paste', files: [], target: props.path }); return
   }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'i' && props.selectedFiles.length === 1) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'i' && props.selectedFiles.length >= 1) {
     event.preventDefault(); emit('operation', { action: 'info', files: props.selectedFiles }); return
   }
   if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'r' && props.selectedFiles.length > 1) {
@@ -1556,6 +1556,12 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     // File/folder context menu
     items.push({ label: 'Open', action: 'open', shortcut: '⌘O' })
 
+    // 目录：新标签页 / 并列双面板标签页打开
+    if (contextMenuTargetFile.value?.isDirectory) {
+      items.push({ label: 'Open in New Tab', action: 'open-in-new-tab' })
+      items.push({ label: 'Open in Dual-Pane Tab', action: 'open-in-split-tab' })
+    }
+
     if (caps?.canCopyFrom) {
       items.push({ label: 'Copy', action: 'copy', shortcut: '⌘C' })
     }
@@ -1595,7 +1601,7 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
       items.push({ label: 'Delete', action: 'delete', shortcut: '⌘⌫' })
     }
 
-    items.push({ label: 'Get Info', action: 'info', shortcut: '⌘I' })
+    items.push({ label: '属性', action: 'info', shortcut: '⌘I' })
     if (props.selectedFiles.length > 1 && caps?.canRename) {
       items.push({ label: 'Batch Rename', action: 'batch-rename', shortcut: '⇧⌘R' })
     }
@@ -1823,6 +1829,22 @@ function handleContextMenuAction(action: string) {
   // 显示/隐藏隐藏文件（空白菜单）
   if (action === 'toggle-hidden') {
     void settingsStore.toggleShowHiddenFiles()
+    return
+  }
+
+  // 目录在新标签页打开（右键菜单）
+  if (action === 'open-in-new-tab') {
+    const file = contextMenuTargetFile.value
+    if (file?.isDirectory) tabsStore.openPathInNewTab(props.deviceId, file.path)
+    return
+  }
+
+  // 目录在并列双面板标签页打开：目标目录占左面板，当前面板位置作参照占右面板
+  if (action === 'open-in-split-tab') {
+    const file = contextMenuTargetFile.value
+    if (file?.isDirectory) {
+      tabsStore.openPathInSplitTab(props.deviceId, file.path, pane.value?.deviceId, pane.value?.path)
+    }
     return
   }
 

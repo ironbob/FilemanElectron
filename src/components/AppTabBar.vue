@@ -1,5 +1,11 @@
 <template>
-  <div class="finder-tab-strip h-11 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border overflow-x-auto">
+  <div
+    class="finder-tab-strip h-11 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border overflow-x-auto transition-colors"
+    :class="folderDragOver ? 'border-b-2 border-b-accent-blue bg-accent-blue/5' : ''"
+    @dragover.prevent="onFolderDragOver"
+    @dragleave="onFolderDragLeave"
+    @drop.prevent="onFolderDrop"
+  >
     <!-- Tabs -->
     <div
       v-for="tab in tabsStore.tabs"
@@ -63,8 +69,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
+import type { InternalFileDragPayload } from '@/types/fileOperation'
 
 const tabsStore = useTabsStore()
 
@@ -72,6 +79,37 @@ const activeTab = computed(() => tabsStore.activeTab)
 
 function splitPane() {
   tabsStore.toggleActiveSplit()
+}
+
+// ── 拖文件夹到标签栏 → 新标签页打开 ───────────────────────────────────────────
+// dragover 阶段读不到 dataTransfer 数据（浏览器限制），只能按 types 判断是否为
+// app 内部拖拽；isDirectory 校验与开 tab 在 drop 时进行。
+const folderDragOver = ref(false)
+
+function onFolderDragOver(event: DragEvent) {
+  if (event.dataTransfer?.types.includes('application/json')) {
+    folderDragOver.value = true
+  }
+}
+
+function onFolderDragLeave() {
+  folderDragOver.value = false
+}
+
+async function onFolderDrop(event: DragEvent) {
+  folderDragOver.value = false
+  const raw = event.dataTransfer?.getData('application/json')
+  if (!raw) return
+  try {
+    const payload = JSON.parse(raw) as InternalFileDragPayload
+    const path = payload.files[0]
+    if (!path || payload.files.length !== 1) return // 仅单个文件夹有"打开"语义
+    const stats = await window.fileman.getStats(payload.deviceId, path)
+    if (!stats.isDirectory) return
+    tabsStore.openPathInNewTab(payload.deviceId, path)
+  } catch (e) {
+    console.warn('[AppTabBar] drop: not a folder or invalid payload', e)
+  }
 }
 </script>
 

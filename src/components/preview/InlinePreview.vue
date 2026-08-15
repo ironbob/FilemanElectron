@@ -148,6 +148,7 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import type { FileInfo } from '@/types'
 import { getPreviewType, getMimeType } from '@/types/preview'
 import { formatSize } from '@/utils/media'
+import { formatPermissions } from '@/utils/permissions'
 import InlineMediaInfo from './InlineMediaInfo.vue'
 import { usePreviewStore } from '@/stores/preview'
 
@@ -267,17 +268,6 @@ function formatDate(iso?: string): string {
   if (!iso) return '—'
   const time = Date.parse(iso)
   return Number.isNaN(time) ? '—' : new Date(time).toLocaleString()
-}
-
-/** 数值 mode 转类 Unix rwx 字符串，如 0o755 → "rwxr-xr-x" */
-function formatPermissions(mode?: number): string {
-  if (mode == null) return '—'
-  let result = ''
-  for (let shift = 6; shift >= 0; shift -= 3) {
-    const bits = (mode >> shift) & 7
-    result += (bits & 4 ? 'r' : '-') + (bits & 2 ? 'w' : '-') + (bits & 1 ? 'x' : '-')
-  }
-  return result
 }
 
 function parentPath(path: string): string {

@@ -34,6 +34,8 @@ type FileStats = import('@shared/types').FileStats
 type SearchQuery = import('@shared/types').SearchQuery
 type ContentVerificationPair = import('@shared/types').ContentVerificationPair
 type ContentVerificationProgress = import('@shared/types').ContentVerificationProgress
+type DirectoryStatsRequest = import('@shared/types').DirectoryStatsRequest
+type DirectoryStatsProgress = import('@shared/types').DirectoryStatsProgress
 type DeviceConfig = import('@shared/types').DeviceConfig
 type Credentials = import('@shared/types').Credentials
 type Device = import('@shared/types').Device
@@ -79,6 +81,10 @@ interface Window {
     // Directory compare content verification — progress contains no file bytes.
     startContentVerification: (request: { sessionId: string; pairs: ContentVerificationPair[] }) => Promise<{ taskId: string; total: number }>
     cancelContentVerification: (taskId: string) => Promise<boolean>
+
+    // Directory stats (属性弹窗递归统计) — progress 终态即为结果
+    startDirectoryStats: (request: DirectoryStatsRequest) => Promise<{ taskId: string }>
+    cancelDirectoryStats: (taskId: string) => Promise<boolean>
 
     // Cross-Device Operations
     copyBetweenDevices: (
@@ -132,6 +138,7 @@ interface Window {
     onDeviceChange: (callback: (devices: Device[]) => void) => () => void
     onTransferProgress: (callback: (progress: unknown) => void) => () => void
     onContentVerificationProgress: (callback: (progress: ContentVerificationProgress) => void) => () => void
+    onDirectoryStatsProgress: (callback: (progress: DirectoryStatsProgress) => void) => () => void
 
     // Mobile Device Operations
     startMobileScan: () => Promise<void>

@@ -448,7 +448,7 @@ export class DeviceManager {
    * 文件请求的最后一道边界：已持久化的标签、IPC 或侧栏事件可能在适配器
    * 尚未注册时访问设备。此处按需连接，避免直接向调用方泄露“无 adapter”。
    */
-  private async getReadyAdapter(deviceId: string): Promise<IFileSystemAdapter> {
+  async getReadyAdapter(deviceId: string): Promise<IFileSystemAdapter> {
     const adapter = this.connections.tryGetAdapter(deviceId)
     if (adapter?.isConnected()) return adapter
 

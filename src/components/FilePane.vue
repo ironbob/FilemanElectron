@@ -82,19 +82,47 @@
         </div>
       </div>
 
-      <!-- Search -->
-      <div class="file-pane-toolbar-search relative flex-shrink-0">
+      <!-- Search (含历史下拉:聚焦/输入时展示,点击回填) -->
+      <div ref="searchBoxRef" class="file-pane-toolbar-search relative flex-shrink-0">
         <input
+          ref="searchInputRef"
           v-model="searchQuery"
           type="text"
           placeholder="Search or tag:work"
-          class="w-36 h-8 pl-8 pr-3 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
-          @keydown.escape="searchQuery = ''"
+          class="w-36 h-8 px-3 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
+          @focus="searchHistoryOpen = true"
+          @blur="searchHistoryOpen = false"
+          @keydown.enter="commitSearch"
+          @keydown.escape="searchQuery = ''; searchHistoryOpen = false"
         />
-        <FinderIcon name="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+        <div
+          v-if="searchHistoryOpen && filteredSearchHistory.length > 0"
+          class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto rounded-lg border border-border py-1 shadow-xl"
+          role="menu"
+          aria-label="Search history"
+        >
+          <div class="flex items-center justify-between px-3 py-1">
+            <span class="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">History</span>
+            <button
+              class="text-[10px] text-text-tertiary hover:text-red-500"
+              title="Clear search history"
+              @mousedown.prevent="browserStore.clearSearchHistory()"
+            >Clear</button>
+          </div>
+          <button
+            v-for="item in filteredSearchHistory"
+            :key="item"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary hover:bg-bg-hover"
+            role="menuitem"
+            @mousedown.prevent="applySearchHistory(item)"
+          >
+            <svg class="w-3.5 h-3.5 flex-shrink-0 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="truncate">{{ item }}</span>
+          </button>
+        </div>
       </div>
       <button class="file-pane-toolbar-search-mode toolbar-btn-enhanced flex-shrink-0" :class="{ active: browserState.recursiveSearch }" title="Search recursively" aria-label="Search recursively" @click="browserStore.toggleRecursiveSearch(paneId)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M5.16 15A8 8 0 0018.84 9M18.84 9A8 8 0 005.16 15"/></svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
       </button>
 
       <!-- View Mode -->
@@ -286,11 +314,12 @@
       @confirm="confirmTargetOperation"
     />
     <FileInfoDialog
-      v-if="infoDialog.file"
-      :file="infoDialog.file"
+      v-if="infoDialog.files.length > 0"
+      :device-id="pane?.deviceId || 'local'"
+      :device-type="currentDevice?.type || 'local'"
       :device-name="currentDeviceName"
-      :tags="infoDialog.tags"
-      @close="infoDialog.file = null"
+      :files="infoDialog.files"
+      @close="infoDialog.files = []"
       @save-tags="saveTags"
     />
     <BatchRenameDialog
@@ -343,6 +372,32 @@ const currentDeviceName = computed(() => currentDevice.value?.name || pane.value
 const canCaptureScreenshot = computed(() => currentDevice.value?.type === 'android')
 
 const searchQuery = ref('')
+// ── 搜索历史下拉 ─────────────────────────────────────────────────────────────
+const searchHistoryOpen = ref(false)
+const searchBoxRef = ref<HTMLElement | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const filteredSearchHistory = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return browserStore.searchHistory
+  return browserStore.searchHistory.filter(h => h.toLowerCase().includes(q))
+})
+function commitSearch() {
+  browserStore.rememberSearch(searchQuery.value)
+  searchHistoryOpen.value = false
+}
+function applySearchHistory(item: string) {
+  searchQuery.value = item
+  browserStore.rememberSearch(item)
+  searchHistoryOpen.value = false
+  searchInputRef.value?.focus()
+}
+function closeSearchHistoryOnOutsideClick(event: MouseEvent) {
+  if (!searchHistoryOpen.value) return
+  const target = event.target
+  if (!(target instanceof Node) || !searchBoxRef.value?.contains(target)) {
+    searchHistoryOpen.value = false
+  }
+}
 const recentMenuOpen = ref(false)
 const recentMenuRef = ref<HTMLElement | null>(null)
 const loadedFiles = ref<FileInfo[]>([])
@@ -422,7 +477,7 @@ const targetDialog = reactive({
   files: [] as string[],
   devices: [] as Array<{ id: string; name: string; path?: string }>
 })
-const infoDialog = reactive<{ file: FileInfo | null; tags: string[] }>({ file: null, tags: [] })
+const infoDialog = reactive<{ files: FileInfo[] }>({ files: [] })
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 
 const pathSegments = computed(() => {
@@ -617,6 +672,7 @@ function closeRecentMenuOnOutsideClick(event: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
+  document.addEventListener('click', closeSearchHistoryOnOutsideClick, true)
   stopFileOperationUpdates = window.fileman.onFileOperationUpdated(task => {
     if (!pendingDirectoryRefreshes.has(task.id)) return
     if (!['completed', 'failed', 'cancelled'].includes(task.status)) return
@@ -627,6 +683,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeRecentMenuOnOutsideClick, true)
+  document.removeEventListener('click', closeSearchHistoryOnOutsideClick, true)
   stopFileOperationUpdates?.()
   stopFileOperationUpdates = null
 })
@@ -906,10 +963,10 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'info': {
-      const file = loadedFiles.value.find(item => item.path === op.files[0])
-      if (!file) break
-      infoDialog.file = { ...file, ...(await window.fileman.getStats(deviceId, file.path)) }
-      infoDialog.tags = (await window.fileman.getFileMetadata(deviceId, file.path)).tags
+      // 同步快照当前选中（单选/多选均支持），stats/tags/扫描由弹窗自行异步获取
+      infoDialog.files = op.files
+        .map(p => loadedFiles.value.find(item => item.path === p))
+        .filter((item): item is FileInfo => !!item)
       break
     }
 
@@ -1004,9 +1061,10 @@ async function confirmTargetOperation(value: { deviceId: string; targetPath: str
 }
 
 async function saveTags(tags: string[]) {
-  if (!infoDialog.file || !pane.value) return
-  const metadata = await window.fileman.setFileTags(pane.value.deviceId, infoDialog.file.path, tags)
-  infoDialog.tags = metadata.tags
+  const file = infoDialog.files[0]
+  if (!file || !pane.value) return
+  // 持久化即可：弹窗内 tagText 是本地真源（乐观更新），无需回写
+  await window.fileman.setFileTags(pane.value.deviceId, file.path, tags)
 }
 
 async function confirmBatchRename(items: BatchRenameItem[]) {

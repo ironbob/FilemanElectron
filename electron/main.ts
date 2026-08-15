@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, screen } from 'electron'
 import os from 'os'
 import path, { join } from 'path'
 import fs from 'fs-extra'
@@ -15,8 +15,10 @@ import { FileMetadataService } from './src/services/FileMetadataService'
 import { ArchiveService } from './src/services/ArchiveService'
 import { MobileScreenshotService } from './src/services/MobileScreenshotService'
 import { ContentVerificationService, type ContentVerificationRequest } from './src/services/ContentVerificationService'
+import { DirectoryStatsService } from './src/services/DirectoryStatsService'
 import { CH } from './src/ipc/channels'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
+import type { DirectoryStatsRequest } from '@shared/types'
 
 const isDev = !app.isPackaged
 const log = console
@@ -35,6 +37,7 @@ const fileMetadataService = new FileMetadataService(configService)
 const archiveService = new ArchiveService(deviceManager)
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
+const directoryStatsService = new DirectoryStatsService(deviceManager, zipService)
 
 // ZIP 虚拟路径协议（"<zipFilePath>::<innerPath>"）的解析/构造统一在
 // @shared/zipPath（main 与 renderer 共用的单一事实源），此处不再本地实现。
@@ -46,8 +49,8 @@ if (localAdapter) {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: Math.round(screen.getPrimaryDisplay().workAreaSize.width * 0.7),
+    height: Math.round(screen.getPrimaryDisplay().workAreaSize.height * 0.7),
     minWidth: 800,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
@@ -78,8 +81,6 @@ function createWindow(): void {
       mainWindow.webContents.send(CH.push.volumesChanged, currentVolumes)
     }
   })
-
-  mainWindow.webContents.openDevTools({ mode: 'right' })
 
   if (isDev) {
     const devServerUrl = process.env['ELECTRON_RENDERER_URL'] || 'http://localhost:5173'
@@ -225,6 +226,17 @@ ipcMain.handle(CH.invoke.compareVerifyStart, (event, request: ContentVerificatio
 ipcMain.handle(CH.invoke.compareVerifyCancel, (_, taskId: string) => {
   log.info('[DirectoryCompareIPC] verification cancellation requested', { taskId })
   return contentVerificationService.cancel(taskId)
+})
+
+// ============ Directory stats (属性弹窗递归统计) ============
+ipcMain.handle(CH.invoke.fsDirStatsStart, (event, request: DirectoryStatsRequest) => {
+  return directoryStatsService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.dirStatsProgress, progress)
+  })
+})
+
+ipcMain.handle(CH.invoke.fsDirStatsCancel, (_, taskId: string) => {
+  return directoryStatsService.cancel(taskId)
 })
 
 // ============ ZIP browsing IPC Handlers ============

@@ -199,32 +199,39 @@
         </div>
       </div>
 
-      <!-- Favorites (user bookmarks, device-scoped) -->
+      <!-- Favorites (user bookmarks, device-scoped, grouped by device platform).
+           未连接设备的收藏不渲染(整组随之消失),连上后自动回归。 -->
       <div class="px-4 mt-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Favorites</div>
-      <div class="space-y-0.5 px-2">
+      <template v-for="group in groupedFavorites" :key="group.type">
         <div
-          v-for="item in favoritesStore.favorites"
-          :key="item.deviceId + '::' + item.path"
-          class="sidebar-item group"
-          :class="isActiveFavorite(item) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
-          :title="item.path"
-          @click="selectFavorite(item)"
-        >
-          <component :is="StarIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
-          <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
-          <button
-            class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
-            title="移除收藏"
-            @click.stop="removeFavorite(item)"
+          v-if="group.type !== 'local'"
+          class="px-4 mt-2 mb-1 text-[10px] font-medium text-text-tertiary/80 tracking-wide"
+        >{{ group.label }}</div>
+        <div class="space-y-0.5 px-2">
+          <div
+            v-for="item in group.items"
+            :key="item.deviceId + '::' + item.path"
+            class="sidebar-item group"
+            :class="isActiveFavorite(item) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
+            :title="item.path"
+            @click="selectFavorite(item)"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            <component :is="StarIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
+            <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
+            <button
+              class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
+              title="移除收藏"
+              @click.stop="removeFavorite(item)"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <div v-if="favoritesStore.favorites.length === 0" class="px-4 py-2 text-xs text-text-tertiary">
-          右键文件夹可添加收藏
-        </div>
+      </template>
+      <div v-if="favoritesStore.favorites.length === 0" class="px-4 py-2 text-xs text-text-tertiary">
+        右键文件夹可添加收藏
       </div>
     </div>
 
@@ -371,6 +378,12 @@ async function loadFavorites() {
 onMounted(() => {
   loadFavorites()
   favoritesStore.load()
+  // Load device list + subscribe to device:changed pushes. Without this,
+  // Android/iOS devices only exist in detectedMobileDevices — the devices
+  // array stays empty and device-scoped favorites never pass the
+  // getDevice(id)?.status === 'connected' visibility filter.
+  devicesStore.loadDevices()
+  devicesStore.setupDeviceListener()
   // Set up mobile device listener
   log.info('[FinderSidebar] setting up mobile device listener')
   devicesStore.setupMobileDeviceListener()
@@ -524,6 +537,46 @@ function navigateTo(path: string) {
  * 收藏夹是设备相关的（deviceId + path）。切换时把活动窗格的设备一并切到
  * 收藏项所属设备，再导航到路径；主进程会按需建立尚未连接的适配器。
  */
+
+// ── 收藏按平台分组渲染 ──────────────────────────────────────────────────────
+// 未连接设备的收藏不显示(避免 UI 杂乱);连上后 device:changed 推送驱动
+// devices 列表更新,本 computed 自动重算。本机(local)收藏恒可见。
+// 被 Forget/删除设备名下的收藏静默留存,不显示也不清理,同序列号重连即回归。
+const FAVORITE_GROUP_ORDER: Array<{ type: string; label: string }> = [
+  { type: 'local', label: '本机' },
+  { type: 'android', label: 'Android' },
+  { type: 'ios', label: 'iOS' },
+  { type: 'smb', label: 'SMB' },
+  { type: 'ssh', label: 'SSH' },
+  { type: 'webdav', label: 'WebDAV' }
+]
+
+const visibleFavorites = computed(() =>
+  favoritesStore.favorites.filter(f =>
+    f.deviceId === 'local' ||
+    devicesStore.getDevice(f.deviceId)?.status === 'connected'
+  )
+)
+
+// 同平台(如多台安卓)共用一组;空组直接消失。
+const groupedFavorites = computed(() => {
+  const byType = new Map<string, Favorite[]>()
+  for (const f of visibleFavorites.value) {
+    const type = devicesStore.getDevice(f.deviceId)?.type ?? 'local'
+    const list = byType.get(type)
+    if (list) list.push(f)
+    else byType.set(type, [f])
+  }
+  // 已知平台按固定顺序在前,未知平台类型按插入顺序垫底
+  const known = FAVORITE_GROUP_ORDER.filter(g => byType.has(g.type))
+  const extra = [...byType.keys()]
+    .filter(t => !FAVORITE_GROUP_ORDER.some(g => g.type === t))
+    .map(t => ({ type: t, label: t }))
+  return [...known, ...extra]
+    .map(g => ({ ...g, items: byType.get(g.type) ?? [] }))
+    .filter(g => g.items.length > 0)
+})
+
 function isActiveFavorite(fav: Favorite): boolean {
   const p = tabsStore.activePane
   return !!p && p.deviceId === fav.deviceId && p.path === fav.path

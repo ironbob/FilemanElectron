@@ -181,6 +181,38 @@ export const useTabsStore = defineStore('tabs', () => {
     return true
   }
 
+  /** 在新标签页打开指定目录（文件夹右键 / 拖到标签栏）。 */
+  function openPathInNewTab(deviceId: string, path: string): void {
+    const pane = createDefaultPane(path, deviceId)
+    const tab: Tab = {
+      id: generateId(),
+      title: getPathDisplayName(path),
+      panes: [pane],
+      activePaneId: pane.id
+    }
+    tabs.value.push(tab)
+    activeTabId.value = tab.id
+    log.info('[TabsStore] opened path in new tab', { deviceId, path, tabId: tab.id })
+  }
+
+  /**
+   * 在新的并列双面板标签页打开：目标文件夹占左面板，参照面板（refDeviceId/
+   * refPath，通常为右键来源面板的当前位置）占右面板，方便两边直接传文件。
+   */
+  function openPathInSplitTab(deviceId: string, path: string, refDeviceId?: string, refPath?: string): void {
+    const left = createDefaultPane(path, deviceId)
+    const right = createDefaultPane(refPath ?? path, refDeviceId ?? deviceId)
+    const tab: Tab = {
+      id: generateId(),
+      title: getPathDisplayName(path),
+      panes: [left, right],
+      activePaneId: left.id
+    }
+    tabs.value.push(tab)
+    activeTabId.value = tab.id
+    log.info('[TabsStore] opened path in dual-pane tab', { deviceId, path, refPath: refPath ?? '(same)', tabId: tab.id })
+  }
+
   function navigatePane(paneId: string, newPath: string) {
     const pane = findPane(paneId)
     if (!pane) return
@@ -375,6 +407,8 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTab,
     setActivePane,
     toggleActiveSplit,
+    openPathInNewTab,
+    openPathInSplitTab,
     navigatePane,
     goBack,
     goForward,

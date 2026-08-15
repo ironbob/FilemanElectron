@@ -49,6 +49,8 @@ export const CH = {
     fsCopyBetween: 'fs:copyBetween',
     fsMoveBetween: 'fs:moveBetween',
     fsImportExternal: 'fs:importExternal',
+    fsDirStatsStart: 'fs:dirStats:start',
+    fsDirStatsCancel: 'fs:dirStats:cancel',
     // compare:
     compareVerifyStart: 'compare:verify:start',
     compareVerifyCancel: 'compare:verify:cancel',
@@ -94,6 +96,7 @@ export const CH = {
     fileOperationUpdated: 'file-operation:updated',
     transferProgress: 'transfer:progress',
     compareVerificationProgress: 'compare:verification-progress',
+    dirStatsProgress: 'fs:dirStats-progress',
   },
   send: {
     dragStartNative: 'drag:startNative',
