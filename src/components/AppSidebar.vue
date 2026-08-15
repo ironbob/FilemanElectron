@@ -241,20 +241,6 @@
     <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" aria-label="Application tools">
       <button
         class="sidebar-utility-button"
-        :class="{ active: isPreviewFullscreen }"
-        :aria-pressed="isPreviewFullscreen"
-        @click="togglePreviewFullscreen"
-        title="Preview"
-        aria-label="Preview"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-        </svg>
-        <span v-if="previewTabCount > 0" class="sidebar-utility-badge">{{ previewTabCount }}</span>
-      </button>
-      <button
-        class="sidebar-utility-button"
         @click="emit('toggle-theme')"
         :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
         :aria-label="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
@@ -287,7 +273,6 @@
 import { ref, reactive, h, onMounted, computed, watch, markRaw } from 'vue'
 import { useDevicesStore } from '@/stores/devices'
 import { useTabsStore } from '@/stores/tabs'
-import { usePreviewStore } from '@/stores/preview'
 import { useVolumesStore } from '@/stores/volumes'
 import { useFavoritesStore } from '@/stores/favorites'
 import DeviceDialog from './dialogs/DeviceDialog.vue'
@@ -298,7 +283,6 @@ import type { Favorite } from '@/types'
 const log = console
 const devicesStore = useDevicesStore()
 const tabsStore = useTabsStore()
-const previewStore = usePreviewStore()
 const volumesStore = useVolumesStore()
 const favoritesStore = useFavoritesStore()
 
@@ -322,9 +306,6 @@ const showAddDeviceMenu = ref(false)
 const mobileScanInProgress = ref(false)
 const mobileDevices = computed(() => devicesStore.detectedMobileDevices)
 const libimobiledeviceInstalled = computed(() => devicesStore.libimobiledeviceInstalled)
-
-const previewTabCount = computed(() => previewStore.tabs.length)
-const isPreviewFullscreen = computed(() => previewStore.isFullscreen)
 
 const deviceDialog = reactive<{
   visible: boolean
@@ -530,10 +511,6 @@ function isActivePath(path: string): boolean {
 }
 
 async function selectDevice(device: Device) {
-  // Exit fullscreen preview when navigating to a device
-  if (previewStore.isFullscreen) {
-    previewStore.closeFullscreen()
-  }
   const pane = tabsStore.activePane
   if (!pane) return
 
@@ -554,12 +531,12 @@ async function selectDevice(device: Device) {
 }
 
 function navigateTo(path: string) {
-  // Exit fullscreen preview when navigating to a directory
-  if (previewStore.isFullscreen) {
-    previewStore.closeFullscreen()
-  }
-  if (tabsStore.activePane) {
-    tabsStore.navigatePane(tabsStore.activePane.id, path)
+  const pane = tabsStore.activePane
+  if (pane) {
+    // Places 是本机路径：窗格当前挂在远程设备上时必须先切回 local，
+    // 否则会向远程设备 listFiles 一个 macOS 路径，列表显示为空
+    pane.deviceId = 'local'
+    tabsStore.navigatePane(pane.id, path)
   }
 }
 
@@ -613,9 +590,6 @@ function isActiveFavorite(fav: Favorite): boolean {
 }
 
 function selectFavorite(fav: Favorite) {
-  if (previewStore.isFullscreen) {
-    previewStore.closeFullscreen()
-  }
   const pane = tabsStore.activePane
   if (!pane) return
   pane.deviceId = fav.deviceId
@@ -631,10 +605,6 @@ function removeFavorite(fav: Favorite) {
  * 否则当 pane 停在远程设备上时会用错 adapter。
  */
 function selectVolume(volume: Volume) {
-  // Exit fullscreen preview when navigating to a volume
-  if (previewStore.isFullscreen) {
-    previewStore.closeFullscreen()
-  }
   const pane = tabsStore.activePane
   if (pane) {
     pane.deviceId = 'local'
@@ -646,12 +616,6 @@ function addDevice(type: 'smb' | 'ssh' | 'webdav') {
   deviceDialog.type = type
   deviceDialog.visible = true
   showAddDeviceMenu.value = false
-}
-
-function togglePreviewFullscreen() {
-  if (previewTabCount.value > 0) {
-    previewStore.toggleFullscreen()
-  }
 }
 
 async function handleDeviceConnect(config: { type: 'smb' | 'ssh' | 'webdav'; name: string; host: string; url?: string; port?: number; username?: string; password?: string; share?: string }) {
@@ -693,10 +657,6 @@ async function handleDeviceConnect(config: { type: 'smb' | 'ssh' | 'webdav'; nam
  * Select a mobile device
  */
 async function selectMobileDevice(device: DetectedMobileDevice) {
-  // Exit fullscreen preview when navigating to a mobile device
-  if (previewStore.isFullscreen) {
-    previewStore.closeFullscreen()
-  }
   const pane = tabsStore.activePane
   if (!pane) return
 

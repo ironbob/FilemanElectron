@@ -62,7 +62,9 @@ export class DeviceManager {
     this.registerDevice({
       id: 'local',
       type: 'local',
-      name: require('os').hostname(),
+      // DHCP 环境下 hostname 常被注册成 IP（如 192.168.0.3 / xxx.local），
+      // 作为设备名既难看也无区分度，此时回退到「本机」
+      name: this.friendlyLocalDeviceName(),
       status: 'connected',
       rootPath: '/'
     })
@@ -72,6 +74,14 @@ export class DeviceManager {
 
     // Load saved devices from config
     this.loadSavedDevices()
+  }
+
+  /** 本机设备显示名：hostname 去掉 .local 后缀；若仍是 IP 形式则用「本机」 */
+  private friendlyLocalDeviceName(): string {
+    const os = require('os') as typeof import('os')
+    const hostname = os.hostname().replace(/\.local$/, '')
+    const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)
+    return isIPv4 ? '本机' : hostname
   }
 
   /**

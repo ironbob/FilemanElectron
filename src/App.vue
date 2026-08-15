@@ -95,8 +95,16 @@
         <div class="flex-1 flex overflow-hidden">
           <!-- File Panes Container -->
           <div class="flex-1 flex overflow-hidden min-w-0">
+            <!-- Preview View（预览 tab，统一挂在主 tab 栏） -->
+            <template v-if="activeTab?.preview">
+              <PreviewView
+                :key="activeTab.id"
+                :session="activeTab.preview"
+                class="flex-1"
+              />
+            </template>
             <!-- File Diff View -->
-            <template v-if="activeTab?.fileDiffSession">
+            <template v-else-if="activeTab?.fileDiffSession">
               <FileDiffView
                 :key="activeTab.id"
                 :session="activeTab.fileDiffSession"
@@ -125,9 +133,7 @@
           </div>
         </div>
 
-        <!-- Fullscreen Preview (covers tab bar + file panes, keeps sidebar visible) -->
-        <PreviewFullscreen />
-        <!-- Image browser overlay (folder-aware viewer; supersedes PreviewFullscreen for images) -->
+        <!-- Image browser overlay (folder-aware viewer for images) -->
         <ImageBrowserOverlay />
         <!-- Quick Look overlay (space-key transient preview; single file, ↑↓ to step) -->
         <QuickLookOverlay />
@@ -170,7 +176,7 @@ import AppSidebar from './components/AppSidebar.vue'
 import AppTabBar from './components/AppTabBar.vue'
 import FilePane from './components/FilePane.vue'
 import FileOperationPanel from './components/FileOperationPanel.vue'
-import PreviewFullscreen from './components/preview/PreviewFullscreen.vue'
+import PreviewView from './components/preview/PreviewView.vue'
 import ImageBrowserOverlay from './components/preview/ImageBrowserOverlay.vue'
 import QuickLookOverlay from './components/preview/QuickLookOverlay.vue'
 import SettingsDialog from './components/dialogs/SettingsDialog.vue'
@@ -395,15 +401,12 @@ function handleTaskEndpointLocate(endpoint: { kind: 'source' | 'destination'; de
 // capture phase and return `true` to consume ESC — this handler (bubble phase) is
 // automatically skipped when a child has already handled the key.
 function handleKeydown(e: KeyboardEvent) {
-  // Image browser handles its own Esc via useKeyInterceptor (capture phase);
-  // skip here to avoid double-handling while it is open.
-  if (e.key === 'Escape' && previewStore.tabs.length > 0 && !previewStore.imageBrowserOpen) {
-    // First close fullscreen, then close all tabs
-    if (previewStore.isFullscreen) {
-      previewStore.closeFullscreen()
-    } else {
-      console.log('Closing all tabs')
-      previewStore.closeAllTabs()
+  // Image browser / Quick Look handle their own Esc via useKeyInterceptor
+  // (capture phase); skip here to avoid double-handling while they are open.
+  if (e.key === 'Escape' && !previewStore.imageBrowserOpen && !previewStore.quickLookOpen) {
+    // 预览 tab 激活时，Esc 关闭当前预览 tab（回到之前的 tab）。
+    if (activeTab.value?.preview) {
+      tabsStore.closeTab(activeTab.value.id)
     }
   }
 }

@@ -1,5 +1,5 @@
 <template>
-  <!-- 类型分派单一事实源：PreviewFullscreen / QuickLookOverlay 共用。
+  <!-- 类型分派单一事实源：PreviewView / QuickLookOverlay 共用。
        各 Preview*Content 自行加载内容（仅依赖 file + deviceId）。 -->
   <PreviewTextContent
     v-if="type === 'text'"

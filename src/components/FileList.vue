@@ -1278,7 +1278,12 @@ function openCurrentItem(): void {
   if (props.viewMode === 'columns') {
     const cur = getColumnsCursor()
     const file = cur && cur.row >= 0 ? columns.value[cur.col].files[cur.row] : null
-    if (cur && file) void handleColumnClick(cur.col, file)
+    if (!cur || !file) return
+    if (file.isDirectory) {
+      void handleColumnClick(cur.col, file)
+    } else {
+      handleDoubleClick(file)
+    }
   } else {
     const file = getOpenTarget()
     if (file) handleDoubleClick(file)
@@ -1492,10 +1497,10 @@ async function handleColumnClick(columnIndex: number, file: FileInfo) {
       console.error('Failed to load column:', e)
     }
   } else {
+    // 文件单击仅选中（预览交给 @dblclick 的 handleDoubleClick）
     const newColumns = [...columns.value]
     newColumns[columnIndex] = { ...newColumns[columnIndex], selectedPath: file.path }
     columns.value = newColumns
-    emit('preview', file)
   }
   emit('select', [file.path])
 }

@@ -2,6 +2,7 @@
 // 仅 renderer 专属类型（Tab/Pane/Compare 会话等）保留本地声明。
 export type { FileInfo, Device, DeviceConfig, DetectedMobileDevice, ContentVerificationPair } from '@shared/types'
 import type { FileInfo } from '@shared/types'
+import type { PreviewTab } from './preview'
 
 export interface Tab {
   id: string
@@ -12,6 +13,8 @@ export interface Tab {
   compareSession?: DirCompareSession
   /** When set, this tab renders a file diff view */
   fileDiffSession?: FileDiffSession
+  /** When set, this tab renders a file preview view instead of file panes */
+  preview?: PreviewTab
 }
 
 export interface Column {

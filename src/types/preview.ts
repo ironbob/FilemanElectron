@@ -11,18 +11,15 @@ export type ImageFitMode = 'contain' | 'cover' | 'actual'
 /** Max bytes for an in-app image preview (enforced by the preview store + image browser). */
 export const IMAGE_PREVIEW_SIZE_LIMIT = 50 * 1024 * 1024
 
+/**
+ * 预览 tab 的会话数据（挂在主 Tab.preview 上，见 types/index.ts）。
+ * 仅保存身份信息：内容由各 Preview*Content 组件自行按需加载。
+ */
 export interface PreviewTab {
   id: string
   file: FileInfo
   deviceId: string
   type: PreviewType
-  content?: string
-  blobUrl?: string
-  mediaMetadata?: MediaMetadata
-  isModified?: boolean
-  originalContent?: string
-  /** Set when the file failed to load (e.g. exceeded size cap). */
-  error?: string
 }
 
 /**
@@ -59,13 +56,6 @@ export interface MediaMetadata {
   channels?: number
   fileSize: number
   fileName: string
-}
-
-export interface PreviewState {
-  isOpen: boolean
-  tabs: PreviewTab[]
-  activeTabId: string | null
-  panelHeight: number
 }
 
 export function getPreviewType(file: FileInfo): PreviewType {

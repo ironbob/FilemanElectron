@@ -834,7 +834,6 @@ function handlePreview(file: FileInfo) {
       return
     }
     previewStore.openPreview(file, deviceId)
-    previewStore.openFullscreen()
   }
 }
 

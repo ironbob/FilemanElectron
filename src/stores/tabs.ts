@@ -53,8 +53,8 @@ interface PersistedTabState {
 function saveToStorage(state: PersistedTabState) {
   try {
     // selectedFiles 是瞬态 UI 状态，不需要持久化（避免序列化大量路径字符串）
-    // Compare tabs are ephemeral — don't persist them across restarts
-    const regularTabs = state.tabs.filter(tab => !tab.compareSession && !tab.fileDiffSession)
+    // Compare/diff/preview tabs are ephemeral — don't persist them across restarts
+    const regularTabs = state.tabs.filter(tab => !tab.compareSession && !tab.fileDiffSession && !tab.preview)
     const stripped: PersistedTabState = {
       activeTabId: regularTabs.find(t => t.id === state.activeTabId)
         ? state.activeTabId
@@ -141,14 +141,23 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   function closeTab(tabId: string) {
-    if (tabs.value.length === 1) return
-
     const index = tabs.value.findIndex(t => t.id === tabId)
-    if (index > -1) {
-      tabs.value.splice(index, 1)
-      if (activeTabId.value === tabId) {
-        activeTabId.value = tabs.value[Math.max(0, index - 1)].id
-      }
+    if (index === -1) return
+
+    if (tabs.value.length === 1) {
+      // 唯一的普通浏览 tab 拒绝关闭；唯一的临时 tab（预览/对比/diff）
+      // 则替换为新的浏览 tab，保证窗口永不出现 0 tab。
+      const only = tabs.value[0]
+      if (only.panes.length > 0) return
+      const replacement = createDefaultTab()
+      tabs.value = [replacement]
+      activeTabId.value = replacement.id
+      return
+    }
+
+    tabs.value.splice(index, 1)
+    if (activeTabId.value === tabId) {
+      activeTabId.value = tabs.value[Math.max(0, index - 1)].id
     }
   }
 
