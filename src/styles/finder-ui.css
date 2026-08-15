@@ -127,6 +127,7 @@
 }
 
 .finder-shell .sidebar-utility-button {
+  position: relative;
   width: 30px;
   height: 30px;
   display: inline-flex;
@@ -138,6 +139,25 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   color: var(--finder-secondary-label);
   transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.finder-shell .sidebar-utility-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--finder-sidebar);
+  border-radius: 999px;
+  background: var(--finder-selection);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .finder-shell .sidebar-utility-button:hover:not(:disabled) {

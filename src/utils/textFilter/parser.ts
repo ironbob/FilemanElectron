@@ -177,6 +177,29 @@ function parseKeywordExpression(state: ParserState): TermNode | null {
   // Update lexer position
   state.lexer.position = endPosition
 
+  // Predicate-specific value validation (reported at parse time, not silently at match time)
+  if (predicate === 'lines') {
+    // lines(n) or lines(n-m), positive integers, n <= m
+    const rangeMatch = /^(\d+)(?:-(\d+))?$/.exec(value)
+    if (rangeMatch === null) {
+      state.error = `Invalid lines() range '${value}' (expected lines(n) or lines(n-m)) at position ${lparenPos}`
+      return null
+    }
+    if (rangeMatch[2] !== undefined && Number(rangeMatch[1]) > Number(rangeMatch[2])) {
+      state.error = `Invalid lines() range '${value}' (start must be <= end) at position ${lparenPos}`
+      return null
+    }
+  }
+  if (predicate === 'reg' || predicate === 'REG') {
+    // Surface invalid regex at parse time instead of silently matching nothing
+    try {
+      new RegExp(value)
+    } catch (e) {
+      state.error = `Invalid regex in ${predicate}(): ${e instanceof Error ? e.message : String(e)} at position ${lparenPos}`
+      return null
+    }
+  }
+
   // Consume the closing ')'
   const closeToken = nextToken(state.lexer)
   if (closeToken.type !== TokenType.RParen) {

@@ -238,29 +238,21 @@
 
     </div>
 
-    <!-- Preview Section (Bottom) -->
-    <div class="mt-auto border-t border-border">
-      <div
-        class="sidebar-item"
-        :class="isPreviewFullscreen ? 'sidebar-item-active' : 'sidebar-item-inactive'"
+    <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" aria-label="Application tools">
+      <button
+        class="sidebar-utility-button"
+        :class="{ active: isPreviewFullscreen }"
+        :aria-pressed="isPreviewFullscreen"
         @click="togglePreviewFullscreen"
+        title="Preview"
+        aria-label="Preview"
       >
-        <svg class="w-5 h-5 flex-shrink-0 text-[#5ac8fa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
-        <span class="text-[13px] flex-1 font-medium">Preview</span>
-        <span
-          v-if="previewTabCount > 0"
-          class="px-1.5 py-0.5 text-[11px] rounded-full font-semibold"
-          :class="isPreviewFullscreen ? 'bg-white/20' : 'bg-accent-blue/20 text-accent-blue'"
-        >
-          {{ previewTabCount }}
-        </span>
-      </div>
-    </div>
-
-    <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" aria-label="Application tools">
+        <span v-if="previewTabCount > 0" class="sidebar-utility-badge">{{ previewTabCount }}</span>
+      </button>
       <button
         class="sidebar-utility-button"
         @click="emit('toggle-theme')"

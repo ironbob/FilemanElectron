@@ -11,6 +11,7 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "typecheck": "vue-tsc --noEmit",
+    "test:log-analysis": "esbuild tests/logAnalysis.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/logAnalysis.test.cjs --log-level=warning && node node_modules/.tmp/logAnalysis.test.cjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",

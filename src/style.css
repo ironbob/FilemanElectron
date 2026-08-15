@@ -994,3 +994,71 @@ button {
   color: var(--icon-audio);
   filter: drop-shadow(0 1px 2px rgba(192, 132, 252, 0.2));
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Log analysis highlight palette (文本预览日志着色)
+   Used by Monaco decorations (fma-hl-line-*/fma-hl-frag-*), context rows
+   (fma-hl-context) and scheme-editor swatches (fma-swatch-*).
+   Dark values live on :root (dark is default), light overrides below.
+   NOTE: use background-color only, never the `background` shorthand
+   (see 疑难问题解决记录/全局CSS与scoped样式冲突).
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --fma-red-bg: rgba(248, 113, 113, 0.16);  --fma-red-fg: #f87171;
+  --fma-orange-bg: rgba(251, 146, 60, 0.16); --fma-orange-fg: #fb923c;
+  --fma-yellow-bg: rgba(250, 204, 21, 0.15); --fma-yellow-fg: #facc15;
+  --fma-green-bg: rgba(74, 222, 128, 0.15);  --fma-green-fg: #4ade80;
+  --fma-cyan-bg: rgba(34, 211, 238, 0.15);   --fma-cyan-fg: #22d3ee;
+  --fma-blue-bg: rgba(96, 165, 250, 0.15);   --fma-blue-fg: #60a5fa;
+  --fma-purple-bg: rgba(192, 132, 252, 0.15); --fma-purple-fg: #c084fc;
+  --fma-pink-bg: rgba(244, 114, 182, 0.15);  --fma-pink-fg: #f472b6;
+  --fma-gray-bg: rgba(148, 163, 184, 0.14);  --fma-gray-fg: #94a3b8;
+}
+
+[data-theme="light"] {
+  --fma-red-bg: rgba(220, 38, 38, 0.12);     --fma-red-fg: #b91c1c;
+  --fma-orange-bg: rgba(234, 88, 12, 0.12);  --fma-orange-fg: #c2410c;
+  --fma-yellow-bg: rgba(202, 138, 4, 0.14);  --fma-yellow-fg: #a16207;
+  --fma-green-bg: rgba(22, 128, 61, 0.12);   --fma-green-fg: #15803d;
+  --fma-cyan-bg: rgba(8, 133, 148, 0.12);    --fma-cyan-fg: #0e7490;
+  --fma-blue-bg: rgba(2, 104, 194, 0.12);    --fma-blue-fg: #0369a1;
+  --fma-purple-bg: rgba(124, 58, 237, 0.12); --fma-purple-fg: #6d28d9;
+  --fma-pink-bg: rgba(219, 39, 119, 0.12);   --fma-pink-fg: #be185d;
+  --fma-gray-bg: rgba(71, 85, 105, 0.12);    --fma-gray-fg: #475569;
+}
+
+/* Whole-line coloring (Monaco isWholeLine decoration) */
+.fma-hl-line-red    { background-color: var(--fma-red-bg); }
+.fma-hl-line-orange { background-color: var(--fma-orange-bg); }
+.fma-hl-line-yellow { background-color: var(--fma-yellow-bg); }
+.fma-hl-line-green  { background-color: var(--fma-green-bg); }
+.fma-hl-line-cyan   { background-color: var(--fma-cyan-bg); }
+.fma-hl-line-blue   { background-color: var(--fma-blue-bg); }
+.fma-hl-line-purple { background-color: var(--fma-purple-bg); }
+.fma-hl-line-pink   { background-color: var(--fma-pink-bg); }
+.fma-hl-line-gray   { background-color: var(--fma-gray-bg); }
+
+/* Fragment coloring (Monaco inline decoration): fg color + subtle bg */
+.fma-hl-frag-red    { color: var(--fma-red-fg);    background-color: var(--fma-red-bg); }
+.fma-hl-frag-orange { color: var(--fma-orange-fg); background-color: var(--fma-orange-bg); }
+.fma-hl-frag-yellow { color: var(--fma-yellow-fg); background-color: var(--fma-yellow-bg); }
+.fma-hl-frag-green  { color: var(--fma-green-fg);  background-color: var(--fma-green-bg); }
+.fma-hl-frag-cyan   { color: var(--fma-cyan-fg);   background-color: var(--fma-cyan-bg); }
+.fma-hl-frag-blue   { color: var(--fma-blue-fg);   background-color: var(--fma-blue-bg); }
+.fma-hl-frag-purple { color: var(--fma-purple-fg); background-color: var(--fma-purple-bg); }
+.fma-hl-frag-pink   { color: var(--fma-pink-fg);   background-color: var(--fma-pink-bg); }
+.fma-hl-frag-gray   { color: var(--fma-gray-fg);   background-color: var(--fma-gray-bg); }
+
+/* Context rows in a filtered view: dimmed, non-color signal */
+.fma-hl-context { opacity: 0.55; }
+
+/* Scheme editor color swatches */
+.fma-swatch-red    { background-color: var(--fma-red-fg); }
+.fma-swatch-orange { background-color: var(--fma-orange-fg); }
+.fma-swatch-yellow { background-color: var(--fma-yellow-fg); }
+.fma-swatch-green  { background-color: var(--fma-green-fg); }
+.fma-swatch-cyan   { background-color: var(--fma-cyan-fg); }
+.fma-swatch-blue   { background-color: var(--fma-blue-fg); }
+.fma-swatch-purple { background-color: var(--fma-purple-fg); }
+.fma-swatch-pink   { background-color: var(--fma-pink-fg); }
+.fma-swatch-gray   { background-color: var(--fma-gray-fg); }

@@ -20,7 +20,7 @@ export interface LexerState {
 
 /** List of valid predicate keywords */
 const PREDICATE_KEYWORDS: readonly string[] = [
-  'co', 'CO', 'eq', 'EQ', 'word', 'WORD', 'reg', 'REG'
+  'co', 'CO', 'eq', 'EQ', 'word', 'WORD', 'reg', 'REG', 'level', 'lines'
 ] as const
 
 /** Check if a string is a valid predicate keyword */

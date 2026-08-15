@@ -112,34 +112,9 @@
             </button>
           </template>
 
-          <!-- Filter input (source mode for all text files) -->
+          <!-- Log analysis toolbar: expression filter + color scheme (source mode) -->
           <template v-if="viewMode === 'source'">
-            <div class="flex items-center gap-1 ml-2">
-              <div class="relative">
-                <input
-                  v-model="filterExpression"
-                  type="text"
-                  placeholder="Filter (Enter): co(error)"
-                  class="w-56 px-2 py-1 text-xs rounded border bg-bg-primary text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent-blue"
-                  :class="filterError ? 'border-red-500' : 'border-border'"
-                  @keydown="onFilterKeydown"
-                />
-                <span
-                  v-if="filterMatchCount !== null && !filterError"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-tertiary"
-                >{{ filterMatchCount }}/{{ lineCount }}</span>
-              </div>
-              <button
-                v-if="filterExpression"
-                class="p-1 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
-                title="Clear filter (Esc)"
-                @click="clearFilter"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <LogAnalysisToolbar :vm="logAnalysis" @open-scheme-editor="schemeEditorVisible = true" />
           </template>
 
           <!-- JSON tree-mode controls (expand/collapse all) -->
@@ -249,11 +224,12 @@
               </svg>
               Diff
             </button>
-            <!-- Save button -->
+            <!-- Save button (disabled while a filtered view is active) -->
             <button
               class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors flex items-center gap-1.5"
-              :class="{ 'opacity-50 cursor-not-allowed': !isModified || isSaving }"
-              :disabled="!isModified || isSaving"
+              :class="{ 'opacity-50 cursor-not-allowed': !isModified || isSaving || logAnalysis.isViewTransformed.value }"
+              :disabled="!isModified || isSaving || logAnalysis.isViewTransformed.value"
+              :title="logAnalysis.isViewTransformed.value ? '过滤视图激活时不可保存源文件' : 'Save'"
               @click="saveFile"
             >
               <svg v-if="isSaving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -280,8 +256,7 @@
       <div
         v-if="showDiffModal"
         class="absolute inset-0 bg-bg-primary z-40 flex flex-col"
-      >
-        <div class="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border flex-shrink-0">
+      >        <div class="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border flex-shrink-0">
           <div class="flex items-center gap-3">
             <span class="text-sm font-medium text-text-primary">Changes: {{ file.name }}</span>
             <span class="text-xs text-text-tertiary">Original → Modified</span>
@@ -299,6 +274,12 @@
         <div ref="diffContainer" class="flex-1 overflow-hidden"></div>
       </div>
 
+      <!-- ── Color Scheme Editor Dialog ── -->
+      <SchemeEditorDialog
+        v-if="schemeEditorVisible"
+        @close="schemeEditorVisible = false"
+      />
+
     </div>
   </div>
 </template>
@@ -307,7 +288,9 @@
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import type { FileInfo } from '@/types'
-import { ComposeExpression, ComposedExpression } from '@/utils/textFilter'
+import { useLogAnalysis } from '@/components/preview/composables/useLogAnalysis'
+import LogAnalysisToolbar from '@/components/preview/logview/LogAnalysisToolbar.vue'
+import SchemeEditorDialog from '@/components/preview/logview/SchemeEditorDialog.vue'
 import '@alenaksu/json-viewer'
 import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
@@ -454,11 +437,15 @@ const csvTruncated = ref(false)
 // JSON validation state
 const jsonStatus = ref<'valid' | 'invalid' | null>(null)
 
-// Filter expression state (for log files)
-const filterExpression = ref('')
-const filterError = ref<string | null>(null)
-const compiledFilter = shallowRef<ComposedExpression | null>(null)
-const filterMatchCount = ref<number | null>(null)
+// ── Log analysis (expression filter + color scheme) ──────────────────────────
+const schemeEditorVisible = ref(false)
+const logAnalysis = useLogAnalysis({
+  getEditor: () => editorInstance.value,
+  getLines: () => preparedContent.value.split('\n'),
+  getOriginalContent: () => preparedContent.value,
+  getExportTarget: () => ({ deviceId: props.deviceId, path: props.file.path }),
+  canWrite: () => true // adapters expose writeFile; per-device failures surface on export
+})
 
 // ── Edit & Save State ─────────────────────────────────────────────────────────
 const isModified = ref(false)
@@ -783,6 +770,9 @@ function createEditor(content: string) {
   const model = editorInstance.value.getModel()
   if (model) {
     model.onDidChangeContent(() => {
+      // Filtered/coloring view transforms content programmatically — never
+      // counts as a user modification (PRD QA-3)
+      if (logAnalysis.isViewTransformed.value) return
       const currentValue = model.getValue()
       const wasModified = isModified.value
       isModified.value = currentValue !== originalContent.value
@@ -797,8 +787,14 @@ function createEditor(content: string) {
     saveFile()
   })
 
+  // Lazy viewport coloring on scroll
+  editorInstance.value.onDidScrollChange(() => {
+    logAnalysis.notifyViewportChanged()
+  })
+
   lineCount.value = model?.getLineCount() ?? 0
   log(`Editor created: lang=${monacoLanguage.value} lines=${lineCount.value}`)
+  logAnalysis.onEditorReady()
 }
 
 function destroyEditor() {
@@ -818,11 +814,8 @@ async function loadFile() {
   csvHeaders.value = []
   csvRows.value = []
   wordWrap.value = false
-  // Reset filter state
-  filterExpression.value = ''
-  filterError.value = null
-  compiledFilter.value = null
-  filterMatchCount.value = null
+  // Reset log analysis session (filter state, hit navigation)
+  logAnalysis.reset()
   destroyEditor()
 
   try {
@@ -904,112 +897,24 @@ function toggleMinimap() {
   editorInstance.value?.updateOptions({ minimap: { enabled: showMinimap.value } })
 }
 
-// ── Filter expression handlers (all source-mode text files) ─────────────────
+// ── Log analysis wiring ───────────────────────────────────────────────────────
+// Filtering/coloring transforms the editor content; while transformed the
+// source file must stay untouchable (read-only + save disabled, PRD QA-3),
+// and modification bookkeeping is suppressed so the filtered view never
+// registers as "Modified".
 
-function onFilterKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter') {
-    event.preventDefault()
-    applyFilter()
-  } else if (event.key === 'Escape') {
-    clearFilter()
-  }
-}
 
-function applyFilter() {
-  const expr = filterExpression.value.trim()
-  log('applyFilter: expr="%s"', expr)
-
-  if (!expr) {
-    // No filter - show all content
-    compiledFilter.value = null
-    filterError.value = null
-    filterMatchCount.value = null
-    updateEditorContent(preparedContent.value)
-    log('applyFilter: empty expression, showing all content')
-    return
-  }
-
-  log('applyFilter: parsing expression...')
-  const filter = ComposeExpression(expr)
-  log('applyFilter: isValid=%s, error=%s', filter.isValid(), filter.error())
-
-  if (!filter.isValid()) {
-    compiledFilter.value = null
-    filterError.value = filter.error()
-    filterMatchCount.value = null
-    log('applyFilter: parse failed: %s', filter.error())
-    return
-  }
-
-  compiledFilter.value = filter
-  filterError.value = null
-
-  // Apply filter to content
-  applyFilterToContent()
-}
-
-function applyFilterToContent() {
-  log('applyFilterToContent: compiledFilter=%s, preparedContent.length=%d',
-    compiledFilter.value ? 'exists' : 'null',
-    preparedContent.value.length)
-
-  if (!compiledFilter.value) {
-    updateEditorContent(preparedContent.value)
-    return
-  }
-
-  const lines = preparedContent.value.split('\n')
-  log('applyFilterToContent: total lines=%d', lines.length)
-
-  const matchingLines: string[] = []
-  let matchCount = 0
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const matches = compiledFilter.value!.match(line)
-    if (matches) {
-      matchingLines.push(line)
-      matchCount++
-      if (matchCount <= 5) {
-        log('applyFilterToContent: line %d matches: %s', i + 1, line.substring(0, 100))
-      }
-    }
-  }
-
-  log('applyFilterToContent: matched %d / %d lines', matchCount, lines.length)
-  filterMatchCount.value = matchCount
-  updateEditorContent(matchingLines.join('\n'))
-}
-
-function clearFilter() {
-  log('clearFilter: clearing filter')
-  filterExpression.value = ''
-  compiledFilter.value = null
-  filterError.value = null
-  filterMatchCount.value = null
-  updateEditorContent(preparedContent.value)
-}
-
-function updateEditorContent(content: string) {
-  log('updateEditorContent: content.length=%d, editorInstance=%s',
-    content.length, editorInstance.value ? 'exists' : 'null')
-  if (editorInstance.value) {
-    const model = editorInstance.value.getModel()
-    if (model) {
-      model.setValue(content)
-      lineCount.value = model.getLineCount()
-      log('updateEditorContent: updated model, lineCount=%d', lineCount.value)
-    } else {
-      log('updateEditorContent: model is null')
-    }
-  } else {
-    log('updateEditorContent: editorInstance is null')
-  }
-}
+// ── Save & Diff Functions ─────────────────────────────────────────────────────
 
 // ── Save & Diff Functions ─────────────────────────────────────────────────────
 async function saveFile() {
   if (!isModified.value || isSaving.value) return
+  // Never save while a filtered view is showing — that would overwrite the
+  // source file with the filtered subset (PRD QA-3)
+  if (logAnalysis.isViewTransformed.value) {
+    log('saveFile blocked: filtered view is active')
+    return
+  }
 
   const editor = editorInstance.value
   if (!editor) return
@@ -1057,6 +962,10 @@ useKeyInterceptor((e: KeyboardEvent) => {
   if (e.key === 'Escape' && showDiffModal.value) {
     closeDiff()
     return true // consumed — blocks parent ESC handlers
+  }
+  if (e.key === 'Escape' && schemeEditorVisible.value) {
+    schemeEditorVisible.value = false
+    return true
   }
 })
 
@@ -1111,6 +1020,7 @@ onMounted(() => {
   loadFile()
 })
 onUnmounted(() => {
+  logAnalysis.dispose()
   destroyEditor()
   destroyDiffEditor()
 })

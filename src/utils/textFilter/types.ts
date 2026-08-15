@@ -22,6 +22,7 @@ export enum TokenType {
  * Match predicate keywords (case determines case sensitivity)
  * - Lowercase: case insensitive
  * - Uppercase: case sensitive
+ * - level / lines: log-scoped predicates (always case insensitive; lines needs LineContext)
  */
 export type MatchPredicate =
   | 'co'   // contains (case insensitive)
@@ -32,6 +33,8 @@ export type MatchPredicate =
   | 'WORD' // whole word match (case sensitive)
   | 'reg'  // regex match (case insensitive)
   | 'REG'  // regex match (case sensitive)
+  | 'level' // log level word match, comma-separated levels (case insensitive)
+  | 'lines' // source line number range: lines(n) or lines(n-m), needs LineContext
 
 /**
  * Token produced by the lexer
@@ -90,6 +93,29 @@ export interface ParseResult {
 }
 
 /**
+ * Line context for log-scoped predicates.
+ * lines() requires lineNumber; other predicates ignore it.
+ */
+export interface LineContext {
+  /** 1-based line number in the source file */
+  lineNumber: number
+}
+
+/**
+ * Canonical level name → synonym words, for the level() predicate.
+ * e.g. { error: ['error', 'fatal', 'critical'] } lets level(error) match any synonym.
+ */
+export type LevelVocabulary = Record<string, string[]>
+
+/**
+ * Options for ComposeExpression()
+ */
+export interface ComposeOptions {
+  /** Custom level vocabulary for level(); merged over the built-in defaults */
+  levels?: LevelVocabulary
+}
+
+/**
  * Composed expression object returned by ComposeExpression()
  */
 export interface ComposedExpression {
@@ -97,8 +123,10 @@ export interface ComposedExpression {
   isValid(): boolean
   /** Returns the error message if parsing failed, or null if successful */
   error(): string | null
-  /** Tests if the given text matches the expression */
-  match(text: string): boolean
+  /** Tests if the given text matches the expression; ctx enables lines() */
+  match(text: string, ctx?: LineContext): boolean
   /** Returns the parsed AST, or null if parsing failed */
   getAst(): ExpressionNode | null
+  /** True when the AST contains lines(), whose results need LineContext to be meaningful */
+  requiresLineContext(): boolean
 }
