@@ -2,7 +2,7 @@
   <div
     v-if="pane"
     class="finder-pane file-pane h-full flex flex-col overflow-hidden bg-bg-primary"
-    :class="{ 'ring-2 ring-inset ring-accent-blue bg-accent-blue/5': isDropTarget }"
+    :class="{ 'bg-accent-blue/5': isDropTarget }"
     @mousedown.capture="handlePaneMouseDown"
     @dragenter.prevent="handleDragEnter"
     @dragleave="handleDragLeave"
@@ -358,6 +358,7 @@ import FileInfoDialog from './dialogs/FileInfoDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import { isImageFile } from '@/utils/fileTypes'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
+import { hideDropHint } from '@/utils/dropHint'
 import { useDragSessionStore } from '@/stores/dragSession'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
@@ -475,7 +476,10 @@ function handleDragEnter(event: DragEvent) {
 
 function handleDragLeave() {
   dragDepth = Math.max(0, dragDepth - 1)
-  if (dragDepth === 0) isDropTarget.value = false
+  if (dragDepth === 0) {
+    isDropTarget.value = false
+    hideDropHint()
+  }
 }
 
 function toggleInlinePreview() {

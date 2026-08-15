@@ -286,6 +286,7 @@ import {
   isSelfOrDescendant,
   resolveDropAction
 } from '@/utils/dragTransfer'
+import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHint'
 import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
@@ -1579,6 +1580,7 @@ function handleRowDragOver(file: FileInfo, event: DragEvent) {
       lastRowDragOverDecision = reason
       log.info('[DnD][FileList] row dragover skipped', { reason, path: file.path })
     }
+    hideDropHint()
     return
   }
   lastRowDragOverDecision = ''
@@ -1588,15 +1590,15 @@ function handleRowDragOver(file: FileInfo, event: DragEvent) {
   dropTargetPath.value = file.path
 
   // 光标反馈：同设备默认 move / 跨设备 copy（drop 时按 altKey 重新判定）
-  if (event.dataTransfer) {
-    const source = dragSessionStore.peek()
-    event.dataTransfer.dropEffect =
-      event.altKey || !source || source.deviceId !== props.deviceId ? 'copy' : 'move'
-  }
+  const source = dragSessionStore.peek()
+  const action: DropHintAction = event.altKey || !source || source.deviceId !== props.deviceId ? 'copy' : 'move'
+  if (event.dataTransfer) event.dataTransfer.dropEffect = action
+  showDropHint(event.clientX, event.clientY, action, file.name)
 }
 
 async function handleRowDrop(file: FileInfo, event: DragEvent) {
   log.info('[DnD][FileList] row drop', { targetPath: file.path, paneId: props.paneId, deviceId: props.deviceId })
+  hideDropHint()
   if (!isFolderDropTarget(file) || isZipVirtualPath(props.path)) {
     log.info('[DnD][FileList] row drop skipped: not a valid folder target', { path: file.path })
     return
@@ -1638,6 +1640,7 @@ async function handleRowDrop(file: FileInfo, event: DragEvent) {
 
 async function handleDrop(event: DragEvent, targetPath: string) {
   event.preventDefault()
+  hideDropHint()
   if (event.dataTransfer) {
     // Native Finder drops bubble to App.vue, which can route the local source
     // paths into any connected target device via the transfer queue.
@@ -2092,11 +2095,13 @@ function handleContextMenuAction(action: string) {
   color: var(--finder-selection-text);
 }
 
-/* 拖拽悬停的文件夹行高亮（放置目标） */
+/* 拖拽悬停的文件夹行高亮：Finder 选中式圆角蓝底 + 内侧微光（描边/光晕用 inset，
+   兼容 grid 单元格的 overflow-hidden 裁剪） */
 .drop-target-row {
-  background-color: var(--finder-selection-bg);
-  outline: 1px solid var(--accent-blue);
-  outline-offset: -1px;
+  background-color: color-mix(in srgb, var(--accent-blue) 16%, transparent);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--accent-blue) 55%, transparent),
+    inset 0 1px 10px color-mix(in srgb, var(--accent-blue) 20%, transparent);
 }
 
 .context-menu {

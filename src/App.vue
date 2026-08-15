@@ -198,6 +198,7 @@ import {
   queueTransfer,
   resolveDropAction
 } from './utils/dragTransfer'
+import { showDropHint, hideDropHint } from './utils/dropHint'
 
 const log = console
 const previewStore = usePreviewStore()
@@ -276,6 +277,7 @@ function convertToNativeDragOnWindowExit(event: DragEvent) {
 
 function clearDragSession() {
   dragSessionStore.clear()
+  hideDropHint()
 }
 
 onUnmounted(() => {
@@ -344,8 +346,14 @@ const statusText = computed(() => {
   return 'Ready'
 })
 
-/** dragover 高频触发，仅在判定变化时输出日志 */
+/** 面板背景 dragover：能力允许才 preventDefault（否则浏览器显示禁止光标且不触发 drop）。
+ * 应用内拖拽（含原生拖拽）通过 dragSession 识别源；外部 Finder 拖入始终接受。
+ * dragover 高频触发，日志仅在判定变化时输出。 */
 let lastPaneDragOverDecision = ''
+
+function paneDisplayName(panePath: string): string {
+  return panePath.split('/').filter(Boolean).pop() || panePath
+}
 
 function handlePaneDragOver(event: DragEvent, targetPaneId: string) {
   const dataTransfer = event.dataTransfer
@@ -366,6 +374,9 @@ function handlePaneDragOver(event: DragEvent, targetPaneId: string) {
     if (accepted) {
       event.preventDefault()
       dataTransfer.dropEffect = 'copy'
+      showDropHint(event.clientX, event.clientY, 'copy', paneDisplayName(targetPane.path))
+    } else {
+      hideDropHint()
     }
     return
   }
@@ -376,14 +387,17 @@ function handlePaneDragOver(event: DragEvent, targetPaneId: string) {
       lastPaneDragOverDecision = decision
       log.info('[DnD][App] pane dragover skipped: same pane', { targetPaneId, sourcePaneId: source.paneId })
     }
+    hideDropHint()
     return // 同面板背景放置无效
   }
   if (isZipVirtualPath(targetPane.path)) {
     log.info('[DnD][App] pane dragover skipped: target pane inside zip', { targetPaneId })
+    hideDropHint()
     return
   }
   if (isSelfOrDescendant(source.files, targetPane.path)) {
     log.info('[DnD][App] pane dragover skipped: target is self/descendant', { targetPaneId, targetPath: targetPane.path })
+    hideDropHint()
     return
   }
   lastPaneDragOverDecision = ''
@@ -392,10 +406,12 @@ function handlePaneDragOver(event: DragEvent, targetPaneId: string) {
   // 光标反馈：Option/跨设备 copy，同设备 move（drop 时按 altKey 重新判定）
   const dropEffect = event.altKey || source.deviceId !== targetPane.deviceId ? 'copy' : 'move'
   dataTransfer.dropEffect = dropEffect
+  showDropHint(event.clientX, event.clientY, dropEffect, paneDisplayName(targetPane.path))
 }
 
 async function handleDrop(event: DragEvent, targetPaneId: string) {
   event.preventDefault()
+  hideDropHint()
   const targetPane = tabsStore.findPane(targetPaneId)
   if (!targetPane) {
     console.error('[DualPaneWorkspace] Drop target pane was not found', { targetPaneId })
