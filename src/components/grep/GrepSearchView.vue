@@ -6,6 +6,7 @@ import { useGrepSearch } from './useGrepSearch'
 import { usePreviewStore } from '@/stores/preview'
 import { useCommandRegistryStore } from '@/stores/commandRegistry'
 import { getBaseName } from '@/utils/path'
+import { t } from '@/i18n'
 
 /**
  * 内容搜索工具页（瞬态标签）。查询栏 + 实时进度行 + 按文件分组折叠列表；
@@ -41,8 +42,8 @@ onMounted(() => {
   if (query.pattern) void grep.run(query)
   commandRegistry.registerCommands([{
     id: 'grep.rerun',
-    title: '重新执行内容搜索',
-    group: '内容搜索',
+    title: t('grep.cmd.rerun'),
+    group: t('grep.cmdGroup'),
     run: () => {
       if (!grep.isRunning && query.pattern) void grep.run(query)
     }
@@ -84,28 +85,28 @@ function openMatch(match: GrepMatch): void {
         v-model="query.pattern"
         type="text"
         class="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
-        placeholder="搜索内容…（⏎ 执行）"
+        :placeholder="$t('grep.placeholder')"
         spellcheck="false"
         @keydown.enter="submit"
       >
-      <label class="flex items-center gap-1 text-xs text-text-secondary cursor-pointer" title="作为正则表达式搜索">
+      <label class="flex items-center gap-1 text-xs text-text-secondary cursor-pointer" :title="$t('grep.regexTip')">
         <input v-model="query.isRegex" type="checkbox" class="accent-blue-500"> .*
       </label>
-      <label class="flex items-center gap-1 text-xs text-text-secondary cursor-pointer" title="区分大小写">
+      <label class="flex items-center gap-1 text-xs text-text-secondary cursor-pointer" :title="$t('grep.caseTip')">
         <input v-model="query.caseSensitive" type="checkbox" class="accent-blue-500"> Aa
       </label>
       <input
         v-model="query.includeGlob"
         type="text"
         class="w-28 px-2 py-1.5 text-xs font-mono rounded border border-border bg-bg-primary text-text-secondary"
-        placeholder="包含 *.ts"
+        :placeholder="$t('grep.includePlaceholder')"
         spellcheck="false"
       >
       <input
         v-model="query.excludeGlob"
         type="text"
         class="w-28 px-2 py-1.5 text-xs font-mono rounded border border-border bg-bg-primary text-text-secondary"
-        placeholder="排除 *.log"
+        :placeholder="$t('grep.excludePlaceholder')"
         spellcheck="false"
       >
       <button
@@ -114,18 +115,18 @@ function openMatch(match: GrepMatch): void {
           ? 'border border-border text-text-secondary hover:bg-bg-hover'
           : 'bg-accent-blue text-white hover:bg-accent-blue/90'"
         @click="grep.isRunning ? grep.cancel() : submit()"
-      >{{ grep.isRunning ? '取消' : '搜索' }}</button>
+      >{{ grep.isRunning ? $t('common.cancel') : $t('grep.search') }}</button>
     </div>
 
     <!-- 状态行 -->
     <div class="flex items-center gap-3 px-4 py-1.5 border-b border-border/60 text-[11px] text-text-tertiary">
       <span class="font-mono truncate" :title="session.rootPath">{{ session.rootPath }}</span>
-      <span v-if="grep.isRunning" class="text-accent-blue">搜索中 · 已命中 {{ grep.matches.length }}</span>
+      <span v-if="grep.isRunning" class="text-accent-blue">{{ $t('grep.status.searching', grep.matches.length) }}</span>
       <span v-else-if="grep.progress?.status === 'completed'" class="text-accent-green">
-        完成 · {{ grep.fileCount }} 个文件 / {{ grep.matches.length }} 处命中{{ grep.truncated ? '（已达上限，截断）' : '' }}
+        {{ $t('grep.status.done', { fileCount: grep.fileCount, matchCount: grep.matches.length }, grep.matches.length) }}{{ grep.truncated ? $t('grep.status.truncated') : '' }}
       </span>
       <span v-else-if="grep.message" class="text-accent-orange">{{ grep.message }}</span>
-      <span v-else>输入内容后回车开始搜索</span>
+      <span v-else>{{ $t('grep.status.idle') }}</span>
     </div>
 
     <!-- 结果列表（按文件分组折叠） -->
@@ -166,7 +167,7 @@ function openMatch(match: GrepMatch): void {
       <div
         v-if="!grep.isRunning && grep.matches.length === 0 && grep.progress?.status === 'completed'"
         class="flex items-center justify-center h-32 text-sm text-text-tertiary"
-      >无命中</div>
+      >{{ $t('grep.noMatches') }}</div>
     </div>
   </div>
 </template>

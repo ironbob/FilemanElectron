@@ -4,6 +4,7 @@ import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { useCommandRegistryStore, type CommandContext } from '@/stores/commandRegistry'
 import { useFavoritesStore } from '@/stores/favorites'
 import { rankFuzzyMatches } from '@/utils/fuzzyMatch'
+import { t } from '@/i18n'
 import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
 
 /**
@@ -38,12 +39,13 @@ interface PaletteEntry {
   execute: () => void
 }
 
-/** 候选集合：注册命令 + 收藏目录（动态并入，不进注册表）。 */
+/** 候选集合：注册命令 + 收藏目录（动态并入，不进注册表）。
+ *  titleKey/groupKey 在 computed 内经 t() 解析 → 语言切换即时刷新。 */
 const entries = computed<PaletteEntry[]>(() => {
   const commandEntries: PaletteEntry[] = commandRegistry.allCommands.map(command => ({
     key: `cmd:${command.id}`,
-    title: command.title,
-    group: command.group,
+    title: command.titleKey ? t(command.titleKey) : command.title,
+    group: command.groupKey ? t(command.groupKey) : command.group,
     shortcut: command.shortcut,
     indices: [],
     execute: () => { void command.run(props.context) }
@@ -51,7 +53,7 @@ const entries = computed<PaletteEntry[]>(() => {
   const favoriteEntries: PaletteEntry[] = favoritesStore.favorites.map(favorite => ({
     key: `fav:${favorite.deviceId}:${favorite.path}`,
     title: favorite.name,
-    group: '收藏目录',
+    group: t('palette.favoritesGroup'),
     indices: [],
     execute: () => { props.context.navigate?.(favorite.deviceId, favorite.path) }
   }))
@@ -128,14 +130,14 @@ function groupLabel(group: string): string {
     <div
       class="w-[560px] max-w-[86vw] rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden"
       role="dialog"
-      aria-label="命令面板"
+      :aria-label="$t('palette.ariaLabel')"
     >
       <input
         ref="inputRef"
         v-model="query"
         type="text"
         class="w-full px-4 py-3 text-sm bg-transparent text-text-primary placeholder:text-text-tertiary border-b border-border focus:outline-none"
-        placeholder="输入命令、收藏名称或绝对路径（/开头）…"
+        :placeholder="$t('palette.placeholder')"
         spellcheck="false"
       />
       <div ref="listRef" class="max-h-[46vh] overflow-y-auto py-1">
@@ -147,7 +149,7 @@ function groupLabel(group: string): string {
           @click="typedPathNavigation(); emit('close')"
           @mousemove="activeIndex = 0"
         >
-          <span class="text-xs opacity-70">前往</span>
+          <span class="text-xs opacity-70">{{ $t('palette.goto') }}</span>
           <span class="truncate font-mono">{{ query.trim() }}</span>
         </div>
         <div
@@ -168,11 +170,11 @@ function groupLabel(group: string): string {
           <span v-if="entry.shortcut" class="text-[10px] opacity-60 flex-shrink-0 font-mono">{{ entry.shortcut }}</span>
         </div>
         <div v-if="results.length === 0 && !typedPathNavigation" class="px-4 py-6 text-sm text-text-tertiary text-center">
-          无匹配命令
+          {{ $t('palette.noMatch') }}
         </div>
       </div>
       <div class="px-4 py-1.5 text-[10px] text-text-tertiary border-t border-border flex gap-3">
-        <span>↑↓ 选择</span><span>↩ 执行</span><span>Esc 关闭</span><span>⌘⇧P 呼出</span>
+        <span>{{ $t('palette.hintSelect') }}</span><span>{{ $t('palette.hintRun') }}</span><span>{{ $t('palette.hintClose') }}</span><span>{{ $t('palette.hintOpen') }}</span>
       </div>
     </div>
   </div>

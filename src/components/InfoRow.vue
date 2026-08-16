@@ -8,7 +8,7 @@
         mono ? 'font-mono' : '',
         copyable ? 'cursor-pointer hover:text-accent-blue' : 'text-text-primary',
       ]"
-      :title="copyable ? '点击复制' : undefined"
+      :title="copyable ? $t('common.clickToCopy') : undefined"
       @click="copyable && copy()"
     >
       <!-- 简单值：直接 prop；复杂展示（如带进度的内联说明）：用默认插槽 -->

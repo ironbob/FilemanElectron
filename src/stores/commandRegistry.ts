@@ -24,10 +24,14 @@ export interface CommandContext {
 export interface AppCommand {
   /** 稳定 ID（去重键）。 */
   id: string
-  /** 展示标题（中文，供模糊匹配）。 */
+  /** 展示标题（中文兜底，供模糊匹配）。 */
   title: string
-  /** 分组（面板分组展示）。 */
+  /** 标题词表键；设置后面板按当前语言显示（title 作为兜底与匹配源）。 */
+  titleKey?: string
+  /** 分组（面板分组展示，中文兜底）。 */
   group: string
+  /** 分组词表键。 */
+  groupKey?: string
   shortcut?: string
   /** 附加关键词（匹配用，如英文别名）。 */
   keywords?: string[]

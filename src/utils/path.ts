@@ -9,6 +9,8 @@
  *   device://smb-nas-01/backup/data
  */
 
+import { t } from '@/i18n'
+
 /**
  * Convert deviceId + path to URI format for display
  */
@@ -172,12 +174,17 @@ export const deviceTypeIcons: Record<string, string> = {
 }
 
 /**
- * Device type display names
+ * 设备类型显示名（按当前界面语言解析；调用点包在 computed/函数内保持响应式）。
  */
-export const deviceTypeNames: Record<string, string> = {
-  local: 'Local',
-  android: 'Android',
-  smb: 'SMB Share',
-  ssh: 'SSH/SFTP',
-  ios: 'iOS'
+export function deviceTypeName(type: string): string {
+  switch (type) {
+    case 'local': return t('devices.type.local')
+    case 'android': return t('devices.type.android')
+    case 'ohos': return t('devices.type.ohos')
+    case 'smb': return t('devices.type.smb')
+    case 'ssh': return t('devices.type.ssh')
+    case 'webdav': return t('devices.type.webdav')
+    case 'ios': return t('devices.type.ios')
+    default: return type
+  }
 }

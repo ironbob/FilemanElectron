@@ -3,6 +3,7 @@ import type { DirectoryStatsProgress, DirectoryStatsRequest } from '@shared/type
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { IFileSystemAdapter } from '../adapters/types'
 import type { ZipEntry } from './ZipService'
+import { t } from '../i18n'
 
 const log = console
 
@@ -121,7 +122,7 @@ export class DirectoryStatsService {
             consecutiveErrors++
             log.warn('[DirectoryStats] entry skipped', { path: p, message: error instanceof Error ? error.message : String(error) })
             if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-              throw new Error(`连续 ${consecutiveErrors} 个条目访问失败，设备可能已断开`)
+              throw new Error(t('errors.main.statsConsecutiveErrors', { count: consecutiveErrors }))
             }
           }
         }

@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { t } from '@/i18n'
 
 /**
  * 移动设备截图(Android/OHOS/iOS)——侧边栏工具栏的「先展示、后保存」流程。
@@ -40,7 +41,7 @@ async function capture(device: { id: string; name: string }): Promise<void> {
     }
   } catch (error) {
     log.error('[useDeviceScreenshot] capture failed', { deviceId: device.id, error })
-    alert(`截图失败:${error instanceof Error ? error.message : String(error)}`)
+    alert(t('preview.common.screenshotFailed', { message: error instanceof Error ? error.message : String(error) }))
   } finally {
     capturingDeviceIds.value = capturingDeviceIds.value.filter(id => id !== device.id)
   }
@@ -92,7 +93,7 @@ async function save(): Promise<void> {
     shot.value = null
   } catch (error) {
     log.error('[useDeviceScreenshot] save failed', { deviceId: current.deviceId, error })
-    alert(`保存截图失败:${error instanceof Error ? error.message : String(error)}`)
+    alert(t('preview.common.screenshotSaveFailed', { message: error instanceof Error ? error.message : String(error) }))
   } finally {
     saving.value = false
   }

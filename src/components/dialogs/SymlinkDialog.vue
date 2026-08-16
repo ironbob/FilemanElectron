@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { t } from '@/i18n'
 
 /**
  * 新建符号链接弹窗（RenameDialog 形态）：目标路径 + 链接名，在
@@ -14,15 +15,15 @@ const emit = defineEmits<{ close: []; confirm: [target: string, name: string] }>
 
 const form = reactive({
   target: '',
-  name: '新链接',
+  name: t('dialogs.symlink.defaultName'),
   error: '' as string
 })
 
 async function submit(): Promise<void> {
   const target = form.target.trim()
   const name = form.name.trim()
-  if (!target) { form.error = '目标路径不能为空'; return }
-  if (!name || name.includes('/')) { form.error = '链接名不能为空且不含 /'; return }
+  if (!target) { form.error = t('dialogs.symlink.targetEmpty'); return }
+  if (!name || name.includes('/')) { form.error = t('dialogs.symlink.nameInvalid'); return }
   try {
     const linkPath = props.dirPath === '/' ? `/${name}` : `${props.dirPath}/${name}`
     await window.fileman.createSymlink(props.deviceId, target, linkPath)
@@ -38,15 +39,15 @@ async function submit(): Promise<void> {
     <div
       class="w-[440px] max-w-[90vw] rounded-lg border border-border bg-bg-secondary shadow-xl"
       role="dialog"
-      aria-label="新建符号链接"
+      :aria-label="$t('dialogs.symlink.title')"
     >
       <div class="px-5 py-4 border-b border-border">
-        <h3 class="text-sm font-semibold text-text-primary">新建符号链接</h3>
-        <p class="mt-1 text-[11px] text-text-tertiary font-mono truncate" :title="dirPath">在 {{ dirPath }} 中创建</p>
+        <h3 class="text-sm font-semibold text-text-primary">{{ $t('dialogs.symlink.title') }}</h3>
+        <p class="mt-1 text-[11px] text-text-tertiary font-mono truncate" :title="dirPath">{{ $t('dialogs.symlink.createIn', { path: dirPath }) }}</p>
       </div>
       <form class="px-5 py-4 space-y-3" @submit.prevent="submit">
         <label class="block">
-          <span class="text-xs text-text-secondary">目标路径（可为相对路径）</span>
+          <span class="text-xs text-text-secondary">{{ $t('dialogs.symlink.targetLabel') }}</span>
           <input
             v-model="form.target"
             type="text"
@@ -57,7 +58,7 @@ async function submit(): Promise<void> {
           >
         </label>
         <label class="block">
-          <span class="text-xs text-text-secondary">链接名称</span>
+          <span class="text-xs text-text-secondary">{{ $t('dialogs.symlink.nameLabel') }}</span>
           <input
             v-model="form.name"
             type="text"
@@ -67,8 +68,8 @@ async function submit(): Promise<void> {
         </label>
         <p v-if="form.error" class="text-xs text-accent-red">{{ form.error }}</p>
         <div class="flex justify-end gap-2 pt-1">
-          <button type="button" class="px-3 py-1.5 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover" @click="emit('close')">取消</button>
-          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90">创建</button>
+          <button type="button" class="px-3 py-1.5 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover" @click="emit('close')">{{ $t('dialogs.symlink.cancel') }}</button>
+          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90">{{ $t('dialogs.symlink.create') }}</button>
         </div>
       </form>
     </div>

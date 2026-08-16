@@ -1,5 +1,6 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 import { DeviceManager } from './DeviceManager'
+import { t } from '../i18n'
 const log = console
 
 function joinPath(parent: string, name: string): string {
@@ -30,7 +31,7 @@ export class ArchiveService {
     const entries = unzipSync(await this.deviceManager.readFile(deviceId, archivePath))
     let count = 0
     for (const [entryPath, data] of Object.entries(entries)) {
-      if (entryPath.includes('..') || entryPath.startsWith('/')) throw new Error(`不安全的 ZIP 条目: ${entryPath}`)
+      if (entryPath.includes('..') || entryPath.startsWith('/')) throw new Error(t('errors.main.archiveUnsafeEntry', { path: entryPath }))
       const outputPath = joinPath(targetDirectory, entryPath)
       await this.ensureParentDirectories(deviceId, outputPath)
       await this.deviceManager.writeFile(deviceId, outputPath, Buffer.from(data))

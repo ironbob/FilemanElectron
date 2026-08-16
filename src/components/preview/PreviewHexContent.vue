@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import type { HexRegion } from '@/utils/hexCursor'
 import { formatOffset } from '@/utils/hexFormat'
@@ -313,11 +314,11 @@ function onPaste(event: ClipboardEvent): void {
 
 onMounted(() => {
   if (props.file.path.includes('::')) {
-    vm.lockReadonly('ZIP 内文件为虚拟路径，不支持写入')
+    vm.lockReadonly(t('preview.hex.readonlyZipLock'))
   } else {
     void window.fileman.getDeviceCapabilities(props.deviceId)
       .then(caps => {
-        if (caps?.canWrite === false) vm.lockReadonly('该设备来源不支持写入')
+        if (caps?.canWrite === false) vm.lockReadonly(t('preview.hex.readonlyDeviceLock'))
       })
       .catch(() => undefined)
   }
@@ -489,7 +490,13 @@ onBeforeUnmount(() => {
   if (prefsSaveTimer !== null) clearTimeout(prefsSaveTimer)
 })
 
-const modeLabel = computed(() => (vm.editMode === 'readonly' ? '只读' : vm.editMode === 'insert' ? '插入' : '覆写'))
+const modeLabel = computed(() =>
+  vm.editMode === 'readonly'
+    ? t('preview.hex.modeReadonly')
+    : vm.editMode === 'insert'
+      ? t('preview.hex.modeInsert')
+      : t('preview.hex.modeOverwrite')
+)
 const rootClass = computed(() => ({
   'is-window-inactive': windowInactive.value,
   'is-editing': editorFocused.value && vm.editMode !== 'readonly',
@@ -514,22 +521,22 @@ const rootClass = computed(() => ({
       <span class="finder-preview-badge">HEX</span>
       <div class="min-w-0 flex items-baseline gap-1.5">
         <span class="hex-file-name truncate max-w-56" :title="file.name">{{ file.name }}</span>
-        <span v-if="vm.isModified" class="hex-file-dirty flex-shrink-0" title="存在未保存修改（Cmd/Ctrl+S 保存）">• 已修改</span>
+        <span v-if="vm.isModified" class="hex-file-dirty flex-shrink-0" :title="$t('preview.hex.dirtyTip')">{{ $t('preview.hex.dirtyBadge') }}</span>
       </div>
 
       <div class="flex-1" />
 
-      <button class="hex-tb-btn" :disabled="!vm.canUndo" title="撤销（Cmd/Ctrl+Z）" @click="vm.undoEdit()"><HexIcon name="undo" /></button>
-      <button class="hex-tb-btn" :disabled="!vm.canRedo" title="重做（Shift+Cmd/Ctrl+Z）" @click="vm.redoEdit()"><HexIcon name="redo" /></button>
+      <button class="hex-tb-btn" :disabled="!vm.canUndo" :title="$t('preview.hex.undoTip')" @click="vm.undoEdit()"><HexIcon name="undo" /></button>
+      <button class="hex-tb-btn" :disabled="!vm.canRedo" :title="$t('preview.hex.redoTip')" @click="vm.redoEdit()"><HexIcon name="redo" /></button>
       <span class="hex-tb-sep" />
 
       <!-- 查找字段：模式切换 + 查询 + 匹配计数 + 匹配导航 + 替换展开 -->
       <div class="hex-field hex-find-field">
         <button
           class="hex-field-mode"
-          :title="vm.findMode === 'hex' ? '当前：Hex 字节（? 为半字节通配，如 4? ??）；点击切换为文本' : '当前：文本（UTF-8）；点击切换为 Hex'"
+          :title="vm.findMode === 'hex' ? $t('preview.hex.findModeHexTip') : $t('preview.hex.findModeTextTip')"
           @click="vm.toggleFindMode()"
-        >{{ vm.findMode === 'hex' ? 'Hex' : '文本' }}</button>
+        >{{ vm.findMode === 'hex' ? 'Hex' : $t('preview.hex.findModeText') }}</button>
         <HexIcon name="search" :size="13" class="hex-field-glyph" />
         <input
           ref="findInput"
@@ -537,22 +544,22 @@ const rootClass = computed(() => ({
           type="text"
           class="hex-field-input"
           :class="{ 'is-searching': vm.searching }"
-          :placeholder="vm.findMode === 'hex' ? '48 65 / 4? ??' : '查找文本（UTF-8）'"
+          :placeholder="vm.findMode === 'hex' ? '48 65 / 4? ??' : $t('preview.hex.findPlaceholderText')"
           spellcheck="false"
           @keydown.enter.prevent="vm.runFind()"
           @keydown.f3.prevent="vm.nextMatch()"
           @keydown.shift.f3.prevent="vm.prevMatch()"
           @keydown.esc.prevent.stop="vm.closeFind(); findInput?.blur()"
         >
-        <span v-if="vm.matchCountLabel" class="hex-field-label">匹配 {{ vm.matchCountLabel }}</span>
-        <button class="hex-tb-btn hex-tb-btn-sm" :disabled="vm.findMatches.length === 0" title="上一个匹配（Shift+F3）" @click="vm.prevMatch()"><HexIcon name="chevronUp" :size="14" /></button>
-        <button class="hex-tb-btn hex-tb-btn-sm" :disabled="vm.findMatches.length === 0" title="下一个匹配（F3）" @click="vm.nextMatch()"><HexIcon name="chevronDown" :size="14" /></button>
-        <button v-if="!vm.replaceVisible" class="hex-tb-text" title="展开替换行" @click="vm.replaceVisible = true">替换</button>
+        <span v-if="vm.matchCountLabel" class="hex-field-label">{{ $t('preview.hex.matchPrefix') }} {{ vm.matchCountLabel }}</span>
+        <button class="hex-tb-btn hex-tb-btn-sm" :disabled="vm.findMatches.length === 0" :title="$t('preview.hex.prevMatchTip')" @click="vm.prevMatch()"><HexIcon name="chevronUp" :size="14" /></button>
+        <button class="hex-tb-btn hex-tb-btn-sm" :disabled="vm.findMatches.length === 0" :title="$t('preview.hex.nextMatchTip')" @click="vm.nextMatch()"><HexIcon name="chevronDown" :size="14" /></button>
+        <button v-if="!vm.replaceVisible" class="hex-tb-text" :title="$t('preview.hex.expandReplaceTip')" @click="vm.replaceVisible = true">{{ $t('preview.hex.replace') }}</button>
       </div>
 
       <!-- 跳转字段：标签 + 输入 + 提交；解析错误浮于字段下方（3.5s 自动消失） -->
       <div class="hex-field hex-jump-field">
-        <span class="hex-field-label hex-field-label-static">跳转</span>
+        <span class="hex-field-label hex-field-label-static">{{ $t('preview.hex.jumpLabel') }}</span>
         <input
           v-model="jumpInput"
           type="text"
@@ -561,7 +568,7 @@ const rootClass = computed(() => ({
           spellcheck="false"
           @keydown.enter="submitJump"
         >
-        <button class="hex-tb-btn hex-tb-btn-sm" title="跳转到偏移（目标行居中高亮；+0x20/-16 相对当前光标；Alt+←/→ 跳转历史）" @click="submitJump"><HexIcon name="jump" :size="14" /></button>
+        <button class="hex-tb-btn hex-tb-btn-sm" :title="$t('preview.hex.jumpTip')" @click="submitJump"><HexIcon name="jump" :size="14" /></button>
         <div v-if="vm.jumpNotice" class="hex-jump-notice">{{ vm.jumpNotice }}</div>
       </div>
 
@@ -571,27 +578,27 @@ const rootClass = computed(() => ({
       <div
         class="hex-seg"
         role="group"
-        aria-label="编辑模式"
-        :title="vm.readonlyLock ?? '切换编辑模式（Insert 键在覆写/插入间切换）'"
+        :aria-label="$t('preview.hex.editModeAria')"
+        :title="vm.readonlyLock ?? $t('preview.hex.editModeTip')"
       >
         <button
           class="hex-seg-item"
           :class="{ 'is-active': vm.editMode === 'readonly' }"
           :disabled="vm.readonlyLock !== null && vm.editMode !== 'readonly'"
           @click="vm.setEditMode('readonly')"
-        ><HexIcon name="lock" :size="11" />只读</button>
+        ><HexIcon name="lock" :size="11" />{{ $t('preview.hex.modeReadonly') }}</button>
         <button
           class="hex-seg-item"
           :class="{ 'is-active': vm.editMode === 'overwrite' }"
           :disabled="vm.readonlyLock !== null"
           @click="vm.setEditMode('overwrite')"
-        >覆写</button>
+        >{{ $t('preview.hex.modeOverwrite') }}</button>
         <button
           class="hex-seg-item"
           :class="{ 'is-active': vm.editMode === 'insert', 'is-insert': vm.editMode === 'insert' }"
           :disabled="vm.readonlyLock !== null"
           @click="vm.setEditMode('insert')"
-        >插入</button>
+        >{{ $t('preview.hex.modeInsert') }}</button>
       </div>
 
       <span class="hex-tb-sep" />
@@ -602,32 +609,32 @@ const rootClass = computed(() => ({
           class="hex-tb-btn"
           data-view-toggle
           :class="{ 'is-active': viewMenuOpen }"
-          title="视图设置（每行字节 / 字号 / ASCII 列）"
+          :title="$t('preview.hex.viewSettingsTip')"
           @click="viewMenuOpen = !viewMenuOpen"
         ><HexIcon name="sliders" /></button>
         <div v-if="viewMenuOpen" class="hex-view-menu">
           <div class="hex-view-menu-row">
-            <span>每行字节</span>
+            <span>{{ $t('preview.hex.bytesPerRow') }}</span>
             <div class="hex-seg hex-seg-mini">
-              <button v-for="opt in (['auto', 8, 16, 32] as const)" :key="opt" class="hex-seg-item" :class="{ 'is-active': bprPref === opt }" @click="bprPref = opt">{{ opt === 'auto' ? '自动' : opt }}</button>
+              <button v-for="opt in (['auto', 8, 16, 32] as const)" :key="opt" class="hex-seg-item" :class="{ 'is-active': bprPref === opt }" @click="bprPref = opt">{{ opt === 'auto' ? $t('preview.hex.auto') : opt }}</button>
             </div>
           </div>
           <div class="hex-view-menu-row">
-            <span>字号</span>
+            <span>{{ $t('preview.hex.fontSize') }}</span>
             <div class="hex-seg hex-seg-mini">
               <button v-for="opt in ([12, 13, 14] as const)" :key="opt" class="hex-seg-item" :class="{ 'is-active': fontSize === opt }" @click="fontSize = opt">{{ opt }}</button>
             </div>
           </div>
           <div class="hex-view-menu-row">
-            <span>显示 ASCII 列</span>
-            <button class="hex-seg-item hex-view-ascii-toggle" :class="{ 'is-active': showAscii }" @click="showAscii = !showAscii">{{ showAscii ? '开' : '关' }}</button>
+            <span>{{ $t('preview.hex.showAsciiColumn') }}</span>
+            <button class="hex-seg-item hex-view-ascii-toggle" :class="{ 'is-active': showAscii }" @click="showAscii = !showAscii">{{ showAscii ? $t('common.on') : $t('common.off') }}</button>
           </div>
         </div>
       </div>
       <button
         class="hex-tb-btn"
         :class="{ 'is-active': !inspectorCollapsed }"
-        title="显示或隐藏 Data Inspector（折叠后主编辑区自动加宽）"
+        :title="$t('preview.hex.inspectorToggleTip')"
         @click="toggleInspector"
       ><HexIcon name="sidebar" /></button>
 
@@ -638,33 +645,33 @@ const rootClass = computed(() => ({
         class="hex-save-btn"
         :class="{ 'is-dirty': vm.isModified }"
         :disabled="!vm.isModified || vm.saveState === 'saving'"
-        :title="vm.isModified ? '保存修改（Cmd/Ctrl+S，写入前生成临时文件，原子替换）' : '无未保存修改'"
+        :title="vm.isModified ? $t('preview.hex.saveTip') : $t('preview.hex.saveIdleTip')"
         @click="vm.saveFile()"
       >
         <HexIcon name="save" :size="14" />
-        <span class="hex-save-label">{{ vm.saveState === 'saving' ? '保存中' : '保存' }}</span>
+        <span class="hex-save-label">{{ vm.saveState === 'saving' ? $t('preview.hex.saving') : $t('preview.hex.save') }}</span>
       </button>
     </div>
 
     <div v-if="vm.error" class="hex-banner is-error">
-      {{ vm.error }}（已加载区保持可用，滚动可重试新窗口）
+      {{ vm.error }}{{ $t('preview.hex.errorSuffix') }}
     </div>
 
     <!-- 替换行（查找字段「替换」展开；Esc 收起） -->
     <div v-if="vm.replaceVisible" class="hex-replace-row flex items-center gap-2 flex-shrink-0">
-      <span class="hex-field-label hex-field-label-static">替换</span>
+      <span class="hex-field-label hex-field-label-static">{{ $t('preview.hex.replace') }}</span>
       <input
         v-model="vm.replaceQuery"
         type="text"
         class="hex-field-input w-36"
-        :placeholder="vm.findMode === 'hex' ? '替换字节（如 41 42）' : '替换文本'"
+        :placeholder="vm.findMode === 'hex' ? $t('preview.hex.replaceBytesPlaceholder') : $t('preview.hex.replaceTextPlaceholder')"
         spellcheck="false"
         @keydown.esc.prevent.stop="vm.replaceVisible = false"
       >
-      <button class="hex-tb-text" :disabled="vm.findMatchIndex < 0" title="替换当前匹配" @click="vm.replaceCurrent()">替换</button>
-      <button class="hex-tb-text" :disabled="vm.findMatches.length === 0" title="替换全部匹配（先确认）" @click="vm.requestReplaceAll()">全部替换</button>
+      <button class="hex-tb-text" :disabled="vm.findMatchIndex < 0" :title="$t('preview.hex.replaceCurrentTip')" @click="vm.replaceCurrent()">{{ $t('preview.hex.replace') }}</button>
+      <button class="hex-tb-text" :disabled="vm.findMatches.length === 0" :title="$t('preview.hex.replaceAllTip')" @click="vm.requestReplaceAll()">{{ $t('preview.hex.replaceAll') }}</button>
       <div class="flex-1" />
-      <button class="hex-tb-btn hex-tb-btn-sm" title="收起替换行（Esc）" @click="vm.replaceVisible = false"><HexIcon name="close" :size="13" /></button>
+      <button class="hex-tb-btn hex-tb-btn-sm" :title="$t('preview.hex.collapseReplaceTip')" @click="vm.replaceVisible = false"><HexIcon name="close" :size="13" /></button>
     </div>
 
     <!-- 全部替换确认条（先呈现 N 处再执行） -->
@@ -672,12 +679,12 @@ const rootClass = computed(() => ({
       v-if="vm.replaceConfirmCount !== null"
       class="hex-banner is-confirm flex items-center gap-2 flex-shrink-0"
       role="alertdialog"
-      aria-label="确认全部替换"
+      :aria-label="$t('preview.hex.replaceAllConfirmAria')"
     >
-      <span class="flex-shrink-0">将替换 {{ vm.replaceConfirmCount }} 处匹配，确定执行？</span>
+      <span class="flex-shrink-0">{{ $t('preview.hex.replaceAllConfirm', { count: vm.replaceConfirmCount }) }}</span>
       <div class="flex-1" />
-      <button class="hex-banner-btn is-primary" @click="vm.confirmReplaceAll()">替换 {{ vm.replaceConfirmCount }} 处</button>
-      <button class="hex-banner-btn" @click="vm.cancelReplaceAll()">取消</button>
+      <button class="hex-banner-btn is-primary" @click="vm.confirmReplaceAll()">{{ $t('preview.hex.replaceAllAction', { count: vm.replaceConfirmCount }) }}</button>
+      <button class="hex-banner-btn" @click="vm.cancelReplaceAll()">{{ $t('common.cancel') }}</button>
     </div>
 
     <!-- 未保存关闭确认条（tabs 关闭被守卫阻止后就地呈现，三键决策） -->
@@ -685,15 +692,15 @@ const rootClass = computed(() => ({
       v-if="closeConfirm"
       class="hex-banner is-confirm flex items-center gap-2 flex-shrink-0"
       role="alertdialog"
-      aria-label="存在未保存修改"
+      :aria-label="$t('preview.hex.unsavedAria')"
     >
-      <span class="flex-shrink-0">存在未保存修改，关闭前如何处理？</span>
+      <span class="flex-shrink-0">{{ $t('preview.hex.unsavedPrompt') }}</span>
       <div class="flex-1" />
       <button class="hex-banner-btn is-primary" :disabled="vm.saveState === 'saving'" @click="saveAndClose">
-        {{ vm.saveState === 'saving' ? '保存中…' : '保存并关闭' }}
+        {{ vm.saveState === 'saving' ? $t('preview.hex.savingEllipsis') : $t('preview.hex.saveAndClose') }}
       </button>
-      <button class="hex-banner-btn is-danger" @click="discardAndClose">放弃修改</button>
-      <button class="hex-banner-btn" @click="closeConfirm = false">取消</button>
+      <button class="hex-banner-btn is-danger" @click="discardAndClose">{{ $t('preview.hex.discard') }}</button>
+      <button class="hex-banner-btn" @click="closeConfirm = false">{{ $t('common.cancel') }}</button>
     </div>
 
     <!-- 主体：数据网格（列头 + 虚拟滚动）+ Inspector 侧栏 -->
@@ -704,7 +711,7 @@ const rootClass = computed(() => ({
         :data-bpr="bytesPerRow"
         :data-row-height="rowHeight"
         tabindex="0"
-        aria-label="十六进制内容：方向键移动光标，Shift 扩展选区，PageUp/PageDown 翻页"
+        :aria-label="$t('preview.hex.scrollerAria')"
         @scroll="onScroll"
         @keydown="onKeydown"
         @paste="onPaste"
@@ -714,7 +721,7 @@ const rootClass = computed(() => ({
         <!-- 固定列头（与数据行同列几何：偏移 | 列号 8 字节分组 | ASCII） -->
         <div class="hex-header flex-shrink-0">
           <div class="hex-row hex-header-row" :style="{ height: '24px', lineHeight: '24px', fontSize: '11px' }">
-            <span class="hex-offset">偏移</span>
+            <span class="hex-offset">{{ $t('preview.hex.offset') }}</span>
             <span class="hex-bytes">
               <span v-for="(group, gi) in columnGroups" :key="gi" class="hex-group">
                 <span
@@ -740,7 +747,7 @@ const rootClass = computed(() => ({
               row.row === vm.jumpRow ? 'is-jump-row' : ''
             ]"
             :style="{ position: 'absolute', top: row.top + 'px', height: rowHeight + 'px', left: 0, right: 0, fontSize: fontSize + 'px', lineHeight: rowHeight + 'px' }"
-            :title="row.loaded ? `偏移 ${formatOffset(row.offset)}` : '加载中…'"
+            :title="row.loaded ? `${$t('preview.hex.offset')} ${formatOffset(row.offset)}` : $t('preview.hex.loadingRow')"
             @click="onRowClick(row.row)"
           >
             <span class="hex-offset" :class="{ 'is-cursor-row': row.row === vm.cursorRow }">{{ formatOffset(row.offset) }}</span>
@@ -779,7 +786,7 @@ const rootClass = computed(() => ({
           </div>
           <div v-if="vm.totalRows === 0" class="hex-empty-file">
             <HexIcon name="doc" :size="28" />
-            <span>空文件</span>
+            <span>{{ $t('preview.hex.emptyFile') }}</span>
           </div>
         </div>
       </div>
@@ -788,32 +795,32 @@ const rootClass = computed(() => ({
       <div
         v-if="!inspectorCollapsed"
         class="hex-inspector-resize"
-        title="拖拽调整宽度（240–420px，双击复位）"
+        :title="$t('preview.hex.resizeTip')"
         @mousedown.prevent="startResize"
         @dblclick="inspectorWidth = 300"
       />
 
       <!-- Data Inspector：上下文头 + 分组解读（选区长度匹配类型） -->
       <aside v-if="!inspectorCollapsed" class="hex-inspector flex flex-col min-h-0" :style="{ width: inspectorWidth + 'px' }">
-        <div class="hex-inspector-title">Data Inspector</div>
+        <div class="hex-inspector-title">{{ $t('preview.hex.inspectorTitle') }}</div>
 
         <div class="hex-inspector-context flex-shrink-0">
           <template v-if="vm.inspectorContext">
-            <span class="hex-inspector-cap">Selection</span>
-            <span v-if="vm.inspectorContext.kind === 'offset'" class="font-mono">Offset 0x{{ formatOffset(vm.inspectorContext.start) }} · 1 byte</span>
-            <span v-else class="font-mono">Range 0x{{ formatOffset(vm.inspectorContext.start) }}–0x{{ formatOffset(vm.inspectorContext.end) }} · {{ vm.inspectorContext.length }} bytes</span>
+            <span class="hex-inspector-cap">{{ $t('preview.hex.inspectorSelectionCap') }}</span>
+            <span v-if="vm.inspectorContext.kind === 'offset'" class="font-mono">{{ $t('preview.hex.inspectorOffsetContext', { start: formatOffset(vm.inspectorContext.start) }) }}</span>
+            <span v-else class="font-mono">{{ $t('preview.hex.inspectorRangeContext', { start: formatOffset(vm.inspectorContext.start), end: formatOffset(vm.inspectorContext.end), count: vm.inspectorContext.length }) }}</span>
           </template>
         </div>
 
         <!-- 空态：图标 + 主句 + 辅句（不是一行灰字） -->
         <div v-if="vm.inspectorState === 'empty'" class="hex-inspector-empty">
           <HexIcon name="dashed" :size="28" />
-          <span class="hex-inspector-empty-main">选择字节以查看数值解释</span>
-          <span class="hex-inspector-empty-hint">点击、拖选或 Cmd/Ctrl+A 选中数据</span>
+          <span class="hex-inspector-empty-main">{{ $t('preview.hex.inspectorEmptyMain') }}</span>
+          <span class="hex-inspector-empty-hint">{{ $t('preview.hex.inspectorEmptyHint') }}</span>
         </div>
         <div v-else-if="vm.inspectorState === 'loading'" class="hex-inspector-empty">
-          <span class="hex-inspector-empty-main">该处数据尚未加载</span>
-          <span class="hex-inspector-empty-hint">滚动或等待窗口预取完成后自动呈现</span>
+          <span class="hex-inspector-empty-main">{{ $t('preview.hex.inspectorLoadingMain') }}</span>
+          <span class="hex-inspector-empty-hint">{{ $t('preview.hex.inspectorLoadingHint') }}</span>
         </div>
 
         <div v-else class="hex-inspector-body flex-1 min-h-0 overflow-y-auto">
@@ -830,14 +837,14 @@ const rootClass = computed(() => ({
 
     <!-- 底部状态栏 28px：模式 | 偏移 | 选区 ⟷ 通知槽 ⟷ 编码 | 字节序 | 大小 | 修改状态 -->
     <div class="hex-statusbar flex items-center flex-shrink-0">
-      <span class="hex-mode-chip" :class="`is-${vm.editMode}`" :title="vm.readonlyLock ?? `当前模式：${modeLabel}`">
+      <span class="hex-mode-chip" :class="`is-${vm.editMode}`" :title="vm.readonlyLock ?? $t('preview.hex.currentModeTip', { mode: modeLabel })">
         <HexIcon v-if="vm.editMode === 'readonly'" name="lock" :size="11" />{{ modeLabel }}
       </span>
-      <span class="hex-stat">偏移 <span class="hex-stat-num">0x{{ vm.cursorLabel ?? '—' }}</span></span>
-      <span class="hex-stat">选区 <span class="hex-stat-num">{{ vm.selectionShortLabel ?? (vm.cursorLabel !== null ? '1 byte' : '—') }}</span></span>
+      <span class="hex-stat">{{ $t('preview.hex.offset') }} <span class="hex-stat-num">0x{{ vm.cursorLabel ?? '—' }}</span></span>
+      <span class="hex-stat">{{ $t('preview.hex.selection') }} <span class="hex-stat-num">{{ vm.selectionShortLabel ?? (vm.cursorLabel !== null ? $t('preview.hex.singleByte') : '—') }}</span></span>
 
       <div class="flex-1 min-w-0 hex-notice-slot">
-        <span v-if="vm.fetching > 0" class="hex-notice is-info"><i class="hex-spinner" />读取中…</span>
+        <span v-if="vm.fetching > 0" class="hex-notice is-info"><i class="hex-spinner" />{{ $t('preview.hex.fetching') }}</span>
         <span v-else-if="vm.notice" class="hex-notice" :class="`is-${vm.notice.tone}`">
           <HexIcon v-if="vm.notice.tone === 'success'" name="check" :size="12" />
           <HexIcon v-else-if="vm.notice.tone === 'error'" name="close" :size="12" />
@@ -849,7 +856,7 @@ const rootClass = computed(() => ({
       <span class="hex-stat">Little Endian</span>
       <span class="hex-stat">{{ formatSize(file.size) }}</span>
       <span class="hex-stat hex-stat-dirty" :class="{ 'is-dirty': vm.isModified }">
-        {{ vm.isModified ? `已修改 ${vm.modifiedCount} 处` : '已保存' }}
+        {{ vm.isModified ? $t('preview.hex.modifiedCount', vm.modifiedCount) : $t('preview.hex.savedState') }}
       </span>
     </div>
   </div>

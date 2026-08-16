@@ -1,10 +1,10 @@
 <template>
   <div class="h-10 bg-bg-toolbar flex items-center px-2 gap-1 border-b border-border flex-shrink-0">
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-      <button class="toolbar-btn-enhanced" title="返回父级目录" aria-label="返回父级目录" @click="$emit('go-parent')">
+      <button class="toolbar-btn-enhanced" :title="$t('compare.toolbar.goParent')" :aria-label="$t('compare.toolbar.goParent')" @click="$emit('go-parent')">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
       </button>
-      <button class="toolbar-btn-enhanced" title="交换左右目录" aria-label="交换左右目录" @click="$emit('swap-sides')">
+      <button class="toolbar-btn-enhanced" :title="$t('compare.toolbar.swapSides')" :aria-label="$t('compare.toolbar.swapSides')" @click="$emit('swap-sides')">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h11l-3-3m3 13H7l3 3M18 7l-3 3M7 17l3-3" /></svg>
       </button>
     </div>
@@ -13,8 +13,8 @@
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
         class="toolbar-btn-enhanced btn-teal"
-        title="复制到左侧"
-        aria-label="复制到左侧"
+        :title="$t('compare.toolbar.copyLeft')"
+        :aria-label="$t('compare.toolbar.copyLeft')"
         @click="$emit('copy-left')"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,8 +23,8 @@
       </button>
       <button
         class="toolbar-btn-enhanced btn-blue"
-        title="复制到右侧"
-        aria-label="复制到右侧"
+        :title="$t('compare.toolbar.copyRight')"
+        :aria-label="$t('compare.toolbar.copyRight')"
         @click="$emit('copy-right')"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,8 +39,8 @@
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
         class="toolbar-btn-enhanced btn-green"
-        title="展开全部"
-        aria-label="展开全部"
+        :title="$t('compare.toolbar.expandAll')"
+        :aria-label="$t('compare.toolbar.expandAll')"
         @click="$emit('expand-all')"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,8 +50,8 @@
       </button>
       <button
         class="toolbar-btn-enhanced btn-green"
-        title="折叠全部"
-        aria-label="折叠全部"
+        :title="$t('compare.toolbar.collapseAll')"
+        :aria-label="$t('compare.toolbar.collapseAll')"
         @click="$emit('collapse-all')"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -67,8 +67,8 @@
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
         class="toolbar-btn-enhanced btn-purple"
-        title="上一个差异 (Shift+F7)"
-        aria-label="上一个差异"
+        :title="$t('compare.toolbar.prevDiffTip')"
+        :aria-label="$t('compare.toolbar.prevDiff')"
         @click="$emit('prev-diff')"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,8 +77,8 @@
       </button>
       <button
         class="toolbar-btn-enhanced btn-purple"
-        title="下一个差异 (F7)"
-        aria-label="下一个差异"
+        :title="$t('compare.toolbar.nextDiffTip')"
+        :aria-label="$t('compare.toolbar.nextDiff')"
         @click="$emit('next-diff')"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,42 +94,42 @@
       <button
         class="filter-btn"
         :class="{ 'filter-btn-active-all': isAllFilter }"
-        title="显示全部"
+        :title="$t('compare.toolbar.filterAllTip')"
         @click="setFilter('all')"
-      >全部</button>
+      >{{ $t('compare.toolbar.filterAll') }}</button>
       <button
         class="filter-btn"
         :class="{ 'filter-btn-active-diff': isDiffFilter }"
-        title="仅显示差异"
+        :title="$t('compare.toolbar.filterDiffTip')"
         @click="setFilter('diff')"
-      >差异</button>
+      >{{ $t('compare.toolbar.filterDiff') }}</button>
       <button
         class="filter-btn"
         :class="{ 'filter-btn-active-only': isOnlyFilter }"
-        title="仅显示孤立文件"
+        :title="$t('compare.toolbar.filterOrphanTip')"
         @click="setFilter('only')"
-      >孤立</button>
+      >{{ $t('compare.toolbar.filterOrphan') }}</button>
       <button
         class="filter-btn"
         :class="{ 'filter-btn-active-equal': isEqualFilter }"
-        title="仅显示相同"
+        :title="$t('compare.toolbar.filterEqualTip')"
         @click="setFilter('equal')"
-      >相同</button>
+      >{{ $t('compare.toolbar.filterEqual') }}</button>
     </div>
 
     <div class="w-px h-5 bg-border mx-1" />
 
     <!-- Compare Rule -->
     <div class="flex items-center bg-bg-secondary/50 rounded-lg border border-border/50 px-2 py-1 gap-1.5">
-      <span class="text-xs text-text-tertiary">规则:</span>
+      <span class="text-xs text-text-tertiary">{{ $t('compare.toolbar.rule') }}</span>
       <select
         :value="rule"
         class="text-xs bg-transparent text-text-primary border-none outline-none"
         @change="$emit('update:rule', ($event.target as HTMLSelectElement).value as CompareRule)"
       >
-        <option value="name">按名称</option>
-        <option value="size">按大小</option>
-        <option value="timestamp">按时间</option>
+        <option value="name">{{ $t('compare.toolbar.ruleName') }}</option>
+        <option value="size">{{ $t('compare.toolbar.ruleSize') }}</option>
+        <option value="timestamp">{{ $t('compare.toolbar.ruleTime') }}</option>
       </select>
     </div>
 
@@ -139,27 +139,27 @@
     <button
       v-if="!isVerifying"
       class="toolbar-btn-enhanced btn-green"
-      title="校验选中项内容"
-      aria-label="校验选中项内容"
+      :title="$t('compare.toolbar.verifySelection')"
+      :aria-label="$t('compare.toolbar.verifySelection')"
       @click="$emit('verify')"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     </button>
-    <button v-else class="toolbar-btn-enhanced btn-orange" title="取消内容校验" aria-label="取消内容校验" @click="$emit('cancel-verify')">
+    <button v-else class="toolbar-btn-enhanced btn-orange" :title="$t('compare.toolbar.cancelVerify')" :aria-label="$t('compare.toolbar.cancelVerify')" @click="$emit('cancel-verify')">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M6 6l12 12M18 6L6 18" /></svg>
     </button>
 
     <!-- Loading indicator -->
     <div v-if="isLoading" class="flex items-center gap-1.5 text-text-tertiary text-xs">
       <div class="w-3.5 h-3.5 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
-      <span>对比中…</span>
+      <span>{{ $t('compare.toolbar.comparing') }}</span>
     </div>
 
     <!-- Refresh -->
     <button
       class="toolbar-btn-enhanced btn-orange"
-      title="刷新对比 (F5)"
-      aria-label="刷新对比"
+      :title="$t('compare.toolbar.refreshTip')"
+      :aria-label="$t('compare.toolbar.refresh')"
       @click="$emit('refresh')"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

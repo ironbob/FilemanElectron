@@ -3,6 +3,7 @@ import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { SMB_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 import { loadOptional } from './optionalDeps'
+import { t } from '../i18n'
 
 const log = console
 
@@ -41,7 +42,7 @@ export class SMBAdapter implements IFileSystemAdapter {
 
   async connect(): Promise<void> {
     if (!this.config.host || !this.config.share) {
-      throw new Error('SMB 连接需要主机地址和共享名称')
+      throw new Error(t('errors.main.smbMissingHostOrShare'))
     }
     const SMB2 = await loadOptional<SMB2Class>('@marsaud/smb2', async () => (await import('@marsaud/smb2')).default)
     const client = new SMB2({
@@ -172,7 +173,7 @@ export class SMBAdapter implements IFileSystemAdapter {
   }
 
   private getClient(): SMB2Client {
-    if (!this.connected || !this.client) throw new Error('SMB 设备尚未连接')
+    if (!this.connected || !this.client) throw new Error(t('errors.main.smbNotConnected'))
     return this.client
   }
 

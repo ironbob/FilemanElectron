@@ -96,39 +96,39 @@ test('compares cross-device rows and verifies selected content', async ({ page }
 })
 
 test('keeps the new-tab control available with a single tab', async ({ page }) => {
-  const newTabButton = page.getByRole('button', { name: 'New Tab' })
+  const newTabButton = page.getByRole('button', { name: '新建标签页' })
   await expect(newTabButton).toBeVisible()
   await newTabButton.click()
   await expect(page.locator('.finder-tab-strip .tab-item')).toHaveCount(2)
 })
 
 test('renders recent locations on an opaque popup surface', async ({ page }) => {
-  await page.getByRole('button', { name: 'New Tab' }).click()
-  await page.getByRole('button', { name: 'Recent locations' }).click()
-  const menu = page.getByRole('menu', { name: 'Recent locations' })
+  await page.getByRole('button', { name: '新建标签页' }).click()
+  await page.getByRole('button', { name: '最近访问的位置' }).click()
+  const menu = page.getByRole('menu', { name: '最近访问的位置' })
   await expect(menu).toBeVisible()
   await expect(menu).toHaveCSS('background-color', /^rgb\(/)
   await expect(menu.getByText('/Volumes/JINGZAO/avideo')).toBeVisible()
-  await page.getByPlaceholder('Search or tag:work').click()
+  await page.getByPlaceholder('搜索或 tag:work').click()
   await expect(menu).toBeHidden()
 })
 
 test('keeps navigation and search available in a narrow file pane', async ({ page }) => {
   await page.setViewportSize({ width: 700, height: 700 })
-  await page.getByRole('button', { name: 'New Tab' }).click()
-  await expect(page.getByRole('button', { name: 'Go Back' })).toBeVisible()
-  await expect(page.getByPlaceholder('Search or tag:work')).toBeVisible()
+  await page.getByRole('button', { name: '新建标签页' }).click()
+  await expect(page.getByRole('button', { name: '后退' })).toBeVisible()
+  await expect(page.getByPlaceholder('搜索或 tag:work')).toBeVisible()
   await expect(page.locator('.file-pane-toolbar-breadcrumb')).toBeHidden()
 })
 
 test('creates a file through the toolbar and refreshes the directory', async ({ page }) => {
-  await page.getByRole('button', { name: 'New Tab' }).click()
-  await page.getByRole('button', { name: 'New File' }).click()
+  await page.getByRole('button', { name: '新建标签页' }).click()
+  await page.getByRole('button', { name: '新建文件', exact: true }).click()
 
-  const dialog = page.getByRole('dialog', { name: 'Create File' })
+  const dialog = page.getByRole('dialog', { name: '创建文件' })
   await expect(dialog).toBeVisible()
   await dialog.getByPlaceholder('example.txt').fill('notes.txt')
-  await dialog.getByRole('button', { name: 'Create' }).click()
+  await dialog.getByRole('button', { name: '创建' }).click()
 
   await expect.poll(() => page.evaluate(() => (window as any).__createdTasks?.[0])).toMatchObject({
     type: 'touch',

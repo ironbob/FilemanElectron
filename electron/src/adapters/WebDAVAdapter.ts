@@ -3,6 +3,7 @@ import { createClient, type FileStat, type WebDAVClient } from 'webdav'
 import type { Readable, Writable } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { WEBDAV_CAPABILITIES, type DeviceCapabilities } from './capabilities'
+import { t } from '../i18n'
 
 interface WebDAVConfig {
   /** WebDAV collection endpoint, including http:// or https://. */
@@ -40,10 +41,10 @@ export class WebDAVAdapter implements IFileSystemAdapter {
     try {
       endpoint = new URL(this.config.url)
     } catch {
-      throw new Error('WebDAV 地址无效：请输入以 http:// 或 https:// 开头的 URL')
+      throw new Error(t('errors.main.webdavInvalidUrl'))
     }
     if (endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') {
-      throw new Error('WebDAV 仅支持 HTTP 或 HTTPS 地址')
+      throw new Error(t('errors.main.webdavProtocolUnsupported'))
     }
 
     const client = createClient(endpoint.toString(), {
@@ -147,7 +148,7 @@ export class WebDAVAdapter implements IFileSystemAdapter {
   }
 
   private getClient(): WebDAVClient {
-    if (!this.connected || !this.client) throw new Error('WebDAV 设备尚未连接')
+    if (!this.connected || !this.client) throw new Error(t('errors.main.webdavNotConnected'))
     return this.client
   }
 

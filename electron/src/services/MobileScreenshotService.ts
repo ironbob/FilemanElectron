@@ -5,6 +5,7 @@ import * as path from 'path'
 import { ToolPathResolver } from './ToolPathResolver'
 import { DeviceManager } from './DeviceManager'
 import { hdcTargetArgs, runHdc, runHdcShell } from './support/hdcRunner'
+import { t } from '../i18n'
 
 const log = console
 
@@ -41,11 +42,11 @@ function isJpeg(buf: Buffer): boolean {
   return buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
 }
 
-/** 校验图片魔数,失败抛统一错误。 */
-function validateImage(buf: Buffer, what: string): ScreenshotMime {
+/** 校验图片魔数；不合法返回 null，由调用方抛各自平台的本地化错误。 */
+function validateImage(buf: Buffer): ScreenshotMime | null {
   if (isPng(buf)) return 'image/png'
   if (isJpeg(buf)) return 'image/jpeg'
-  throw new Error(`${what}没有返回有效图片数据。`)
+  return null
 }
 
 /**
@@ -62,7 +63,7 @@ export class MobileScreenshotService {
   async capture(deviceId: string): Promise<CapturedScreenshot> {
     const device = this.deviceManager.getDevice(deviceId)
     if (!device) {
-      throw new Error('设备不存在或尚未连接。')
+      throw new Error(t('errors.main.screenshotDeviceMissing'))
     }
     if (device.type === 'android') {
       const serial = deviceId.replace(/^android:/, '')
@@ -82,7 +83,7 @@ export class MobileScreenshotService {
       const png = await this.captureIos(udid)
       return { data: png, mime: 'image/png' }
     }
-    throw new Error('只有 Android / HarmonyOS / iOS 设备支持截屏。')
+    throw new Error(t('errors.main.screenshotUnsupportedDevice'))
   }
 
   /** 截屏并直接写入目标目录(FilePane 工具栏旧行为,写回设备自身)。 */
@@ -106,15 +107,15 @@ export class MobileScreenshotService {
       const errors: Buffer[] = []
       child.stdout.on('data', chunk => chunks.push(Buffer.from(chunk)))
       child.stderr.on('data', chunk => errors.push(Buffer.from(chunk)))
-      child.once('error', error => reject(new Error(`无法启动 adb 截屏: ${error.message}`)))
+      child.once('error', error => reject(new Error(t('errors.main.screenshotAdbSpawnFailed', { message: error.message }))))
       child.once('close', code => {
         if (code !== 0) {
-          reject(new Error(`Android 截屏失败(code=${code}): ${Buffer.concat(errors).toString('utf8').trim()}`))
+          reject(new Error(t('errors.main.screenshotAndroidFailed', { code: String(code), message: Buffer.concat(errors).toString('utf8').trim() })))
           return
         }
         try {
           const png = Buffer.concat(chunks)
-          validateImage(png, 'Android 截屏')
+          if (!validateImage(png)) throw new Error(t('errors.main.screenshotInvalidAndroid'))
           resolve(png)
         } catch (error) {
           reject(error instanceof Error ? error : new Error(String(error)))
@@ -131,7 +132,8 @@ export class MobileScreenshotService {
       await runHdcShell(connectKey, `snapshot_display -f ${remotePath}`)
       await runHdc([...hdcTargetArgs(connectKey), 'file', 'recv', remotePath, localPath], { timeoutMs: 120_000 })
       const data = await fs.promises.readFile(localPath)
-      const mime = validateImage(data, 'HarmonyOS 截屏')
+      const mime = validateImage(data)
+      if (!mime) throw new Error(t('errors.main.screenshotInvalidOhos'))
       return { data, mime }
     } finally {
       // 本地临时清理;远端临时尽力删(失败只记日志,不打断结果返回)。
@@ -153,18 +155,18 @@ export class MobileScreenshotService {
       child.stderr.on('data', chunk => errors.push(Buffer.from(chunk)))
       child.once('error', error => {
         const message = (error as NodeJS.ErrnoException).code === 'ENOENT'
-          ? '未找到 idevicescreenshot，请安装 libimobiledevice。'
-          : `无法启动 idevicescreenshot: ${error.message}`
+          ? t('errors.main.screenshotIdeviceCliMissing')
+          : t('errors.main.screenshotIdeviceSpawnFailed', { message: error.message })
         reject(new Error(message))
       })
       child.once('close', code => {
         if (code !== 0) {
-          reject(new Error(`iOS 截屏失败(code=${code}): ${Buffer.concat(errors).toString('utf8').trim()}`))
+          reject(new Error(t('errors.main.screenshotIosFailed', { code: String(code), message: Buffer.concat(errors).toString('utf8').trim() })))
           return
         }
         fs.promises.readFile(localPath)
           .then(data => {
-            validateImage(data, 'iOS 截屏')
+            if (!validateImage(data)) throw new Error(t('errors.main.screenshotInvalidIos'))
             resolve(data)
           })
           .catch(error => reject(error instanceof Error ? error : new Error(String(error))))

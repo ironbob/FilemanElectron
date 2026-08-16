@@ -21,7 +21,7 @@
             {{ getTypeLabel(task.type) }}
           </div>
           <div class="text-xs text-text-tertiary truncate">
-            {{ task.sourcePaths.length }} item(s)
+            {{ $t('tasks.itemCount', task.sourcePaths.length) }}
           </div>
         </div>
         <!-- Status Badge -->
@@ -35,7 +35,7 @@
             'bg-yellow-500 text-white': task.status === 'cancelled'
           }"
         >
-          {{ task.status }}
+          {{ statusLabel(task.status) }}
         </span>
       </div>
     </div>
@@ -43,7 +43,7 @@
     <!-- Progress (for running tasks) -->
     <div v-if="task.status === 'running'" class="mb-2">
       <div class="flex items-center justify-between text-xs text-text-secondary mb-1">
-        <span class="truncate">{{ task.progress.currentFile || 'Preparing...' }}</span>
+        <span class="truncate">{{ task.progress.currentFile || $t('tasks.preparing') }}</span>
         <span>{{ task.progress.currentFileIndex }} / {{ task.progress.totalFiles }}</span>
       </div>
       <div class="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
@@ -67,7 +67,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div class="text-xs text-red-400 flex-1">
-            <div class="font-medium mb-1">Task Error</div>
+            <div class="font-medium mb-1">{{ $t('tasks.taskError') }}</div>
             <div class="text-red-300 break-all">{{ task.error }}</div>
           </div>
         </div>
@@ -84,7 +84,7 @@
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            {{ failedItems.length }} item(s) failed
+            {{ $t('tasks.error.itemsFailed', failedItems.length) }}
           </span>
           <svg
             class="w-4 h-4 text-red-400 transition-transform"
@@ -123,47 +123,47 @@
     <!-- Results Summary (for completed tasks) -->
     <div v-if="task.status === 'completed'" class="mb-2 text-xs">
       <span class="text-green-400">
-        {{ task.progress.itemResults.filter(r => r.status === 'success').length }} succeeded
+        {{ $t('tasks.result.succeeded', successCount) }}
       </span>
-      <span v-if="task.progress.itemResults.filter(r => r.status === 'skipped').length > 0" class="text-yellow-400 ml-2">
-        {{ task.progress.itemResults.filter(r => r.status === 'skipped').length }} skipped
+      <span v-if="skippedCount > 0" class="text-yellow-400 ml-2">
+        {{ $t('tasks.result.skipped', skippedCount) }}
       </span>
-      <span v-if="task.progress.itemResults.filter(r => r.status === 'failed').length > 0" class="text-red-400 ml-2">
-        {{ task.progress.itemResults.filter(r => r.status === 'failed').length }} failed
+      <span v-if="failedItems.length > 0" class="text-red-400 ml-2">
+        {{ $t('tasks.result.failed', failedItems.length) }}
       </span>
     </div>
 
     <!-- Time Info (for completed tasks) -->
     <div v-if="task.completedAt" class="text-xs text-text-tertiary mb-2">
-      Completed in {{ formatDuration(task.startedAt, task.completedAt) }}
+      {{ $t('tasks.completedIn', { duration: formatDuration(task.startedAt, task.completedAt) }) }}
     </div>
 
     <!-- Source / destination: retain endpoint context while the task is running and in history. -->
     <div v-if="primarySourcePath || destinationPath" class="mb-2 space-y-1.5 text-xs">
       <div v-if="primarySourcePath" class="flex items-center gap-2 min-w-0">
-        <span class="w-16 shrink-0 text-text-tertiary">Source</span>
+        <span class="w-16 shrink-0 text-text-tertiary">{{ $t('tasks.sourceLabel') }}</span>
         <span class="min-w-0 flex-1 truncate text-text-secondary" :title="primarySourcePath">
           {{ endpointLabel(sourceDeviceId, primarySourcePath) }}
         </span>
         <button
           class="shrink-0 text-accent-blue hover:underline"
-          :title="`Locate source: ${primarySourcePath}`"
+          :title="$t('tasks.locateSourceTip', { path: primarySourcePath })"
           @click="locateEndpoint('source', sourceDeviceId, primarySourcePath)"
         >
-          Locate
+          {{ $t('tasks.locate') }}
         </button>
       </div>
       <div v-if="destinationPath" class="flex items-center gap-2 min-w-0">
-        <span class="w-16 shrink-0 text-text-tertiary">Destination</span>
+        <span class="w-16 shrink-0 text-text-tertiary">{{ $t('tasks.destinationLabel') }}</span>
         <span class="min-w-0 flex-1 truncate text-text-secondary" :title="destinationPath">
           {{ endpointLabel(destinationDeviceId, destinationPath) }}
         </span>
         <button
           class="shrink-0 text-accent-blue hover:underline"
-          :title="`Locate destination: ${destinationPath}`"
+          :title="$t('tasks.locateDestinationTip', { path: destinationPath })"
           @click="locateEndpoint('destination', destinationDeviceId, destinationPath)"
         >
-          Locate
+          {{ $t('tasks.locate') }}
         </button>
       </div>
     </div>
@@ -175,21 +175,21 @@
         class="px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 rounded transition-colors"
         @click="$emit('cancel', task.id)"
       >
-        Cancel
+        {{ $t('common.cancel') }}
       </button>
       <button
         v-if="task.status === 'failed'"
         class="px-3 py-1.5 text-xs text-blue-400 hover:bg-blue-500/20 rounded transition-colors"
         @click="$emit('retry', task.id)"
       >
-        Retry
+        {{ $t('common.retry') }}
       </button>
       <button
         v-if="task.status === 'completed' && firstResultPath"
         class="px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover rounded transition-colors"
         @click="showInFolder(firstResultPath)"
       >
-        Open copied item in Finder
+        {{ $t('tasks.openCopiedInFinder') }}
       </button>
     </div>
   </div>
@@ -198,6 +198,7 @@
 <script setup lang="ts">
 import { ref, computed, h, type Component } from 'vue'
 import type { FileOperationTask, FileOperationType } from '@/types/fileOperation'
+import { t } from '@/i18n'
 
 const props = defineProps<{
   task: FileOperationTask
@@ -227,6 +228,14 @@ const firstResultPath = computed(() => {
 
 const failedItems = computed(() => {
   return props.task.progress.itemResults.filter(r => r.status === 'failed')
+})
+
+const successCount = computed(() => {
+  return props.task.progress.itemResults.filter(r => r.status === 'success').length
+})
+
+const skippedCount = computed(() => {
+  return props.task.progress.itemResults.filter(r => r.status === 'skipped').length
 })
 
 const hasErrors = computed(() => {
@@ -298,19 +307,34 @@ function getTypeIcon(type: FileOperationType): Component {
   return icons[type] || icons.copy
 }
 
+const TYPE_LABEL_KEYS: Record<FileOperationType, string> = {
+  copy: 'tasks.type.copy',
+  move: 'tasks.type.move',
+  delete: 'tasks.type.delete',
+  rename: 'tasks.type.rename',
+  mkdir: 'tasks.type.mkdir',
+  touch: 'tasks.type.touch',
+  'batch-rename': 'tasks.type.batchRename',
+  recycle: 'tasks.type.recycle',
+  restore: 'tasks.type.restore'
+}
+
 function getTypeLabel(type: FileOperationType): string {
-  const labels: Record<FileOperationType, string> = {
-    copy: 'Copying',
-    move: 'Moving',
-    delete: 'Deleting',
-    rename: 'Renaming',
-    mkdir: 'Creating Folder',
-    touch: 'Creating File',
-    'batch-rename': 'Batch Renaming',
-    recycle: 'Moving to Trash',
-    restore: 'Restoring'
-  }
-  return labels[type] || 'Unknown'
+  const key = TYPE_LABEL_KEYS[type]
+  return key ? t(key) : t('tasks.type.unknown')
+}
+
+const STATUS_LABEL_KEYS: Record<FileOperationTask['status'], string> = {
+  pending: 'tasks.status.pending',
+  running: 'tasks.status.running',
+  completed: 'tasks.status.completed',
+  failed: 'tasks.status.failed',
+  cancelled: 'tasks.status.cancelled'
+}
+
+function statusLabel(status: FileOperationTask['status']): string {
+  const key = STATUS_LABEL_KEYS[status]
+  return key ? t(key) : status
 }
 
  function formatBytes(bytes: number): string {
@@ -334,7 +358,7 @@ function getTypeLabel(type: FileOperationType): string {
 }
 
 function endpointLabel(deviceId: string, path: string): string {
-  return `${deviceId === 'local' ? 'Local' : deviceId} · ${path}`
+  return `${deviceId === 'local' ? t('devices.localName') : deviceId} · ${path}`
 }
 
 function locateEndpoint(kind: 'source' | 'destination', deviceId: string, path: string): void {

@@ -5,6 +5,7 @@ import { shellQuote } from '../adapters/shellQuote'
 import { ToolPathResolver } from './ToolPathResolver'
 import { DirectoryWalker } from './support/DirectoryWalker'
 import { SessionTaskRegistry, type TaskHandle } from './support/SessionTaskRegistry'
+import { t } from '../i18n'
 import {
   createLineMatcher,
   globsToGrepArgs,
@@ -196,7 +197,7 @@ export class GrepService {
         task.state.child = null
         if (task.cancelled) { resolve(); return }
         // rg: 0=有匹配 1=无匹配 2=错误；1 不是失败
-        if (code === 2) reject(new Error(`ripgrep 退出码 2（参数或权限错误）`))
+        if (code === 2) reject(new Error(t('errors.main.grepRgExit2')))
         else resolve()
         void overflow
         finalize()
@@ -224,7 +225,7 @@ export class GrepService {
 
     const { stdout, code } = await adapter.exec!(command)
     if (code !== 0 && code !== 1) {
-      throw new Error(`远端 grep 退出码 ${code}`)
+      throw new Error(t('errors.main.grepRemoteExit', { code }))
     }
     for (const line of stdout.split('\n')) {
       const match = parseGrepLine(line, request.rootPath)

@@ -47,31 +47,31 @@
     <!-- Column Headers -->
     <div class="flex-shrink-0 flex items-center border-b border-border bg-bg-secondary text-xs font-medium text-text-tertiary h-8">
       <div class="flex-1 min-w-0 flex items-center gap-2 px-4">
-        <span class="flex-1">名称</span>
-        <span class="w-16 text-right flex-shrink-0">大小</span>
-        <span class="w-28 text-right flex-shrink-0">修改时间</span>
+        <span class="flex-1">{{ $t('compare.columns.name') }}</span>
+        <span class="w-16 text-right flex-shrink-0">{{ $t('compare.columns.size') }}</span>
+        <span class="w-28 text-right flex-shrink-0">{{ $t('compare.columns.modifiedTime') }}</span>
       </div>
       <div class="w-28 flex-shrink-0 text-center border-x border-border/50 self-stretch flex items-center justify-center">
-        状态
+        {{ $t('compare.columns.status') }}
       </div>
       <div class="flex-1 min-w-0 flex items-center gap-2 px-4">
-        <span class="flex-1">名称</span>
-        <span class="w-16 text-right flex-shrink-0">大小</span>
-        <span class="w-28 text-right flex-shrink-0">修改时间</span>
+        <span class="flex-1">{{ $t('compare.columns.name') }}</span>
+        <span class="w-16 text-right flex-shrink-0">{{ $t('compare.columns.size') }}</span>
+        <span class="w-28 text-right flex-shrink-0">{{ $t('compare.columns.modifiedTime') }}</span>
       </div>
     </div>
 
     <div v-if="filterActive" class="flex items-center gap-2 border-b border-border bg-accent-blue/10 px-4 py-1.5 text-xs text-text-secondary">
       <svg class="h-3.5 w-3.5 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18l-7 8v5l-4 3v-8L3 4z" /></svg>
-      <span>已过滤：显示 {{ stats.visible }} 项，隐藏 {{ stats.hidden }} 项</span>
-      <button class="ml-1 text-accent-blue hover:underline" @click="clearFilter">清除过滤</button>
+      <span>{{ $t('compare.filterNotice', { visible: stats.visible, hidden: stats.hidden }) }}</span>
+      <button class="ml-1 text-accent-blue hover:underline" @click="clearFilter">{{ $t('compare.clearFilter') }}</button>
     </div>
 
     <!-- Loading State (initial) -->
     <div v-if="isLoading && flatEntries.length === 0" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-3 text-text-tertiary">
         <div class="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
-        <span class="text-sm">正在对比目录…</span>
+        <span class="text-sm">{{ $t('compare.loadingCompare') }}</span>
       </div>
     </div>
 
@@ -82,7 +82,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p class="text-sm">{{ allEntriesCount === 0 ? '两个目录均为空' : '当前过滤条件下无匹配项' }}</p>
+        <p class="text-sm">{{ allEntriesCount === 0 ? $t('compare.emptyBothDirs') : $t('compare.emptyNoMatch') }}</p>
       </div>
     </div>
 
@@ -134,11 +134,11 @@
               {{ entry.isDirectory ? '—' : formatSize(entry.left.size) }}
             </span>
             <span class="w-28 text-right text-xs flex-shrink-0 opacity-60">
-              {{ formatDate(entry.left.modifiedTime) }}
+              {{ formatRowDate(entry.left.modifiedTime) }}
             </span>
           </template>
           <template v-else>
-            <span class="flex-1 min-w-0 truncate text-[13px] opacity-30 italic">（无）</span>
+            <span class="flex-1 min-w-0 truncate text-[13px] opacity-30 italic">{{ $t('compare.missingSide') }}</span>
             <span class="w-16 flex-shrink-0" />
             <span class="w-28 flex-shrink-0" />
           </template>
@@ -173,11 +173,11 @@
               {{ entry.isDirectory ? '—' : formatSize(entry.right.size) }}
             </span>
             <span class="w-28 text-right text-xs flex-shrink-0 opacity-60">
-              {{ formatDate(entry.right.modifiedTime) }}
+              {{ formatRowDate(entry.right.modifiedTime) }}
             </span>
           </template>
           <template v-else>
-            <span class="flex-1 min-w-0 truncate text-[13px] opacity-30 italic">（无）</span>
+            <span class="flex-1 min-w-0 truncate text-[13px] opacity-30 italic">{{ $t('compare.missingSide') }}</span>
             <span class="w-16 flex-shrink-0" />
             <span class="w-28 flex-shrink-0" />
           </template>
@@ -224,6 +224,8 @@ import type { DirCompareSession, CompareEntry, CompareStatus, CompareRule, CopyC
 import { useDirCompare } from './useDirCompare'
 import { buildCopyPlan, displayStatus } from './compareDomain'
 import { useFileOperationsStore } from '@/stores/fileOperations'
+import { i18n, t } from '@/i18n'
+import { formatDate } from '@/utils/formatDate'
 import DirCompareToolbar from './DirCompareToolbar.vue'
 import DirCompareStatusBar from './DirCompareStatusBar.vue'
 import { useTabsStore } from '@/stores/tabs'
@@ -263,8 +265,8 @@ const {
   dispose
 } = useDirCompare(sessionRef)
 
-const leftDeviceName = computed(() => devicesStore.getDevice(localSession.leftDeviceId)?.name ?? '左侧设备')
-const rightDeviceName = computed(() => devicesStore.getDevice(localSession.rightDeviceId)?.name ?? '右侧设备')
+const leftDeviceName = computed(() => devicesStore.getDevice(localSession.leftDeviceId)?.name ?? t('compare.leftDevice'))
+const rightDeviceName = computed(() => devicesStore.getDevice(localSession.rightDeviceId)?.name ?? t('compare.rightDevice'))
 const filterActive = computed(() => !(localSession.filter.showEqual && localSession.filter.showDifferent && localSession.filter.showLeftOnly && localSession.filter.showRightOnly))
 
 const allEntriesCount = computed(() => rootEntries.value.length)
@@ -412,17 +414,17 @@ function statusTextClass(status: CompareStatus): string {
 
 function statusLabel(status: CompareStatus): string {
   switch (status) {
-    case 'metadata-equal': return '元数据相同'
-    case 'content-equal': return '内容相同'
-    case 'different': return '内容不同'
-    case 'left-newer': return '左侧较新'
-    case 'right-newer': return '右侧较新'
-    case 'left-only': return '仅左侧'
-    case 'right-only': return '仅右侧'
-    case 'type-mismatch': return '类型不同'
-    case 'verifying': return '正在校验'
-    case 'verification-failed': return '校验失败'
-    case 'uncomparable': return '无法比较'
+    case 'metadata-equal': return t('compare.status.metadataEqual')
+    case 'content-equal': return t('compare.status.contentEqual')
+    case 'different': return t('compare.status.different')
+    case 'left-newer': return t('compare.status.leftNewer')
+    case 'right-newer': return t('compare.status.rightNewer')
+    case 'left-only': return t('compare.status.leftOnly')
+    case 'right-only': return t('compare.status.rightOnly')
+    case 'type-mismatch': return t('compare.status.typeMismatch')
+    case 'verifying': return t('compare.status.verifying')
+    case 'verification-failed': return t('compare.status.verificationFailed')
+    case 'uncomparable': return t('compare.status.uncomparable')
   }
 }
 
@@ -478,14 +480,16 @@ function formatSize(bytes: number): string {
 }
 
 const _dateCache = new Map<string, string>()
-function formatDate(dateStr: string): string {
-  const hit = _dateCache.get(dateStr)
+function formatRowDate(dateStr: string): string {
+  // 缓存键带上当前语言：切换语言后重新格式化（formatDate 按界面语言输出）。
+  const cacheKey = `${i18n.global.locale.value}:${dateStr}`
+  const hit = _dateCache.get(cacheKey)
   if (hit) return hit
-  const result = new Date(dateStr).toLocaleDateString('zh-CN', {
+  const result = formatDate(dateStr, {
     month: '2-digit', day: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   })
-  _dateCache.set(dateStr, result)
+  _dateCache.set(cacheKey, result)
   return result
 }
 
@@ -514,13 +518,13 @@ function showContextMenu(event: MouseEvent, entry: CompareEntry) {
   const canRight = !!entry.right
 
   ctxMenu.items = [
-    { label: entry.verification?.status === 'failed' ? '重试内容校验' : '校验内容', action: 'verify', entry, disabled: !entry.left || !entry.right || entry.isDirectory },
-    { label: '复制到右侧', action: 'copy-right', entry, disabled: !canLeft  },
-    { label: '复制到左侧', action: 'copy-left',  entry, disabled: !canRight },
+    { label: entry.verification?.status === 'failed' ? t('compare.menu.retryVerify') : t('compare.menu.verify'), action: 'verify', entry, disabled: !entry.left || !entry.right || entry.isDirectory },
+    { label: t('compare.menu.copyRight'), action: 'copy-right', entry, disabled: !canLeft  },
+    { label: t('compare.menu.copyLeft'), action: 'copy-left',  entry, disabled: !canRight },
     { label: '---', action: '__divider__' },
-    { label: '删除（左侧）', action: 'delete-left',  entry, disabled: !canLeft  },
-    { label: '删除（右侧）', action: 'delete-right', entry, disabled: !canRight },
-    { label: '删除（两侧）', action: 'delete-both',  entry, disabled: !canLeft || !canRight }
+    { label: t('compare.menu.deleteLeft'), action: 'delete-left',  entry, disabled: !canLeft  },
+    { label: t('compare.menu.deleteRight'), action: 'delete-right', entry, disabled: !canRight },
+    { label: t('compare.menu.deleteBoth'), action: 'delete-both',  entry, disabled: !canLeft || !canRight }
   ]
   ctxMenu.x = event.clientX
   ctxMenu.y = event.clientY
@@ -585,9 +589,9 @@ async function copySelectionToLeft() {
 
 async function deleteSide(entry: CompareEntry, side: 'left' | 'right' | 'both') {
   const names: string[] = []
-  if (side === 'left' || side === 'both') names.push(`左侧: ${entry.left?.path ?? entry.name}`)
-  if (side === 'right' || side === 'both') names.push(`右侧: ${entry.right?.path ?? entry.name}`)
-  if (!confirm(`确认删除以下文件？\n\n${names.join('\n')}`)) return
+  if (side === 'left' || side === 'both') names.push(t('compare.delete.leftPath', { path: entry.left?.path ?? entry.name }))
+  if (side === 'right' || side === 'both') names.push(t('compare.delete.rightPath', { path: entry.right?.path ?? entry.name }))
+  if (!confirm(`${t('compare.delete.confirm')}\n\n${names.join('\n')}`)) return
 
   if ((side === 'left' || side === 'both') && entry.left) {
     await fileOpsStore.createDeleteTask(localSession.leftDeviceId, [entry.left.path])

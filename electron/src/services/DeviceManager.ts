@@ -1,5 +1,6 @@
 import { ConfigService } from './ConfigService'
 import { CredentialService, type Credentials } from './CredentialService'
+import { t } from '../i18n'
 import { LocalAdapter } from '../adapters/LocalAdapter'
 import { AndroidAdapter } from '../adapters/AndroidAdapter'
 import { OhosAdapter } from '../adapters/OhosAdapter'
@@ -82,7 +83,7 @@ export class DeviceManager {
     const os = require('os') as typeof import('os')
     const hostname = os.hostname().replace(/\.local$/, '')
     const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)
-    return isIPv4 ? '本机' : hostname
+    return isIPv4 ? t('devices.localName') : hostname
   }
 
   /**
@@ -372,7 +373,7 @@ export class DeviceManager {
       throw new Error(`Device not found: ${deviceId}`)
     }
     if (device.type !== 'ios') {
-      return { success: false, error: '该设备类型无需/不支持配对' }
+      return { success: false, error: t('errors.main.pairingNotApplicable') }
     }
     return pairIosDevice(deviceId)
   }
@@ -471,7 +472,7 @@ export class DeviceManager {
     await this.connectDevice(deviceId)
     const connectedAdapter = this.connections.tryGetAdapter(deviceId)
     if (!connectedAdapter?.isConnected()) {
-      throw new Error(`设备连接后仍不可用: ${deviceId}`)
+      throw new Error(t('errors.main.deviceStillUnavailable', { name: deviceId }))
     }
     return connectedAdapter
   }

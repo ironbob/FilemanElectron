@@ -3,7 +3,7 @@
     <div class="finder-sidebar-content flex-1 min-h-0 overflow-y-auto">
     <!-- Devices Section -->
     <div class="py-3">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Locations</div>
+      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.locations') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="device in devicesStore.devices"
@@ -28,12 +28,12 @@
       <button
         class="w-full flex items-center justify-center gap-2.5 px-3 py-2 rounded-md text-base text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
         @click="showAddDeviceMenu = !showAddDeviceMenu"
-        aria-label="Add Device"
+        :aria-label="$t('sidebar.addDevice')"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
-        <span>Add Device</span>
+        <span>{{ $t('sidebar.addDevice') }}</span>
       </button>
 
       <!-- Add Device Menu -->
@@ -46,28 +46,28 @@
           @click="addDevice('smb')"
         >
           <component :is="SmbIcon" class="w-5 h-5 text-text-secondary" />
-          <span>SMB Share</span>
+          <span>{{ $t('sidebar.addSmb') }}</span>
         </div>
         <div
           class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('ssh')"
         >
           <component :is="SshIcon" class="w-5 h-5 text-text-secondary" />
-          <span>SSH/SFTP Server</span>
+          <span>{{ $t('sidebar.addSsh') }}</span>
         </div>
         <div
           class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('webdav')"
         >
           <component :is="WebDavIcon" class="w-5 h-5 text-text-secondary" />
-          <span>WebDAV (HTTP/HTTPS)</span>
+          <span>{{ $t('sidebar.addWebdav') }}</span>
         </div>
       </div>
     </div>
 
     <!-- External Volumes Section (mounted on local filesystem, e.g. /Volumes/*) -->
     <div v-if="volumesStore.volumes.length > 0" class="py-3 border-t border-border">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">External Volumes</div>
+      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.externalVolumes') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="volume in volumesStore.volumes"
@@ -85,10 +85,10 @@
 
     <!-- Mobile Devices Section -->
     <div class="py-3 border-t border-border">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Mobile Devices</div>
+      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.mobileDevices') }}</div>
       <!-- Scanning indicator -->
       <div v-if="mobileScanInProgress" class="px-2 py-1.5 text-text-secondary italic animate-pulse">
-        Scanning...
+        {{ $t('sidebar.scanning') }}
       </div>
       <div v-else class="space-y-0.5 px-2">
         <div v-for="device in mobileDevices" :key="device.id">
@@ -111,30 +111,30 @@
             <span
               v-if="device.pairingStatus === 'unpaired'"
               class="px-1.5 py-0.5 text-xs bg-text-tertiary text-white rounded"
-            >未配对</span>
+            >{{ $t('sidebar.pairUnpaired') }}</span>
             <span v-else-if="device.pairingStatus === 'pairing'" class="px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded animate-pulse">
-              Pairing...
+              {{ $t('sidebar.pairBadge') }}
             </span>
             <span v-else-if="device.pairingStatus === 'paired'" class="px-1.5 py-0.5 text-xs bg-green-500 text-white rounded">
-              ✓ Paired
+              {{ $t('sidebar.paired') }}
             </span>
           </span>
           <!-- iOS 未配对:发起配对按钮(凑齐完整配对生命周期:发起→设备信任→校验) -->
           <button
             v-if="device.type === 'ios' && device.pairingStatus === 'unpaired' && !isPairing(device.id)"
             class="ml-1 px-1.5 py-0.5 text-xs text-white bg-accent-blue hover:bg-accent-blue/80 rounded"
-            title="发起配对(设备上会弹出『信任此电脑』)"
+            :title="$t('sidebar.pairActionTip')"
             @click.stop="pairMobileDevice(device.id)"
-          >配对</button>
+          >{{ $t('sidebar.pairAction') }}</button>
           <span
             v-if="isPairing(device.id)"
             class="ml-1 px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded animate-pulse"
-          >配对中…</span>
+          >{{ $t('sidebar.pairInProgress') }}</span>
           <!-- Auto-connect indicator -->
           <span
             v-if="devicesStore.isAutoConnectDevice(device.id)"
             class="w-2 h-2 rounded-full bg-green-500"
-            title="Auto-connect enabled"
+            :title="$t('sidebar.autoConnectEnabled')"
           ></span>
           <!-- Device actions (connect/forget) - shown on hover -->
           <div class="hidden group-hover:flex items-center gap-2 ml-auto">
@@ -144,7 +144,7 @@
               class="px-2 py-0.5 text-xs text-text-primary bg-accent-blue/20 hover:bg-accent-blue/30 hover:text-accent-blue rounded"
               @click.stop="connectMobileDevice(device.id)"
             >
-              Connect
+              {{ $t('sidebar.connect') }}
             </button>
             <!-- Forget button -->
             <button
@@ -152,7 +152,7 @@
               class="px-2 py-0.5 text-xs text-text-tertiary hover:text-red-500"
               @click.stop="forgetDevice(device.id)"
             >
-              Forget
+              {{ $t('sidebar.forget') }}
             </button>
           </div>
         </div>
@@ -163,11 +163,11 @@
             class="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-40 disabled:cursor-default"
             :disabled="!canScreenshot(device) || deviceScreenshot.isCapturing(device.id)"
             :title="screenshotTooltip(device)"
-            :aria-label="`截取 ${device.name} 屏幕截图`"
+            :aria-label="$t('sidebar.screenshotAria', { name: device.name })"
             @click.stop="deviceScreenshot.capture({ id: device.id, name: device.name })"
           >
             <component :is="CameraIcon" class="w-3.5 h-3.5" />
-            <span>{{ deviceScreenshot.isCapturing(device.id) ? '截图中…' : '截图' }}</span>
+            <span>{{ deviceScreenshot.isCapturing(device.id) ? $t('sidebar.screenshotting') : $t('sidebar.screenshot') }}</span>
           </button>
         </div>
         </div>
@@ -175,7 +175,7 @@
 
       <!-- Empty state -->
       <div v-if="mobileDevices.length === 0" class="px-4 py-3 text-center text-text-tertiary text-sm">
-        <span>No mobile devices detected</span>
+        <span>{{ $t('sidebar.noMobileDevices') }}</span>
       </div>
 
       <!-- libimobiledevice warning -->
@@ -185,8 +185,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div class="flex-1">
-            <span class="text-sm text-yellow-700 dark:text-yellow-400">iOS Support</span>
-            <span class="text-xs text-yellow-600 dark:text-yellow-400">Install libimobiledevice for iOS device support</span>
+            <span class="text-sm text-yellow-700 dark:text-yellow-400">{{ $t('sidebar.iosSupportTitle') }}</span>
+            <span class="text-xs text-yellow-600 dark:text-yellow-400">{{ $t('sidebar.iosSupportDesc') }}</span>
           </div>
         </div>
       </div>
@@ -194,7 +194,7 @@
 
     <!-- Places (system locations: Home / Desktop / ...) -->
     <div class="py-3 border-t border-border">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Places</div>
+      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.places') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="fav in favorites"
@@ -210,7 +210,7 @@
 
       <!-- Favorites (user bookmarks, device-scoped, grouped by device platform).
            未连接设备的收藏不渲染(整组随之消失),连上后自动回归。 -->
-      <div class="px-4 mt-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Favorites</div>
+      <div class="px-4 mt-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.favorites') }}</div>
       <template v-for="group in groupedFavorites" :key="group.type">
         <div
           v-if="group.type !== 'local'"
@@ -229,7 +229,7 @@
             <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
             <button
               class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
-              title="移除收藏"
+              :title="$t('sidebar.removeFavorite')"
               @click.stop="removeFavorite(item)"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -240,18 +240,18 @@
         </div>
       </template>
       <div v-if="favoritesStore.favorites.length === 0" class="px-4 py-2 text-xs text-text-tertiary">
-        右键文件夹可添加收藏
+        {{ $t('sidebar.favoritesHint') }}
       </div>
     </div>
 
     </div>
 
-    <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" aria-label="Application tools">
+    <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" :aria-label="$t('sidebar.toolsAria')">
       <button
         class="sidebar-utility-button"
         @click="emit('toggle-theme')"
-        :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-        :aria-label="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        :title="theme === 'dark' ? $t('sidebar.switchToLight') : $t('sidebar.switchToDark')"
+        :aria-label="theme === 'dark' ? $t('sidebar.switchToLight') : $t('sidebar.switchToDark')"
       >
         <component :is="theme === 'dark' ? SunIcon : MoonIcon" class="w-4 h-4" :class="theme === 'dark' ? 'text-accent-orange' : 'text-accent-indigo'" />
       </button>
@@ -259,8 +259,8 @@
         class="sidebar-utility-button relative"
         :class="{ active: isFileOperationsVisible }"
         @click="emit('toggle-file-operations')"
-        title="File Operations"
-        :aria-label="activeTaskCount > 0 ? `File Operations, ${activeTaskCount} active task${activeTaskCount === 1 ? '' : 's'}` : 'File Operations'"
+        :title="$t('sidebar.fileOperations')"
+        :aria-label="activeTaskCount > 0 ? $t('sidebar.fileOperationsActive', activeTaskCount) : $t('sidebar.fileOperations')"
       >
         <component :is="TransferIcon" class="w-4 h-4" />
         <span
@@ -269,10 +269,10 @@
           aria-hidden="true"
         >{{ activeTaskCount }}</span>
       </button>
-      <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" title="Toggle Dual Pane" aria-label="Toggle Dual Pane">
+      <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" :title="$t('sidebar.toggleDualPane')" :aria-label="$t('sidebar.toggleDualPane')">
         <component :is="DualPaneIcon" class="w-4 h-4" />
       </button>
-      <button class="sidebar-utility-button" @click="emit('open-settings')" title="Settings" aria-label="Settings">
+      <button class="sidebar-utility-button" @click="emit('open-settings')" :title="$t('sidebar.settings')" :aria-label="$t('sidebar.settings')">
         <component :is="SettingsIcon" class="w-4 h-4" />
       </button>
     </div>
@@ -300,6 +300,7 @@ import {
   SunIcon, MoonIcon, TransferIcon, DualPaneIcon, SettingsIcon, CameraIcon, OhosIcon
 } from './icons/sidebarIcons'
 import { useDeviceScreenshot } from '@/composables/useDeviceScreenshot'
+import { t } from '@/i18n'
 import type { Device, DetectedMobileDevice } from '@/stores/devices'
 import type { Volume } from '@/stores/volumes'
 import type { Favorite } from '@/types'
@@ -459,7 +460,7 @@ async function selectDevice(device: Device) {
     tabsStore.navigatePane(pane.id, rootPath)
   } catch (error) {
     console.error('[AppSidebar] Failed to select device:', { deviceId: device.id, error })
-    alert(`无法连接 ${device.name}: ${error instanceof Error ? error.message : String(error)}`)
+    alert(t('sidebar.connectFailed', { name: device.name, message: error instanceof Error ? error.message : String(error) }))
   }
 }
 
@@ -483,7 +484,7 @@ function navigateTo(path: string) {
 // devices 列表更新,本 computed 自动重算。本机(local)收藏恒可见。
 // 被 Forget/删除设备名下的收藏静默留存,不显示也不清理,同序列号重连即回归。
 const FAVORITE_GROUP_ORDER: Array<{ type: string; label: string }> = [
-  { type: 'local', label: '本机' },
+  { type: 'local', label: '本机' }, // 仅兜底；实际标签在 groupedFavorites computed 内按当前语言解析
   { type: 'android', label: 'Android' },
   { type: 'ohos', label: 'HarmonyOS' },
   { type: 'ios', label: 'iOS' },
@@ -514,7 +515,12 @@ const groupedFavorites = computed(() => {
     .filter(t => !FAVORITE_GROUP_ORDER.some(g => g.type === t))
     .map(t => ({ type: t, label: t }))
   return [...known, ...extra]
-    .map(g => ({ ...g, items: byType.get(g.type) ?? [] }))
+    .map(g => ({
+      ...g,
+      // 本机组名走词表（computed 内调用 t → 语言切换响应式）；其余为品牌名
+      label: g.type === 'local' ? t('devices.localName') : g.label,
+      items: byType.get(g.type) ?? []
+    }))
     .filter(g => g.items.length > 0)
 })
 
@@ -581,7 +587,7 @@ async function handleDeviceConnect(config: { type: 'smb' | 'ssh' | 'webdav'; nam
         devicesStore.updateDeviceStatus(deviceId, 'disconnected')
       })
     }
-    alert(`无法连接 ${config.name}: ${error instanceof Error ? error.message : String(error)}`)
+    alert(t('sidebar.connectFailed', { name: config.name, message: error instanceof Error ? error.message : String(error) }))
   }
 }
 
@@ -602,7 +608,7 @@ async function selectMobileDevice(device: DetectedMobileDevice) {
     tabsStore.navigatePane(pane.id, '/')
   } catch (error) {
     console.error('[AppSidebar] Failed to select mobile device:', { deviceId: device.id, error })
-    alert(`无法连接 ${device.name}: ${error instanceof Error ? error.message : String(error)}`)
+    alert(t('sidebar.connectFailed', { name: device.name, message: error instanceof Error ? error.message : String(error) }))
   }
 }
 
@@ -631,12 +637,12 @@ async function pairMobileDevice(deviceId: string) {
     if (!result.success) {
       console.error('[AppSidebar] 配对失败:', result.error)
       // 简单反馈:失败时短暂 alert(后续可接 toast)
-      alert(`配对失败:${result.error || '未知原因'}`)
+      alert(t('sidebar.pairFailed', { reason: result.error || t('sidebar.unknownReason') }))
     }
     // 成功无需手动刷新 —— 扫描器轮询会把设备 pairingStatus 更新为 paired。
   } catch (error) {
     console.error('[AppSidebar] 配对异常:', error)
-    alert(`配对异常:${error instanceof Error ? error.message : String(error)}`)
+    alert(t('sidebar.pairError', { message: error instanceof Error ? error.message : String(error) }))
   } finally {
     pairingDeviceIds.value = pairingDeviceIds.value.filter(id => id !== deviceId)
   }
@@ -660,9 +666,9 @@ function canScreenshot(device: DetectedMobileDevice): boolean {
 }
 
 function screenshotTooltip(device: DetectedMobileDevice): string {
-  if (!isConnected(device.id)) return '连接设备后可截图'
-  if (device.type === 'ios' && device.pairingStatus !== 'paired') return 'iOS 需先配对并连接后可截图'
-  return `截取 ${device.name} 的屏幕截图`
+  if (!isConnected(device.id)) return t('sidebar.screenshotNeedConnect')
+  if (device.type === 'ios' && device.pairingStatus !== 'paired') return t('sidebar.screenshotNeedPair')
+  return t('sidebar.screenshotOf', { name: device.name })
 }
 
 /**

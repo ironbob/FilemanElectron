@@ -7,6 +7,8 @@ import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useTabsStore } from '@/stores/tabs'
 import { formatSize } from '@/utils/path'
 import { useCommandRegistryStore } from '@/stores/commandRegistry'
+import { formatDateTime } from '@/utils/formatDate'
+import { t } from '@/i18n'
 
 /**
  * 重复文件查找工具页（瞬态标签，DirCompareView 配方）。
@@ -37,8 +39,8 @@ onMounted(() => {
   void dupes.run()
   commandRegistry.registerCommands([{
     id: 'dupes.rescan',
-    title: '重新扫描重复文件',
-    group: '重复文件',
+    title: t('dupes.cmd.rescan'),
+    group: t('dupes.cmdGroup'),
     run: () => {
       if (!dupes.isRunning) void dupes.run()
     }
@@ -78,21 +80,21 @@ function revealInPane(path: string): void {
         {{ session.rootPath }}
       </span>
       <span class="text-[11px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-tertiary flex-shrink-0">
-        {{ dupes.phaseLabel || '未开始' }}
+        {{ dupes.phaseLabel || $t('dupes.phaseIdle') }}
       </span>
       <div class="flex-1" />
       <button
         v-if="!dupes.isRunning && dupes.groups.length > 0"
         class="text-xs px-2 py-1 rounded border border-border text-text-secondary hover:bg-bg-hover"
         @click="dupes.selectDuplicatesOlderThanNewest()"
-      >勾选旧副本</button>
+      >{{ $t('dupes.selectOlder') }}</button>
       <button
         class="text-xs px-2.5 py-1 rounded"
         :class="dupes.isRunning
           ? 'border border-border text-text-secondary hover:bg-bg-hover'
           : 'bg-accent-blue text-white hover:bg-accent-blue/90'"
         @click="dupes.isRunning ? dupes.cancel() : dupes.run()"
-      >{{ dupes.isRunning ? '取消' : '重新扫描' }}</button>
+      >{{ dupes.isRunning ? $t('common.cancel') : $t('dupes.rescan') }}</button>
     </div>
 
     <!-- 进度条 -->
@@ -108,7 +110,7 @@ function revealInPane(path: string): void {
     <!-- 分组列表 -->
     <div class="flex-1 min-h-0 overflow-y-auto">
       <div v-if="!dupes.isRunning && dupes.groups.length === 0 && !dupes.message" class="flex items-center justify-center h-full text-sm text-text-tertiary">
-        {{ dupes.progress ? '未发现重复文件' : '' }}
+        {{ dupes.progress ? $t('dupes.noDuplicates') : '' }}
       </div>
 
       <div
@@ -128,9 +130,9 @@ function revealInPane(path: string): void {
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
-          <span class="text-xs font-medium text-text-primary">{{ group.files.length }} 个相同文件</span>
-          <span class="text-xs text-text-tertiary">· {{ formatSize(group.size) }} each</span>
-          <span class="text-xs text-accent-orange">· 冗余 {{ formatSize(group.size * (group.files.length - 1)) }}</span>
+          <span class="text-xs font-medium text-text-primary">{{ $t('dupes.group.identicalCount', group.files.length) }}</span>
+          <span class="text-xs text-text-tertiary">· {{ $t('dupes.group.eachSize', { size: formatSize(group.size) }) }}</span>
+          <span class="text-xs text-accent-orange">· {{ $t('dupes.group.redundant', { size: formatSize(group.size * (group.files.length - 1)) }) }}</span>
         </button>
 
         <!-- 组内文件 -->
@@ -152,13 +154,13 @@ function revealInPane(path: string): void {
               :title="file.path"
               @click.prevent="revealInPane(file.path)"
             >{{ file.path }}</span>
-            <span class="text-[10px] text-text-tertiary flex-shrink-0">{{ new Date(file.modifiedTime).toLocaleString() }}</span>
+            <span class="text-[10px] text-text-tertiary flex-shrink-0">{{ formatDateTime(file.modifiedTime) }}</span>
           </label>
         </div>
       </div>
 
       <div v-if="dupes.truncated" class="px-4 py-2 text-[11px] text-text-tertiary">
-        重复组超过 5000，仅显示浪费空间最大的前 5000 组。
+        {{ $t('dupes.truncatedNotice') }}
       </div>
     </div>
 
@@ -168,19 +170,19 @@ function revealInPane(path: string): void {
       class="flex items-center gap-3 px-4 py-2 border-t border-border bg-bg-toolbar"
     >
       <span class="text-xs text-text-secondary">
-        {{ dupes.groups.length }} 组 · 可回收 <span class="text-accent-orange">{{ formatSize(dupes.wastedBytes) }}</span>
+        {{ $t('dupes.summary.reclaimable', dupes.groups.length) }} <span class="text-accent-orange">{{ formatSize(dupes.wastedBytes) }}</span>
       </span>
       <div class="flex-1" />
-      <span class="text-xs text-text-tertiary">已勾选 {{ dupes.checkedList.length }}</span>
+      <span class="text-xs text-text-tertiary">{{ $t('dupes.summary.checked', dupes.checkedList.length) }}</span>
       <button
         class="text-xs px-2 py-1 rounded border border-border text-text-secondary hover:bg-bg-hover"
         @click="dupes.clearSelection()"
-      >清空勾选</button>
+      >{{ $t('dupes.clearSelection') }}</button>
       <button
         class="text-xs px-2.5 py-1 rounded bg-accent-red text-white hover:bg-accent-red/90 disabled:opacity-40"
         :disabled="dupes.checkedList.length === 0"
         @click="deleteChecked"
-      >删除勾选 ({{ dupes.checkedList.length }})</button>
+      >{{ $t('dupes.deleteSelected', { count: dupes.checkedList.length }) }}</button>
     </div>
   </div>
 </template>

@@ -16,6 +16,7 @@ import { SessionTaskRegistry, type TaskHandle } from './support/SessionTaskRegis
 import { resolveOutputPath } from './support/imageEditNaming'
 import { SIPS_IMAGE_EXTS, isEditableImageExt } from '@shared/fileKinds'
 import type { DecodedImage, ImageDecodeService } from './ImageDecodeService'
+import { t } from '../i18n'
 
 const log = console
 
@@ -66,7 +67,7 @@ export class ImageEditService {
   async apply(filePath: string, ops: EditOps, save: EditSaveSpec): Promise<EditApplyResult> {
     const t0 = Date.now()
     log.info('[ImageEdit] apply start', { filePath, crop: !!ops.crop, compress: !!ops.compress, mode: save.mode })
-    if (!ops.crop && !ops.compress && !ops.annotate) throw new Error('编辑操作为空')
+    if (!ops.crop && !ops.compress && !ops.annotate) throw new Error(t('errors.main.imageEditEmptyOps'))
 
     const { pipeline, format: inputFormat } = await this.buildPipeline(filePath, ops)
     const outFormat = this.resolveOutFormat(save, ops, inputFormat)
@@ -155,7 +156,7 @@ export class ImageEditService {
   private async buildPipeline(filePath: string, ops: EditOps): Promise<{ pipeline: sharp.Sharp; format: string }> {
     const ext = path.extname(filePath).toLowerCase().replace('.', '')
     if (!isEditableImageExt(ext)) {
-      throw new Error(`不支持的图片格式：.${ext}`)
+      throw new Error(t('errors.main.imageEditUnsupportedFormat', { ext }))
     }
 
     let input: Buffer
@@ -173,7 +174,7 @@ export class ImageEditService {
     const meta = await pipeline.metadata()
 
     if (ops.crop && ops.annotate) {
-      throw new Error('crop 与 annotate 互斥，请分别保存')
+      throw new Error(t('errors.main.imageEditCropAnnotateExclusive'))
     }
 
     // 标注烘焙：overlay（referenceWidth 空间）等比缩放到解码后的图像尺寸后合成

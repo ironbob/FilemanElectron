@@ -6,6 +6,7 @@ import { useLongTaskProgress } from '@/composables/useLongTaskProgress'
 import { useCommandRegistryStore } from '@/stores/commandRegistry'
 import { useTabsStore } from '@/stores/tabs'
 import { formatSize } from '@/utils/path'
+import { t } from '@/i18n'
 import { squarify } from './squarify'
 
 /**
@@ -43,7 +44,7 @@ const displayEntries = computed(() => {
   const head = list.slice(0, MAX_NODES)
   const rest = list.slice(MAX_NODES)
   return [...head, {
-    name: `其余 ${rest.length} 项`,
+    name: t('treemap.others', rest.length),
     path: '',
     size: rest.reduce((sum, entry) => sum + entry.size, 0),
     fileCount: rest.reduce((sum, entry) => sum + entry.fileCount, 0),
@@ -107,8 +108,8 @@ onMounted(() => {
   void start({ sessionId, deviceId: props.session.deviceId, rootPath: props.session.rootPath })
   commandRegistry.registerCommands([{
     id: 'space.rerun',
-    title: '重新分析空间',
-    group: '空间分析',
+    title: t('treemap.cmd.rerun'),
+    group: t('treemap.cmdGroup'),
     run: () => { if (!isRunning.value) void start({ sessionId, deviceId: props.session.deviceId, rootPath: props.session.rootPath }) }
   }])
 })
@@ -134,10 +135,10 @@ function cellLabel(cell: Cell): string {
     <div class="flex items-center gap-3 px-4 py-2 border-b border-border bg-bg-toolbar">
       <span class="text-xs text-text-secondary font-mono truncate" :title="session.rootPath">{{ session.rootPath }}</span>
       <span v-if="isRunning" class="text-[11px] px-1.5 py-0.5 rounded bg-bg-secondary text-accent-blue">
-        分析中 · {{ progress?.currentPath ?? '' }}
+        {{ $t('treemap.analyzing', { path: progress?.currentPath ?? '' }) }}
       </span>
       <span v-else-if="progress?.status === 'completed'" class="text-[11px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-tertiary">
-        {{ progress.fileCount }} 文件 · {{ formatSize(progress.totalBytes) }}
+        {{ $t('treemap.summary', { count: progress.fileCount, size: formatSize(progress.totalBytes) }, progress.fileCount) }}
       </span>
       <div class="flex-1" />
       <button
@@ -146,7 +147,7 @@ function cellLabel(cell: Cell): string {
           ? 'border border-border text-text-secondary hover:bg-bg-hover'
           : 'bg-accent-blue text-white hover:bg-accent-blue/90'"
         @click="isRunning ? cancel() : start({ sessionId, deviceId: session.deviceId, rootPath: session.rootPath })"
-      >{{ isRunning ? '取消' : '重新分析' }}</button>
+      >{{ isRunning ? $t('common.cancel') : $t('treemap.rerun') }}</button>
     </div>
 
     <!-- treemap 画布 -->
@@ -176,7 +177,7 @@ function cellLabel(cell: Cell): string {
       <div
         v-if="!isRunning && cells.length === 0 && progress?.status === 'completed'"
         class="absolute inset-0 flex items-center justify-center text-sm text-text-tertiary"
-      >目录为空</div>
+      >{{ $t('treemap.emptyDir') }}</div>
     </div>
 
     <!-- tooltip -->
@@ -186,7 +187,7 @@ function cellLabel(cell: Cell): string {
       :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
     >
       <div class="font-medium text-text-primary truncate max-w-60">{{ tooltip.entry.name }}</div>
-      <div class="text-text-secondary">{{ formatSize(tooltip.entry.size) }} · {{ tooltip.entry.fileCount }} 文件 · {{ tooltip.entry.directoryCount }} 目录</div>
+      <div class="text-text-secondary">{{ $t('treemap.tooltipSummary', { size: formatSize(tooltip.entry.size), fileCount: tooltip.entry.fileCount, dirCount: tooltip.entry.directoryCount }, tooltip.entry.fileCount) }}</div>
       <div v-if="tooltip.entry.path" class="text-text-tertiary font-mono truncate max-w-60">{{ tooltip.entry.path }}</div>
     </div>
   </div>

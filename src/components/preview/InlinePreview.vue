@@ -2,11 +2,11 @@
   <div class="h-full flex flex-col bg-bg-secondary border-l border-border">
     <!-- Header -->
     <div class="flex items-center justify-between px-3 py-2 bg-bg-tertiary border-b border-border">
-      <span class="text-xs font-medium text-text-primary truncate">{{ file?.name || 'Preview' }}</span>
+      <span class="text-xs font-medium text-text-primary truncate">{{ file?.name || $t('preview.inline.titleFallback') }}</span>
       <div class="flex items-center gap-1">
         <button
           class="p-1 rounded hover:bg-bg-hover text-text-secondary transition-colors"
-          title="Close preview"
+          :title="$t('preview.common.closePreviewTip')"
           @click="close"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,7 +23,7 @@
         <svg class="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12h.01M12 12h.01M9 12h.01M7.5 5h9a2 2 0 012 2v10a2 2 0 01-2 2h-9a2 2 0 01-2-2V7a2 2 0 012-2z" />
         </svg>
-        <p class="text-xs mt-2">Select a file to preview</p>
+        <p class="text-xs mt-2">{{ $t('preview.inline.selectFile') }}</p>
       </div>
 
       <!-- Loading -->
@@ -38,31 +38,31 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
           </svg>
           <p class="text-sm font-medium text-text-primary mt-2 text-center break-all px-2">{{ file.name }}</p>
-          <p class="text-xs mt-1">Folder</p>
+          <p class="text-xs mt-1">{{ $t('preview.inline.folder') }}</p>
         </div>
         <div class="space-y-2 text-xs">
           <div class="flex justify-between gap-3">
-            <span class="text-text-tertiary flex-shrink-0">Kind</span>
-            <span class="text-text-secondary text-right">Folder</span>
+            <span class="text-text-tertiary flex-shrink-0">{{ $t('preview.inline.kind') }}</span>
+            <span class="text-text-secondary text-right">{{ $t('preview.inline.folder') }}</span>
           </div>
           <div class="flex justify-between gap-3">
-            <span class="text-text-tertiary flex-shrink-0">Size</span>
+            <span class="text-text-tertiary flex-shrink-0">{{ $t('preview.inline.size') }}</span>
             <span class="text-text-secondary text-right">—</span>
           </div>
           <div class="flex justify-between gap-3">
-            <span class="text-text-tertiary flex-shrink-0">Modified</span>
+            <span class="text-text-tertiary flex-shrink-0">{{ $t('preview.inline.modified') }}</span>
             <span class="text-text-secondary text-right break-all">{{ formatDate(file.modifiedTime) }}</span>
           </div>
           <div class="flex justify-between gap-3">
-            <span class="text-text-tertiary flex-shrink-0">Created</span>
+            <span class="text-text-tertiary flex-shrink-0">{{ $t('preview.inline.created') }}</span>
             <span class="text-text-secondary text-right break-all">{{ formatDate(folderStats?.createdTime ?? file.createdTime) }}</span>
           </div>
           <div class="flex justify-between gap-3">
-            <span class="text-text-tertiary flex-shrink-0">Permissions</span>
+            <span class="text-text-tertiary flex-shrink-0">{{ $t('preview.inline.permissions') }}</span>
             <span class="text-text-secondary text-right font-mono">{{ formatPermissions(folderStats?.mode) }}</span>
           </div>
           <div class="flex justify-between gap-3">
-            <span class="text-text-tertiary flex-shrink-0">Where</span>
+            <span class="text-text-tertiary flex-shrink-0">{{ $t('preview.inline.where') }}</span>
             <span class="text-text-secondary text-right break-all" :title="file.path">{{ parentPath(file.path) }}</span>
           </div>
         </div>
@@ -83,7 +83,7 @@
         <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
-        <p class="text-xs text-center mb-2">File too large for preview</p>
+        <p class="text-xs text-center mb-2">{{ $t('preview.inline.fileTooLarge') }}</p>
         <p class="text-xs text-text-secondary">{{ formatSize(file.size) }}</p>
       </div>
 
@@ -106,7 +106,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
         </svg>
         <p class="text-sm font-medium text-text-primary mt-2">{{ file.name }}</p>
-        <p class="text-xs mt-1">PDF Document</p>
+        <p class="text-xs mt-1">{{ $t('preview.inline.pdfDocument') }}</p>
       </div>
 
       <!-- Unknown Preview -->
@@ -123,10 +123,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import { getPreviewType, getMimeType } from '@/types/preview'
 import { formatSize } from '@/utils/media'
 import { formatPermissions } from '@/utils/permissions'
+import { formatDateTime } from '@/utils/formatDate'
 import InlineMediaInfo from './InlineMediaInfo.vue'
 
 const log = (message: string, ...args: any[]) => {
@@ -219,7 +221,7 @@ async function loadContent() {
     }
   } catch (e) {
     console.error('[InlinePreview] Error loading content:', e)
-    textContent.value = 'Error loading preview'
+    textContent.value = t('preview.inline.loadPreviewFailed')
   } finally {
     loading.value = false
   }
@@ -241,8 +243,7 @@ async function loadFolderStats() {
 
 function formatDate(iso?: string): string {
   if (!iso) return '—'
-  const time = Date.parse(iso)
-  return Number.isNaN(time) ? '—' : new Date(time).toLocaleString()
+  return formatDateTime(iso) || '—'
 }
 
 function parentPath(path: string): string {

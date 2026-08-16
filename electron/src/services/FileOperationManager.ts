@@ -2,6 +2,7 @@ import { BrowserWindow, shell } from 'electron'
 import type { IFileSystemAdapter } from '../adapters/types'
 import { StreamTransfer, CancelledError } from './StreamTransfer'
 import { CH } from '../ipc/channels'
+import { t } from '../i18n'
 const log = console
 
 /**
@@ -370,7 +371,7 @@ export class FileOperationManager {
       isDir = (await source.stat(sourcePath)).isDirectory
     } catch {
       // 取不到属性 → 按失败记录,跳过。
-      task.recordItem({ sourcePath, status: 'failed', error: '无法读取源路径属性' })
+      task.recordItem({ sourcePath, status: 'failed', error: t('errors.main.statSourceFailed') })
       return false
     }
 
@@ -399,7 +400,7 @@ export class FileOperationManager {
     try {
       if (await target.exists(dstDir)) {
         const targetStat = await target.stat(dstDir)
-        if (!targetStat.isDirectory) throw new Error(`目标路径不是目录: ${dstDir}`)
+        if (!targetStat.isDirectory) throw new Error(t('errors.main.targetNotDirectory', { path: dstDir }))
       } else {
         await target.mkdir(dstDir)
       }
@@ -534,7 +535,7 @@ export class FileOperationManager {
       const candidate = joinPosix(parent, `${stem} ${suffix}${extension}`)
       if (!(await target.exists(candidate))) return candidate
     }
-    throw new Error(`无法为冲突文件生成可用名称: ${destination}`)
+    throw new Error(t('errors.main.conflictNameExhausted', { path: destination }))
   }
 
   /** 统计总量(含目录递归)。 */
@@ -630,7 +631,7 @@ export class FileOperationManager {
     const adapter = this.adapters.get(task.sourceDeviceId)
     if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
     const items = task.renameItems ?? []
-    if (items.length === 0) throw new Error('批量重命名缺少预览后的名称列表。')
+    if (items.length === 0) throw new Error(t('errors.main.batchRenameNoItems'))
     task.progress.totalFiles = items.length
     for (let index = 0; index < items.length; index++) {
       const item = items[index]
@@ -639,7 +640,7 @@ export class FileOperationManager {
       task.setCurrentFile(item.newName, index)
       const result: FileOperationItemResult = { sourcePath: item.sourcePath, targetPath: destination, status: 'success' }
       try {
-        if (await adapter.exists(destination)) throw new Error(`目标名称已存在: ${item.newName}`)
+        if (await adapter.exists(destination)) throw new Error(t('errors.main.batchRenameTargetExists', { name: item.newName }))
         await adapter.rename(item.sourcePath, destination)
       } catch (error) {
         result.status = 'failed'
@@ -667,7 +668,7 @@ export class FileOperationManager {
           const trashDirectory = joinPosix(joinPosix(parent, '.fileman-recycle-bin'), task.id)
           await adapter.mkdir(trashDirectory)
           const trashPath = await this.resolveTargetPath(adapter, joinPosix(trashDirectory, posixBaseName(sourcePath)), 'rename')
-          if (!trashPath) throw new Error('无法准备回收站路径')
+          if (!trashPath) throw new Error(t('errors.main.recyclePathFailed'))
           await adapter.rename(sourcePath, trashPath)
           result.targetPath = trashPath
         }
@@ -684,14 +685,14 @@ export class FileOperationManager {
     const adapter = this.adapters.get(task.sourceDeviceId)
     if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
     const items = task.restoreItems ?? []
-    if (items.length === 0) throw new Error('恢复操作缺少原始路径。')
+    if (items.length === 0) throw new Error(t('errors.main.restoreMissingOriginalPaths'))
     task.progress.totalFiles = items.length
     for (let index = 0; index < items.length; index++) {
       const item = items[index]
       const result: FileOperationItemResult = { sourcePath: item.trashPath, targetPath: item.originalPath, status: 'success' }
       task.setCurrentFile(posixBaseName(item.originalPath), index)
       try {
-        if (await adapter.exists(item.originalPath)) throw new Error(`原始位置已有同名项目: ${item.originalPath}`)
+        if (await adapter.exists(item.originalPath)) throw new Error(t('errors.main.restoreTargetExists', { path: item.originalPath }))
         await adapter.rename(item.trashPath, item.originalPath)
       } catch (error) {
         result.status = 'failed'

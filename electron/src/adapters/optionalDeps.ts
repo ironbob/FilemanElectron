@@ -12,6 +12,8 @@
  * - 模块缓存由调用方持有（连接生命周期内复用）。
  */
 
+import { t } from '../i18n'
+
 const log = console
 
 export async function loadOptional<T>(id: string, loader: () => T | Promise<T>): Promise<T> {
@@ -19,8 +21,9 @@ export async function loadOptional<T>(id: string, loader: () => T | Promise<T>):
     return await loader()
   } catch (error) {
     log.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error)
-    throw new Error(
-      `可选依赖 ${id} 不可用，对应设备类型已禁用（原始错误：${error instanceof Error ? error.message : String(error)}）。请安装该依赖后重启应用。`
-    )
+    throw new Error(t('errors.main.optionalDepUnavailable', {
+      name: id,
+      message: error instanceof Error ? error.message : String(error)
+    }))
   }
 }

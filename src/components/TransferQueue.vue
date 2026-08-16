@@ -2,7 +2,7 @@
   <div class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-bg-secondary rounded-xl shadow-lg w-[480px] max-h-80 z-50 border border-border animate-slide-in">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border">
-      <span class="font-semibold text-text-primary">Transfers</span>
+      <span class="font-semibold text-text-primary">{{ $t('tasks.transfersTitle') }}</span>
       <button
         class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
         @click="$emit('close')"
@@ -19,7 +19,7 @@
         <svg class="w-10 h-10 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
         </svg>
-        <span class="text-sm">No active transfers</span>
+        <span class="text-sm">{{ $t('tasks.noActiveTransfers') }}</span>
       </div>
 
       <div
@@ -38,14 +38,14 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
             </svg>
             <span class="text-sm font-medium text-text-primary truncate max-w-[280px]">
-              {{ task.sourcePaths.length > 1 ? `${task.sourcePaths.length} items` : task.sourcePaths[0]?.split('/').pop() }}
+              {{ task.sourcePaths.length > 1 ? $t('tasks.itemCount', task.sourcePaths.length) : task.sourcePaths[0]?.split('/').pop() }}
             </span>
           </div>
           <span
             class="text-xs px-2 py-0.5 rounded-full font-medium"
             :class="getStatusClass(task.status)"
           >
-            {{ task.status }}
+            {{ statusLabel(task.status) }}
           </span>
         </div>
 
@@ -78,13 +78,13 @@
             class="text-xs text-text-tertiary hover:text-[#ff5f57] transition-colors"
             @click="transfersStore.cancelTask(task.id)"
           >
-            Cancel
+            {{ $t('common.cancel') }}
           </button>
           <button
             v-if="task.status === 'failed'"
             class="text-xs text-accent-blue hover:text-accent-hover transition-colors"
           >
-            Retry
+            {{ $t('common.retry') }}
           </button>
         </div>
       </div>
@@ -93,13 +93,13 @@
     <!-- Footer -->
     <div v-if="transfersStore.completedTasks.length > 0" class="px-4 py-2 border-t border-border flex justify-between items-center">
       <span class="text-xs text-text-tertiary">
-        {{ transfersStore.completedTasks.length }} completed
+        {{ $t('tasks.completedCount', transfersStore.completedTasks.length) }}
       </span>
       <button
         class="text-xs text-accent-blue hover:text-accent-hover transition-colors"
         @click="transfersStore.clearCompleted"
       >
-        Clear All
+        {{ $t('tasks.clearAll') }}
       </button>
     </div>
   </div>
@@ -107,12 +107,24 @@
 
 <script setup lang="ts">
 import { useTransfersStore } from '@/stores/transfers'
+import { t } from '@/i18n'
 
 defineEmits<{
   close: []
 }>()
 
 const transfersStore = useTransfersStore()
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'pending': return t('tasks.status.pending')
+    case 'running': return t('tasks.status.running')
+    case 'completed': return t('tasks.status.completed')
+    case 'failed': return t('tasks.status.failed')
+    case 'cancelled': return t('tasks.status.cancelled')
+    default: return status
+  }
+}
 
 function getStatusClass(status: string): string {
   switch (status) {

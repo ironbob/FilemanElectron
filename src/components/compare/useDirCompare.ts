@@ -6,6 +6,7 @@ import type {
   DirCompareSession,
   FileInfo
 } from '@/types'
+import { t } from '@/i18n'
 import {
   applyVerificationProgress,
   computeStats,
@@ -24,7 +25,7 @@ async function readDirectory(deviceId: string, path: string, side: 'left' | 'rig
   try {
     return { files: await window.fileman.listFiles(deviceId, path) }
   } catch (error) {
-    const message = error instanceof Error ? error.message : '读取目录失败'
+    const message = error instanceof Error ? error.message : t('compare.error.readDirFailed')
     const detail: CompareSideError = { side, deviceId, path, message }
     log.warn('[DirCompare] Directory read failed', detail)
     return { error: detail }

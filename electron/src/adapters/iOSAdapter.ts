@@ -2,6 +2,7 @@ import * as path from 'path'
 import { app } from 'electron'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { IOS_CAPABILITIES, type DeviceCapabilities } from './capabilities'
+import { t } from '../i18n'
 import type { AfcEntry, AfcStat } from '../../../native/iosafc'
 
 // L02(ios) · iOSAdapter (driven adapter, hexagonal)
@@ -45,9 +46,7 @@ function loadAddon(): IosAfcAddon {
       /* 继续尝试下一个候选 */
     }
   }
-  throw new Error(
-    'iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。'
-  )
+  throw new Error(t('errors.main.iosAddonMissing'))
 }
 
 export class iOSAdapter implements IFileSystemAdapter {
@@ -107,14 +106,14 @@ export class iOSAdapter implements IFileSystemAdapter {
   }
 
   private h(): number {
-    if (!this.connected || this.handle === null) throw new Error('iOS 设备未连接')
+    if (!this.connected || this.handle === null) throw new Error(t('errors.main.iosNotConnected'))
     // 配对可能在长连接期间被用户撤回。每个 AFC 操作前重新校验，避免让旧 handle
     // 静默失败或继续被误认为可用。
     if (!loadAddon().isPaired(this.udid())) {
       try { loadAddon().disconnect(this.handle) } catch { /* 会话可能已被设备关闭 */ }
       this.handle = null
       this.connected = false
-      throw new Error('iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。')
+      throw new Error(t('errors.main.iosPairingExpired'))
     }
     return this.handle
   }
@@ -181,13 +180,13 @@ export class iOSAdapter implements IFileSystemAdapter {
   async writeFile(filePath: string, data: Buffer): Promise<void> {
     const maxFileSize = this.getCapabilities().maxFileSize
     if (maxFileSize !== undefined && data.length > maxFileSize) {
-      throw new Error(`iOS AFC 单文件上限为 ${maxFileSize} 字节，无法写入: ${filePath}`)
+      throw new Error(t('errors.main.iosAfcFileTooLarge', { size: maxFileSize, path: filePath }))
     }
     try {
       loadAddon().writeFile(this.h(), filePath, data)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      throw new Error(`iOS AFC 无法写入 ${filePath}；该位置可能不允许写入或父目录不存在。${message}`)
+      throw new Error(t('errors.main.iosAfcWriteFailed', { path: filePath, message }))
     }
   }
 
@@ -197,7 +196,7 @@ export class iOSAdapter implements IFileSystemAdapter {
 
   async search(_dirPath: string, _query: SearchQuery): Promise<FileInfo[]> {
     // AFC 无通用搜索能力(IOS_CAPABILITIES.canSearch=false)。
-    throw new Error('iOS 设备不支持搜索(AFC 无通用搜索)')
+    throw new Error(t('errors.main.iosSearchUnsupported'))
   }
 
   // ============ 内部工具 ============
@@ -248,7 +247,7 @@ export async function pairIosDevice(
   try {
     const initiated = addon.pair(udid) // 触发设备端信任弹窗(立即返回)
     if (!initiated) {
-      return { success: false, error: '发起配对失败 —— 请确认设备已解锁、已插稳' }
+      return { success: false, error: t('errors.main.iosPairInitiateFailed') }
     }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
@@ -263,5 +262,5 @@ export async function pairIosDevice(
       /* validate 偶发失败,继续轮询 */
     }
   }
-  return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' }
+  return { success: false, error: t('errors.main.iosPairTimeout') }
 }

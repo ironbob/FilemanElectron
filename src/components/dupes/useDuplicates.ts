@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import type { DuplicateGroup, DuplicateScanProgress } from '@shared/types'
 import { useLongTaskProgress } from '@/composables/useLongTaskProgress'
+import { t } from '@/i18n'
 
 /**
  * 重复文件查找的会话状态（useDirCompare 配方：composable 持有运行会话，
@@ -34,9 +35,9 @@ export function useDuplicates(session: { id: string; deviceId: string; rootPath:
       truncated.value = event.truncated === true
       message.value = null
     } else if (event.status === 'failed') {
-      message.value = event.message ?? '扫描失败'
+      message.value = event.message ?? t('dupes.scanFailed')
     } else if (event.status === 'cancelled') {
-      message.value = '已取消'
+      message.value = t('dupes.cancelled')
     }
   })
 
@@ -76,12 +77,12 @@ export function useDuplicates(session: { id: string; deviceId: string; rootPath:
     const p = progress.value
     if (!p) return ''
     switch (p.status) {
-      case 'scanning': return `扫描中 · ${p.fileCount} 个文件`
-      case 'partial-hashing': return `首块比对 · 候选 ${p.candidateCount}`
-      case 'full-hashing': return `全量哈希 · 候选 ${p.candidateCount}`
-      case 'completed': return `完成 · ${p.groupCount} 组`
-      case 'cancelled': return '已取消'
-      case 'failed': return `失败 · ${p.message ?? ''}`
+      case 'scanning': return t('dupes.phase.scanning', p.fileCount)
+      case 'partial-hashing': return t('dupes.phase.partialHashing', p.candidateCount)
+      case 'full-hashing': return t('dupes.phase.fullHashing', p.candidateCount)
+      case 'completed': return t('dupes.phase.completed', p.groupCount)
+      case 'cancelled': return t('dupes.cancelled')
+      case 'failed': return t('dupes.phase.failed', { message: p.message ?? '' })
     }
   })
 

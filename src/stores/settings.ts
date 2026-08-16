@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { AppLocale } from '@shared/locales'
 import type { AppSettings } from '@/types'
 
 const log = (message: string, ...args: unknown[]) => {
@@ -85,6 +86,14 @@ export const useSettingsStore = defineStore('settings', () => {
     await persist()
   }
 
+  /** 界面语言（i18n.setLocale 的持久化路径；主进程随 config:save 刷新缓存）。 */
+  async function setLocale(locale: AppLocale): Promise<void> {
+    if (settings.value.locale === locale) return
+    settings.value.locale = locale
+    log('locale →', locale)
+    await persist()
+  }
+
   return {
     settings,
     loaded,
@@ -93,6 +102,7 @@ export const useSettingsStore = defineStore('settings', () => {
     toggleShowHiddenFiles,
     setShowPermissions,
     toggleShowPermissions,
-    setAutoRefresh
+    setAutoRefresh,
+    setLocale
   }
 })

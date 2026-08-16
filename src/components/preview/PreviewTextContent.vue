@@ -4,7 +4,7 @@
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
         <div class="w-6 h-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-sm text-text-secondary">Loading file...</span>
+        <span class="text-sm text-text-secondary">{{ $t('preview.text.loading') }}</span>
       </div>
     </div>
 
@@ -13,7 +13,7 @@
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
-      <p class="text-sm font-medium text-text-primary mb-1">Failed to load file</p>
+      <p class="text-sm font-medium text-text-primary mb-1">{{ $t('preview.text.loadFailed') }}</p>
       <p class="text-xs text-center max-w-xs">{{ errorMessage }}</p>
     </div>
 
@@ -25,7 +25,7 @@
         v-if="truncated"
         class="flex-shrink-0 px-3 py-1 text-xs text-text-tertiary bg-bg-hover border-b border-border"
       >
-        文件共 {{ formatSizeText(props.file.size) }}，仅载入前 {{ TEXT_PREVIEW_BYTE_CAP / 1024 / 1024 }} MB（大文件整读有卡顿/内存风险）
+        {{ $t('preview.text.truncatedBanner', { size: formatSizeText(props.file.size), limit: TEXT_PREVIEW_BYTE_CAP / 1024 / 1024 }) }}
       </div>
 
       <!-- ── Toolbar ── -->
@@ -36,20 +36,20 @@
             {{ displayLanguage }}
           </span>
           <span v-if="viewMode === 'source'" class="text-xs text-text-tertiary">
-            {{ lineCount }} lines
+            {{ $t('preview.text.linesCount', lineCount) }}
           </span>
           <span v-else-if="viewMode === 'table'" class="text-xs text-text-tertiary">
-            {{ csvRows.length }}<template v-if="csvTruncated">+</template> rows · {{ csvHeaders.length }} cols
+            {{ $t('preview.text.csvRowsCols', { rows: csvRows.length + (csvTruncated ? '+' : ''), cols: csvHeaders.length }) }}
           </span>
           <span v-else-if="viewMode === 'tree' && fileCategory === 'json'" class="text-xs text-text-tertiary">
-            {{ jsonNodeCount }} nodes
+            {{ $t('preview.json.nodeCount', jsonNodeCount) }}
           </span>
           <!-- JSON validity badge -->
           <span
             v-if="fileCategory === 'json' && jsonStatus !== null"
             class="text-xs px-1.5 py-0.5 rounded font-mono leading-none"
             :class="jsonStatus === 'valid' ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-400'"
-          >{{ jsonStatus === 'valid' ? '✓ valid' : '✗ invalid JSON' }}</span>
+          >{{ jsonStatus === 'valid' ? $t('preview.json.valid') : $t('preview.json.invalid') }}</span>
         </div>
 
         <!-- Right: view-mode toggles + source-mode controls -->
@@ -60,12 +60,12 @@
               class="px-2.5 py-1 text-xs transition-colors"
               :class="viewMode === 'rendered' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('rendered')"
-            >Preview</button>
+            >{{ $t('preview.markdown.previewMode') }}</button>
             <button
               class="px-2.5 py-1 text-xs transition-colors border-l border-border"
               :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('source')"
-            >Source</button>
+            >{{ $t('preview.markdown.sourceMode') }}</button>
           </div>
 
           <!-- JSON: Tree ↔ Source -->
@@ -74,12 +74,12 @@
               class="px-2.5 py-1 text-xs transition-colors"
               :class="viewMode === 'tree' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('tree')"
-            >Tree</button>
+            >{{ $t('preview.json.treeMode') }}</button>
             <button
               class="px-2.5 py-1 text-xs transition-colors border-l border-border"
               :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('source')"
-            >Source</button>
+            >{{ $t('preview.json.sourceMode') }}</button>
           </div>
 
           <!-- JSON 工具：格式化 / 路径查询 / 复制 TS interfaces -->
@@ -87,14 +87,14 @@
             <button
               v-if="viewMode === 'source'"
               class="px-2 py-1 text-xs rounded text-text-secondary hover:bg-bg-hover border border-border"
-              title="格式化（美化压缩的 JSON）"
+              :title="$t('preview.json.formatJsonTip')"
               @click="formatJsonSource"
-            >格式化</button>
+            >{{ $t('preview.json.formatJson') }}</button>
             <button
               class="px-2 py-1 text-xs rounded text-text-secondary hover:bg-bg-hover border border-border"
-              title="复制 TypeScript interface 定义"
+              :title="$t('preview.json.copyTsTip')"
               @click="copyTsInterfaces"
-            >复制 TS</button>
+            >{{ $t('preview.json.copyTs') }}</button>
             <div v-if="viewMode === 'tree'" class="flex items-center gap-1">
               <input
                 v-model="jsonPathInput"
@@ -106,7 +106,7 @@
               >
               <button
                 class="px-1.5 py-1 text-[11px] rounded text-text-secondary hover:bg-bg-hover border border-border"
-                title="执行路径查询"
+                :title="$t('preview.json.runPathQueryTip')"
                 @click="applyJsonPath"
               >→</button>
             </div>
@@ -118,12 +118,12 @@
               class="px-2.5 py-1 text-xs transition-colors"
               :class="viewMode === 'table' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('table')"
-            >Table</button>
+            >{{ $t('preview.text.tableMode') }}</button>
             <button
               class="px-2.5 py-1 text-xs transition-colors border-l border-border"
               :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('source')"
-            >Source</button>
+            >{{ $t('preview.json.sourceMode') }}</button>
           </div>
 
           <!-- Source-mode controls (word wrap + minimap) -->
@@ -131,7 +131,7 @@
             <button
               class="finder-icon-button"
               :class="{ 'is-active': wordWrap }"
-              :title="wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap'"
+              :title="wordWrap ? $t('preview.text.wordWrapDisable') : $t('preview.text.wordWrapEnable')"
               @click="toggleWordWrap"
             >
               <IconfontIcon name="code" />
@@ -139,7 +139,7 @@
             <button
               class="finder-icon-button"
               :class="{ 'is-active': showMinimap }"
-              title="Toggle Minimap"
+              :title="$t('preview.text.minimapTip')"
               @click="toggleMinimap"
             >
               <IconfontIcon name="document" />
@@ -155,7 +155,7 @@
           <template v-if="viewMode === 'tree' && fileCategory === 'json'">
             <button
               class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
-              title="Expand All"
+              :title="$t('preview.common.expandAll')"
               @click="jsonTreeRef?.expandAll()"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,7 +164,7 @@
             </button>
             <button
               class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
-              title="Collapse All"
+              :title="$t('preview.common.collapseAll')"
               @click="jsonTreeRef?.collapseAll()"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +191,7 @@
           class="json-viewer-container"
         ></json-viewer>
         <div v-else class="flex items-center justify-center h-full text-text-tertiary">
-          <p>Invalid JSON - cannot display tree view</p>
+          <p>{{ $t('preview.json.treeUnavailable') }}</p>
         </div>
       </div>
 
@@ -216,9 +216,9 @@
                 v-for="(header, ci) in csvHeaders"
                 :key="ci"
                 class="px-3 py-2 text-left font-semibold text-text-secondary border-b border-r border-border last:border-r-0 whitespace-nowrap cursor-pointer select-none hover:text-text-primary"
-                :title="`按此列排序${csvSortColumn === ci ? '（再点切换方向/取消）' : ''}`"
+                :title="csvSortColumn === ci ? $t('preview.text.sortColumnTipActive') : $t('preview.text.sortColumnTip')"
                 @click="sortCsvBy(ci)"
-              >{{ header || `Col ${ci + 1}` }}{{ csvSortIndicator(ci) }}</th>
+              >{{ header || $t('preview.text.colLabel', { index: ci + 1 }) }}{{ csvSortIndicator(ci) }}</th>
             </tr>
           </thead>
           <tbody>
@@ -241,7 +241,7 @@
           v-if="csvTruncated"
           class="sticky bottom-0 text-center py-2 text-xs text-text-tertiary bg-bg-tertiary/95 border-t border-border backdrop-blur-sm"
         >
-          Showing first {{ CSV_ROW_LIMIT.toLocaleString() }} of {{ totalCsvRows.toLocaleString() }} rows
+          {{ $t('preview.text.showingRows', { shown: CSV_ROW_LIMIT.toLocaleString(), total: totalCsvRows.toLocaleString() }) }}
         </div>
       </div>
 
@@ -258,7 +258,7 @@
             <span
               v-if="isModified"
               class="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-500 font-medium"
-            >Modified</span>
+            >{{ $t('preview.text.modifiedBadge') }}</span>
           </div>
           <div class="flex items-center gap-2">
             <!-- Diff button -->
@@ -270,14 +270,14 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
-              Diff
+              {{ $t('preview.text.diffLabel') }}
             </button>
             <!-- Save button (disabled while a filtered view is active) -->
             <button
               class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors flex items-center gap-1.5"
               :class="{ 'opacity-50 cursor-not-allowed': !isModified || isSaving || logAnalysis.isViewTransformed.value }"
               :disabled="!isModified || isSaving || logAnalysis.isViewTransformed.value"
-              :title="logAnalysis.isViewTransformed.value ? '过滤视图激活时不可保存源文件' : 'Save'"
+              :title="logAnalysis.isViewTransformed.value ? $t('preview.text.saveBlockedTip') : $t('preview.text.save')"
               @click="saveFile"
             >
               <svg v-if="isSaving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -287,7 +287,7 @@
               <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
-              Save
+              {{ $t('preview.text.save') }}
               <span class="text-[10px] opacity-70">⌘S</span>
             </button>
           </div>
@@ -300,9 +300,9 @@
         class="absolute inset-0 bg-bg-primary z-40 flex flex-col"
       >        <div class="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border flex-shrink-0">
           <div class="flex items-center gap-3">
-            <span class="text-sm font-medium text-text-primary">Changes: {{ file.name }}</span>
-            <span class="text-xs text-text-tertiary">Original → Modified</span>
-            <span class="text-xs text-text-tertiary ml-2">(Press Esc to close)</span>
+            <span class="text-sm font-medium text-text-primary">{{ $t('preview.text.changesTitle', { name: file.name }) }}</span>
+            <span class="text-xs text-text-tertiary">{{ $t('preview.text.originalToModified') }}</span>
+            <span class="text-xs text-text-tertiary ml-2">{{ $t('preview.text.escToClose') }}</span>
           </div>
           <button
             class="p-1.5 rounded hover:bg-bg-hover text-text-secondary"
@@ -328,6 +328,7 @@
 
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { t } from '@/i18n'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import type { FileInfo } from '@/types'
 import IconfontIcon from './IconfontIcon.vue'
@@ -725,7 +726,7 @@ function applyJsonPath(): void {
   const result = queryJson(parsedJsonData.value, jsonPathInput.value)
   jsonPathResult.value = result.ok
     ? JSON.stringify(result.value, null, 2)
-    : `✗ ${result.error ?? '查询失败'}`
+    : `✗ ${result.error ?? t('preview.json.pathQueryFailed')}`
 }
 
 function processCsv(raw: string): void {
@@ -904,7 +905,7 @@ async function loadFile() {
     log('Error loading file:', err)
     loading.value = false
     hasError.value = true
-    errorMessage.value = err instanceof Error ? err.message : 'Unknown error'
+    errorMessage.value = err instanceof Error ? err.message : t('preview.common.unknownError')
   }
 }
 
@@ -976,7 +977,7 @@ async function saveFile() {
     log('File saved successfully:', props.file.name)
   } catch (err) {
     log('Error saving file:', err)
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to save file'
+    errorMessage.value = err instanceof Error ? err.message : t('preview.text.saveFailed')
     hasError.value = true
   } finally {
     isSaving.value = false

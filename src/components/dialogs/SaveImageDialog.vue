@@ -3,22 +3,22 @@
        短生命周期表单 → 不建 ViewModel（DC-8）。 -->
   <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/45" @click.self="emit('close')">
     <form class="w-[440px] rounded-xl border border-border bg-bg-secondary p-5 shadow-2xl" @submit.prevent="confirm">
-      <h2 class="text-base font-semibold">保存图片</h2>
+      <h2 class="text-base font-semibold">{{ $t('dialogs.saveImage.title') }}</h2>
       <p class="mt-1 text-xs text-text-tertiary truncate">{{ fileName }}</p>
 
       <!-- 保存方式 -->
       <div class="mt-4 grid grid-cols-2 gap-2">
         <label class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors" :class="mode === 'overwrite' ? 'border-accent-blue bg-accent-blue/10' : 'border-border hover:bg-bg-hover'">
           <input v-model="mode" type="radio" value="overwrite" class="accent-blue-500" />
-          <span>覆盖原图</span>
+          <span>{{ $t('dialogs.saveImage.overwrite') }}</span>
         </label>
         <label class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors" :class="mode === 'copy' ? 'border-accent-blue bg-accent-blue/10' : 'border-border hover:bg-bg-hover'">
           <input v-model="mode" type="radio" value="copy" class="accent-blue-500" />
-          <span>另存副本</span>
+          <span>{{ $t('dialogs.saveImage.saveCopy') }}</span>
         </label>
       </div>
       <div v-if="mode === 'copy'" class="mt-2 flex items-center gap-2 text-sm">
-        <span class="text-text-tertiary text-xs flex-shrink-0">后缀</span>
+        <span class="text-text-tertiary text-xs flex-shrink-0">{{ $t('dialogs.saveImage.suffix') }}</span>
         <input v-model="suffix" class="flex-1 rounded border border-border bg-bg-primary px-2 py-1 text-sm" placeholder="_edited" />
       </div>
 
@@ -27,24 +27,24 @@
         <div class="flex items-center justify-between text-sm">
           <label class="flex items-center gap-2 cursor-pointer">
             <input v-model="compressOn" type="checkbox" class="accent-blue-500" />
-            <span class="text-text-secondary">压缩参数</span>
+            <span class="text-text-secondary">{{ $t('dialogs.saveImage.compressParams') }}</span>
           </label>
           <span v-if="estimateLabel" class="text-xs text-text-tertiary tabular-nums">{{ estimateLabel }}</span>
-          <span v-else-if="estimating && compressOn" class="text-xs text-text-tertiary">预估中…</span>
+          <span v-else-if="estimating && compressOn" class="text-xs text-text-tertiary">{{ $t('dialogs.saveImage.estimating') }}</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">质量 {{ quality }}</span>
+          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.saveImage.quality', { value: quality }) }}</span>
           <input v-model.number="quality" type="range" min="1" max="100" class="flex-1 accent-blue-500" />
         </div>
         <div class="flex items-center gap-3 text-sm">
-          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">最长边</span>
-          <input v-model.number="maxEdge" type="number" min="1" placeholder="不限制" class="w-24 rounded border border-border bg-bg-primary px-2 py-1 text-sm" />
-          <span class="text-xs text-text-tertiary">px（仅缩小）</span>
+          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.saveImage.maxEdge') }}</span>
+          <input v-model.number="maxEdge" type="number" min="1" :placeholder="$t('dialogs.saveImage.noLimit')" class="w-24 rounded border border-border bg-bg-primary px-2 py-1 text-sm" />
+          <span class="text-xs text-text-tertiary">{{ $t('dialogs.saveImage.pxDownscaleOnly') }}</span>
         </div>
         <div class="flex items-center gap-3 text-sm">
-          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">格式</span>
+          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.saveImage.format') }}</span>
           <select v-model="format" class="flex-1 rounded border border-border bg-bg-primary px-2 py-1 text-sm">
-            <option value="keep">保持原格式</option>
+            <option value="keep">{{ $t('dialogs.saveImage.formatKeep') }}</option>
             <option value="jpeg">JPEG</option>
             <option value="webp">WebP</option>
           </select>
@@ -54,9 +54,9 @@
       <p v-if="error" class="mt-3 rounded border border-red-400/40 bg-red-400/10 px-3 py-2 text-xs text-red-400">{{ error }}</p>
 
       <div class="mt-5 flex justify-end gap-2">
-        <button type="button" class="rounded px-3 py-2 text-sm text-text-secondary hover:bg-bg-hover" @click="emit('close')">取消</button>
+        <button type="button" class="rounded px-3 py-2 text-sm text-text-secondary hover:bg-bg-hover" @click="emit('close')">{{ $t('dialogs.saveImage.cancel') }}</button>
         <button type="submit" class="rounded bg-accent-blue px-3 py-2 text-sm text-white hover:bg-accent-blue/90 disabled:opacity-40" :disabled="applying || !!error">
-          {{ applying ? '保存中…' : '保存' }}
+          {{ applying ? $t('dialogs.saveImage.saving') : $t('dialogs.saveImage.save') }}
         </button>
       </div>
     </form>
@@ -66,6 +66,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { EditCompressParams, EditEstimateResult, EditSaveSpec } from '@shared/types'
+import { t } from '@/i18n'
 
 const props = defineProps<{
   fileName: string
@@ -108,7 +109,7 @@ const estimateLabel = computed(() => {
   if (!props.estimate) return ''
   const dim = props.estimate.width ? ` · ${props.estimate.width}×${props.estimate.height}` : ''
   const source = props.sourceBytes ? `${formatBytes(props.sourceBytes)} → ` : ''
-  return `${source}约 ${formatBytes(props.estimate.estimatedBytes)}${dim}`
+  return `${source}${t('dialogs.saveImage.estimateAbout', { size: formatBytes(props.estimate.estimatedBytes) })}${dim}`
 })
 
 let notifyTimer: ReturnType<typeof setTimeout> | null = null

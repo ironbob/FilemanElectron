@@ -48,7 +48,7 @@ test.beforeEach(async ({ page }) => {
 
 test('folder context menu opens the folder in a new tab', async ({ page }) => {
   await page.locator('[data-file-path="/docs"]').click({ button: 'right' })
-  await page.getByText('Open in New Tab').click()
+  await page.getByText('在新标签页中打开').click()
   await expect(page.locator('.finder-tab-strip .tab-item')).toHaveCount(2)
   // 新 tab 激活并进入 /docs
   await expect(page.locator('[data-file-path="/docs/readme.md"]')).toBeVisible()
@@ -56,7 +56,7 @@ test('folder context menu opens the folder in a new tab', async ({ page }) => {
 
 test('folder context menu opens a dual-pane tab anchored at the source pane', async ({ page }) => {
   await page.locator('[data-file-path="/docs"]').click({ button: 'right' })
-  await page.getByText('Open in Dual-Pane Tab').click()
+  await page.getByText('在双面板标签页中打开').click()
   await expect(page.locator('.finder-tab-strip .tab-item')).toHaveCount(2)
   // 双面板：两个 pane 同时渲染，一个在 /docs，一个留在 /
   await expect(page.locator('.finder-pane')).toHaveCount(2)

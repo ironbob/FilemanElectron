@@ -10,6 +10,8 @@ interface AppConfig {
     confirmDelete: boolean
     autoConnectDevices?: string[]
     autoRefresh?: boolean
+    /** 界面语言（@shared/locales 的 AppLocale）；缺省 = zh-CN。默认值不含此键，旧配置不动。 */
+    locale?: string
   }
 }
 

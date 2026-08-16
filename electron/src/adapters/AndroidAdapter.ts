@@ -6,6 +6,7 @@ import { ANDROID_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 import { loadOptional } from './optionalDeps'
 import { shellQuote } from './shellQuote'
 import { ToolPathResolver } from '../services/ToolPathResolver'
+import { t } from '../i18n'
 
 const log = console
 
@@ -75,7 +76,7 @@ export class AndroidAdapter implements IFileSystemAdapter {
 
       const devices = await this.client.listDevices()
       if (devices.length === 0) {
-        throw new Error('未检测到 Android 设备。请连接设备并开启 USB 调试。')
+        throw new Error(t('errors.main.androidNoDevice'))
       }
 
       const serial = this.config.deviceId ?? devices[0].id
@@ -84,12 +85,12 @@ export class AndroidAdapter implements IFileSystemAdapter {
       // 运行时状态校验:offline / unauthorized 给明确引导。
       if (target.type !== 'device') {
         if (target.type === 'unauthorized') {
-          throw new Error('设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。')
+          throw new Error(t('errors.main.androidUnauthorized'))
         }
         if (target.type === 'offline') {
-          throw new Error('设备离线。请重新插拔数据线后重试。')
+          throw new Error(t('errors.main.androidOffline'))
         }
-        throw new Error(`设备当前不可用(状态:${target.type})。`)
+        throw new Error(t('errors.main.androidUnavailable', { status: target.type }))
       }
 
       this.device = this.client.getDevice(target.id)
@@ -115,7 +116,7 @@ export class AndroidAdapter implements IFileSystemAdapter {
 
   private dev(): DeviceClient {
     if (!this.connected || !this.device) {
-      throw new Error('Android 设备未连接')
+      throw new Error(t('errors.main.androidNotConnected'))
     }
     return this.device
   }
@@ -341,7 +342,7 @@ export class AndroidAdapter implements IFileSystemAdapter {
     const stdout = out.slice(0, markerIdx)
     const code = parseInt(codeStr, 10)
     if (!Number.isNaN(code) && code !== 0) {
-      throw new Error(`命令失败(code=${code}): ${command}\n${stdout.trim()}`)
+      throw new Error(t('errors.main.shellCommandFailed', { code, command, output: stdout.trim() }))
     }
     return stdout
   }

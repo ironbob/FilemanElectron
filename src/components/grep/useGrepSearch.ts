@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import type { GrepMatch, GrepProgress } from '@shared/types'
 import { useLongTaskProgress } from '@/composables/useLongTaskProgress'
+import { t } from '@/i18n'
 
 /**
  * 内容搜索会话状态（useDuplicates 同款配方）。
@@ -35,10 +36,10 @@ export function useGrepSearch(session: { id: string; deviceId: string; rootPath:
       message.value = null
       seenTerminal = true
     } else if (event.status === 'failed') {
-      message.value = event.message ?? '搜索失败'
+      message.value = event.message ?? t('grep.failed')
       seenTerminal = true
     } else if (event.status === 'cancelled') {
-      message.value = '已取消'
+      message.value = t('grep.cancelled')
       seenTerminal = true
     }
   })

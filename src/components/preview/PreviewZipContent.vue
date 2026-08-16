@@ -13,7 +13,7 @@
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
-      <p class="text-sm font-medium text-text-primary mb-1">Failed to read archive</p>
+      <p class="text-sm font-medium text-text-primary mb-1">{{ $t('preview.zip.readFailed') }}</p>
       <p class="text-xs text-center max-w-xs">{{ errorMessage }}</p>
     </div>
 
@@ -26,20 +26,20 @@
             ZIP
           </span>
           <span class="text-xs text-text-tertiary">
-            {{ fileCount }} items · {{ formatSize(totalSize) }}
+            {{ $t('preview.zip.itemsCount', fileCount) }} · {{ formatSize(totalSize) }}
           </span>
         </div>
         <div class="finder-control-group">
           <button
             class="finder-icon-button"
-            title="Expand All"
+            :title="$t('preview.common.expandAll')"
             @click="expandAll"
           >
             <IconfontIcon name="expand" />
           </button>
           <button
             class="finder-icon-button"
-            title="Collapse All"
+            :title="$t('preview.common.collapseAll')"
             @click="collapseAll"
           >
             <IconfontIcon name="collapse" />
@@ -48,7 +48,7 @@
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Search..."
+              :placeholder="$t('preview.zip.searchPlaceholder')"
               class="w-40 px-2 py-1 text-xs bg-bg-primary border border-border rounded focus:outline-none focus:border-accent-blue text-text-primary placeholder-text-tertiary"
             />
             <IconfontIcon name="search" size="sm" class="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -83,6 +83,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, shallowRef } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import IconfontIcon from './IconfontIcon.vue'
 import { unzip } from 'fflate'
@@ -108,7 +109,7 @@ interface ZipNode {
 
 // State
 const loading = ref(true)
-const loadingProgress = ref('Reading archive...')
+const loadingProgress = ref(t('preview.zip.reading'))
 const hasError = ref(false)
 const errorMessage = ref('')
 const rootNodes = shallowRef<ZipNode[]>([])
@@ -379,7 +380,7 @@ async function loadFile() {
 
   try {
     log('Loading ZIP:', props.file.name, 'device:', props.deviceId)
-    loadingProgress.value = 'Reading file...'
+    loadingProgress.value = t('preview.zip.readingFile')
 
     // Read file as ArrayBuffer
     const base64 = await window.fileman.readFile(props.deviceId, props.file.path)
@@ -389,7 +390,7 @@ async function loadFile() {
       bytes[i] = binary.charCodeAt(i)
     }
 
-    loadingProgress.value = 'Parsing archive...'
+    loadingProgress.value = t('preview.zip.parsing')
 
     // Parse ZIP headers to get filenames with correct encoding
     const parsedEntries = parseZipFilenames(bytes)
@@ -398,7 +399,7 @@ async function loadFile() {
     const fflateEntries = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
       unzip(bytes, (err, data) => {
         if (err) {
-          reject(new Error(`Failed to parse ZIP: ${err.message}`))
+          reject(new Error(t('preview.zip.parseFailed', { message: err.message })))
           return
         }
         resolve(data)
@@ -438,7 +439,7 @@ async function loadFile() {
       }
     }
 
-    loadingProgress.value = 'Building tree...'
+    loadingProgress.value = t('preview.zip.buildingTree')
     rootNodes.value = buildTree(entries)
 
     // Auto-expand first level
@@ -456,7 +457,7 @@ async function loadFile() {
     log('Error loading ZIP:', err)
     loading.value = false
     hasError.value = true
-    errorMessage.value = err instanceof Error ? err.message : 'Unknown error'
+    errorMessage.value = err instanceof Error ? err.message : t('preview.common.unknownError')
   }
 }
 

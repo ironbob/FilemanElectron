@@ -1,4 +1,5 @@
 import path from 'path'
+import { t } from '../../i18n'
 
 /**
  * 图片编辑输出路径命名策略（纯函数，ROLE-L03）。
@@ -44,5 +45,5 @@ export function resolveOutputPath(options: ResolveOutputPathOptions): string {
     const p = candidate(n)
     if (!exists(p)) return p
   }
-  throw new Error(`无法生成唯一输出文件名（已尝试 100 个候选）：${candidate(0)}`)
+  throw new Error(t('errors.main.imageEditNameExhausted', { path: candidate(0) }))
 }

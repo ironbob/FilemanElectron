@@ -5,7 +5,7 @@
            standalone（独立简介窗口）时整块作为窗口拖拽区——hiddenInset 标题栏
            没有原生可拖区域；此模式下 header 内无交互子元素，无需 app-no-drag 豁免。 -->
       <div class="relative flex-shrink-0" :class="standalone ? 'app-drag' : ''">
-        <img v-if="thumbnailSrc" :src="thumbnailSrc" class="h-40 w-full rounded-t-xl bg-bg-primary object-contain" alt="preview" />
+        <img v-if="thumbnailSrc" :src="thumbnailSrc" class="h-40 w-full rounded-t-xl bg-bg-primary object-contain" :alt="$t('dialogs.fileInfo.previewAlt')" />
         <div v-else :class="standalone ? 'flex items-start gap-3 px-6 pb-4 pt-11' : 'flex items-start justify-between gap-4 px-5 pt-5'">
           <FinderIcon v-if="standalone" :name="file.isDirectory ? 'folder' : 'fileText'" class="h-11 w-11 flex-shrink-0" />
           <div class="min-w-0">
@@ -27,42 +27,42 @@
       <div :class="standalone ? 'flex-1 overflow-y-auto px-6 pb-6 pt-2 space-y-5' : 'flex-1 overflow-y-auto px-5 py-4 space-y-4'">
         <!-- ── 常规 ─────────────────────────────────────────── -->
         <section>
-          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">常规</h4>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.general') }}</h4>
           <div class="rounded-lg bg-bg-tertiary/50 p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <template v-if="isSingle">
-                <InfoRow label="种类" :value="kindLabel" />
+                <InfoRow :label="$t('dialogs.fileInfo.kind')" :value="kindLabel" />
                 <!-- 大小：文件夹实时累计，进度/失败说明只作展示不进复制内容 -->
-                <InfoRow label="大小" :copy-value="singleSizeCopy">
+                <InfoRow :label="$t('dialogs.fileInfo.size')" :copy-value="singleSizeCopy">
                   <span class="min-w-0 flex-1 break-all">
                     {{ !file.isDirectory ? formatSize(file.size) : scan ? formatSize(scan.totalBytes) : '—' }}
                   </span>
                   <span v-if="file.isDirectory && scanStatus === 'scanning'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">
-                    正在计算… 已扫描 {{ scannedCount }} 项
+                    {{ $t('dialogs.fileInfo.scanning', scannedCount) }}
                   </span>
                   <span v-else-if="file.isDirectory && scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">
-                    计算失败：{{ scanMessage }}
+                    {{ $t('dialogs.fileInfo.scanFailed', { message: scanMessage }) }}
                   </span>
-                  <span v-else-if="file.isDirectory && scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">已取消</span>
+                  <span v-else-if="file.isDirectory && scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.cancelled') }}</span>
                 </InfoRow>
-                <InfoRow label="项目数" :value="itemCountLabel" />
-                <InfoRow label="位置" :value="locationLabel" />
-                <InfoRow label="设备" :value="deviceName" />
-                <InfoRow label="修改时间" :value="modifiedLabel" />
-                <InfoRow v-if="!isZipEntry" label="创建时间" :value="createdLabel" />
+                <InfoRow :label="$t('dialogs.fileInfo.itemCount')" :value="itemCountLabel" />
+                <InfoRow :label="$t('dialogs.fileInfo.location')" :value="locationLabel" />
+                <InfoRow :label="$t('dialogs.fileInfo.device')" :value="deviceName" />
+                <InfoRow :label="$t('dialogs.fileInfo.modifiedTime')" :value="modifiedLabel" />
+                <InfoRow v-if="!isZipEntry" :label="$t('dialogs.fileInfo.createdTime')" :value="createdLabel" />
               </template>
               <template v-else>
-                <InfoRow label="项目" :value="selectionLabel" />
-                <InfoRow label="总大小" :copy-value="formatSize(aggregateBytes)">
+                <InfoRow :label="$t('dialogs.fileInfo.items')" :value="selectionLabel" />
+                <InfoRow :label="$t('dialogs.fileInfo.totalSize')" :copy-value="formatSize(aggregateBytes)">
                   <span class="min-w-0 flex-1 break-all">{{ formatSize(aggregateBytes) }}</span>
                   <span v-if="scanStatus === 'scanning'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">
-                    正在计算… 已扫描 {{ scannedCount }} 项
+                    {{ $t('dialogs.fileInfo.scanning', scannedCount) }}
                   </span>
-                  <span v-else-if="scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">计算失败：{{ scanMessage }}</span>
-                  <span v-else-if="scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">已取消</span>
+                  <span v-else-if="scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">{{ $t('dialogs.fileInfo.scanFailed', { message: scanMessage }) }}</span>
+                  <span v-else-if="scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.cancelled') }}</span>
                 </InfoRow>
-                <InfoRow label="设备" :value="deviceName" />
-                <InfoRow label="位置" :value="multiLocationLabel" />
+                <InfoRow :label="$t('dialogs.fileInfo.device')" :value="deviceName" />
+                <InfoRow :label="$t('dialogs.fileInfo.location')" :value="multiLocationLabel" />
               </template>
             </dl>
           </div>
@@ -70,23 +70,23 @@
 
         <!-- ── 详细信息 ─────────────────────────────────────── -->
         <section v-if="isSingle && (file.extension || showPermissions || zipEntry)">
-          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">详细信息</h4>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.details') }}</h4>
           <div class="rounded-lg bg-bg-tertiary/50 p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <template v-if="isSingle">
-                <InfoRow label="扩展名" :value="file.extension" />
-                <InfoRow v-if="showPermissions" label="权限" mono :value="stats?.mode != null ? formatPermissions(stats.mode) : undefined" />
-                <InfoRow v-if="file?.isSymlink" label="符号链接" mono :value="file.symlinkTarget ?? '（目标不可读）'" />
-                <InfoRow v-if="canChmod && stats?.mode != null && !chmodEditing" label="修改权限">
+                <InfoRow :label="$t('dialogs.fileInfo.extension')" :value="file.extension" />
+                <InfoRow v-if="showPermissions" :label="$t('dialogs.fileInfo.permissions')" mono :value="stats?.mode != null ? formatPermissions(stats.mode) : undefined" />
+                <InfoRow v-if="file?.isSymlink" :label="$t('dialogs.fileInfo.symlink')" mono :value="file.symlinkTarget ?? $t('dialogs.fileInfo.symlinkUnreadable')" />
+                <InfoRow v-if="canChmod && stats?.mode != null && !chmodEditing" :label="$t('dialogs.fileInfo.editPermissions')">
                   <button
                     class="text-xs px-1.5 py-0.5 rounded border border-border text-text-secondary hover:bg-bg-hover"
                     @click.prevent="startChmodEdit"
-                  >编辑…</button>
+                  >{{ $t('dialogs.fileInfo.editButton') }}</button>
                 </InfoRow>
                 <template v-if="zipEntry">
-                  <InfoRow label="压缩后大小" :value="formatSize(zipEntry.compressedSize)" />
-                  <InfoRow label="压缩率" :value="ratioLabel" />
-                  <InfoRow label="压缩方法" :value="compressionLabel" />
+                  <InfoRow :label="$t('dialogs.fileInfo.compressedSize')" :value="formatSize(zipEntry.compressedSize)" />
+                  <InfoRow :label="$t('dialogs.fileInfo.ratio')" :value="ratioLabel" />
+                  <InfoRow :label="$t('dialogs.fileInfo.compressionMethod')" :value="compressionLabel" />
                 </template>
               </template>
             </dl>
@@ -96,15 +96,15 @@
         <!-- ── chmod 编辑（canChmod 且单选非 ZIP） ─────────────── -->
         <section v-if="chmodEditing" class="rounded-lg border border-accent-blue/40 p-3 space-y-3">
           <div class="flex items-center justify-between">
-            <h4 class="text-xs font-semibold uppercase tracking-wide text-accent-blue">修改权限</h4>
+            <h4 class="text-xs font-semibold uppercase tracking-wide text-accent-blue">{{ $t('dialogs.fileInfo.editPermissions') }}</h4>
             <span class="text-[11px] text-text-tertiary font-mono">{{ chmodOctal }}</span>
           </div>
           <!-- rwx 复选格：owner / group / other 三行 -->
           <div class="grid grid-cols-[64px_repeat(3,48px)] gap-y-1.5 items-center text-xs">
             <span class="text-text-tertiary"></span>
-            <span class="text-center text-text-tertiary">读 r</span>
-            <span class="text-center text-text-tertiary">写 w</span>
-            <span class="text-center text-text-tertiary">执行 x</span>
+            <span class="text-center text-text-tertiary">{{ $t('dialogs.fileInfo.read') }}</span>
+            <span class="text-center text-text-tertiary">{{ $t('dialogs.fileInfo.write') }}</span>
+            <span class="text-center text-text-tertiary">{{ $t('dialogs.fileInfo.execute') }}</span>
             <template v-for="{ label, role } in chmodRoles" :key="role">
               <span class="text-text-secondary">{{ label }}</span>
               <div v-for="bit in (['r', 'w', 'x'] as const)" :key="bit" class="flex justify-center">
@@ -120,7 +120,7 @@
           <!-- 八进制输入 + 递归（目录） -->
           <div class="flex items-center gap-3 text-xs">
             <label class="flex items-center gap-1.5 text-text-secondary">
-              八进制
+              {{ $t('dialogs.fileInfo.octal') }}
               <input
                 :value="chmodOctal"
                 type="text"
@@ -131,23 +131,23 @@
             </label>
             <label v-if="file?.isDirectory" class="flex items-center gap-1.5 text-text-secondary cursor-pointer">
               <input v-model="chmodRecursive" type="checkbox" class="accent-blue-500">
-              递归应用到目录内容
+              {{ $t('dialogs.fileInfo.recursive') }}
             </label>
             <span v-if="chmodError" class="text-accent-red">{{ chmodError }}</span>
           </div>
           <div class="flex justify-end gap-2">
-            <button class="px-2.5 py-1 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover" @click.prevent="chmodEditing = false">取消</button>
+            <button class="px-2.5 py-1 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover" @click.prevent="chmodEditing = false">{{ $t('dialogs.fileInfo.cancel') }}</button>
             <button
               class="px-2.5 py-1 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90 disabled:opacity-40"
               :disabled="chmodError !== null"
               @click.prevent="applyChmod"
-            >应用</button>
+            >{{ $t('dialogs.fileInfo.apply') }}</button>
           </div>
         </section>
 
         <!-- ── 媒体（单选且识别到媒体元数据时显示） ────────────── -->
         <section v-if="isSingle && mediaRows.length > 0">
-          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">媒体</h4>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.media') }}</h4>
           <div class="rounded-lg bg-bg-tertiary/50 p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <InfoRow v-for="row in mediaRows" :key="row.label" :label="row.label" :value="row.value" :copy-value="row.copyValue" />
@@ -157,14 +157,14 @@
 
         <!-- ── 标签（仅单选） ────────────────────────────────── -->
         <section v-if="isSingle && !isZipEntry">
-          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">标签</h4>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.tags') }}</h4>
           <form class="flex items-center gap-2" @submit.prevent="save">
             <input
               v-model="tagText"
               class="min-w-0 flex-1 rounded border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none"
-              placeholder="work, review（逗号分隔；由 Fileman 本地存储）"
+              :placeholder="$t('dialogs.fileInfo.tagsPlaceholder')"
             />
-            <button type="submit" class="rounded bg-accent-blue px-3 py-2 text-sm text-white transition-colors hover:bg-accent-blue/90">保存</button>
+            <button type="submit" class="rounded bg-accent-blue px-3 py-2 text-sm text-white transition-colors hover:bg-accent-blue/90">{{ $t('dialogs.fileInfo.save') }}</button>
           </form>
         </section>
       </div>
@@ -182,7 +182,7 @@
           <svg v-else class="h-3.5 w-3.5 text-accent-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
-          {{ copiedAll ? '已复制' : '复制全部' }}
+          {{ copiedAll ? $t('dialogs.fileInfo.copied') : $t('dialogs.fileInfo.copyAll') }}
         </button>
         <div class="flex items-center gap-2">
           <button
@@ -191,14 +191,14 @@
             class="rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
             @click="cancelScan"
           >
-            取消计算
+            {{ $t('dialogs.fileInfo.cancelCalc') }}
           </button>
           <button
             type="button"
             class="rounded bg-bg-tertiary px-4 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
             @click="$emit('close')"
           >
-            {{ standalone ? '关闭窗口' : '关闭' }}
+            {{ $t(standalone ? 'dialogs.fileInfo.closeWindow' : 'dialogs.fileInfo.close') }}
           </button>
         </div>
       </div>
@@ -214,6 +214,8 @@ import { getMimeType } from '@/types/preview'
 import type { FileStats, MediaInfoSummary } from '@shared/types'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { formatSize } from '@/utils/path'
+import { formatDateTime } from '@/utils/formatDate'
+import { t } from '@/i18n'
 import { formatPermissions, parseOctalPermissions } from '@/utils/permissions'
 import type { DeviceCapabilities } from '@shared/types'
 import { getFileCategory, isImageFile, needsNativeDecode } from '@/utils/fileTypes'
@@ -244,21 +246,27 @@ const selectionFileCount = computed(() => props.files.filter(f => !f.isDirectory
 const selectionDirCount = computed(() => props.files.filter(f => f.isDirectory).length)
 
 const headerTitle = computed(() =>
-  isSingle.value ? file.value.name : `${props.files.length} 个项目`
+  isSingle.value ? file.value.name : t('dialogs.fileInfo.multiTitle', props.files.length)
 )
 const headerSubtitle = computed(() =>
-  isSingle.value ? file.value.path : `位于 ${multiLocationLabel.value}`
+  isSingle.value ? file.value.path : t('dialogs.fileInfo.locatedAt', { location: multiLocationLabel.value })
 )
 
-const CATEGORY_LABELS: Record<string, string> = {
-  image: '图片', video: '视频', audio: '音频', archive: '归档文件',
-  document: '文档', text: '文本', unknown: '文件',
-}
+/** 种类标签映射（computed 保证随语言切换刷新） */
+const categoryLabels = computed<Record<string, string>>(() => ({
+  image: t('dialogs.fileInfo.categoryImage'),
+  video: t('dialogs.fileInfo.categoryVideo'),
+  audio: t('dialogs.fileInfo.categoryAudio'),
+  archive: t('dialogs.fileInfo.categoryArchive'),
+  document: t('dialogs.fileInfo.categoryDocument'),
+  text: t('dialogs.fileInfo.categoryText'),
+  unknown: t('dialogs.fileInfo.categoryUnknown'),
+}))
 const kindLabel = computed(() => {
   if (!isSingle.value) return ''
-  if (file.value.isDirectory) return '文件夹'
-  if (isZipEntry.value) return 'ZIP 内条目'
-  return CATEGORY_LABELS[getFileCategory(file.value.extension ?? '')] ?? '文件'
+  if (file.value.isDirectory) return t('dialogs.fileInfo.kindFolder')
+  if (isZipEntry.value) return t('dialogs.fileInfo.kindZipEntry')
+  return categoryLabels.value[getFileCategory(file.value.extension ?? '')] ?? t('dialogs.fileInfo.categoryUnknown')
 })
 
 /** POSIX 父目录（ZIP 虚拟路径直接显示完整路径） */
@@ -274,15 +282,22 @@ const multiLocationLabel = computed(() => {
   return first ? (isZipVirtualPath(first.path) ? first.path : parentDirectory(first.path)) : ''
 })
 
-const modifiedLabel = computed(() => formatDate(stats.value?.modifiedTime ?? file.value.modifiedTime))
-const createdLabel = computed(() => formatDate(stats.value?.createdTime ?? file.value.createdTime))
+const modifiedLabel = computed(() => formatDateTime(stats.value?.modifiedTime ?? file.value.modifiedTime))
+const createdLabel = computed(() => {
+  const iso = stats.value?.createdTime ?? file.value.createdTime
+  return iso ? formatDateTime(iso) : ''
+})
 const itemCountLabel = computed(() =>
   file.value.isDirectory && scan.value && scanStatus.value === 'completed'
-    ? `${scan.value.fileCount} 个文件，${scan.value.directoryCount} 个文件夹`
+    ? t('dialogs.fileInfo.itemCountLabel', { fileCount: scan.value.fileCount, dirCount: scan.value.directoryCount })
     : undefined
 )
 const selectionLabel = computed(() =>
-  `${props.files.length} 项（${selectionFileCount.value} 个文件，${selectionDirCount.value} 个文件夹）`
+  t('dialogs.fileInfo.selectionLabel', {
+    count: props.files.length,
+    fileCount: selectionFileCount.value,
+    dirCount: selectionDirCount.value
+  })
 )
 const ratioLabel = computed(() =>
   zipEntry.value && zipEntry.value.size > 0
@@ -292,7 +307,7 @@ const ratioLabel = computed(() =>
 const compressionLabel = computed(() => {
   if (!zipEntry.value) return undefined
   const method = zipEntry.value.compressionMethod
-  return method === 8 ? 'Deflate' : method === 0 ? 'Stored' : `未知（${method}）`
+  return method === 8 ? 'Deflate' : method === 0 ? 'Stored' : t('dialogs.fileInfo.unknownCompression', { method })
 })
 
 // ── 异步数据 ──────────────────────────────────────────────────────────────────
@@ -308,11 +323,12 @@ const chmodBits = reactive({
   other: { r: false, w: false, x: false }
 })
 
-const chmodRoles: Array<{ label: string; role: keyof typeof chmodBits }> = [
-  { label: '所有者', role: 'owner' },
-  { label: '组', role: 'group' },
-  { label: '其他', role: 'other' }
-]
+/** chmod 行标签（computed 保证随语言切换刷新） */
+const chmodRoles = computed<Array<{ label: string; role: keyof typeof chmodBits }>>(() => [
+  { label: t('dialogs.fileInfo.roleOwner'), role: 'owner' },
+  { label: t('dialogs.fileInfo.roleGroup'), role: 'group' },
+  { label: t('dialogs.fileInfo.roleOther'), role: 'other' }
+])
 
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
 
@@ -343,7 +359,7 @@ function startChmodEdit(): void {
 function applyOctalInput(text: string): void {
   const mode = parseOctalPermissions(text)
   if (mode === null) {
-    chmodError.value = '八进制应为 3-4 位（如 755 / 0644）'
+    chmodError.value = t('dialogs.fileInfo.octalInvalid')
     return
   }
   chmodError.value = null
@@ -511,36 +527,36 @@ const mediaRows = computed(() => {
   const rows: Array<{ label: string; value: string; copyValue?: string }> = []
   const m = media.value
   if (m) {
-    if (m.format) rows.push({ label: '格式', value: m.format })
-    if (m.durationSeconds) rows.push({ label: '时长', value: formatDuration(m.durationSeconds) })
+    if (m.format) rows.push({ label: t('dialogs.fileInfo.mediaFormat'), value: m.format })
+    if (m.durationSeconds) rows.push({ label: t('dialogs.fileInfo.mediaDuration'), value: formatDuration(m.durationSeconds) })
     const v = m.video
     if (v) {
-      if (v.width && v.height) rows.push({ label: '分辨率', value: `${v.width} × ${v.height}`, copyValue: `${v.width}x${v.height}` })
-      if (v.frameRate) rows.push({ label: '帧率', value: `${v.frameRate} fps` })
-      if (v.codec) rows.push({ label: '视频编码', value: v.bitDepth ? `${v.codec}（${v.bitDepth}-bit）` : v.codec, copyValue: v.codec })
-      if (v.bitrate) rows.push({ label: '视频码率', value: formatBitrate(v.bitrate) })
+      if (v.width && v.height) rows.push({ label: t('dialogs.fileInfo.mediaResolution'), value: `${v.width} × ${v.height}`, copyValue: `${v.width}x${v.height}` })
+      if (v.frameRate) rows.push({ label: t('dialogs.fileInfo.mediaFrameRate'), value: `${v.frameRate} fps` })
+      if (v.codec) rows.push({ label: t('dialogs.fileInfo.mediaVideoCodec'), value: v.bitDepth ? t('dialogs.fileInfo.videoCodecBitDepth', { codec: v.codec, bits: v.bitDepth }) : v.codec, copyValue: v.codec })
+      if (v.bitrate) rows.push({ label: t('dialogs.fileInfo.mediaVideoBitrate'), value: formatBitrate(v.bitrate) })
     }
     const a = m.audio
     if (a) {
-      if (a.codec) rows.push({ label: '音频编码', value: a.codec })
-      if (a.sampleRate) rows.push({ label: '采样率', value: `${(a.sampleRate / 1000).toFixed(1).replace(/\.0$/, '')} kHz` })
-      if (a.channels) rows.push({ label: '声道', value: `${a.channels} 声道` })
-      if (a.bitrate) rows.push({ label: '音频码率', value: formatBitrate(a.bitrate) })
+      if (a.codec) rows.push({ label: t('dialogs.fileInfo.mediaAudioCodec'), value: a.codec })
+      if (a.sampleRate) rows.push({ label: t('dialogs.fileInfo.mediaSampleRate'), value: `${(a.sampleRate / 1000).toFixed(1).replace(/\.0$/, '')} kHz` })
+      if (a.channels) rows.push({ label: t('dialogs.fileInfo.mediaChannels'), value: t('dialogs.fileInfo.channelsValue', a.channels) })
+      if (a.bitrate) rows.push({ label: t('dialogs.fileInfo.mediaAudioBitrate'), value: formatBitrate(a.bitrate) })
     }
-    if (m.overallBitrate) rows.push({ label: '总码率', value: formatBitrate(m.overallBitrate) })
+    if (m.overallBitrate) rows.push({ label: t('dialogs.fileInfo.mediaOverallBitrate'), value: formatBitrate(m.overallBitrate) })
   }
   const im = imageMeta.value
   if (im) {
     if (im.width && im.height) {
       const mp = ((im.width * im.height) / 1e6).toFixed(1)
-      rows.push({ label: '尺寸', value: `${im.width} × ${im.height}（${mp} MP）`, copyValue: `${im.width}x${im.height}` })
+      rows.push({ label: t('dialogs.fileInfo.mediaDimensions'), value: t('dialogs.fileInfo.dimensionsValue', { width: im.width, height: im.height, mp }), copyValue: `${im.width}x${im.height}` })
     }
-    if (im.camera) rows.push({ label: '相机', value: im.camera })
-    if (im.takenAt) rows.push({ label: '拍摄时间', value: im.takenAt })
-    if (im.iso) rows.push({ label: 'ISO', value: String(im.iso) })
-    if (im.fNumber) rows.push({ label: '光圈', value: `f/${im.fNumber}` })
-    if (im.exposure) rows.push({ label: '快门', value: im.exposure })
-    if (im.focalLength) rows.push({ label: '焦距', value: `${im.focalLength} mm` })
+    if (im.camera) rows.push({ label: t('dialogs.fileInfo.mediaCamera'), value: im.camera })
+    if (im.takenAt) rows.push({ label: t('dialogs.fileInfo.mediaTakenAt'), value: im.takenAt })
+    if (im.iso) rows.push({ label: t('dialogs.fileInfo.mediaIso'), value: String(im.iso) })
+    if (im.fNumber) rows.push({ label: t('dialogs.fileInfo.mediaAperture'), value: `f/${im.fNumber}` })
+    if (im.exposure) rows.push({ label: t('dialogs.fileInfo.mediaShutter'), value: im.exposure })
+    if (im.focalLength) rows.push({ label: t('dialogs.fileInfo.mediaFocalLength'), value: `${im.focalLength} mm` })
   }
   return rows
 })
@@ -577,7 +593,7 @@ async function loadImageMeta(): Promise<void> {
       imageMeta.value = {
         ...imageMeta.value,
         camera: [data.Make, data.Model].filter(Boolean).join(' ').trim() || undefined,
-        takenAt: data.DateTimeOriginal instanceof Date ? data.DateTimeOriginal.toLocaleString() : undefined,
+        takenAt: data.DateTimeOriginal instanceof Date ? formatDateTime(data.DateTimeOriginal) : undefined,
         iso: typeof data.ISO === 'number' ? data.ISO : undefined,
         fNumber: typeof data.FNumber === 'number' ? data.FNumber : undefined,
         exposure,
@@ -604,30 +620,30 @@ let copiedAllTimer: ReturnType<typeof setTimeout> | null = null
 function buildSummaryText(): string {
   const lines: string[] = []
   if (isSingle.value) {
-    lines.push(`名称: ${file.value.name}`)
-    lines.push(`路径: ${file.value.path}`)
-    lines.push(`种类: ${kindLabel.value}`)
-    if (singleSizeCopy.value) lines.push(`大小: ${singleSizeCopy.value}`)
-    if (itemCountLabel.value) lines.push(`项目数: ${itemCountLabel.value}`)
-    lines.push(`位置: ${locationLabel.value}`)
-    lines.push(`设备: ${props.deviceName}`)
-    if (modifiedLabel.value) lines.push(`修改时间: ${modifiedLabel.value}`)
-    if (!isZipEntry.value && createdLabel.value) lines.push(`创建时间: ${createdLabel.value}`)
-    if (file.value.extension) lines.push(`扩展名: ${file.value.extension}`)
-    if (showPermissions.value && stats.value?.mode != null) lines.push(`权限: ${formatPermissions(stats.value.mode)}`)
+    lines.push(`${t('dialogs.fileInfo.name')}: ${file.value.name}`)
+    lines.push(`${t('dialogs.fileInfo.path')}: ${file.value.path}`)
+    lines.push(`${t('dialogs.fileInfo.kind')}: ${kindLabel.value}`)
+    if (singleSizeCopy.value) lines.push(`${t('dialogs.fileInfo.size')}: ${singleSizeCopy.value}`)
+    if (itemCountLabel.value) lines.push(`${t('dialogs.fileInfo.itemCount')}: ${itemCountLabel.value}`)
+    lines.push(`${t('dialogs.fileInfo.location')}: ${locationLabel.value}`)
+    lines.push(`${t('dialogs.fileInfo.device')}: ${props.deviceName}`)
+    if (modifiedLabel.value) lines.push(`${t('dialogs.fileInfo.modifiedTime')}: ${modifiedLabel.value}`)
+    if (!isZipEntry.value && createdLabel.value) lines.push(`${t('dialogs.fileInfo.createdTime')}: ${createdLabel.value}`)
+    if (file.value.extension) lines.push(`${t('dialogs.fileInfo.extension')}: ${file.value.extension}`)
+    if (showPermissions.value && stats.value?.mode != null) lines.push(`${t('dialogs.fileInfo.permissions')}: ${formatPermissions(stats.value.mode)}`)
     if (zipEntry.value) {
-      lines.push(`压缩后大小: ${formatSize(zipEntry.value.compressedSize)}`)
-      if (ratioLabel.value) lines.push(`压缩率: ${ratioLabel.value}`)
-      if (compressionLabel.value) lines.push(`压缩方法: ${compressionLabel.value}`)
+      lines.push(`${t('dialogs.fileInfo.compressedSize')}: ${formatSize(zipEntry.value.compressedSize)}`)
+      if (ratioLabel.value) lines.push(`${t('dialogs.fileInfo.ratio')}: ${ratioLabel.value}`)
+      if (compressionLabel.value) lines.push(`${t('dialogs.fileInfo.compressionMethod')}: ${compressionLabel.value}`)
     }
   } else {
-    lines.push(`项目: ${selectionLabel.value}`)
-    lines.push(`总大小: ${formatSize(aggregateBytes.value)}`)
-    lines.push(`设备: ${props.deviceName}`)
-    if (multiLocationLabel.value) lines.push(`位置: ${multiLocationLabel.value}`)
+    lines.push(`${t('dialogs.fileInfo.items')}: ${selectionLabel.value}`)
+    lines.push(`${t('dialogs.fileInfo.totalSize')}: ${formatSize(aggregateBytes.value)}`)
+    lines.push(`${t('dialogs.fileInfo.device')}: ${props.deviceName}`)
+    if (multiLocationLabel.value) lines.push(`${t('dialogs.fileInfo.location')}: ${multiLocationLabel.value}`)
   }
   for (const row of mediaRows.value) lines.push(`${row.label}: ${row.value}`)
-  if (isSingle.value && !isZipEntry.value && tagText.value.trim()) lines.push(`标签: ${tagText.value}`)
+  if (isSingle.value && !isZipEntry.value && tagText.value.trim()) lines.push(`${t('dialogs.fileInfo.tags')}: ${tagText.value}`)
   return lines.join('\n')
 }
 
@@ -662,11 +678,5 @@ function formatDuration(seconds: number): string {
 /** bps → Mbps / kbps */
 function formatBitrate(bps: number): string {
   return bps >= 1e6 ? `${(bps / 1e6).toFixed(2)} Mbps` : `${Math.round(bps / 1e3)} kbps`
-}
-
-function formatDate(iso?: string): string {
-  if (!iso) return ''
-  const time = Date.parse(iso)
-  return Number.isNaN(time) ? '' : new Date(time).toLocaleString()
 }
 </script>

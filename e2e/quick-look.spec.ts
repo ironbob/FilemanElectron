@@ -51,7 +51,7 @@ test.beforeEach(async ({ page }) => {
 async function openQuickLook(page: import('@playwright/test').Page) {
   await page.locator('[data-file-path="/file-01.txt"]').click()
   await page.keyboard.press('Space')
-  const overlay = page.getByRole('dialog', { name: 'Quick Look' })
+  const overlay = page.getByRole('dialog', { name: '快速预览' })
   await expect(overlay).toBeVisible()
   return overlay
 }

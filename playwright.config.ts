@@ -9,6 +9,9 @@ export default defineConfig({
   reporter: [['html', { outputFolder: 'playwright-report', open: 'never' }], ['list']],
   use: {
     baseURL: 'http://127.0.0.1:4173',
+    // 套件断言以默认中文（zh-CN）书写；Playwright 无头浏览器默认 locale 是
+    // en-US，会把应用 bootstrap 成英文界面导致断言失败。固定为 zh-CN。
+    locale: 'zh-CN',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     trace: 'on-first-retry'

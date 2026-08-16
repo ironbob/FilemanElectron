@@ -12,16 +12,16 @@
         class="relative flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden app-no-drag"
         style="width: min(760px, 80%); height: min(560px, 76%)"
         role="dialog"
-        aria-label="设备截图预览"
+        :aria-label="$t('mobile.screenshot.previewAria')"
       >
         <!-- Header -->
         <div class="finder-preview-toolbar flex items-center justify-between border-b border-border">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="text-sm font-medium text-text-primary truncate">{{ shot.deviceName }} 截图</span>
+            <span class="text-sm font-medium text-text-primary truncate">{{ $t('mobile.screenshot.title', { name: shot.deviceName }) }}</span>
             <span class="text-xs text-text-tertiary flex-shrink-0">{{ capturedAtLabel }}</span>
           </div>
           <div class="finder-control-group">
-            <button class="finder-icon-button" title="Close (Esc)" :disabled="saving" @click="close">
+            <button class="finder-icon-button" :title="$t('mobile.screenshot.closeTip')" :disabled="saving" @click="close">
               <IconfontIcon name="close" />
             </button>
           </div>
@@ -33,7 +33,7 @@
             v-if="objectUrl"
             :src="objectUrl"
             class="max-w-full max-h-full object-contain"
-            alt="设备截图预览"
+            :alt="$t('mobile.screenshot.previewAria')"
           />
         </div>
 
@@ -43,17 +43,17 @@
             class="px-3 py-1.5 text-sm rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default"
             :disabled="saving"
             @click="close"
-          >关闭</button>
+          >{{ $t('common.close') }}</button>
           <button
             class="px-3 py-1.5 text-sm rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default"
             :disabled="saving || capturing"
             @click="retake"
-          >{{ capturing ? '截图中…' : '重新截取' }}</button>
+          >{{ capturing ? $t('mobile.screenshot.capturing') : $t('mobile.screenshot.retake') }}</button>
           <button
             class="px-3.5 py-1.5 text-sm rounded-md bg-accent-blue text-white hover:bg-accent-blue/85 transition-colors disabled:opacity-40 disabled:cursor-default"
             :disabled="saving"
             @click="save"
-          >{{ saving ? '保存中…' : '保存…' }}</button>
+          >{{ saving ? $t('mobile.screenshot.saving') : $t('mobile.screenshot.save') }}</button>
         </div>
       </div>
     </div>
@@ -65,16 +65,14 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useDeviceScreenshot } from '@/composables/useDeviceScreenshot'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import IconfontIcon from '@/components/preview/IconfontIcon.vue'
+import { formatDateTime } from '@/utils/formatDate'
 
 const { shot, saving, capturingDeviceIds, close, retake, save } = useDeviceScreenshot()
 
 const capturing = computed(() => shot.value !== null && capturingDeviceIds.value.includes(shot.value.deviceId))
 
 const capturedAtLabel = computed(() => {
-  const d = shot.value ? new Date(shot.value.capturedAt) : null
-  if (!d) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return shot.value ? formatDateTime(shot.value.capturedAt) : ''
 })
 
 // ── blob URL 生命周期：shot 变化重建，旧的立即 revoke，卸载兜底 revoke ──

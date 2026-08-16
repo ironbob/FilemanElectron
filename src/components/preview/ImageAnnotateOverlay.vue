@@ -20,7 +20,7 @@
       v-model="textInput.value"
       class="absolute z-10 px-2 py-1 rounded border border-accent-blue bg-bg-primary text-sm text-text-primary shadow-lg"
       :style="{ left: textInput.x + 'px', top: textInput.y + 'px' }"
-      placeholder="输入文字，回车确认"
+      :placeholder="$t('preview.image.textPlaceholder')"
       @keydown.enter.prevent="commitText"
       @keydown.escape.stop.prevent="cancelText"
       @blur="commitText"

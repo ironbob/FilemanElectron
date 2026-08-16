@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { Readable } from 'stream'
 import type { IFileSystemAdapter } from '../../adapters/types'
+import { t } from '../../i18n'
 
 /** 无流式读取能力的设备，缓冲回退的上限（与 ContentVerificationService 一致）。 */
 export const MAX_BUFFERED_BYTES = 32 * 1024 * 1024
@@ -49,7 +50,7 @@ export async function hashAdapterFile(
     }
   }
   if (size > MAX_BUFFERED_BYTES) {
-    throw new Error('该设备不支持流式读取，无法处理超过 32 MB 的文件')
+    throw new Error(t('errors.main.hashStreamUnsupported'))
   }
   if (options.isCancelled?.()) throw new Error('cancelled by request')
   const data = await adapter.readFile(filePath)
@@ -94,7 +95,7 @@ export async function hashAdapterFileRange(
     }
   }
   if (size > MAX_BUFFERED_BYTES) {
-    throw new Error('该设备不支持流式读取，无法处理超过 32 MB 的文件')
+    throw new Error(t('errors.main.hashStreamUnsupported'))
   }
   if (options.isCancelled?.()) throw new Error('cancelled by request')
   const data = await adapter.readFile(filePath)

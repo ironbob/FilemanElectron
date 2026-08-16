@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { t } from '@/i18n'
 
 /**
  * git 状态徽标（只读装饰）——list/grid/columns 三视图名称旁的内联小圆点。
@@ -46,7 +47,7 @@ const badge = computed<{ letter: string; kind: string } | null>(() => {
     v-if="badge"
     class="git-badge"
     :class="`git-badge-${badge.kind}`"
-    :title="`Git: ${badge.letter}`"
+    :title="t('fileList.gitBadgeTitle', { letter: badge.letter })"
   >{{ badge.letter }}</span>
 </template>
 

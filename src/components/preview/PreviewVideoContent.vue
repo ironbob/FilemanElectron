@@ -4,7 +4,7 @@
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
         <div class="w-6 h-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-sm text-text-secondary">Loading video...</span>
+        <span class="text-sm text-text-secondary">{{ $t('preview.video.loading') }}</span>
       </div>
     </div>
 
@@ -13,18 +13,18 @@
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
-      <p class="text-sm font-medium text-text-primary mb-1">无法播放视频</p>
+      <p class="text-sm font-medium text-text-primary mb-1">{{ $t('preview.video.playbackFailed') }}</p>
       <p class="text-xs">{{ errorMessage }}</p>
       <div class="flex items-center gap-2 mt-4">
         <button
           class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:opacity-90"
           @click="openAsHex"
-        >以十六进制查看</button>
+        >{{ $t('preview.common.viewAsHex') }}</button>
         <button
           v-if="isLocal"
           class="px-3 py-1.5 text-xs rounded bg-bg-hover text-text-secondary hover:bg-bg-active"
           @click="openWithSystem"
-        >用系统默认应用打开</button>
+        >{{ $t('preview.common.openWithSystem') }}</button>
       </div>
     </div>
 
@@ -56,7 +56,7 @@
           class="finder-icon-button"
           :disabled="!isPiPSupported"
           @click="togglePiP"
-          title="Picture-in-Picture"
+          :title="$t('preview.video.pipTip')"
         >
           <IconfontIcon name="pip" />
         </button>
@@ -67,7 +67,7 @@
         <button
           class="finder-icon-button"
           @click="toggleFullscreen"
-          title="Fullscreen"
+          :title="$t('preview.video.fullscreenTip')"
         >
           <IconfontIcon name="expand" />
         </button>
@@ -137,7 +137,7 @@
             <button
               class="w-8 h-8 rounded-full flex items-center justify-center text-white/80 hover:bg-white/20 transition-all"
               @click="skipBackward"
-              title="Back 10s"
+              :title="$t('preview.video.back10Tip')"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 9.106a1 1 0 000 1.414L9.586 12l1.894 1.894a1 1 0 01-1.414 1.414l-2.83-2.83a1 1 0 010-1.414l2.83-2.83zM15.5 12a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0z" />
@@ -161,7 +161,7 @@
             <button
               class="w-8 h-8 rounded-full flex items-center justify-center text-white/80 hover:bg-white/20 transition-all"
               @click="skipForward"
-              title="Forward 10s"
+              :title="$t('preview.video.forward10Tip')"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.934 9.106a1 1 0 00-1.414 1.414L13.414 12l-1.894 1.894a1 1 0 001.414 1.414l2.83-2.83a1 1 0 000-1.414l-2.83-2.83zM8.5 12a3.5 3.5 0 10-7 0 3.5 3.5 0 017 0z" />
@@ -178,7 +178,7 @@
               <button
                 class="w-8 h-8 rounded-full flex items-center justify-center text-white/80 hover:bg-white/20 transition-all"
                 @click="toggleMute"
-                title="Mute"
+                :title="$t('preview.video.muteTip')"
               >
                 <svg v-if="isMuted || volume === 0" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.535 3.051 12 3.686 12 5v14c0 1.314-1.465 1.949-2.707.707L4.586 15z" />
@@ -207,6 +207,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import { usePreviewStore } from '@/stores/preview'
@@ -343,7 +344,10 @@ async function loadContent() {
   // 整读进 Blob（无流式）：超大文件拒载，避免远程设备整读阻塞/内存暴涨
   if (props.file.size > MEDIA_PREVIEW_BYTE_LIMIT) {
     hasError.value = true
-    errorMessage.value = `文件 ${(props.file.size / 1024 / 1024).toFixed(0)} MB 超过媒体预览上限 ${MEDIA_PREVIEW_BYTE_LIMIT / 1024 / 1024} MB（整体载入无流式）`
+    errorMessage.value = t('preview.common.mediaOversized', {
+      size: (props.file.size / 1024 / 1024).toFixed(0),
+      limit: MEDIA_PREVIEW_BYTE_LIMIT / 1024 / 1024
+    })
     loading.value = false
     return
   }
@@ -365,7 +369,7 @@ async function loadContent() {
   } catch (e) {
     console.error('[PreviewVideoContent] Error loading video:', e)
     hasError.value = true
-    errorMessage.value = e instanceof Error ? e.message : 'Unknown error'
+    errorMessage.value = e instanceof Error ? e.message : t('preview.common.unknownError')
   } finally {
     loading.value = false
   }
@@ -394,19 +398,19 @@ function handleVideoError(e: Event) {
   if (video.error) {
     switch (video.error.code) {
       case MediaError.MEDIA_ERR_ABORTED:
-        errorMessage.value = 'Video playback was aborted'
+        errorMessage.value = t('preview.video.errAborted')
         break
       case MediaError.MEDIA_ERR_NETWORK:
-        errorMessage.value = 'Network error occurred'
+        errorMessage.value = t('preview.video.errNetwork')
         break
       case MediaError.MEDIA_ERR_DECODE:
-        errorMessage.value = 'Video decoding failed'
+        errorMessage.value = t('preview.video.errDecode')
         break
       case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-        errorMessage.value = '容器或编码不受支持（Chromium 可解：MP4/H.264、WebM 等；AVI/WMV/FLV/MPEG-2 需外部播放）'
+        errorMessage.value = t('preview.video.errUnsupported')
         break
       default:
-        errorMessage.value = 'Unknown video error'
+        errorMessage.value = t('preview.video.errUnknown')
     }
   }
 }

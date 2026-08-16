@@ -3,7 +3,7 @@
     <!-- Toolbar -->
     <div class="h-10 bg-bg-toolbar flex items-center px-2 gap-1 border-b border-border flex-shrink-0">
       <!-- Close -->
-      <button class="toolbar-btn-enhanced" title="关闭对比 (Esc)" @click="closeTab">
+      <button class="toolbar-btn-enhanced" :title="$t('compare.diff.closeTip')" @click="closeTab">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -13,8 +13,8 @@
 
       <!-- Left path -->
       <div class="flex items-center gap-1 min-w-0 flex-1">
-        <span class="text-accent-teal flex-shrink-0 text-[11px] font-bold px-1 py-0.5 bg-accent-teal/10 rounded">左</span>
-        <span class="text-text-secondary text-xs truncate">{{ session.left?.path ?? '（无）' }}</span>
+        <span class="text-accent-teal flex-shrink-0 text-[11px] font-bold px-1 py-0.5 bg-accent-teal/10 rounded">{{ $t('compare.diff.leftSide') }}</span>
+        <span class="text-text-secondary text-xs truncate">{{ session.left?.path ?? $t('compare.missingSide') }}</span>
       </div>
 
       <!-- Status badge -->
@@ -24,20 +24,20 @@
 
       <!-- Right path -->
       <div class="flex items-center gap-1 min-w-0 flex-1 justify-end">
-        <span class="text-text-secondary text-xs truncate text-right">{{ session.right?.path ?? '（无）' }}</span>
-        <span class="text-accent-blue flex-shrink-0 text-[11px] font-bold px-1 py-0.5 bg-accent-blue/10 rounded">右</span>
+        <span class="text-text-secondary text-xs truncate text-right">{{ session.right?.path ?? $t('compare.missingSide') }}</span>
+        <span class="text-accent-blue flex-shrink-0 text-[11px] font-bold px-1 py-0.5 bg-accent-blue/10 rounded">{{ $t('compare.diff.rightSide') }}</span>
       </div>
 
       <!-- Diff nav + layout toggle (text only, after content loaded) -->
       <template v-if="isTextFile && !isLoading && !errorMsg && !tooLarge">
         <div class="w-px h-5 bg-border mx-1 flex-shrink-0" />
         <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-          <button class="toolbar-btn-enhanced btn-purple" title="上一处差异 (Shift+F7)" @click="prevDiff">
+          <button class="toolbar-btn-enhanced btn-purple" :title="$t('compare.diff.prevDiffTip')" @click="prevDiff">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
             </svg>
           </button>
-          <button class="toolbar-btn-enhanced btn-purple" title="下一处差异 (F7)" @click="nextDiff">
+          <button class="toolbar-btn-enhanced btn-purple" :title="$t('compare.diff.nextDiffTip')" @click="nextDiff">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -46,7 +46,7 @@
         <button
           class="toolbar-btn-enhanced"
           :class="{ 'btn-blue': renderSideBySide }"
-          title="切换并排 / 内联模式"
+          :title="$t('compare.diff.toggleLayout')"
           @click="toggleLayout"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,7 +61,7 @@
     <div v-if="isLoading" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-3 text-text-tertiary">
         <div class="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
-        <span class="text-sm">加载文件内容…</span>
+        <span class="text-sm">{{ $t('compare.diff.loading') }}</span>
       </div>
     </div>
 
@@ -84,16 +84,16 @@
             <img v-if="leftDataUrl" :src="leftDataUrl" draggable="false"
               class="max-w-full max-h-full object-contain pointer-events-none"
               :style="{ transform: `scale(${imgScale})`, transformOrigin: 'center' }" />
-            <div v-else class="text-text-tertiary text-sm italic">（无文件）</div>
-            <span class="img-label img-label-left">← 左</span>
+            <div v-else class="text-text-tertiary text-sm italic">{{ $t('compare.diff.noFile') }}</div>
+            <span class="img-label img-label-left">{{ $t('compare.diff.imgLeftLabel') }}</span>
           </div>
           <div class="w-px bg-border flex-shrink-0" />
           <div class="flex-1 relative flex items-center justify-center overflow-hidden">
             <img v-if="rightDataUrl" :src="rightDataUrl" draggable="false"
               class="max-w-full max-h-full object-contain pointer-events-none"
               :style="{ transform: `scale(${imgScale})`, transformOrigin: 'center' }" />
-            <div v-else class="text-text-tertiary text-sm italic">（无文件）</div>
-            <span class="img-label img-label-right">右 →</span>
+            <div v-else class="text-text-tertiary text-sm italic">{{ $t('compare.diff.noFile') }}</div>
+            <span class="img-label img-label-right">{{ $t('compare.diff.imgRightLabel') }}</span>
           </div>
         </div>
 
@@ -124,8 +124,8 @@
               </svg>
             </div>
           </div>
-          <span class="img-label img-label-left">← 左</span>
-          <span class="img-label img-label-right">右 →</span>
+          <span class="img-label img-label-left">{{ $t('compare.diff.imgLeftLabel') }}</span>
+          <span class="img-label img-label-right">{{ $t('compare.diff.imgRightLabel') }}</span>
         </div>
 
         <!-- ── Blend / Onion skin ── -->
@@ -140,15 +140,15 @@
               transformOrigin: 'center',
               opacity: blendPercent / 100
             }" />
-          <span class="img-label img-label-left">← 左</span>
-          <span class="img-label img-label-right">右 →</span>
+          <span class="img-label img-label-left">{{ $t('compare.diff.imgLeftLabel') }}</span>
+          <span class="img-label img-label-right">{{ $t('compare.diff.imgRightLabel') }}</span>
         </div>
 
         <!-- ── Pixel diff ── -->
         <div v-else-if="imgMode === 'diff'" class="absolute inset-0 flex items-center justify-center">
           <div v-if="isDiffComputing" class="flex flex-col items-center gap-2 text-text-tertiary">
             <div class="w-6 h-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
-            <span class="text-xs">计算差异…</span>
+            <span class="text-xs">{{ $t('compare.diff.computingDiff') }}</span>
           </div>
           <canvas
             ref="diffCanvasRef"
@@ -164,7 +164,7 @@
         <!-- Mode buttons -->
         <div class="flex items-center gap-0.5 bg-bg-secondary/60 rounded-md p-0.5">
           <button
-            v-for="m in IMG_MODES" :key="m.value"
+            v-for="m in imgModeOptions" :key="m.value"
             class="img-mode-btn"
             :class="{ 'img-mode-btn-active': imgMode === m.value }"
             @click="setImgMode(m.value)"
@@ -173,7 +173,7 @@
         <!-- Blend slider -->
         <template v-if="imgMode === 'blend'">
           <div class="w-px h-4 bg-border flex-shrink-0" />
-          <span class="text-text-tertiary">右侧</span>
+          <span class="text-text-tertiary">{{ $t('compare.diff.blendRightLabel') }}</span>
           <input type="range" min="0" max="100" v-model.number="blendPercent"
             class="w-20" style="accent-color: var(--accent-blue)" />
           <span class="text-text-secondary w-7">{{ blendPercent }}%</span>
@@ -181,23 +181,23 @@
         <!-- Image dimensions -->
         <div class="flex-1" />
         <span v-if="leftImgSize" class="text-text-tertiary">
-          <span class="text-accent-teal font-bold">左</span> {{ leftImgSize.w }}×{{ leftImgSize.h }}
+          <span class="text-accent-teal font-bold">{{ $t('compare.diff.leftSide') }}</span> {{ leftImgSize.w }}×{{ leftImgSize.h }}
         </span>
         <span v-if="rightImgSize" class="text-text-tertiary">
-          <span class="text-accent-blue font-bold">右</span> {{ rightImgSize.w }}×{{ rightImgSize.h }}
+          <span class="text-accent-blue font-bold">{{ $t('compare.diff.rightSide') }}</span> {{ rightImgSize.w }}×{{ rightImgSize.h }}
         </span>
         <div class="w-px h-4 bg-border flex-shrink-0" />
         <!-- Diff stats -->
         <span v-if="imgMode === 'diff' && diffStats" class="text-red-400">
-          差异 {{ diffStats.percentage.toFixed(1) }}%
+          {{ $t('compare.diff.diffPercent', { percent: diffStats.percentage.toFixed(1) }) }}
         </span>
         <!-- Zoom reset -->
         <button
           class="text-text-secondary hover:text-text-primary transition-colors px-1.5 py-0.5 rounded hover:bg-bg-hover"
-          title="单击重置缩放"
+          :title="$t('compare.diff.resetZoomTip')"
           @click="imgScale = 1"
         >{{ Math.round(imgScale * 100) }}%</button>
-        <span class="text-text-tertiary opacity-50 text-[10px]">⌘+滚轮缩放</span>
+        <span class="text-text-tertiary opacity-50 text-[10px]">{{ $t('compare.diff.zoomHint') }}</span>
       </div>
     </div>
 
@@ -207,22 +207,22 @@
         <div class="grid grid-cols-[1fr_auto_1fr] gap-6 items-start">
           <!-- Left meta -->
           <div class="text-sm space-y-3">
-            <p class="text-xs text-accent-teal font-bold mb-4">左侧文件</p>
+            <p class="text-xs text-accent-teal font-bold mb-4">{{ $t('compare.diff.leftFile') }}</p>
             <template v-if="session.left">
               <div>
-                <p class="text-text-tertiary text-xs">文件名</p>
+                <p class="text-text-tertiary text-xs">{{ $t('compare.diff.fileName') }}</p>
                 <p class="text-text-primary truncate">{{ session.left.name }}</p>
               </div>
               <div>
-                <p class="text-text-tertiary text-xs">大小</p>
+                <p class="text-text-tertiary text-xs">{{ $t('compare.diff.size') }}</p>
                 <p class="text-text-primary">{{ formatSize(session.left.size) }}</p>
               </div>
               <div>
-                <p class="text-text-tertiary text-xs">修改时间</p>
+                <p class="text-text-tertiary text-xs">{{ $t('compare.diff.modifiedTime') }}</p>
                 <p class="text-text-primary">{{ session.left.modifiedTime }}</p>
               </div>
             </template>
-            <p v-else class="text-text-tertiary italic">（无此文件）</p>
+            <p v-else class="text-text-tertiary italic">{{ $t('compare.diff.noSuchFile') }}</p>
           </div>
 
           <!-- Center status -->
@@ -230,27 +230,27 @@
             <div class="px-3 py-1.5 rounded-full text-sm font-bold" :class="statusBadgeClass">
               {{ statusLabel }}
             </div>
-            <p v-if="tooLarge" class="text-xs text-text-tertiary mt-2">文件过大，无法预览内容</p>
+            <p v-if="tooLarge" class="text-xs text-text-tertiary mt-2">{{ $t('compare.diff.tooLarge') }}</p>
           </div>
 
           <!-- Right meta -->
           <div class="text-sm space-y-3 text-right">
-            <p class="text-xs text-accent-blue font-bold mb-4">右侧文件</p>
+            <p class="text-xs text-accent-blue font-bold mb-4">{{ $t('compare.diff.rightFile') }}</p>
             <template v-if="session.right">
               <div>
-                <p class="text-text-tertiary text-xs">文件名</p>
+                <p class="text-text-tertiary text-xs">{{ $t('compare.diff.fileName') }}</p>
                 <p class="text-text-primary truncate">{{ session.right.name }}</p>
               </div>
               <div>
-                <p class="text-text-tertiary text-xs">大小</p>
+                <p class="text-text-tertiary text-xs">{{ $t('compare.diff.size') }}</p>
                 <p class="text-text-primary">{{ formatSize(session.right.size) }}</p>
               </div>
               <div>
-                <p class="text-text-tertiary text-xs">修改时间</p>
+                <p class="text-text-tertiary text-xs">{{ $t('compare.diff.modifiedTime') }}</p>
                 <p class="text-text-primary">{{ session.right.modifiedTime }}</p>
               </div>
             </template>
-            <p v-else class="text-text-tertiary italic">（无此文件）</p>
+            <p v-else class="text-text-tertiary italic">{{ $t('compare.diff.noSuchFile') }}</p>
           </div>
         </div>
       </div>
@@ -267,6 +267,7 @@ import type { FileDiffSession } from '@/types'
 import { getFileCategory } from '@/utils/fileTypes'
 import { getLanguageForFile } from '@shared/fileKinds'
 import { useTabsStore } from '@/stores/tabs'
+import { t } from '@/i18n'
 
 // ── Electron freeze prevention: MonacoEnvironment BEFORE any monaco import ───
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker&inline'
@@ -311,17 +312,17 @@ const tooLarge = computed(() => {
 // ── Status badge ──────────────────────────────────────────────────────────────
 const statusLabel = computed(() => {
   switch (props.session.status) {
-    case 'metadata-equal': return '元数据相同'
-    case 'content-equal': return '内容相同'
-    case 'different':   return '不同'
-    case 'left-newer':  return '左侧较新'
-    case 'right-newer': return '右侧较新'
-    case 'left-only':   return '仅左侧'
-    case 'right-only':  return '仅右侧'
-    case 'type-mismatch': return '类型不同'
-    case 'verifying': return '校验中'
-    case 'verification-failed': return '校验失败'
-    case 'uncomparable': return '无法比较'
+    case 'metadata-equal': return t('compare.diffStatus.metadataEqual')
+    case 'content-equal': return t('compare.diffStatus.contentEqual')
+    case 'different':   return t('compare.diffStatus.different')
+    case 'left-newer':  return t('compare.diffStatus.leftNewer')
+    case 'right-newer': return t('compare.diffStatus.rightNewer')
+    case 'left-only':   return t('compare.diffStatus.leftOnly')
+    case 'right-only':  return t('compare.diffStatus.rightOnly')
+    case 'type-mismatch': return t('compare.diffStatus.typeMismatch')
+    case 'verifying': return t('compare.diffStatus.verifying')
+    case 'verification-failed': return t('compare.diffStatus.verificationFailed')
+    case 'uncomparable': return t('compare.diffStatus.uncomparable')
   }
 })
 
@@ -359,12 +360,13 @@ const rightDataUrl = ref<string | null>(null)
 
 // ── Image comparison state ────────────────────────────────────────────────────
 type ImgMode = 'side-by-side' | 'slide' | 'blend' | 'diff'
-const IMG_MODES: { value: ImgMode; label: string }[] = [
-  { value: 'side-by-side', label: '并排' },
-  { value: 'slide',        label: '滑动' },
-  { value: 'blend',        label: '叠加' },
-  { value: 'diff',         label: 'Diff' },
-]
+// 标签经 computed 取词：随语言切换响应（禁止模块级常量直接存 t() 结果）。
+const imgModeOptions = computed<{ value: ImgMode; label: string }[]>(() => [
+  { value: 'side-by-side', label: t('compare.diff.imgModeSideBySide') },
+  { value: 'slide',        label: t('compare.diff.imgModeSlide') },
+  { value: 'blend',        label: t('compare.diff.imgModeBlend') },
+  { value: 'diff',         label: t('compare.diff.imgModeDiff') },
+])
 const imgMode         = ref<ImgMode>('side-by-side')
 const imgScale        = ref(1)
 const sliderPos       = ref(50)   // 0–100%
@@ -451,7 +453,7 @@ async function loadContent() {
     }
     // For binary/other: no content loading needed; metadata panel shows session data
   } catch (e) {
-    errorMsg.value = `加载失败：${(e as Error).message}`
+    errorMsg.value = t('compare.diff.loadFailed', { message: (e as Error).message })
   } finally {
     isLoading.value = false
   }

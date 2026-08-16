@@ -7,6 +7,7 @@ import { shellQuote } from './shellQuote'
 import { ToolPathResolver } from '../services/ToolPathResolver'
 import { hdcTargetArgs, runHdc, runHdcShell } from '../services/support/hdcRunner'
 import { parseHdcListTargets, parseStatLines, type OhosStatEntry } from '../services/support/ohosParsing'
+import { t } from '../i18n'
 
 const log = console
 
@@ -56,7 +57,7 @@ export class OhosAdapter implements IFileSystemAdapter {
 
   private requireConnected(): string {
     if (!this.connected) {
-      throw new Error('HarmonyOS 设备未连接')
+      throw new Error(t('errors.main.ohosNotConnected'))
     }
     return this.connectKey()
   }
@@ -64,13 +65,13 @@ export class OhosAdapter implements IFileSystemAdapter {
   async connect(): Promise<void> {
     try {
       if (!ToolPathResolver.hasHdc()) {
-        throw new Error('未检测到 hdc。请安装 DevEco Studio / HarmonyOS SDK 的 platform-tools，或确认 hdc 在 $PATH 上。')
+        throw new Error(t('errors.main.ohosHdcMissing'))
       }
       const key = this.connectKey()
       const result = await runHdc(['list', 'targets'])
       const keys = parseHdcListTargets(result.stdout.toString('utf8'))
       if (!keys.includes(key)) {
-        throw new Error(`HarmonyOS 设备不在线(connectKey=${key})。请连接设备并开启开发者模式 USB 调试。`)
+        throw new Error(t('errors.main.ohosDeviceOffline', { key }))
       }
       this.connected = true
       log.info(`[OhosAdapter] connected: connectKey=${key}`)
@@ -139,7 +140,7 @@ export class OhosAdapter implements IFileSystemAdapter {
     const raw = await runHdcShell(key, `stat -c '%n|%F|%s|%Y|%a' ${shellQuote(targetPath)}`)
     const entry = parseStatLines(raw).find(e => e !== null)
     if (!entry) {
-      throw new Error(`无法获取文件属性: ${targetPath}`)
+      throw new Error(t('errors.main.ohosStatFailed', { path: targetPath }))
     }
     return {
       size: entry.size,

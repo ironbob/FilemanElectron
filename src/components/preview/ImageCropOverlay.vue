@@ -22,7 +22,7 @@
       }"
     ></div>
     <div v-else class="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
-      <span class="px-3 py-1.5 rounded-full bg-black/55 text-white text-xs">在图片上拖拽选择裁剪区域</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/55 text-white text-xs">{{ $t('preview.image.dragToCropHint') }}</span>
     </div>
 
     <!-- 角点/边中点手柄 -->
@@ -42,17 +42,17 @@
         v-for="preset in ASPECT_PRESETS"
         :key="preset.label"
         class="px-2 py-1 rounded-md text-xs transition-colors"
-        :class="aspectLabel === preset.label ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
+        :class="aspect === preset.value ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
         @click="setAspect(preset.value)"
-      >{{ preset.label }}</button>
+      >{{ preset.label || $t('preview.image.aspectFree') }}</button>
       <span v-if="sourceSizeLabel" class="ml-2 text-xs text-text-tertiary tabular-nums">{{ sourceSizeLabel }}</span>
       <div class="flex-1"></div>
-      <button class="px-3 py-1 rounded-md text-xs text-text-secondary hover:bg-bg-hover" title="Esc" @click="emit('cancel')">取消</button>
+      <button class="px-3 py-1 rounded-md text-xs text-text-secondary hover:bg-bg-hover" title="Esc" @click="emit('cancel')">{{ $t('common.cancel') }}</button>
       <button
         class="px-3 py-1 rounded-md text-xs bg-accent-blue text-white hover:bg-accent-blue/90 disabled:opacity-40"
         :disabled="!rect"
         @click="emit('apply')"
-      >裁剪</button>
+      >{{ $t('preview.image.cropApply') }}</button>
     </div>
   </div>
 </template>
@@ -74,7 +74,7 @@ const emit = defineEmits<{
 }>()
 
 const ASPECT_PRESETS = [
-  { label: '自由', value: null as number | null },
+  { label: '', value: null as number | null },
   { label: '1:1', value: 1 },
   { label: '4:3', value: 4 / 3 },
   { label: '16:9', value: 16 / 9 }
@@ -84,7 +84,6 @@ type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'w' | 'e'
 const HANDLES: Handle[] = ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e']
 
 const aspect = ref<number | null>(null)
-const aspectLabel = computed(() => ASPECT_PRESETS.find(p => p.value === aspect.value)?.label ?? '')
 
 const rect = computed(() => props.modelValue)
 

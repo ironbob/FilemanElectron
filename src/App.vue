@@ -231,6 +231,7 @@ import { useGitStatusStore } from './stores/gitStatus'
 import { useDragSessionStore } from './stores/dragSession'
 import { getParentPath } from './utils/path'
 import { resolveInitialTheme, persistTheme } from './utils/theme'
+import { isAppLocale, LOCALE_STORAGE_KEY, setLocale } from './i18n'
 import { isZipVirtualPath } from '@shared/zipPath'
 import {
   extractDragSource,
@@ -278,7 +279,14 @@ onMounted(() => {
   seedBuiltinCommands()
 
   // Load app settings (hidden-files toggle etc.)
-  void settingsStore.load()
+  void settingsStore.load().then(() => {
+    // 语言对账：localStorage 被清但 config 里有语言（如选过 en-US）时以 config 为准。
+    // persist:false —— 只补渲染层状态，不回写 config。
+    const storedLocale = settingsStore.settings.locale
+    if (!isAppLocale(localStorage.getItem(LOCALE_STORAGE_KEY)) && isAppLocale(storedLocale)) {
+      void setLocale(storedLocale, { persist: false })
+    }
+  })
 
   // Restore sidebar width
   const savedSidebarWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
@@ -366,47 +374,58 @@ const paletteContext = computed<CommandContext>(() => ({
   }
 }))
 
-/** 内置命令播种（一次性；M3/M4 功能组件挂载时各自追加）。 */
+/** 内置命令播种（一次性；M3/M4 功能组件挂载时各自追加）。titleKey/groupKey
+ *  由命令面板在渲染时翻译；title/group 保留中文兜底并供模糊匹配。 */
 function seedBuiltinCommands(): void {
   commandRegistry.registerCommands([
     {
       id: 'app.new-tab', title: '新建标签页', group: '标签页',
+      titleKey: 'palette.cmd.newTab', groupKey: 'palette.group.tabs',
       run: () => { tabsStore.createTab() }
     },
     {
       id: 'app.close-tab', title: '关闭当前标签页', group: '标签页',
+      titleKey: 'palette.cmd.closeTab', groupKey: 'palette.group.tabs',
       run: () => { const tab = activeTab.value; if (tab) tabsStore.closeTab(tab.id) }
     },
     {
       id: 'app.toggle-dual-pane', title: '切换双面板', group: '标签页', shortcut: '⌘D',
+      titleKey: 'palette.cmd.toggleDualPane', groupKey: 'palette.group.tabs',
       run: () => { tabsStore.toggleActiveSplit() }
     },
     {
       id: 'app.view-list', title: '切换为列表视图', group: '视图',
+      titleKey: 'palette.cmd.viewList', groupKey: 'palette.group.view',
       run: ctx => { if (ctx.activePane) tabsStore.setViewMode(ctx.activePane.paneId, 'list') }
     },
     {
       id: 'app.view-grid', title: '切换为图标视图', group: '视图',
+      titleKey: 'palette.cmd.viewGrid', groupKey: 'palette.group.view',
       run: ctx => { if (ctx.activePane) tabsStore.setViewMode(ctx.activePane.paneId, 'grid') }
     },
     {
       id: 'app.view-columns', title: '切换为分栏视图', group: '视图',
+      titleKey: 'palette.cmd.viewColumns', groupKey: 'palette.group.view',
       run: ctx => { if (ctx.activePane) tabsStore.setViewMode(ctx.activePane.paneId, 'columns') }
     },
     {
       id: 'app.toggle-hidden', title: '显示/隐藏隐藏文件', group: '视图', shortcut: '⌘⇧.',
+      titleKey: 'palette.cmd.toggleHidden', groupKey: 'palette.group.view',
       run: () => { void settingsStore.toggleShowHiddenFiles() }
     },
     {
       id: 'app.toggle-theme', title: '切换深/浅色主题', group: '外观',
+      titleKey: 'palette.cmd.toggleTheme', groupKey: 'palette.group.appearance',
       run: () => { toggleTheme() }
     },
     {
       id: 'app.open-settings', title: '打开设置', group: '外观',
+      titleKey: 'palette.cmd.openSettings', groupKey: 'palette.group.appearance',
       run: () => { showSettingsDialog.value = true }
     },
     {
       id: 'app.refresh', title: '刷新当前目录', group: '文件', shortcut: '⌘R',
+      titleKey: 'palette.cmd.refresh', groupKey: 'palette.group.files',
       keywords: ['refresh', 'reload'],
       run: () => { window.dispatchEvent(new CustomEvent('fileman:refresh-active-pane')) }
     }

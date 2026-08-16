@@ -10,7 +10,7 @@ import { expect, test } from '@playwright/test'
 
 /** 编辑工具条默认收起：先点右下角按钮展开 */
 async function expandEditToolbar(page: import('@playwright/test').Page) {
-  const btn = page.getByRole('button', { name: 'Expand edit toolbar' })
+  const btn = page.getByRole('button', { name: '展开编辑工具' })
   if (await btn.isVisible().catch(() => false)) await btn.click()
   await page.waitForTimeout(200)
 }
@@ -81,7 +81,7 @@ test('double-click image opens preview tab with edit toolbar', async ({ page }) 
   await page.waitForSelector('[data-file-path="/docs/a.png"]')
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
-  await expect(page.getByRole('button', { name: 'Expand edit toolbar' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '展开编辑工具' })).toBeVisible()
 })
 
 test('crop mode enters with overlay and Esc exits', async ({ page }) => {
@@ -127,11 +127,11 @@ test('collection session shows batch entries and rename dialog validates conflic
 
   // 批量改名：默认无规则禁提交；启用序号后可提交且走 batch-rename 任务
   await page.getByText('批量改名').click()
-  await expect(page.getByText('Batch Rename')).toBeVisible()
-  await expect(page.getByRole('button', { name: /Rename 2 items/ })).toBeDisabled()
+  await expect(page.getByRole('heading', { name: '批量重命名' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /重命名 2 项/ })).toBeDisabled()
   await page.getByText('序号').click()
-  await expect(page.getByRole('button', { name: /Rename 2 items/ })).toBeEnabled()
-  await page.getByRole('button', { name: /Rename 2 items/ }).click()
+  await expect(page.getByRole('button', { name: /重命名 2 项/ })).toBeEnabled()
+  await page.getByRole('button', { name: /重命名 2 项/ }).click()
   await page.waitForTimeout(400)
   const ops = await page.evaluate(() => (window as any).__ops)
   expect(ops.some((o: any) => o.type === 'batch-rename')).toBeTruthy()
@@ -159,7 +159,7 @@ test('edit toolbar collapsed by default and toggles manually via bottom-right bu
   await page.waitForSelector('[data-file-path="/docs/a.png"]')
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
-  const toggle = page.getByRole('button', { name: 'Expand edit toolbar' })
+  const toggle = page.getByRole('button', { name: '展开编辑工具' })
   await expect(toggle).toBeVisible()
   // 默认收起：底部工具条不存在
   await expect(page.getByRole('toolbar', { name: '图片编辑' })).toHaveCount(0)
@@ -168,7 +168,7 @@ test('edit toolbar collapsed by default and toggles manually via bottom-right bu
   await expect(page.getByRole('toolbar', { name: '图片编辑' })).toBeVisible()
   await expect(page.getByTitle('裁剪')).toBeVisible()
   // 再点收起
-  await page.getByRole('button', { name: 'Collapse edit toolbar' }).click()
+  await page.getByRole('button', { name: '收起编辑工具' }).click()
   await expect(page.getByRole('toolbar', { name: '图片编辑' })).toHaveCount(0)
 })
 
@@ -177,7 +177,7 @@ test('annotate mode draws a rect and save calls apply with annotate op', async (
   await page.waitForSelector('[data-file-path="/docs/a.png"]')
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
-  await page.getByRole('button', { name: 'Expand edit toolbar' }).click()
+  await page.getByRole('button', { name: '展开编辑工具' }).click()
   // 工具条展开即直接可见标注工具面板（平铺），点矩形自动进入标注模式
   await expect(page.getByRole('toolbar', { name: '标注工具' })).toBeVisible()
   await page.getByTitle('矩形').click()

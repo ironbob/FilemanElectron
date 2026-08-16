@@ -7,8 +7,8 @@
     <button
       class="pointer-events-auto absolute bottom-4 right-4 w-11 h-11 rounded-full flex items-center justify-center
              bg-accent-blue text-white shadow-lg hover:bg-accent-blue/90 active:bg-accent-blue-active transition-colors"
-      :title="expanded ? '收起编辑工具' : '展开编辑工具'"
-      :aria-label="expanded ? 'Collapse edit toolbar' : 'Expand edit toolbar'"
+      :title="expanded ? $t('preview.editToolbar.collapseTip') : $t('preview.editToolbar.expandTip')"
+      :aria-label="expanded ? $t('preview.editToolbar.collapseTip') : $t('preview.editToolbar.expandTip')"
       @click="emit('toggle')"
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -24,17 +24,17 @@
       class="edit-panel pointer-events-auto absolute right-4 top-4 bottom-24 flex flex-col items-center justify-center
              gap-1 overflow-y-auto py-2 px-1.5 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
       role="toolbar"
-      aria-label="标注工具"
+      :aria-label="$t('preview.editToolbar.annoToolsAria')"
     >
       <button
-        v-for="t in ANNO_TOOLS"
-        :key="t.key"
+        v-for="tool in annoTools"
+        :key="tool.key"
         class="finder-icon-button"
-        :class="annoTool === t.key ? 'is-active' : ''"
-        :title="t.label"
-        @click="pickAnnoTool(t.key)"
+        :class="annoTool === tool.key ? 'is-active' : ''"
+        :title="tool.label"
+        @click="pickAnnoTool(tool.key)"
       >
-        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="t.path" /></svg>
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tool.path" /></svg>
       </button>
 
       <span class="h-px w-7 bg-border my-1"></span>
@@ -44,7 +44,7 @@
         class="w-6 h-6 rounded-full border-2 transition-transform"
         :class="annoColor === c ? 'ring-2 ring-accent-blue ring-offset-1 ring-offset-bg-secondary scale-110' : 'border-transparent hover:scale-110'"
         :style="{ backgroundColor: c }"
-        :title="`颜色 ${c}`"
+        :title="$t('preview.editToolbar.colorTip', { color: c })"
         @click="setAnnoColor(c)"
       ></button>
 
@@ -54,25 +54,25 @@
         :key="w"
         class="finder-icon-button"
         :class="annoWidth === w ? 'is-active' : ''"
-        :title="`粗细 ${w}px`"
+        :title="$t('preview.editToolbar.strokeWidthTip', { width: w })"
         @click="setAnnoWidth(w)"
       >
         <span class="rounded-full bg-current" :style="{ width: '16px', height: w + 'px' }"></span>
       </button>
 
       <span class="h-px w-7 bg-border my-1"></span>
-      <button class="finder-icon-button" title="撤销上一个标注" :disabled="shapeCount === 0" @click="edit.undoAnno()">
+      <button class="finder-icon-button" :title="$t('preview.editToolbar.undoAnnoTip')" :disabled="shapeCount === 0" @click="edit.undoAnno()">
         <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v6h6M3.51 13a9 9 0 102.13-9.36L3 7" /></svg>
       </button>
-      <button class="finder-icon-button hover:!text-red-400" title="清空全部标注" :disabled="shapeCount === 0" @click="edit.clearAnno()">
+      <button class="finder-icon-button hover:!text-red-400" :title="$t('preview.editToolbar.clearAnnoTip')" :disabled="shapeCount === 0" @click="edit.clearAnno()">
         <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
       </button>
       <button
         class="mt-0.5 px-3 py-2 rounded-lg text-[13px] font-medium bg-accent-blue text-white hover:bg-accent-blue/90 active:bg-accent-blue-active transition-colors disabled:opacity-40"
         :disabled="mode !== 'annotate' || shapeCount === 0"
-        :title="mode !== 'annotate' ? '先选择一个标注工具' : '保存标注'"
+        :title="mode !== 'annotate' ? $t('preview.editToolbar.pickToolFirstTip') : $t('preview.editToolbar.saveAnnotate')"
         @click="emit('anno-apply')"
-      >保存标注</button>
+      >{{ $t('preview.editToolbar.saveAnnotate') }}</button>
     </div>
 
     <!-- 底部工具条（expanded 时渲染；标注参数在右侧竖排面板） -->
@@ -81,13 +81,13 @@
       class="edit-panel pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 max-w-[92%] flex items-center gap-1 flex-wrap justify-center
              px-2 py-1.5 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
       role="toolbar"
-      aria-label="图片编辑"
+      :aria-label="$t('preview.editToolbar.toolbarAria')"
     >
       <!-- 模式组 -->
       <button
         class="finder-icon-button"
         :class="mode === 'crop' ? 'is-active' : ''"
-        title="裁剪"
+        :title="$t('preview.editToolbar.cropTip')"
         :disabled="mode === 'crop'"
         @click="emit('crop')"
       >
@@ -96,7 +96,7 @@
       <button
         class="finder-icon-button"
         :class="mode === 'annotate' ? 'is-active' : ''"
-        title="标注"
+        :title="$t('preview.editToolbar.annotateTip')"
         @click="emit('annotate')"
       >
         <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
@@ -106,7 +106,7 @@
       <span class="finder-toolbar-divider"></span>
       <button
         class="finder-icon-button"
-        title="压缩"
+        :title="$t('preview.editToolbar.compressTip')"
         @click="emit('compress')"
       >
         <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2M9 10h6M9 14h6" /></svg>
@@ -117,21 +117,23 @@
         <span class="finder-toolbar-divider"></span>
         <button
           class="px-3 py-1.5 rounded-lg text-[13px] font-medium text-text-secondary hover:bg-bg-hover active:bg-bg-active transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          title="批量压缩当前集合"
+          :title="$t('preview.editToolbar.batchCompressTip')"
           :disabled="running"
           @click="emit('batch-compress')"
-        >批量压缩</button>
+        >{{ $t('preview.editToolbar.batchCompress') }}</button>
         <button
           class="px-3 py-1.5 rounded-lg text-[13px] font-medium text-text-secondary hover:bg-bg-hover active:bg-bg-active transition-colors"
-          title="批量改名当前集合"
+          :title="$t('preview.editToolbar.batchRenameTip')"
           @click="emit('batch-rename')"
-        >批量改名</button>
+        >{{ $t('preview.editToolbar.batchRename') }}</button>
       </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { t } from '@/i18n'
 import type { ImageEditMode, ImageEditController } from '@/composables/useImageEdit'
 import { ANNO_COLORS, ANNO_WIDTHS, type AnnoTool } from '@/utils/annotationShapes'
 
@@ -158,13 +160,14 @@ const emit = defineEmits<{
   'batch-rename': []
 }>()
 
-const ANNO_TOOLS: Array<{ key: AnnoTool; label: string; path: string }> = [
-  { key: 'arrow', label: '箭头', path: 'M5 19L19 5M19 5v6M19 5h-6' },
-  { key: 'rect', label: '矩形', path: 'M4 5h16v14H4z' },
-  { key: 'ellipse', label: '椭圆', path: 'M12 4a8 8 0 100 16 8 8 0 000-16z' },
-  { key: 'freehand', label: '画笔', path: 'M3 21c4-1 3-5 6-8s6-6 9-9M15 4l5 5' },
-  { key: 'text', label: '文字', path: 'M5 6V4h14v2M12 4v16M9 20h6' }
-]
+/** 标注工具集（label 经 i18n 随语言切换）。 */
+const annoTools = computed<Array<{ key: AnnoTool; label: string; path: string }>>(() => [
+  { key: 'arrow', label: t('preview.editToolbar.toolArrow'), path: 'M5 19L19 5M19 5v6M19 5h-6' },
+  { key: 'rect', label: t('preview.editToolbar.toolRect'), path: 'M4 5h16v14H4z' },
+  { key: 'ellipse', label: t('preview.editToolbar.toolEllipse'), path: 'M12 4a8 8 0 100 16 8 8 0 000-16z' },
+  { key: 'freehand', label: t('preview.editToolbar.toolFreehand'), path: 'M3 21c4-1 3-5 6-8s6-6 9-9M15 4l5 5' },
+  { key: 'text', label: t('preview.editToolbar.toolText'), path: 'M5 6V4h14v2M12 4v16M9 20h6' }
+])
 
 /** 点任一标注工具：未进入标注模式时由宿主进入（复位视图），再选中工具。 */
 function pickAnnoTool(t: AnnoTool) {

@@ -62,7 +62,7 @@ test.beforeEach(async ({ page }) => {
 
   // 进入双面板：左面板 /docs，右面板停留在 /
   await page.locator('[data-file-path="/docs"]').click({ button: 'right' })
-  await page.getByText('Open in Dual-Pane Tab').click()
+  await page.getByText('在双面板标签页中打开').click()
   await expect(page.locator('.finder-pane')).toHaveCount(2)
   await expect(page.locator('[data-file-path="/docs/readme.md"]')).toBeVisible()
 })

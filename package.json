@@ -30,6 +30,7 @@
     "test:image-edit-naming": "esbuild tests/imageEditNaming.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/imageEditNaming.test.cjs --log-level=warning && node node_modules/.tmp/imageEditNaming.test.cjs",
     "test:annotation-shapes": "esbuild tests/annotationShapes.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/annotationShapes.test.cjs --log-level=warning && node node_modules/.tmp/annotationShapes.test.cjs",
     "test:ohos-parse": "esbuild tests/ohosParsing.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/ohosParsing.test.cjs --log-level=warning && node node_modules/.tmp/ohosParsing.test.cjs",
+    "test:i18n": "esbuild tests/i18nCatalog.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/i18nCatalog.test.cjs --log-level=warning --alias:@shared=./shared && node node_modules/.tmp/i18nCatalog.test.cjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
@@ -62,6 +63,7 @@
     "sharp": "^0.34.5",
     "ssh2": "^1.17.0",
     "vue": "^3.4.21",
+    "vue-i18n": "^11.4.8",
     "vue-router": "^4.3.0",
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "webdav": "^5.10.0"

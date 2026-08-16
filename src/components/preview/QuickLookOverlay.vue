@@ -12,7 +12,7 @@
         class="relative flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden app-no-drag"
         style="width: min(760px, 80%); height: min(540px, 72%)"
         role="dialog"
-        aria-label="Quick Look"
+        :aria-label="$t('preview.quickLook.dialogAria')"
       >
         <!-- Header -->
         <div class="finder-preview-toolbar flex items-center justify-between border-b border-border">
@@ -24,7 +24,7 @@
           <div class="finder-control-group">
             <button
               class="finder-icon-button"
-              title="Previous (↑)"
+              :title="$t('preview.quickLook.prevTip')"
               :disabled="index <= 0"
               @click="step(-1)"
             >
@@ -32,7 +32,7 @@
             </button>
             <button
               class="finder-icon-button"
-              title="Next (↓)"
+              :title="$t('preview.quickLook.nextTip')"
               :disabled="index >= total - 1"
               @click="step(1)"
             >
@@ -40,7 +40,7 @@
             </button>
             <button
               class="finder-icon-button"
-              title="Close (Esc / Space)"
+              :title="$t('preview.quickLook.closeTip')"
               @click="close"
             >
               <IconfontIcon name="close" />

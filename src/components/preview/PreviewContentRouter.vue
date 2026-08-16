@@ -50,17 +50,17 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
     <p class="text-sm font-medium text-text-primary">{{ file.name }}</p>
-    <p class="text-xs mt-1 mb-4">正在识别文件类型…</p>
+    <p class="text-xs mt-1 mb-4">{{ $t('preview.common.detectingType') }}</p>
     <div class="flex items-center gap-2">
       <button
         class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:opacity-90"
         @click="openAsHex"
-      >以十六进制查看</button>
+      >{{ $t('preview.common.viewAsHex') }}</button>
       <button
         v-if="isLocal"
         class="px-3 py-1.5 text-xs rounded bg-bg-hover text-text-secondary hover:bg-bg-active"
         @click="openWithSystem"
-      >用系统默认应用打开</button>
+      >{{ $t('preview.common.openWithSystem') }}</button>
     </div>
   </div>
 </template>

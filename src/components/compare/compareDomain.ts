@@ -10,6 +10,7 @@ import type {
   FileInfo,
   VerificationState
 } from '@/types'
+import { t } from '@/i18n'
 
 export interface CompareStats {
   metadataEqual: number
@@ -92,7 +93,7 @@ export function makeEntries(
     if (!error) continue
     entries.push({
       relativePath: `__compare_error__/${error.side}/${parentRelativePath || 'root'}`,
-      name: `${error.side === 'left' ? '左侧' : '右侧'}目录无法读取`,
+      name: error.side === 'left' ? t('compare.error.leftDirUnreadable') : t('compare.error.rightDirUnreadable'),
       status: 'verification-failed',
       isDirectory: false,
       expanded: false,

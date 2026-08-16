@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import { ToolPathResolver } from '../ToolPathResolver'
+import { t } from '../../i18n'
 
 /**
  * hdc(HarmonyOS Device Connector) 进程封装。
@@ -43,7 +44,7 @@ export function runHdc(args: string[], options: HdcRunOptions = {}): Promise<Hdc
       if (settled) return
       settled = true
       child.kill()
-      reject(new Error(`hdc 命令超时(${timeoutMs}ms): hdc ${args.join(' ')}`))
+      reject(new Error(t('errors.main.hdcTimeout', { timeout: timeoutMs, command: args.join(' ') })))
     }, timeoutMs)
 
     child.stdout.on('data', chunk => chunks.push(Buffer.from(chunk)))
@@ -52,9 +53,7 @@ export function runHdc(args: string[], options: HdcRunOptions = {}): Promise<Hdc
       if (settled) return
       settled = true
       clearTimeout(timer)
-      reject(new Error(
-        `无法启动 hdc(${error.message})。请安装 DevEco Studio / HarmonyOS SDK 的 platform-tools，或确认 hdc 在 $PATH 上。`
-      ))
+      reject(new Error(t('errors.main.hdcSpawnFailed', { message: error.message })))
     })
     child.once('close', code => {
       if (settled) return
@@ -63,7 +62,10 @@ export function runHdc(args: string[], options: HdcRunOptions = {}): Promise<Hdc
       const stdout = Buffer.concat(chunks)
       const stderr = Buffer.concat(errors).toString('utf8').trim()
       if (code !== 0) {
-        reject(new Error(`hdc 命令失败(code=${code}): hdc ${args.join(' ')}${stderr ? `: ${stderr}` : ''}`))
+        reject(new Error(t('errors.main.hdcCommandFailed', {
+          code: String(code),
+          command: `hdc ${args.join(' ')}${stderr ? `: ${stderr}` : ''}`
+        })))
         return
       }
       resolve({ stdout, stderr, code })
@@ -82,12 +84,15 @@ export async function runHdcShell(connectKey: string, command: string, options: 
   const markerIndex = text.lastIndexOf(OHOS_EXIT_MARKER)
   if (markerIndex === -1) {
     // 标记缺失：无法确认退出码，按失败处理避免吞错
-    throw new Error(`hdc shell 未返回退出码标记: ${command}`)
+    throw new Error(t('errors.main.hdcShellNoExitMarker', { command }))
   }
   const exitCode = parseInt(text.slice(markerIndex + OHOS_EXIT_MARKER.length).trim(), 10)
   if (!Number.isFinite(exitCode) || exitCode !== 0) {
     const output = text.slice(0, markerIndex).trim()
-    throw new Error(`hdc shell 失败(code=${Number.isFinite(exitCode) ? exitCode : '?'}): ${command}${output ? `: ${output}` : ''}`)
+    throw new Error(t('errors.main.hdcShellFailed', {
+      code: Number.isFinite(exitCode) ? exitCode : '?',
+      command: `${command}${output ? `: ${output}` : ''}`
+    }))
   }
   return text.slice(0, markerIndex)
 }

@@ -13,7 +13,7 @@
         @error="onError"
       >
         <source :src="mediaSrc" :type="mimeType" />
-        Your browser does not support video playback.
+        {{ $t('preview.inline.noVideoSupport') }}
       </video>
 
       <!-- Audio Player -->
@@ -34,7 +34,7 @@
           @error="onError"
         >
           <source :src="mediaSrc" :type="mimeType" />
-          Your browser does not support audio playback.
+          {{ $t('preview.audio.browserUnsupported') }}
         </audio>
       </div>
 
@@ -42,7 +42,7 @@
       <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-bg-secondary/80">
         <div class="flex flex-col items-center gap-2 text-text-tertiary">
           <div class="w-6 h-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-sm">Loading media...</span>
+          <span class="text-sm">{{ $t('preview.inline.mediaLoading') }}</span>
         </div>
       </div>
 
@@ -51,7 +51,7 @@
         <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
-        <span class="text-sm">Failed to load media</span>
+        <span class="text-sm">{{ $t('preview.inline.mediaLoadFailed') }}</span>
         <span class="text-xs">{{ errorMessage }}</span>
       </div>
     </div>
@@ -60,20 +60,20 @@
     <div class="border-t border-border p-3 bg-bg-tertiary">
       <div class="text-xs space-y-1.5">
         <div class="flex justify-between">
-          <span class="text-text-tertiary">Size:</span>
+          <span class="text-text-tertiary">{{ $t('preview.inline.mediaSize') }}</span>
           <span class="text-text-primary">{{ formatSize(file.size) }}</span>
         </div>
         <div v-if="duration > 0" class="flex justify-between">
-          <span class="text-text-tertiary">Duration:</span>
+          <span class="text-text-tertiary">{{ $t('preview.inline.mediaDuration') }}</span>
           <span class="text-text-primary">{{ formatDuration(duration) }}</span>
         </div>
         <div v-if="resolution.width && resolution.height" class="flex justify-between">
-          <span class="text-text-tertiary">Resolution:</span>
+          <span class="text-text-tertiary">{{ $t('preview.inline.mediaResolution') }}</span>
           <span class="text-text-primary">{{ resolution.width }} x {{ resolution.height }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-text-tertiary">Format:</span>
-          <span class="text-text-primary uppercase">{{ file.extension?.replace('.', '') || 'Unknown' }}</span>
+          <span class="text-text-tertiary">{{ $t('preview.inline.mediaFormat') }}</span>
+          <span class="text-text-primary uppercase">{{ file.extension?.replace('.', '') || $t('preview.inline.formatUnknown') }}</span>
         </div>
       </div>
     </div>
@@ -82,6 +82,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import { formatSize } from '@/utils/media'
@@ -156,7 +157,7 @@ async function loadMedia() {
   } catch (e) {
     console.error('[InlineMediaInfo] Failed to load media:', e)
     hasError.value = true
-    errorMessage.value = e instanceof Error ? e.message : 'Unknown error'
+    errorMessage.value = e instanceof Error ? e.message : t('preview.common.unknownError')
   } finally {
     loading.value = false
   }
@@ -193,19 +194,19 @@ function onError(e: Event) {
   if (media && media.error) {
     switch (media.error.code) {
       case MediaError.MEDIA_ERR_ABORTED:
-        errorMessage.value = 'Playback was aborted'
+        errorMessage.value = t('preview.inline.errAborted')
         break
       case MediaError.MEDIA_ERR_NETWORK:
-        errorMessage.value = 'Network error occurred'
+        errorMessage.value = t('preview.inline.errNetwork')
         break
       case MediaError.MEDIA_ERR_DECODE:
-        errorMessage.value = 'Decoding failed'
+        errorMessage.value = t('preview.inline.errDecode')
         break
       case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-        errorMessage.value = 'Format not supported'
+        errorMessage.value = t('preview.inline.errFormat')
         break
       default:
-        errorMessage.value = 'Unknown error'
+        errorMessage.value = t('preview.common.unknownError')
     }
     log('Error details:', errorMessage.value)
   }

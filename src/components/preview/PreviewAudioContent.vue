@@ -4,7 +4,7 @@
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
         <div class="w-6 h-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-sm text-text-secondary">Loading audio...</span>
+        <span class="text-sm text-text-secondary">{{ $t('preview.audio.loading') }}</span>
       </div>
     </div>
 
@@ -13,18 +13,18 @@
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
-      <p class="text-sm font-medium text-text-primary mb-1">无法播放音频</p>
+      <p class="text-sm font-medium text-text-primary mb-1">{{ $t('preview.audio.playbackFailed') }}</p>
       <p class="text-xs">{{ errorMessage }}</p>
       <div class="flex items-center gap-2 mt-4">
         <button
           class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:opacity-90"
           @click="openAsHex"
-        >以十六进制查看</button>
+        >{{ $t('preview.common.viewAsHex') }}</button>
         <button
           v-if="isLocal"
           class="px-3 py-1.5 text-xs rounded bg-bg-hover text-text-secondary hover:bg-bg-active"
           @click="openWithSystem"
-        >用系统默认应用打开</button>
+        >{{ $t('preview.common.openWithSystem') }}</button>
       </div>
     </div>
 
@@ -50,7 +50,7 @@
         @timeupdate="handleTimeUpdate"
         @ended="handleAudioEnded"
       >
-        Your browser does not support audio playback.
+        {{ $t('preview.audio.browserUnsupported') }}
       </audio>
 
       <!-- Audio Info -->
@@ -59,7 +59,7 @@
         <span v-if="duration > 0" class="mx-2">|</span>
         <span v-if="duration > 0">{{ formatTime(duration) }}</span>
         <span class="mx-2">|</span>
-        <span class="uppercase">{{ file.extension?.replace('.', '') || 'Audio' }}</span>
+        <span class="uppercase">{{ file.extension?.replace('.', '') || $t('preview.audio.audioFallback') }}</span>
       </div>
     </div>
   </div>
@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import { usePreviewStore } from '@/stores/preview'
@@ -144,7 +145,10 @@ async function loadContent() {
   // 整读进 Blob（无流式）：超大文件拒载
   if (props.file.size > MEDIA_PREVIEW_BYTE_LIMIT) {
     hasError.value = true
-    errorMessage.value = `文件 ${(props.file.size / 1024 / 1024).toFixed(0)} MB 超过媒体预览上限 ${MEDIA_PREVIEW_BYTE_LIMIT / 1024 / 1024} MB（整体载入无流式）`
+    errorMessage.value = t('preview.common.mediaOversized', {
+      size: (props.file.size / 1024 / 1024).toFixed(0),
+      limit: MEDIA_PREVIEW_BYTE_LIMIT / 1024 / 1024
+    })
     loading.value = false
     return
   }
@@ -166,7 +170,7 @@ async function loadContent() {
   } catch (e) {
     console.error('[PreviewAudioContent] Error loading audio:', e)
     hasError.value = true
-    errorMessage.value = e instanceof Error ? e.message : 'Unknown error'
+    errorMessage.value = e instanceof Error ? e.message : t('preview.common.unknownError')
   } finally {
     loading.value = false
   }
@@ -187,19 +191,19 @@ function handleAudioError(e: Event) {
   if (audio.error) {
     switch (audio.error.code) {
       case MediaError.MEDIA_ERR_ABORTED:
-        errorMessage.value = 'Audio playback was aborted'
+        errorMessage.value = t('preview.audio.errAborted')
         break
       case MediaError.MEDIA_ERR_NETWORK:
-        errorMessage.value = 'Network error occurred'
+        errorMessage.value = t('preview.audio.errNetwork')
         break
       case MediaError.MEDIA_ERR_DECODE:
-        errorMessage.value = 'Audio decoding failed'
+        errorMessage.value = t('preview.audio.errDecode')
         break
       case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-        errorMessage.value = 'Audio format not supported'
+        errorMessage.value = t('preview.audio.errFormat')
         break
       default:
-        errorMessage.value = 'Unknown audio error'
+        errorMessage.value = t('preview.audio.errUnknown')
     }
   }
 }

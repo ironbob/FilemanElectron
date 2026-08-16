@@ -22,8 +22,8 @@
       <button
         class="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center
                bg-black/35 hover:bg-black/55 text-white transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-        title="Previous (←)"
-        aria-label="Previous image"
+        :title="$t('preview.common.prevImageTip')"
+        :aria-label="$t('preview.common.prevImageAria')"
         :disabled="index <= 0"
         @click="step(-1)"
       >
@@ -34,8 +34,8 @@
       <button
         class="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center
                bg-black/35 hover:bg-black/55 text-white transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-        title="Next (→)"
-        aria-label="Next image"
+        :title="$t('preview.common.nextImageTip')"
+        :aria-label="$t('preview.common.nextImageAria')"
         :disabled="index >= total - 1"
         @click="step(1)"
       >

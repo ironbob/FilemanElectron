@@ -4,7 +4,7 @@
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-3 text-text-tertiary">
         <div class="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-sm">Loading...</span>
+        <span class="text-sm">{{ $t('fileList.loading') }}</span>
       </div>
     </div>
 
@@ -14,7 +14,7 @@
         <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
-        <span class="text-sm">This folder is empty</span>
+        <span class="text-sm">{{ $t('fileList.emptyFolder') }}</span>
       </div>
     </div>
 
@@ -23,11 +23,11 @@
       <!-- Header 固定在顶部，不随列表滚动 -->
       <div class="finder-list-header flex-shrink-0 flex items-center gap-2 px-4 bg-bg-secondary border-b border-border text-xs font-medium text-text-tertiary">
         <span class="w-6"></span>
-        <button class="flex-1 text-left hover:text-text-primary" @click="toggleSort('name')">Name {{ sortIndicator('name') }}</button>
-        <button class="w-40 text-left hover:text-text-primary" @click="toggleSort('modifiedTime')">Date Modified {{ sortIndicator('modifiedTime') }}</button>
-        <button class="w-20 text-right hover:text-text-primary" @click="toggleSort('size')">Size {{ sortIndicator('size') }}</button>
-        <span class="w-24 text-left">Kind</span>
-        <span v-if="showPermissions" class="w-28 text-left">Permissions</span>
+        <button class="flex-1 text-left hover:text-text-primary" @click="toggleSort('name')">{{ $t('fileList.columns.name') }} {{ sortIndicator('name') }}</button>
+        <button class="w-40 text-left hover:text-text-primary" @click="toggleSort('modifiedTime')">{{ $t('fileList.columns.dateModified') }} {{ sortIndicator('modifiedTime') }}</button>
+        <button class="w-20 text-right hover:text-text-primary" @click="toggleSort('size')">{{ $t('fileList.columns.size') }} {{ sortIndicator('size') }}</button>
+        <span class="w-24 text-left">{{ $t('fileList.columns.kind') }}</span>
+        <span v-if="showPermissions" class="w-28 text-left">{{ $t('fileList.columns.permissions') }}</span>
       </div>
 
       <!-- 虚拟滚动列表 -->
@@ -73,7 +73,7 @@
           <svg
             v-if="file.isSymlink"
             class="w-3 h-3 flex-shrink-0 text-accent-teal"
-            :title="`符号链接 → ${file.symlinkTarget ?? ''}`"
+            :title="$t('fileList.symlinkTitle', { target: file.symlinkTarget ?? '' })"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
@@ -150,7 +150,7 @@
           <svg
             v-if="file.isSymlink"
             class="absolute bottom-1 right-1 w-3.5 h-3.5 text-accent-teal bg-bg-secondary/70 rounded"
-            :title="`符号链接 → ${file.symlinkTarget ?? ''}`"
+            :title="$t('fileList.symlinkTitle', { target: file.symlinkTarget ?? '' })"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
@@ -170,7 +170,7 @@
       >
         <!-- Column Header -->
         <div class="px-3 py-2 bg-bg-secondary text-sm font-medium text-text-secondary border-b border-border truncate">
-          {{ column.path.split('/').pop() || 'Root' }}
+          {{ column.path.split('/').pop() || $t('fileList.columns.root') }}
         </div>
 
         <!-- Column Content -->
@@ -198,7 +198,7 @@
             <svg
               v-if="file.isSymlink"
               class="w-3 h-3 flex-shrink-0 text-accent-teal"
-              :title="`符号链接 → ${file.symlinkTarget ?? ''}`"
+              :title="$t('fileList.symlinkTitle', { target: file.symlinkTarget ?? '' })"
               fill="none" stroke="currentColor" viewBox="0 0 24 24"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
@@ -221,8 +221,8 @@
     >
       <div class="flex items-center gap-2 rounded-full border border-border bg-bg-secondary/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur">
         <span class="max-w-48 truncate font-medium text-text-primary">{{ typeahead.query.value }}</span>
-        <span class="text-text-tertiary">{{ typeahead.matches.value.length ? `${typeahead.matches.value.length} match${typeahead.matches.value.length === 1 ? '' : 'es'}` : 'No matches' }}</span>
-        <span class="border-l border-border pl-2 text-text-tertiary">Esc clear</span>
+        <span class="text-text-tertiary">{{ typeahead.matches.value.length ? $t('fileList.typeahead.matches', typeahead.matches.value.length) : $t('fileList.typeahead.noMatches') }}</span>
+        <span class="border-l border-border pl-2 text-text-tertiary">{{ $t('fileList.typeahead.escClear') }}</span>
       </div>
     </div>
 
@@ -235,7 +235,7 @@
       class="rename-bar flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-bg-secondary border-t border-border"
       @mousedown.stop
     >
-      <span class="text-sm text-text-secondary">Rename:</span>
+      <span class="text-sm text-text-secondary">{{ $t('fileList.renameBar.label') }}</span>
       <input
         ref="renameInputRef"
         v-model="renameState.newName"
@@ -249,13 +249,13 @@
         class="px-3 py-1.5 bg-accent-blue text-white rounded text-sm hover:bg-accent-blue/90 transition-colors"
         @click="confirmRename"
       >
-        Confirm
+        {{ $t('fileList.renameBar.confirm') }}
       </button>
       <button
         class="px-3 py-1.5 bg-bg-tertiary text-text-secondary rounded text-sm hover:bg-bg-hover transition-colors"
         @click="cancelRename"
       >
-        Cancel
+        {{ $t('common.cancel') }}
       </button>
     </div>
 
@@ -329,6 +329,8 @@ import { listingDiffers } from '@/utils/listingDiff'
 import { toRelativePath, toFileUri, getBaseName } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
 import { formatPermissions } from '@/utils/permissions'
+import { formatDateTime } from '@/utils/formatDate'
+import { i18n, t } from '@/i18n'
 import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
 import FileGitBadge from '@/components/FileGitBadge.vue'
 import { useGitStatusStore } from '@/stores/gitStatus'
@@ -1057,7 +1059,8 @@ watch(() => props.viewMode, async (newMode) => {
 // getFileIconComponent 每次调用都创建新的 Component 对象，导致 Vue 在每次重渲染时
 // 触发 unmount + remount 循环。缓存后同一扩展名复用同一对象，Vue 只做 patch。
 const _fileIconCache = new Map<string, Component>()
-// 日期格式化缓存：避免每次渲染都执行 new Date() + toLocaleDateString()
+// 日期格式化缓存：键为 `${locale}:${dateStr}`（避免每次渲染都执行 Intl 格式化，
+// 且语言切换后不会命中旧语言的缓存条目）
 const _formattedDateCache = new Map<string, string>()
 
 // Icon helper functions
@@ -1124,19 +1127,29 @@ function formatSize(bytes: number): string {
 }
 
 function fileKind(file: FileInfo): string {
-  if (file.isDirectory) return 'Folder'
+  if (file.isDirectory) return t('fileList.kind.folder')
   const extension = file.name.includes('.') ? file.name.split('.').pop()?.toUpperCase() : ''
-  return extension ? `${extension} document` : 'Document'
+  return extension ? t('fileList.kind.extDocument', { ext: extension }) : t('fileList.kind.document')
+}
+
+// mtime 列格式：locale 参与缓存键，切换语言后旧缓存不命中、按新语言重算。
+// 读取 i18n locale ref 发生在渲染函数内 → 语言切换会触发重渲染（响应式依赖）。
+const DATE_COLUMN_OPTS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
 }
 
 function formatDate(dateStr: string): string {
-  const cached = _formattedDateCache.get(dateStr)
+  if (Number.isNaN(new Date(dateStr).getTime())) return dateStr
+  const cacheKey = `${i18n.global.locale.value}:${dateStr}`
+  const cached = _formattedDateCache.get(cacheKey)
   if (cached !== undefined) return cached
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return dateStr
-  const pad = (value: number) => String(value).padStart(2, '0')
-  const result = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-  _formattedDateCache.set(dateStr, result)
+  const result = formatDateTime(dateStr, DATE_COLUMN_OPTS)
+  _formattedDateCache.set(cacheKey, result)
   return result
 }
 
@@ -1824,43 +1837,43 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
 
   if (isBackground) {
     // Background context menu (empty area)
-    items.push({ label: 'Refresh', action: 'refresh', shortcut: '⌘R' })
-    
+    items.push({ label: t('fileList.menu.refresh'), action: 'refresh', shortcut: '⌘R' })
+
     if (caps?.canMkdir) {
-      items.push({ label: 'New Folder', action: 'mkdir', shortcut: '⇧⌘N' })
+      items.push({ label: t('fileList.menu.newFolder'), action: 'mkdir', shortcut: '⇧⌘N' })
     }
     if (caps?.canWrite) {
-      items.push({ label: 'New File', action: 'touch' })
+      items.push({ label: t('fileList.menu.newFile'), action: 'touch' })
     }
     if (!caps || caps.canSymlink) {
-      items.push({ label: '新建符号链接…', action: 'new-symlink' })
+      items.push({ label: t('fileList.menu.newSymlink'), action: 'new-symlink' })
     }
     if (caps?.canWrite) {
-      items.push({ label: 'Paste', action: 'paste', shortcut: '⌘V' })
+      items.push({ label: t('fileList.menu.paste'), action: 'paste', shortcut: '⌘V' })
     }
 
     // 收藏当前文件夹（本地/远程均可，含 ZIP 内部路径）
     items.push({ label: '---', action: '__divider__' })
-    items.push({ label: '添加到收藏夹', action: 'add-favorite-current' })
+    items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite-current' })
     items.push({
-      label: settingsStore.settings.showHiddenFiles ? 'Hide Hidden Files' : 'Show Hidden Files',
+      label: settingsStore.settings.showHiddenFiles ? t('fileList.menu.hideHidden') : t('fileList.menu.showHidden'),
       action: 'toggle-hidden',
       shortcut: '⌘⇧.'
     })
-    items.push({ label: 'Go to Folder…', action: 'goto', shortcut: '⇧⌘G' })
+    items.push({ label: t('fileList.menu.goToFolder'), action: 'goto', shortcut: '⇧⌘G' })
     // 能力未知（未加载完）时不过度门控——遍历失败在工具页内呈现，不致命
     if (!caps || (caps.canList && caps.canStat)) {
-      items.push({ label: '查找重复文件…', action: 'find-duplicates' })
-      items.push({ label: '可视化空间…', action: 'analyze-space' })
+      items.push({ label: t('fileList.menu.findDuplicates'), action: 'find-duplicates' })
+      items.push({ label: t('fileList.menu.analyzeSpace'), action: 'analyze-space' })
     }
     if (!caps || caps.canGrepContent !== false) {
-      items.push({ label: '在此搜索内容…', action: 'grep-here' })
+      items.push({ label: t('fileList.menu.grepHere'), action: 'grep-here' })
     }
 
     // 宿主集成：在终端打开当前目录（仅本地、非 ZIP）
     if (isHostShellAvailable()) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: 'Open in Terminal', action: 'open-in-terminal' })
+      items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal' })
     }
 
     // 复制路径（当前目录）+ 打开方式（当前目录）
@@ -1870,38 +1883,38 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
   } else {
     // File/folder context menu
-    items.push({ label: 'Open', action: 'open', shortcut: '⌘O' })
+    items.push({ label: t('fileList.menu.open'), action: 'open', shortcut: '⌘O' })
 
     // 目录：新标签页 / 并列双面板标签页打开
     if (contextMenuTargetFile.value?.isDirectory) {
-      items.push({ label: 'Open in New Tab', action: 'open-in-new-tab' })
-      items.push({ label: 'Open in Dual-Pane Tab', action: 'open-in-split-tab' })
+      items.push({ label: t('fileList.menu.openInNewTab'), action: 'open-in-new-tab' })
+      items.push({ label: t('fileList.menu.openInSplitTab'), action: 'open-in-split-tab' })
       // 图片集合预览（ZIP 虚拟目录不适用：search/listFiles 语义不符）
       if (!isZipVirtualPath(contextMenuTargetFile.value.path)) {
         items.push({
-          label: '图片',
+          label: t('fileList.menu.images'),
           action: 'images-menu',
           children: [
-            { label: '预览所有图片', action: 'preview-images' },
-            { label: '预览图片（递归）', action: 'preview-images-recursive' }
+            { label: t('fileList.menu.previewImages'), action: 'preview-images' },
+            { label: t('fileList.menu.previewImagesRecursive'), action: 'preview-images-recursive' }
           ]
         })
       }
     }
 
     if (caps?.canCopyFrom) {
-      items.push({ label: 'Copy', action: 'copy', shortcut: '⌘C' })
+      items.push({ label: t('fileList.menu.copy'), action: 'copy', shortcut: '⌘C' })
     }
 
     if (caps?.canMoveFrom) {
-      items.push({ label: 'Cut', action: 'cut', shortcut: '⌘X' })
+      items.push({ label: t('fileList.menu.cut'), action: 'cut', shortcut: '⌘X' })
     }
 
     // Add cross-device copy submenu if there are other connected devices
     const targetDevices = getTargetDevices('copy')
     if (caps?.canCopyFrom && targetDevices.length > 0) {
       items.push({
-        label: 'Copy to Device',
+        label: t('fileList.menu.copyToDevice'),
         action: 'copy-to-device-menu',
         children: targetDevices
       })
@@ -1911,36 +1924,36 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     const moveTargetDevices = getTargetDevices('move')
     if (caps?.canMoveFrom && moveTargetDevices.length > 0) {
       items.push({
-        label: 'Move to Device',
+        label: t('fileList.menu.moveToDevice'),
         action: 'move-to-device-menu',
-        children: moveTargetDevices.map(t => ({
-          ...t,
-          action: `move-to-device:${t.deviceId}`
+        children: moveTargetDevices.map(device => ({
+          ...device,
+          action: `move-to-device:${device.deviceId}`
         }))
       })
     }
 
     if (caps?.canRename) {
-      items.push({ label: 'Rename', action: 'rename', shortcut: 'Enter' })
+      items.push({ label: t('fileList.menu.rename'), action: 'rename', shortcut: 'Enter' })
     }
 
     if (caps?.canDelete) {
-      items.push({ label: 'Delete', action: 'delete', shortcut: '⌘⌫' })
+      items.push({ label: t('common.delete'), action: 'delete', shortcut: '⌘⌫' })
     }
 
-    items.push({ label: '属性', action: 'info', shortcut: '⌘I' })
+    items.push({ label: t('fileList.menu.info'), action: 'info', shortcut: '⌘I' })
     // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制）
     if (!contextMenuTargetFile.value?.isDirectory) {
-      items.push({ label: '以十六进制查看', action: 'open-as-hex' })
+      items.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex' })
     }
     if (props.selectedFiles.length > 1 && caps?.canRename) {
-      items.push({ label: 'Batch Rename', action: 'batch-rename', shortcut: '⇧⌘R' })
+      items.push({ label: t('fileList.menu.batchRename'), action: 'batch-rename', shortcut: '⇧⌘R' })
     }
     if (caps?.canArchive) {
-      items.push({ label: 'Compress to ZIP', action: 'archive' })
+      items.push({ label: t('fileList.menu.archive'), action: 'archive' })
     }
     if (contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
-      items.push({ label: 'Extract ZIP', action: 'extract-archive' })
+      items.push({ label: t('fileList.menu.extractZip'), action: 'extract-archive' })
     }
 
     // 校验和：恰好选中 1-2 个文件（单哈希 / 对比）
@@ -1950,7 +1963,7 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === props.selectedFiles.length && selectedInfos.every(f => !f.isDirectory)) {
         items.push({
-          label: props.selectedFiles.length === 2 ? '校验和对比' : '计算校验和',
+          label: props.selectedFiles.length === 2 ? t('fileList.menu.checksumCompare') : t('fileList.menu.checksumSingle'),
           action: 'checksum'
         })
       }
@@ -1963,21 +1976,21 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === 2 && selectedInfos.every(f => f.isDirectory)) {
         items.push({ label: '---', action: '__divider__' })
-        items.push({ label: '对比目录', action: 'compare-dirs', shortcut: '⌘⇧D' })
+        items.push({ label: t('fileList.menu.compareDirs'), action: 'compare-dirs', shortcut: '⌘⇧D' })
       }
     }
 
     // 收藏夹：右键命中的是文件夹时可收藏（本地/远程均可）
     if (contextMenuTargetFile.value?.isDirectory) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: '添加到收藏夹', action: 'add-favorite' })
+      items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite' })
     }
 
     // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
     if (isHostShellAvailable()) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: 'Reveal in Finder', action: 'reveal-in-finder' })
-      items.push({ label: 'Open in Terminal', action: 'open-in-terminal' })
+      items.push({ label: t('fileList.menu.revealInFinder'), action: 'reveal-in-finder' })
+      items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal' })
     }
 
     // 复制路径（选中条目）+ 打开方式（右键命中条目）
@@ -2004,21 +2017,21 @@ function buildCopyPathMenuItems(): Array<{ label: string; action: string; childr
   const otherPane = tabsStore.activeTab?.panes.find(p => p.id !== props.paneId && p.deviceId === props.deviceId)
   contextMenuOtherPanePath.value = otherPane?.path ?? null
   const children: Array<{ label: string; action: string }> = [
-    { label: 'POSIX 路径', action: 'copy-path:posix' },
-    { label: 'file:// URI', action: 'copy-path:uri' },
-    { label: '文件名', action: 'copy-path:name' }
+    { label: t('fileList.menu.copyPathPosix'), action: 'copy-path:posix' },
+    { label: t('fileList.menu.copyPathUri'), action: 'copy-path:uri' },
+    { label: t('fileList.menu.copyPathName'), action: 'copy-path:name' }
   ]
-  if (otherPane) children.splice(2, 0, { label: '相对另一面板', action: 'copy-path:relative' })
-  return [{ label: '复制路径', action: 'copy-path-menu', children }]
+  if (otherPane) children.splice(2, 0, { label: t('fileList.menu.copyPathRelative'), action: 'copy-path:relative' })
+  return [{ label: t('fileList.menu.copyPath'), action: 'copy-path-menu', children }]
 }
 
 /** 「打开方式」子菜单（仅本地非 ZIP；app 检测在挂载时异步加载）。 */
 function buildOpenWithMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
   // 首项固定为系统默认应用（open <path>）；其余为探测到的本地应用。
   // 无可探测应用时子菜单仍保留（默认应用始终可用）。
-  const children: Array<{ label: string; action: string }> = [{ label: '默认应用', action: 'open-default' }]
+  const children: Array<{ label: string; action: string }> = [{ label: t('fileList.menu.openWithDefault'), action: 'open-default' }]
   children.push(...openWithApps.value.map(app => ({ label: app.name, action: `open-with:${app.bundlePath}` })))
-  return [{ label: '打开方式', action: 'open-with-menu', children }]
+  return [{ label: t('fileList.menu.openWith'), action: 'open-with-menu', children }]
 }
 
 /** 复制路径动作（多选时按行拼接；name/relative 针对右键命中的文件）。 */

@@ -13,6 +13,7 @@
  */
 
 import { computed, ref, shallowRef, watch } from 'vue'
+import { t } from '@/i18n'
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
 import { ComposeExpression } from '@/utils/textFilter'
 import {
@@ -142,7 +143,7 @@ export function useLogAnalysis(host: LogAnalysisHost) {
       log.info('applyFilter: matched %d / %d lines', filterResult.matchCount, lines.length)
     } catch (err) {
       log.error('applyFilter failed:', err)
-      filterError.value = err instanceof Error ? err.message : '过滤执行失败'
+      filterError.value = err instanceof Error ? err.message : t('preview.logview.filterFailed')
     } finally {
       if (generation === myGeneration) {
         filtering.value = false
@@ -196,10 +197,10 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     if (text === '') return
     try {
       await navigator.clipboard.writeText(text)
-      actionMessage.value = `已复制 ${result.value?.entries.length ?? 0} 行`
+      actionMessage.value = t('preview.logview.copiedLines', result.value?.entries.length ?? 0)
     } catch (err) {
       log.error('copyResult failed:', err)
-      actionMessage.value = '复制失败（剪贴板不可用）'
+      actionMessage.value = t('preview.logview.copyFailed')
     }
   }
 
@@ -208,7 +209,7 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     const r = result.value
     if (target === null || r === null || r.entries.length === 0) return
     if (!host.canWrite()) {
-      actionMessage.value = '目标设备不支持写入，无法导出'
+      actionMessage.value = t('preview.logview.exportNoWrite')
       return
     }
     if (exporting.value) return
@@ -231,11 +232,11 @@ export function useLogAnalysis(host: LogAnalysisHost) {
 
       log.info('exportFiltered: writing %d bytes to %s', bytes.length, candidate)
       await window.fileman.writeFile(target.deviceId, candidate, btoa(binary))
-      actionMessage.value = `已导出：${candidate}`
+      actionMessage.value = t('preview.logview.exported', { path: candidate })
       log.info('exportFiltered: done')
     } catch (err) {
       log.error('exportFiltered failed:', err)
-      actionMessage.value = `导出失败：${err instanceof Error ? err.message : String(err)}`
+      actionMessage.value = t('preview.logview.exportFailed', { message: err instanceof Error ? err.message : String(err) })
     } finally {
       exporting.value = false
     }

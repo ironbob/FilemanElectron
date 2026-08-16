@@ -27,6 +27,7 @@ import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
 import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest } from '@shared/types'
 import { CH } from './src/ipc/channels'
+import { setMainLocale, t } from './src/i18n'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { DirectoryStatsRequest } from '@shared/types'
 
@@ -36,6 +37,8 @@ const log = console
 let mainWindow: BrowserWindow | null = null
 const fileInfoWindowContexts = new Map<number, FileInfoWindowContext>()
 const configService = new ConfigService()
+// 主进程语言随配置初始化（config:save 时刷新）；throw/窗口标题按当前语言产出
+setMainLocale(configService.get('settings').locale)
 const credentialService = new CredentialService()
 const deviceManager = new DeviceManager(configService, credentialService)
 const fileOperationManager = new FileOperationManager()
@@ -127,7 +130,9 @@ function createWindow(): void {
  */
 function createFileInfoWindow(parent: BrowserWindow | null, context: FileInfoWindowContext): void {
   const isSingle = context.files.length === 1
-  const title = isSingle ? `“${context.files[0].name}”简介` : `${context.files.length} 个项目简介`
+  const title = isSingle
+    ? t('main.infoWindowTitle', { name: context.files[0].name })
+    : t('main.infoWindowTitleMulti', { count: context.files.length })
   const infoWindow = new BrowserWindow({
     width: 560,
     height: 720,
@@ -168,7 +173,7 @@ ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
 
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context: FileInfoWindowContext): void => {
   if (!context || !Array.isArray(context.files) || context.files.length === 0) {
-    throw new Error('无法为未选择的项目打开简介窗口')
+    throw new Error(t('errors.main.fileInfoNoSelection'))
   }
   const parent = BrowserWindow.fromWebContents(event.sender)
   createFileInfoWindow(parent, context)
@@ -176,7 +181,7 @@ ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context: FileInfoWindowCont
 
 ipcMain.handle(CH.invoke.fileInfoWindowGetContext, event => {
   const context = fileInfoWindowContexts.get(event.sender.id)
-  if (!context) throw new Error('此窗口没有可用的简介上下文')
+  if (!context) throw new Error(t('errors.main.fileInfoNoContext'))
   return context
 })
 
@@ -262,7 +267,7 @@ ipcMain.handle(CH.invoke.grepCancel, (_, taskId: string) => {
 ipcMain.handle(CH.invoke.fsSymlink, async (_, deviceId: string, targetPath: string, linkPath: string): Promise<void> => {
   const adapter = await deviceManager.getReadyAdapter(deviceId)
   if (!adapter.getCapabilities().canSymlink || !adapter.symlink) {
-    throw new Error('该设备不支持创建符号链接')
+    throw new Error(t('errors.main.symlinkUnsupported'))
   }
   return adapter.symlink(targetPath, linkPath)
 })
@@ -270,7 +275,7 @@ ipcMain.handle(CH.invoke.fsSymlink, async (_, deviceId: string, targetPath: stri
 ipcMain.handle(CH.invoke.fsReadlink, async (_, deviceId: string, linkPath: string): Promise<string> => {
   const adapter = await deviceManager.getReadyAdapter(deviceId)
   if (!adapter.getCapabilities().canSymlink || !adapter.readlink) {
-    throw new Error('该设备不支持读取符号链接')
+    throw new Error(t('errors.main.readlinkUnsupported'))
   }
   return adapter.readlink(linkPath)
 })
@@ -278,7 +283,7 @@ ipcMain.handle(CH.invoke.fsReadlink, async (_, deviceId: string, linkPath: strin
 ipcMain.handle(CH.invoke.fsChmod, async (_, deviceId: string, targetPath: string, mode: number, recursive: boolean): Promise<void> => {
   const adapter = await deviceManager.getReadyAdapter(deviceId)
   if (!adapter.getCapabilities().canChmod || !adapter.chmod) {
-    throw new Error('该设备不支持修改权限')
+    throw new Error(t('errors.main.chmodUnsupported'))
   }
   if (!recursive) return adapter.chmod(targetPath, mode)
   // 目录递归：walk + 逐项应用（含根；symlink 目录不跟随）
@@ -295,7 +300,7 @@ ipcMain.handle(CH.invoke.fsChmod, async (_, deviceId: string, targetPath: string
 ipcMain.handle(CH.invoke.fsChown, async (_, deviceId: string, targetPath: string, uid: number, gid: number): Promise<void> => {
   const adapter = await deviceManager.getReadyAdapter(deviceId)
   if (!adapter.getCapabilities().canChown || !adapter.chown) {
-    throw new Error('该设备不支持修改属主')
+    throw new Error(t('errors.main.chownUnsupported'))
   }
   return adapter.chown(targetPath, uid, gid)
 })
@@ -367,7 +372,7 @@ ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId: string, path: string, 
 
   // 非流式回退：整读后 slice（守卫 32MB，与 fileHashing 一致）
   if (fileSize > 32 * 1024 * 1024) {
-    throw new Error('该设备不支持流式读取，无法分块读取超过 32 MB 的文件')
+    throw new Error(t('errors.main.readChunkStreamUnsupported'))
   }
   const full = await adapter.readFile(path)
   const slice = full.subarray(start, end)
@@ -382,14 +387,14 @@ ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId: string, path: string, 
 ipcMain.handle(CH.invoke.fsSaveHexFile, async (_, deviceId: string, path: string, pieces: HexSavePiece[]): Promise<SaveHexFileResult> => {
   const adapter = await deviceManager.getReadyAdapter(deviceId)
   if (adapter.type !== 'local') {
-    throw new Error('当前设备暂不支持保存十六进制修改（仅本机设备）')
+    throw new Error(t('errors.main.hexSaveUnsupported'))
   }
   const st = await adapter.stat(path)
   let bytesWritten = 0
   for (const piece of pieces) {
     if (piece.kind === 'base') {
       if (piece.start < 0 || piece.length < 0 || piece.start + piece.length > st.size) {
-        throw new Error(`保存片段越界：base ${piece.start}+${piece.length} > 文件大小 ${st.size}`)
+        throw new Error(t('errors.main.hexSavePieceOutOfBounds', { start: piece.start, length: piece.length, size: st.size }))
       }
       bytesWritten += piece.length
     } else {
@@ -427,14 +432,20 @@ ipcMain.handle(CH.invoke.fsSaveHexFile, async (_, deviceId: string, path: string
   } catch (error) {
     out.destroy()
     await fs.promises.rm(tempPath, { force: true }).catch(() => undefined)
-    throw error instanceof Error ? new Error(`保存失败：${error.message}`) : new Error('保存失败')
+    throw error instanceof Error
+      ? new Error(t('errors.main.hexSaveFailed', { message: error.message }))
+      : new Error(t('errors.main.hexSaveFailedNoDetail'))
   }
 })
 
 // ============ Config IPC Handlers ============
 
 ipcMain.handle(CH.invoke.configGet, () => configService.getConfig())
-ipcMain.handle(CH.invoke.configSave, (_, config) => configService.saveConfig(config))
+ipcMain.handle(CH.invoke.configSave, (_, config) => {
+  configService.saveConfig(config)
+  // 语言切换后主进程报错文案即时跟随
+  setMainLocale(configService.get('settings').locale)
+})
 
 // ============ Device Management IPC Handlers ============
 
@@ -692,7 +703,7 @@ ipcMain.handle(CH.invoke.fsImportExternal, async (
   targetPath: string
 ): Promise<FileOperationTask> => {
   if (!Array.isArray(sourcePaths)) {
-    throw new Error('拖入内容无效。')
+    throw new Error(t('errors.main.dragInvalidPayload'))
   }
 
   const validSourcePaths = (await Promise.all(sourcePaths
@@ -701,7 +712,7 @@ ipcMain.handle(CH.invoke.fsImportExternal, async (
     .filter((sourcePath): sourcePath is string => sourcePath !== null)
 
   if (validSourcePaths.length === 0) {
-    throw new Error('未找到可导入的本地文件或文件夹。')
+    throw new Error(t('errors.main.dragNoImportableFiles'))
   }
 
   return fileOperationManager.addTask({

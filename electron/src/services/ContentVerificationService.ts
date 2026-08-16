@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import type { Readable } from 'stream'
 import type { IFileSystemAdapter } from '../adapters/types'
 import { hashAdapterFile } from './support/fileHashing'
+import { t } from '../i18n'
 
 const log = console
 
@@ -130,7 +131,7 @@ export class ContentVerificationService {
 
   private async hashFile(task: VerificationTask, deviceId: string, filePath: string, size: number): Promise<string> {
     const adapter = this.devices.getAdapter(deviceId)
-    if (!adapter || !adapter.isConnected()) throw new Error('设备未连接，无法校验内容')
+    if (!adapter || !adapter.isConnected()) throw new Error(t('errors.main.verifyDeviceNotConnected'))
     // 哈希实现泛化至 support/fileHashing（checksum/重复查找共用），此处保留
     // 原有取消语义：isCancelled 抛错 + task.streams 登记以便 cancel 时 destroy。
     return hashAdapterFile(adapter, filePath, size, {

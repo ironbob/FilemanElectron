@@ -1,5 +1,6 @@
 import type { FileInfo } from '@shared/types'
 import type { IFileSystemAdapter } from '../../adapters/types'
+import { t } from '../../i18n'
 
 const log = console
 
@@ -62,7 +63,7 @@ export class DirectoryWalker {
         consecutiveErrors++
         log.warn('[DirectoryWalker] directory skipped', { path: dirPath, message: error instanceof Error ? error.message : String(error) })
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          throw new Error(`连续 ${consecutiveErrors} 个目录访问失败，设备可能已断开`)
+          throw new Error(t('errors.main.walkConsecutiveErrors', { count: consecutiveErrors }))
         }
         continue
       }

@@ -1,5 +1,6 @@
 import { Readable, Writable, Transform, pipeline } from 'stream'
 import type { IFileSystemAdapter } from '../adapters/types'
+import { t } from '../i18n'
 
 /**
  * L06 · StreamTransfer (service / strategy)
@@ -154,9 +155,7 @@ export class StreamTransfer {
   ): Promise<void> {
     const stat = await target.stat(dstPath)
     if (!stat.isFile || stat.size !== expectedBytes) {
-      throw new Error(
-        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat.size} 字节`
-      )
+      throw new Error(t('errors.main.transferVerifyFailed', { path: dstPath, expected: expectedBytes, actual: stat.size }))
     }
   }
 }

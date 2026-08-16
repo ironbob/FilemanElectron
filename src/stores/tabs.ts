@@ -420,6 +420,8 @@ export const useTabsStore = defineStore('tabs', () => {
     const tab: Tab = {
       id: generateId(),
       title: `重复文件 · ${getPathDisplayName(rootPath)}`,
+      titleKey: 'tabs.title.dupes',
+      titleParams: { path: getPathDisplayName(rootPath) },
       panes: [],
       activePaneId: '',
       dupesSession: session
@@ -435,6 +437,8 @@ export const useTabsStore = defineStore('tabs', () => {
     const tab: Tab = {
       id: generateId(),
       title: `搜索 · ${full.pattern}`,
+      titleKey: 'tabs.title.grep',
+      titleParams: { pattern: full.pattern },
       panes: [],
       activePaneId: '',
       grepSession: full
@@ -456,6 +460,8 @@ export const useTabsStore = defineStore('tabs', () => {
     const tab: Tab = {
       id: generateId(),
       title: `空间 · ${getPathDisplayName(rootPath)}`,
+      titleKey: 'tabs.title.space',
+      titleParams: { path: getPathDisplayName(rootPath) },
       panes: [],
       activePaneId: '',
       spaceSession: session

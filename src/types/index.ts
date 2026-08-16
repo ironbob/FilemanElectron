@@ -7,6 +7,10 @@ import type { PreviewTab } from './preview'
 export interface Tab {
   id: string
   title: string
+  /** 工具页标题的词表键（AppTabBar 渲染时翻译，语言切换即时生效）。 */
+  titleKey?: string
+  /** titleKey 的插值参数。 */
+  titleParams?: Record<string, string>
   panes: Pane[]
   activePaneId: string
   /** When set, this tab renders a directory compare view instead of file panes */
@@ -88,6 +92,11 @@ export interface AppSettings {
   confirmDelete: boolean
   /** 目录变化自动刷新（fs.watch / 远程轮询；关闭后依赖手动 Cmd+R）。 */
   autoRefresh?: boolean
+  /**
+   * 界面语言。刻意不设默认值：主进程据此产出本地化报错，渲染层 bootstrap
+   * 走 localStorage；未显式选择过的用户不应在无关开关持久化时被钉死语言。
+   */
+  locale?: import('@shared/locales').AppLocale
 }
 
 // ── Directory Compare Types ──────────────────────────────────────────────────

@@ -1,12 +1,13 @@
-import { safeStorage, app, shell, ipcMain, BrowserWindow, nativeImage, screen } from "electron";
-import os from "os";
+import { safeStorage, app, shell, ipcMain, BrowserWindow, dialog, nativeImage, screen } from "electron";
+import * as os from "os";
+import os__default from "os";
 import * as path from "path";
-import path__default, { join } from "path";
+import path__default, { join, dirname, basename as basename$1 } from "path";
 import fs$1 from "fs-extra";
 import Store from "electron-store";
 import { createRequire } from "module";
 import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
-import { execFileSync, exec, execFile, spawn } from "child_process";
+import { execFileSync, spawn, exec, execFile } from "child_process";
 import * as fs from "fs";
 import fs__default from "fs";
 import { createClient } from "webdav";
@@ -156,6 +157,2381 @@ class CredentialService {
   async clearAll() {
     this.store.clear();
   }
+}
+const zhCN = {
+  common: {
+    ok: "好",
+    cancel: "取消",
+    close: "关闭",
+    delete: "删除",
+    retry: "重试",
+    on: "开",
+    off: "关",
+    clickToCopy: "点击复制"
+  },
+  settings: {
+    title: "设置",
+    cache: "缓存",
+    files: "文件",
+    appearance: "外观",
+    thumbnailCache: "缩略图缓存",
+    cacheUsed: "{size} 已用",
+    clear: "清除",
+    clearing: "清除中…",
+    showHidden: "显示隐藏文件",
+    showHiddenDesc: "点开头的文件与隐藏项（⌘⇧.）",
+    showPermissions: "显示权限",
+    showPermissionsDesc: "在列表视图中显示 Unix 权限",
+    theme: "主题",
+    themeLight: "浅色",
+    themeDark: "深色",
+    themeSystem: "跟随系统",
+    language: "语言",
+    done: "完成"
+  },
+  devices: {
+    /** 本机设备显示名（主进程 DeviceManager 与渲染层共用）。 */
+    localName: "本机",
+    /** 设备类型显示名（src/utils/path.ts deviceTypeName）。 */
+    type: {
+      local: "本机",
+      android: "Android",
+      ohos: "HarmonyOS",
+      smb: "SMB 共享",
+      ssh: "SSH/SFTP",
+      webdav: "WebDAV",
+      ios: "iOS"
+    }
+  },
+  tabs: {
+    newTab: "新建标签页",
+    title: {
+      dupes: "重复文件 · {path}",
+      grep: "搜索 · {pattern}",
+      space: "空间 · {path}"
+    }
+  },
+  palette: {
+    ariaLabel: "命令面板",
+    placeholder: "输入命令、收藏名称或绝对路径（/开头）…",
+    goto: "前往",
+    noMatch: "无匹配命令",
+    favoritesGroup: "收藏目录",
+    hintSelect: "↑↓ 选择",
+    hintRun: "↩ 执行",
+    hintClose: "Esc 关闭",
+    hintOpen: "⌘⇧P 呼出",
+    cmd: {
+      newTab: "新建标签页",
+      closeTab: "关闭当前标签页",
+      toggleDualPane: "切换双面板",
+      viewList: "切换为列表视图",
+      viewGrid: "切换为图标视图",
+      viewColumns: "切换为分栏视图",
+      toggleHidden: "显示/隐藏隐藏文件",
+      toggleTheme: "切换深/浅色主题",
+      openSettings: "打开设置",
+      refresh: "刷新当前目录"
+    },
+    group: {
+      tabs: "标签页",
+      view: "视图",
+      appearance: "外观",
+      files: "文件"
+    }
+  },
+  sidebar: {
+    locations: "位置",
+    addDevice: "添加设备",
+    addSmb: "SMB 共享",
+    addSsh: "SSH/SFTP 服务器",
+    addWebdav: "WebDAV (HTTP/HTTPS)",
+    externalVolumes: "外接卷",
+    mobileDevices: "移动设备",
+    scanning: "扫描中…",
+    pairUnpaired: "未配对",
+    pairBadge: "配对中…",
+    paired: "✓ 已配对",
+    pairAction: "配对",
+    pairActionTip: "发起配对(设备上会弹出『信任此电脑』)",
+    pairInProgress: "配对中…",
+    autoConnectEnabled: "已启用自动连接",
+    connect: "连接",
+    forget: "忘记",
+    screenshot: "截图",
+    screenshotting: "截图中…",
+    screenshotAria: "截取 {name} 屏幕截图",
+    noMobileDevices: "未检测到移动设备",
+    iosSupportTitle: "iOS 支持",
+    iosSupportDesc: "安装 libimobiledevice 以支持 iOS 设备",
+    places: "常用位置",
+    favorites: "收藏",
+    removeFavorite: "移除收藏",
+    favoritesHint: "右键文件夹可添加收藏",
+    toolsAria: "应用工具",
+    switchToLight: "切换到浅色模式",
+    switchToDark: "切换到深色模式",
+    fileOperations: "文件操作",
+    fileOperationsActive: "文件操作，{count} 个任务进行中",
+    toggleDualPane: "切换双面板",
+    settings: "设置",
+    connectFailed: "无法连接 {name}: {message}",
+    pairFailed: "配对失败:{reason}",
+    pairError: "配对异常:{message}",
+    unknownReason: "未知原因",
+    screenshotNeedConnect: "连接设备后可截图",
+    screenshotNeedPair: "iOS 需先配对并连接后可截图",
+    screenshotOf: "截取 {name} 的屏幕截图"
+  },
+  filePane: {
+    toolbar: {
+      undoRemoteDelete: "撤销上次远程删除",
+      goBack: "后退",
+      goForward: "前进",
+      goUp: "前往上级文件夹",
+      recentLocations: "最近访问的位置",
+      noRecentLocations: "暂无最近访问的位置",
+      searchPlaceholder: "搜索或 tag:work",
+      clearSearch: "清除搜索",
+      searchHistory: "搜索历史",
+      history: "历史记录",
+      clearHistory: "清除搜索历史",
+      clear: "清除",
+      recursiveSearch: "递归搜索",
+      copyPaths: "复制所选路径用于分享",
+      editTags: "编辑所选条目标签",
+      inlinePreviewTip: "切换内联预览（单击即预览）",
+      inlinePreview: "切换内联预览",
+      screenshot: "截取设备屏幕",
+      revealInFinder: "在 Finder 中显示",
+      revealInFinderLocalOnly: "在 Finder 中显示（仅限本地文件夹）",
+      newFolder: "新建文件夹",
+      newFile: "新建文件"
+    },
+    view: {
+      list: "列表视图",
+      grid: "图标视图",
+      columns: "分栏视图",
+      gridHint: "{label}（右键可选图标大小）"
+    },
+    gridSize: {
+      title: "图标大小",
+      xlarge: "超大图标",
+      large: "大图标",
+      medium: "中等图标",
+      small: "小图标"
+    },
+    createDialog: {
+      fileAria: "创建文件",
+      folderAria: "创建文件夹",
+      createdIn: "创建位置：{path}",
+      folderPlaceholder: "文件夹名称",
+      create: "创建",
+      invalidName: "请输入不含斜杠的有效名称。",
+      createFailed: "无法创建该项目。"
+    },
+    goToDialog: {
+      title: "前往文件夹",
+      desc: "输入 {device} 上的绝对路径",
+      thisDevice: "此设备",
+      go: "前往",
+      emptyPath: "请输入路径。",
+      needFilesystemPath: "请输入文件系统路径（ZIP 虚拟路径仅限 ZIP 内使用）。",
+      needAbsolutePath: "请输入绝对路径。",
+      notFolder: "不是文件夹。",
+      notFound: "未找到文件夹：{path}"
+    },
+    gitChipTitle: "Git 仓库：{repoRoot}（领先/落后 {arrows}）",
+    gitChipTitlePlain: "Git 仓库：{repoRoot}",
+    archivePrompt: "压缩包名称：",
+    screenshotFailed: "截图失败"
+  },
+  fileList: {
+    loading: "加载中…",
+    emptyFolder: "该文件夹为空",
+    columns: {
+      name: "名称",
+      dateModified: "修改日期",
+      size: "大小",
+      kind: "种类",
+      permissions: "权限",
+      root: "根目录"
+    },
+    symlinkTitle: "符号链接 → {target}",
+    typeahead: {
+      matches: "{count} 个匹配",
+      noMatches: "无匹配",
+      escClear: "Esc 清除"
+    },
+    renameBar: {
+      label: "重命名：",
+      confirm: "确认"
+    },
+    kind: {
+      folder: "文件夹",
+      extDocument: "{ext} 文档",
+      document: "文档"
+    },
+    gitBadgeTitle: "Git：{letter}",
+    menu: {
+      refresh: "刷新",
+      newFolder: "新建文件夹",
+      newFile: "新建文件",
+      newSymlink: "新建符号链接…",
+      paste: "粘贴",
+      addFavorite: "添加到收藏夹",
+      showHidden: "显示隐藏文件",
+      hideHidden: "隐藏隐藏文件",
+      goToFolder: "前往文件夹…",
+      findDuplicates: "查找重复文件…",
+      analyzeSpace: "可视化空间…",
+      grepHere: "在此搜索内容…",
+      openInTerminal: "在终端中打开",
+      open: "打开",
+      openInNewTab: "在新标签页中打开",
+      openInSplitTab: "在双面板标签页中打开",
+      images: "图片",
+      previewImages: "预览所有图片",
+      previewImagesRecursive: "预览图片（递归）",
+      copy: "复制",
+      cut: "剪切",
+      copyToDevice: "复制到设备",
+      moveToDevice: "移动到设备",
+      rename: "重命名",
+      info: "属性",
+      openAsHex: "以十六进制查看",
+      batchRename: "批量重命名",
+      archive: "压缩为 ZIP",
+      extractZip: "解压 ZIP",
+      checksumCompare: "校验和对比",
+      checksumSingle: "计算校验和",
+      compareDirs: "对比目录",
+      revealInFinder: "在 Finder 中显示",
+      copyPath: "复制路径",
+      copyPathPosix: "POSIX 路径",
+      copyPathUri: "file:// URI",
+      copyPathName: "文件名",
+      copyPathRelative: "相对另一面板",
+      openWith: "打开方式",
+      openWithDefault: "默认应用"
+    },
+    confirmDelete: "删除 {count} 项？"
+  },
+  dialogs: {
+    rename: {
+      title: "重命名",
+      cancel: "取消",
+      confirm: "重命名"
+    },
+    batchRename: {
+      title: "批量重命名",
+      subtitle: "重命名 {count} 项，保留各文件扩展名。",
+      prefix: "前缀",
+      findReplace: "查找替换",
+      sequence: "序号",
+      start: "起始",
+      step: "步长",
+      pad: "位数",
+      currentName: "当前名称",
+      newName: "新名称",
+      conflictError: "规则产生 {count} 个重名，请调整后重试",
+      cancel: "取消",
+      submit: "重命名 {count} 项"
+    },
+    targetOperation: {
+      titleCopy: "复制 {count} 项",
+      titleMove: "移动 {count} 项",
+      desc: "选择一个已连接的目标设备及确切的文件夹路径。",
+      deviceLabel: "目标设备",
+      folderLabel: "目标文件夹",
+      conflictLabel: "若同名文件已存在",
+      conflictSkip: "跳过已有文件",
+      conflictOverwrite: "替换已有文件",
+      conflictRename: "两者保留（重命名新文件）",
+      cancel: "取消",
+      confirmCopy: "复制",
+      confirmMove: "移动"
+    },
+    fileInfo: {
+      previewAlt: "预览",
+      general: "常规",
+      details: "详细信息",
+      media: "媒体",
+      tags: "标签",
+      kind: "种类",
+      size: "大小",
+      itemCount: "项目数",
+      location: "位置",
+      device: "设备",
+      modifiedTime: "修改时间",
+      createdTime: "创建时间",
+      items: "项目",
+      totalSize: "总大小",
+      extension: "扩展名",
+      permissions: "权限",
+      symlink: "符号链接",
+      symlinkUnreadable: "（目标不可读）",
+      editPermissions: "修改权限",
+      editButton: "编辑…",
+      compressedSize: "压缩后大小",
+      ratio: "压缩率",
+      compressionMethod: "压缩方法",
+      unknownCompression: "未知（{method}）",
+      scanning: "正在计算… 已扫描 {count} 项",
+      scanFailed: "计算失败：{message}",
+      cancelled: "已取消",
+      categoryImage: "图片",
+      categoryVideo: "视频",
+      categoryAudio: "音频",
+      categoryArchive: "归档文件",
+      categoryDocument: "文档",
+      categoryText: "文本",
+      categoryUnknown: "文件",
+      kindFolder: "文件夹",
+      kindZipEntry: "ZIP 内条目",
+      multiTitle: "{count} 个项目",
+      locatedAt: "位于 {location}",
+      itemCountLabel: "{fileCount} 个文件，{dirCount} 个文件夹",
+      selectionLabel: "{count} 项（{fileCount} 个文件，{dirCount} 个文件夹）",
+      read: "读 r",
+      write: "写 w",
+      execute: "执行 x",
+      roleOwner: "所有者",
+      roleGroup: "组",
+      roleOther: "其他",
+      octal: "八进制",
+      recursive: "递归应用到目录内容",
+      octalInvalid: "八进制应为 3-4 位（如 755 / 0644）",
+      cancel: "取消",
+      apply: "应用",
+      name: "名称",
+      path: "路径",
+      tagsPlaceholder: "work, review（逗号分隔；由 Fileman 本地存储）",
+      save: "保存",
+      copied: "已复制",
+      copyAll: "复制全部",
+      cancelCalc: "取消计算",
+      close: "关闭",
+      closeWindow: "关闭窗口",
+      mediaFormat: "格式",
+      mediaDuration: "时长",
+      mediaResolution: "分辨率",
+      mediaFrameRate: "帧率",
+      mediaVideoCodec: "视频编码",
+      mediaVideoBitrate: "视频码率",
+      mediaAudioCodec: "音频编码",
+      mediaSampleRate: "采样率",
+      mediaChannels: "声道",
+      mediaAudioBitrate: "音频码率",
+      mediaOverallBitrate: "总码率",
+      mediaDimensions: "尺寸",
+      mediaCamera: "相机",
+      mediaTakenAt: "拍摄时间",
+      mediaIso: "ISO",
+      mediaAperture: "光圈",
+      mediaShutter: "快门",
+      mediaFocalLength: "焦距",
+      videoCodecBitDepth: "{codec}（{bits}-bit）",
+      channelsValue: "{count} 声道",
+      dimensionsValue: "{width} × {height}（{mp} MP）"
+    },
+    device: {
+      addSmbTitle: "添加 SMB 服务器",
+      addSshTitle: "添加 SSH/SFTP 服务器",
+      addWebdavTitle: "添加 WebDAV 服务器",
+      type: "类型：",
+      host: "主机：",
+      share: "共享名：",
+      url: "URL：",
+      port: "端口：",
+      name: "名称：",
+      username: "用户名：",
+      password: "密码：",
+      namePlaceholder: "我的服务器",
+      cancel: "取消",
+      connect: "连接",
+      needSmbFields: "请填写 SMB 主机地址和共享名称",
+      needSshHost: "请填写 SSH/SFTP 主机地址",
+      needWebdavUrl: "请填写 WebDAV HTTP/HTTPS 地址"
+    },
+    checksum: {
+      titleCompare: "校验和对比",
+      titleSingle: "计算校验和",
+      algo: "算法",
+      computing: "计算中…",
+      copied: "已复制",
+      copy: "复制",
+      matchSame: "✓ 两个文件内容一致（逐字节哈希相同）",
+      matchDiff: "✗ 两个文件内容不同",
+      preparing: "准备中…",
+      hashing: "哈希中 {index}/{total}",
+      completed: "完成",
+      cancelled: "已取消",
+      failed: "失败：{message}",
+      unknownError: "未知错误",
+      cancel: "取消",
+      close: "关闭"
+    },
+    symlink: {
+      title: "新建符号链接",
+      defaultName: "新链接",
+      createIn: "在 {path} 中创建",
+      targetLabel: "目标路径（可为相对路径）",
+      nameLabel: "链接名称",
+      targetEmpty: "目标路径不能为空",
+      nameInvalid: "链接名不能为空且不含 /",
+      cancel: "取消",
+      create: "创建"
+    },
+    saveImage: {
+      title: "保存图片",
+      overwrite: "覆盖原图",
+      saveCopy: "另存副本",
+      suffix: "后缀",
+      compressParams: "压缩参数",
+      estimating: "预估中…",
+      estimateAbout: "约 {size}",
+      quality: "质量 {value}",
+      maxEdge: "最长边",
+      noLimit: "不限制",
+      pxDownscaleOnly: "px（仅缩小）",
+      format: "格式",
+      formatKeep: "保持原格式",
+      cancel: "取消",
+      saving: "保存中…",
+      save: "保存"
+    },
+    batchCompress: {
+      title: "批量压缩",
+      subtitle: "应用到当前集合的全部 {count} 张图片",
+      quality: "质量 {value}",
+      maxEdge: "最长边",
+      noLimit: "不限制",
+      pxDownscaleOnly: "px（仅缩小）",
+      format: "格式",
+      formatKeep: "保持原格式",
+      overwrite: "覆盖原图",
+      saveCopy: "另存副本",
+      suffix: "后缀",
+      cancelTask: "取消任务",
+      close: "关闭",
+      compress: "压缩 {count} 张",
+      resultOk: "成功 {count}",
+      resultFailed: "失败 {count}",
+      resultCancelled: "已取消"
+    }
+  },
+  compare: {
+    /** 目录对比 / 文件 diff（src/components/compare/）。 */
+    leftDevice: "左侧设备",
+    rightDevice: "右侧设备",
+    missingSide: "（无）",
+    loadingCompare: "正在对比目录…",
+    emptyBothDirs: "两个目录均为空",
+    emptyNoMatch: "当前过滤条件下无匹配项",
+    filterNotice: "已过滤：显示 {visible} 项，隐藏 {hidden} 项",
+    clearFilter: "清除过滤",
+    columns: {
+      name: "名称",
+      size: "大小",
+      modifiedTime: "修改时间",
+      status: "状态"
+    },
+    statusBar: {
+      different: "差异",
+      leftOnly: "仅左侧",
+      rightOnly: "仅右侧",
+      metadataEqual: "元数据相同",
+      contentEqual: "内容相同",
+      failed: "失败",
+      selected: "已选",
+      verifying: "校验",
+      shownSummary: "已显示 {visible} / {total}，隐藏 {hidden}"
+    },
+    status: {
+      metadataEqual: "元数据相同",
+      contentEqual: "内容相同",
+      different: "内容不同",
+      leftNewer: "左侧较新",
+      rightNewer: "右侧较新",
+      leftOnly: "仅左侧",
+      rightOnly: "仅右侧",
+      typeMismatch: "类型不同",
+      verifying: "正在校验",
+      verificationFailed: "校验失败",
+      uncomparable: "无法比较"
+    },
+    toolbar: {
+      goParent: "返回父级目录",
+      swapSides: "交换左右目录",
+      copyLeft: "复制到左侧",
+      copyRight: "复制到右侧",
+      expandAll: "展开全部",
+      collapseAll: "折叠全部",
+      prevDiffTip: "上一个差异 (Shift+F7)",
+      prevDiff: "上一个差异",
+      nextDiffTip: "下一个差异 (F7)",
+      nextDiff: "下一个差异",
+      filterAllTip: "显示全部",
+      filterAll: "全部",
+      filterDiffTip: "仅显示差异",
+      filterDiff: "差异",
+      filterOrphanTip: "仅显示孤立文件",
+      filterOrphan: "孤立",
+      filterEqualTip: "仅显示相同",
+      filterEqual: "相同",
+      rule: "规则:",
+      ruleName: "按名称",
+      ruleSize: "按大小",
+      ruleTime: "按时间",
+      verifySelection: "校验选中项内容",
+      cancelVerify: "取消内容校验",
+      comparing: "对比中…",
+      refreshTip: "刷新对比 (F5)",
+      refresh: "刷新对比"
+    },
+    menu: {
+      retryVerify: "重试内容校验",
+      verify: "校验内容",
+      copyRight: "复制到右侧",
+      copyLeft: "复制到左侧",
+      deleteLeft: "删除（左侧）",
+      deleteRight: "删除（右侧）",
+      deleteBoth: "删除（两侧）"
+    },
+    delete: {
+      leftPath: "左侧: {path}",
+      rightPath: "右侧: {path}",
+      confirm: "确认删除以下文件？"
+    },
+    copyDialog: {
+      title: "确认复制",
+      directionLeftToRight: "左侧 → 右侧",
+      directionRightToLeft: "右侧 → 左侧",
+      visibleSelected: "{count} 个可见选中项",
+      blockedNotice: "{count} 个目录含有未扫描或被过滤的后代，已阻止递归复制。请先展开并显示完整范围后再确认。",
+      pathsTitle: "将复制的路径",
+      moreItems: "另有 {count} 项",
+      conflictStrategy: "冲突处理",
+      strategySkip: "跳过已存在项",
+      strategyOverwrite: "覆盖已存在项",
+      strategyRename: "保留两者（自动重命名）",
+      queueNote: "复制任务会进入传输队列；失败不会删除源文件。",
+      confirm: "确认复制"
+    },
+    error: {
+      leftDirUnreadable: "左侧目录无法读取",
+      rightDirUnreadable: "右侧目录无法读取",
+      readDirFailed: "读取目录失败"
+    },
+    diff: {
+      closeTip: "关闭对比 (Esc)",
+      leftSide: "左",
+      rightSide: "右",
+      prevDiffTip: "上一处差异 (Shift+F7)",
+      nextDiffTip: "下一处差异 (F7)",
+      toggleLayout: "切换并排 / 内联模式",
+      loading: "加载文件内容…",
+      loadFailed: "加载失败：{message}",
+      noFile: "（无文件）",
+      imgLeftLabel: "← 左",
+      imgRightLabel: "右 →",
+      computingDiff: "计算差异…",
+      imgModeSideBySide: "并排",
+      imgModeSlide: "滑动",
+      imgModeBlend: "叠加",
+      imgModeDiff: "Diff",
+      blendRightLabel: "右侧",
+      diffPercent: "差异 {percent}%",
+      resetZoomTip: "单击重置缩放",
+      zoomHint: "⌘+滚轮缩放",
+      leftFile: "左侧文件",
+      rightFile: "右侧文件",
+      fileName: "文件名",
+      size: "大小",
+      modifiedTime: "修改时间",
+      noSuchFile: "（无此文件）",
+      tooLarge: "文件过大，无法预览内容"
+    },
+    diffStatus: {
+      metadataEqual: "元数据相同",
+      contentEqual: "内容相同",
+      different: "不同",
+      leftNewer: "左侧较新",
+      rightNewer: "右侧较新",
+      leftOnly: "仅左侧",
+      rightOnly: "仅右侧",
+      typeMismatch: "类型不同",
+      verifying: "校验中",
+      verificationFailed: "校验失败",
+      uncomparable: "无法比较"
+    }
+  },
+  grep: {
+    /** 内容搜索工具页（src/components/grep/）。 */
+    cmd: {
+      rerun: "重新执行内容搜索"
+    },
+    cmdGroup: "内容搜索",
+    placeholder: "搜索内容…（⏎ 执行）",
+    regexTip: "作为正则表达式搜索",
+    caseTip: "区分大小写",
+    includePlaceholder: "包含 *.ts",
+    excludePlaceholder: "排除 *.log",
+    search: "搜索",
+    status: {
+      searching: "搜索中 · 已命中 {count}",
+      done: "完成 · {fileCount} 个文件 / {matchCount} 处命中",
+      truncated: "（已达上限，截断）",
+      idle: "输入内容后回车开始搜索"
+    },
+    noMatches: "无命中",
+    failed: "搜索失败",
+    cancelled: "已取消"
+  },
+  dupes: {
+    /** 重复文件查找工具页（src/components/dupes/）。 */
+    cmd: {
+      rescan: "重新扫描重复文件"
+    },
+    cmdGroup: "重复文件",
+    phaseIdle: "未开始",
+    selectOlder: "勾选旧副本",
+    rescan: "重新扫描",
+    noDuplicates: "未发现重复文件",
+    group: {
+      identicalCount: "{count} 个相同文件",
+      eachSize: "每个 {size}",
+      redundant: "冗余 {size}"
+    },
+    truncatedNotice: "重复组超过 5000，仅显示浪费空间最大的前 5000 组。",
+    summary: {
+      reclaimable: "{count} 组 · 可回收",
+      checked: "已勾选 {count}"
+    },
+    clearSelection: "清空勾选",
+    deleteSelected: "删除勾选 ({count})",
+    scanFailed: "扫描失败",
+    cancelled: "已取消",
+    phase: {
+      scanning: "扫描中 · {count} 个文件",
+      partialHashing: "首块比对 · 候选 {count}",
+      fullHashing: "全量哈希 · 候选 {count}",
+      completed: "完成 · {count} 组",
+      failed: "失败 · {message}"
+    }
+  },
+  treemap: {
+    /** 空间分析工具页（src/components/treemap/）。 */
+    cmd: {
+      rerun: "重新分析空间"
+    },
+    cmdGroup: "空间分析",
+    analyzing: "分析中 · {path}",
+    summary: "{count} 文件 · {size}",
+    rerun: "重新分析",
+    others: "其余 {count} 项",
+    emptyDir: "目录为空",
+    tooltipSummary: "{size} · {fileCount} 文件 · {dirCount} 目录"
+  },
+  tasks: {
+    /** 文件操作任务 / 传输队列（TaskItem / FileOperationPanel / TransferQueue）。 */
+    type: {
+      copy: "复制中",
+      move: "移动中",
+      delete: "删除中",
+      rename: "重命名中",
+      mkdir: "创建文件夹",
+      touch: "创建文件",
+      batchRename: "批量重命名",
+      recycle: "移入废纸篓",
+      restore: "恢复中",
+      unknown: "未知"
+    },
+    status: {
+      pending: "等待中",
+      running: "进行中",
+      completed: "已完成",
+      failed: "失败",
+      cancelled: "已取消"
+    },
+    itemCount: "{count} 项",
+    preparing: "准备中…",
+    taskError: "任务错误",
+    error: {
+      itemsFailed: "{count} 项失败"
+    },
+    result: {
+      succeeded: "{count} 项成功",
+      skipped: "{count} 项跳过",
+      failed: "{count} 项失败"
+    },
+    completedIn: "用时 {duration}",
+    sourceLabel: "来源",
+    destinationLabel: "目标",
+    locate: "定位",
+    locateSourceTip: "定位来源：{path}",
+    locateDestinationTip: "定位目标：{path}",
+    openCopiedInFinder: "在 Finder 中打开复制项",
+    tab: {
+      active: "进行中",
+      history: "历史"
+    },
+    clearAll: "全部清除",
+    noActiveTasks: "暂无进行中的任务",
+    noHistory: "暂无历史记录",
+    transfersTitle: "传输",
+    noActiveTransfers: "暂无进行中的传输",
+    completedCount: "{count} 已完成"
+  },
+  mobile: {
+    /** 移动设备工具组件（src/components/mobile/）。 */
+    screenshot: {
+      previewAria: "设备截图预览",
+      title: "{name} 截图",
+      closeTip: "关闭 (Esc)",
+      retake: "重新截取",
+      capturing: "截图中…",
+      saving: "保存中…",
+      save: "保存…"
+    }
+  },
+  preview: {
+    common: {
+      viewAsHex: "以十六进制查看",
+      openWithSystem: "用系统默认应用打开",
+      detectingType: "正在识别文件类型…",
+      closePreviewTip: "关闭预览",
+      prevImageTip: "上一张 (←)",
+      prevImageAria: "上一张图片",
+      nextImageTip: "下一张 (→)",
+      nextImageAria: "下一张图片",
+      unknownError: "未知错误",
+      zoomInTip: "放大",
+      zoomOutTip: "缩小",
+      expandAll: "全部展开",
+      collapseAll: "全部折叠",
+      mediaOversized: "文件 {size} MB 超过媒体预览上限 {limit} MB（整体载入无流式）",
+      screenshotFailed: "截图失败:{message}",
+      screenshotSaveFailed: "保存截图失败:{message}"
+    },
+    hex: {
+      /** 列头/状态栏/行标题共用（e2e 断言「偏移」）。 */
+      offset: "偏移",
+      selection: "选区",
+      loadingRow: "加载中…",
+      emptyFile: "空文件",
+      resizeTip: "拖拽调整宽度（240–420px，双击复位）",
+      modeReadonly: "只读",
+      modeOverwrite: "覆写",
+      modeInsert: "插入",
+      dirtyBadge: "• 已修改",
+      dirtyTip: "存在未保存修改（Cmd/Ctrl+S 保存）",
+      undoTip: "撤销（Cmd/Ctrl+Z）",
+      redoTip: "重做（Shift+Cmd/Ctrl+Z）",
+      findModeHexTip: "当前：Hex 字节（? 为半字节通配，如 4? ??）；点击切换为文本",
+      findModeTextTip: "当前：文本（UTF-8）；点击切换为 Hex",
+      findModeText: "文本",
+      findPlaceholderText: "查找文本（UTF-8）",
+      matchPrefix: "匹配",
+      prevMatchTip: "上一个匹配（Shift+F3）",
+      nextMatchTip: "下一个匹配（F3）",
+      expandReplaceTip: "展开替换行",
+      replace: "替换",
+      jumpLabel: "跳转",
+      jumpTip: "跳转到偏移（目标行居中高亮；+0x20/-16 相对当前光标；Alt+←/→ 跳转历史）",
+      editModeAria: "编辑模式",
+      editModeTip: "切换编辑模式（Insert 键在覆写/插入间切换）",
+      viewSettingsTip: "视图设置（每行字节 / 字号 / ASCII 列）",
+      bytesPerRow: "每行字节",
+      auto: "自动",
+      fontSize: "字号",
+      showAsciiColumn: "显示 ASCII 列",
+      inspectorToggleTip: "显示或隐藏 Data Inspector（折叠后主编辑区自动加宽）",
+      save: "保存",
+      saving: "保存中",
+      savingEllipsis: "保存中…",
+      saveTip: "保存修改（Cmd/Ctrl+S，写入前生成临时文件，原子替换）",
+      saveIdleTip: "无未保存修改",
+      errorSuffix: "（已加载区保持可用，滚动可重试新窗口）",
+      replaceBytesPlaceholder: "替换字节（如 41 42）",
+      replaceTextPlaceholder: "替换文本",
+      replaceCurrentTip: "替换当前匹配",
+      replaceAllTip: "替换全部匹配（先确认）",
+      replaceAll: "全部替换",
+      collapseReplaceTip: "收起替换行（Esc）",
+      replaceAllConfirmAria: "确认全部替换",
+      replaceAllConfirm: "将替换 {count} 处匹配，确定执行？",
+      replaceAllAction: "替换 {count} 处",
+      unsavedAria: "存在未保存修改",
+      unsavedPrompt: "存在未保存修改，关闭前如何处理？",
+      saveAndClose: "保存并关闭",
+      discard: "放弃修改",
+      scrollerAria: "十六进制内容：方向键移动光标，Shift 扩展选区，PageUp/PageDown 翻页",
+      fetching: "读取中…",
+      singleByte: "1 字节",
+      currentModeTip: "当前模式：{mode}",
+      modifiedCount: "已修改 {n} 处",
+      savedState: "已保存",
+      /** Inspector 上下文（hex 查看器惯例，zh 界面保持英文；e2e 断言）。 */
+      inspectorTitle: "Data Inspector",
+      inspectorSelectionCap: "Selection",
+      inspectorOffsetContext: "Offset 0x{start} · 1 byte",
+      inspectorRangeContext: "Range 0x{start}–0x{end} · {count} bytes",
+      inspectorEmptyMain: "选择字节以查看数值解释",
+      inspectorEmptyHint: "点击、拖选或 Cmd/Ctrl+A 选中数据",
+      inspectorLoadingMain: "该处数据尚未加载",
+      inspectorLoadingHint: "滚动或等待窗口预取完成后自动呈现",
+      readonlyZipLock: "ZIP 内文件为虚拟路径，不支持写入",
+      readonlyDeviceLock: "该设备来源不支持写入",
+      readonlyNotice: "当前为只读模式",
+      pasteInvalidChar: "非法字符 “{char}”（Hex 区仅支持 0-9 A-F 与空白分隔）",
+      pasteEmpty: "粘贴内容无有效字节",
+      pasteOddDigits: "十六进制位数须为偶数（如 41 2A / 412A）",
+      pasteTruncated: "已截断至文件末尾（粘贴 {count} 字节）",
+      pasteCharOutOfRange: "字符 “{char}” 超出 Latin-1 范围，无法按字节粘贴",
+      savedNotice: "已保存",
+      saveFailed: "保存失败：{message}",
+      searching: "搜索中…",
+      searchAborted: "查找中断：数据加载失败",
+      noMatchFound: "未找到匹配",
+      replaceNoWildcard: "替换内容不支持 ? 通配",
+      replaceInvalid: "替换内容非法：{message}",
+      replacedOne: "已替换 1 处",
+      replacedCount: "已替换 {n} 处",
+      jumpClampedEnd: "已钳制到文件末尾 0x{offset}",
+      jumpClampedStart: "已钳制到文件头 0x{offset}"
+    },
+    image: {
+      loading: "正在加载图片…",
+      loadFailed: "无法加载图片",
+      displayFailed: "无法显示图片",
+      resetViewTip: "重置视图",
+      rotateLeftTip: "向左旋转",
+      rotateRightTip: "向右旋转",
+      fitWindowTip: "适应窗口",
+      actualSizeTip: "实际大小",
+      sizeNotReady: "图片尺寸尚未就绪，请稍后重试",
+      dragToCropHint: "在图片上拖拽选择裁剪区域",
+      aspectFree: "自由",
+      cropApply: "裁剪",
+      textPlaceholder: "输入文字，回车确认"
+    },
+    editToolbar: {
+      expandTip: "展开编辑工具",
+      collapseTip: "收起编辑工具",
+      toolbarAria: "图片编辑",
+      annoToolsAria: "标注工具",
+      toolArrow: "箭头",
+      toolRect: "矩形",
+      toolEllipse: "椭圆",
+      toolFreehand: "画笔",
+      toolText: "文字",
+      colorTip: "颜色 {color}",
+      strokeWidthTip: "粗细 {width}px",
+      undoAnnoTip: "撤销上一个标注",
+      clearAnnoTip: "清空全部标注",
+      pickToolFirstTip: "先选择一个标注工具",
+      saveAnnotate: "保存标注",
+      cropTip: "裁剪",
+      annotateTip: "标注",
+      compressTip: "压缩",
+      batchCompressTip: "批量压缩当前集合",
+      batchCompress: "批量压缩",
+      batchRenameTip: "批量改名当前集合",
+      batchRename: "批量改名"
+    },
+    video: {
+      loading: "正在加载视频…",
+      playbackFailed: "无法播放视频",
+      pipTip: "画中画",
+      fullscreenTip: "全屏",
+      back10Tip: "后退 10 秒",
+      forward10Tip: "前进 10 秒",
+      muteTip: "静音",
+      errAborted: "播放被中断",
+      errNetwork: "发生网络错误",
+      errDecode: "视频解码失败",
+      errUnsupported: "容器或编码不受支持（Chromium 可解：MP4/H.264、WebM 等；AVI/WMV/FLV/MPEG-2 需外部播放）",
+      errUnknown: "未知视频错误"
+    },
+    audio: {
+      loading: "正在加载音频…",
+      playbackFailed: "无法播放音频",
+      browserUnsupported: "您的浏览器不支持音频播放。",
+      audioFallback: "音频",
+      errAborted: "播放被中断",
+      errNetwork: "发生网络错误",
+      errDecode: "音频解码失败",
+      errFormat: "音频格式不受支持",
+      errUnknown: "未知音频错误"
+    },
+    text: {
+      loading: "正在加载文件…",
+      loadFailed: "无法加载文件",
+      truncatedBanner: "文件共 {size}，仅载入前 {limit} MB（大文件整读有卡顿/内存风险）",
+      linesCount: "{n} 行",
+      csvRowsCols: "{rows} 行 · {cols} 列",
+      showingRows: "仅显示前 {shown} 行，共 {total} 行",
+      sortColumnTip: "按此列排序",
+      sortColumnTipActive: "按此列排序（再点切换方向/取消）",
+      colLabel: "列 {index}",
+      tableMode: "表格",
+      wordWrapEnable: "开启自动换行",
+      wordWrapDisable: "关闭自动换行",
+      minimapTip: "迷你地图",
+      modifiedBadge: "已修改",
+      diffLabel: "Diff",
+      save: "保存",
+      saveBlockedTip: "过滤视图激活时不可保存源文件",
+      changesTitle: "更改：{name}",
+      originalToModified: "原始 → 修改后",
+      escToClose: "（按 Esc 关闭）",
+      saveFailed: "保存文件失败"
+    },
+    pdf: {
+      loading: "正在加载 PDF…",
+      loadFailed: "无法加载 PDF"
+    },
+    zip: {
+      reading: "正在读取压缩包…",
+      readingFile: "正在读取文件…",
+      parsing: "正在解析压缩包…",
+      buildingTree: "正在构建目录树…",
+      readFailed: "无法读取压缩包",
+      parseFailed: "解析 ZIP 失败：{message}",
+      itemsCount: "{n} 项",
+      searchPlaceholder: "搜索…"
+    },
+    json: {
+      treeMode: "树",
+      sourceMode: "源码",
+      nodeCount: "{n} 个节点",
+      valid: "✓ 有效",
+      invalid: "✗ 无效 JSON",
+      treeUnavailable: "无效 JSON，无法显示树视图",
+      formatJson: "格式化",
+      formatJsonTip: "格式化（美化压缩的 JSON）",
+      copyTs: "复制 TS",
+      copyTsTip: "复制 TypeScript interface 定义",
+      runPathQueryTip: "执行路径查询",
+      pathQueryFailed: "查询失败"
+    },
+    markdown: {
+      previewMode: "预览",
+      sourceMode: "源码"
+    },
+    inline: {
+      titleFallback: "预览",
+      selectFile: "选择文件以预览",
+      folder: "文件夹",
+      kind: "种类",
+      size: "大小",
+      modified: "修改日期",
+      created: "创建日期",
+      permissions: "权限",
+      where: "位置",
+      fileTooLarge: "文件过大，无法预览",
+      pdfDocument: "PDF 文档",
+      loadPreviewFailed: "预览加载失败",
+      mediaLoading: "正在加载媒体…",
+      mediaLoadFailed: "无法加载媒体",
+      mediaSize: "大小：",
+      mediaDuration: "时长：",
+      mediaResolution: "分辨率：",
+      mediaFormat: "格式：",
+      formatUnknown: "未知",
+      noVideoSupport: "您的浏览器不支持视频播放。",
+      errAborted: "播放被中断",
+      errNetwork: "发生网络错误",
+      errDecode: "解码失败",
+      errFormat: "格式不受支持"
+    },
+    quickLook: {
+      dialogAria: "快速预览",
+      prevTip: "上一项 (↑)",
+      nextTip: "下一项 (↓)",
+      closeTip: "关闭 (Esc / 空格)"
+    },
+    logview: {
+      filterPlaceholder: "过滤 (回车执行): co(error) and level(warn)",
+      syntaxTip: "语法: co/eq/word/reg/level/lines + and/or/not",
+      matchCount: "{n} 命中",
+      clearTip: "清除过滤 (Esc)",
+      exclude: "排除",
+      excludeTip: "反向过滤：显示不匹配的行",
+      context: "上下文",
+      contextTip: "显示命中行的前后上下文",
+      contextLinesTip: "上下文行数",
+      prevHitTip: "上一个命中",
+      nextHitTip: "下一个命中",
+      copy: "复制",
+      copyTip: "复制过滤结果（含原始行号）",
+      exportAction: "导出",
+      exporting: "导出中…",
+      exportTip: "导出过滤结果为新文件（<原名>.filtered.log）",
+      schemeTip: "着色方案",
+      noScheme: "无着色",
+      manageSchemes: "管理着色方案",
+      schemesButton: "方案…",
+      history: "历史 ▾",
+      historyTip: "历史与收藏",
+      favorites: "收藏",
+      recent: "最近使用",
+      unfavorite: "取消收藏",
+      favoriteToggle: "收藏/取消收藏",
+      clearHistory: "清空历史",
+      noHistory: "暂无历史",
+      builtinSchemeLabel: "{name} (内置)",
+      filterFailed: "过滤执行失败",
+      copiedLines: "已复制 {n} 行",
+      copyFailed: "复制失败（剪贴板不可用）",
+      exportNoWrite: "目标设备不支持写入，无法导出",
+      exported: "已导出：{path}",
+      exportFailed: "导出失败：{message}",
+      editorTitle: "着色方案管理",
+      editorCloseTip: "关闭 (Esc)",
+      builtinTag: "内置",
+      activeScheme: "当前生效",
+      newScheme: "＋ 新建方案",
+      importScheme: "⬆ 导入方案…",
+      namePlaceholder: "方案名称",
+      duplicateAsCustom: "复制为自定义",
+      save: "保存",
+      restore: "还原",
+      exportScheme: "⬇ 导出",
+      builtinReadonly: "内置方案不可编辑，复制后可自由修改。",
+      matchTypeHeader: "匹配方式",
+      valueHeader: "值",
+      scopeHeader: "作用",
+      colorHeader: "颜色",
+      actionsHeader: "操作",
+      matchContains: "包含",
+      matchEquals: "等于",
+      matchWord: "整词",
+      matchRegex: "正则",
+      scopeLine: "整行",
+      scopeFragment: "片段",
+      moveUpTip: "上移（提高优先级）",
+      moveDownTip: "下移",
+      removeRuleTip: "删除",
+      addRule: "＋ 添加规则",
+      rulePriorityHint: "规则自上而下即优先级：整行色取第一个命中的规则；片段色先到先得，不互相覆盖。",
+      customLevelTitlePrefix: "自定义级别词（level() 谓词可用",
+      customLevelTitleSuffix: "匹配）",
+      removeWord: "移除",
+      newWordPlaceholder: "新词 + 回车",
+      selectOrCreateScheme: "选择或新建一个方案",
+      newSchemeName: "新方案",
+      unnamedScheme: "未命名",
+      importFailed: "导入失败：{message}",
+      invalidRules: "{count} 条规则无效（保存后将被跳过）：{reasons}"
+    }
+  },
+  main: {
+    /** 简介窗口标题（主进程建窗时与渲染层 document.title 镜像共用）。 */
+    infoWindowTitle: "“{name}”简介",
+    infoWindowTitleMulti: "{count} 个项目简介"
+  },
+  windows: {
+    fileInfo: {
+      loading: "正在打开简介…",
+      loadFailed: "无法读取简介内容"
+    }
+  },
+  errors: {
+    /** 主进程 throw 的报错文案（throw 时按当前语言产出，见 electron/src/i18n.ts）。 */
+    main: {
+      fileInfoNoSelection: "无法为未选择的项目打开简介窗口",
+      fileInfoNoContext: "此窗口没有可用的简介上下文",
+      // ── main.ts · IPC 能力门控 / 分块读取 / hex 保存 / 拖拽导入 ──────────────
+      symlinkUnsupported: "该设备不支持创建符号链接",
+      readlinkUnsupported: "该设备不支持读取符号链接",
+      chmodUnsupported: "该设备不支持修改权限",
+      chownUnsupported: "该设备不支持修改属主",
+      readChunkStreamUnsupported: "该设备不支持流式读取，无法分块读取超过 32 MB 的文件",
+      hexSaveUnsupported: "当前设备暂不支持保存十六进制修改（仅本机设备）",
+      hexSavePieceOutOfBounds: "保存片段越界：base {start}+{length} > 文件大小 {size}",
+      hexSaveFailed: "保存失败：{message}",
+      hexSaveFailedNoDetail: "保存失败",
+      dragInvalidPayload: "拖入内容无效。",
+      dragNoImportableFiles: "未找到可导入的本地文件或文件夹。",
+      // ── FileOperationManager · 任务级/条目级失败记录 ──────────────────────
+      statSourceFailed: "无法读取源路径属性",
+      targetNotDirectory: "目标路径不是目录: {path}",
+      conflictNameExhausted: "无法为冲突文件生成可用名称: {path}",
+      batchRenameNoItems: "批量重命名缺少预览后的名称列表。",
+      batchRenameTargetExists: "目标名称已存在: {name}",
+      recyclePathFailed: "无法准备回收站路径",
+      restoreMissingOriginalPaths: "恢复操作缺少原始路径。",
+      restoreTargetExists: "原始位置已有同名项目: {path}",
+      // ── AndroidAdapter ──────────────────────────────────────────────────
+      androidNoDevice: "未检测到 Android 设备。请连接设备并开启 USB 调试。",
+      androidUnauthorized: '设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。',
+      androidOffline: "设备离线。请重新插拔数据线后重试。",
+      androidUnavailable: "设备当前不可用(状态:{status})。",
+      androidNotConnected: "Android 设备未连接",
+      shellCommandFailed: "命令失败(code={code}): {command}；{output}",
+      // ── iOSAdapter ──────────────────────────────────────────────────────
+      iosAddonMissing: "iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。",
+      iosNotConnected: "iOS 设备未连接",
+      iosPairingExpired: "iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。",
+      iosAfcFileTooLarge: "iOS AFC 单文件上限为 {size} 字节，无法写入: {path}",
+      iosAfcWriteFailed: "iOS AFC 无法写入 {path}；该位置可能不允许写入或父目录不存在。{message}",
+      iosSearchUnsupported: "iOS 设备不支持搜索(AFC 无通用搜索)",
+      iosPairInitiateFailed: "发起配对失败 —— 请确认设备已解锁、已插稳",
+      iosPairTimeout: '配对超时 —— 未在设备上确认"信任此电脑"',
+      // ── OhosAdapter / hdcRunner ─────────────────────────────────────────
+      ohosNotConnected: "HarmonyOS 设备未连接",
+      ohosHdcMissing: "未检测到 hdc。请安装 DevEco Studio / HarmonyOS SDK 的 platform-tools，或确认 hdc 在 $PATH 上。",
+      ohosDeviceOffline: "HarmonyOS 设备不在线(connectKey={key})。请连接设备并开启开发者模式 USB 调试。",
+      ohosStatFailed: "无法获取文件属性: {path}",
+      hdcTimeout: "hdc 命令超时({timeout}ms): hdc {command}",
+      hdcSpawnFailed: "无法启动 hdc({message})。请安装 DevEco Studio / HarmonyOS SDK 的 platform-tools，或确认 hdc 在 $PATH 上。",
+      hdcCommandFailed: "hdc 命令失败(code={code}): {command}",
+      hdcShellNoExitMarker: "hdc shell 未返回退出码标记: {command}",
+      hdcShellFailed: "hdc shell 失败(code={code}): {command}",
+      // ── WebDAV / SMB / 设备管理 ─────────────────────────────────────────
+      webdavInvalidUrl: "WebDAV 地址无效：请输入以 http:// 或 https:// 开头的 URL",
+      webdavProtocolUnsupported: "WebDAV 仅支持 HTTP 或 HTTPS 地址",
+      webdavNotConnected: "WebDAV 设备尚未连接",
+      smbMissingHostOrShare: "SMB 连接需要主机地址和共享名称",
+      smbNotConnected: "SMB 设备尚未连接",
+      pairingNotApplicable: "该设备类型无需/不支持配对",
+      deviceStillUnavailable: "设备连接后仍不可用: {name}",
+      // ── 图片编辑 / 内容校验 / 哈希 ─────────────────────────────────────
+      imageEditEmptyOps: "编辑操作为空",
+      imageEditUnsupportedFormat: "不支持的图片格式：.{ext}",
+      imageEditCropAnnotateExclusive: "crop 与 annotate 互斥，请分别保存",
+      imageEditNameExhausted: "无法生成唯一输出文件名（已尝试 100 个候选）：{path}",
+      verifyDeviceNotConnected: "设备未连接，无法校验内容",
+      hashStreamUnsupported: "该设备不支持流式读取，无法处理超过 32 MB 的文件",
+      // ── 移动设备截屏 ────────────────────────────────────────────────────
+      screenshotDeviceMissing: "设备不存在或尚未连接。",
+      screenshotUnsupportedDevice: "只有 Android / HarmonyOS / iOS 设备支持截屏。",
+      screenshotInvalidAndroid: "Android 截屏没有返回有效图片数据。",
+      screenshotInvalidOhos: "HarmonyOS 截屏没有返回有效图片数据。",
+      screenshotInvalidIos: "iOS 截屏没有返回有效图片数据。",
+      screenshotAdbSpawnFailed: "无法启动 adb 截屏: {message}",
+      screenshotAndroidFailed: "Android 截屏失败(code={code}): {message}",
+      screenshotIdeviceCliMissing: "未找到 idevicescreenshot，请安装 libimobiledevice。",
+      screenshotIdeviceSpawnFailed: "无法启动 idevicescreenshot: {message}",
+      screenshotIosFailed: "iOS 截屏失败(code={code}): {message}",
+      // ── 压缩包（ArchiveService / ZipService） ──────────────────────────
+      archiveUnsafeEntry: "不安全的 ZIP 条目: {path}",
+      zipEntryNotFound: "未找到 ZIP 条目：{path}",
+      zipTooSmall: "文件过小，不是有效的 ZIP",
+      zipEocdNotFound: "未在 {path} 中找到 EOCD",
+      zip64EocdMismatch: "ZIP64 EOCD 签名不匹配",
+      zipLfhMismatch: "本地文件头签名不匹配",
+      zipUnsupportedCompression: "不支持的压缩方法：{method}",
+      // ── 内容搜索 / 目录遍历统计 ────────────────────────────────────────
+      grepRgExit2: "ripgrep 退出码 2（参数或权限错误）",
+      grepRemoteExit: "远端 grep 退出码 {code}",
+      statsConsecutiveErrors: "连续 {count} 个条目访问失败，设备可能已断开",
+      walkConsecutiveErrors: "连续 {count} 个目录访问失败，设备可能已断开",
+      // ── 可选依赖 / 传输校验 ────────────────────────────────────────────
+      optionalDepUnavailable: "可选依赖 {name} 不可用，对应设备类型已禁用（原始错误：{message}）。请安装该依赖后重启应用。",
+      transferVerifyFailed: "目标文件写入校验失败: {path}，期望 {expected} 字节，实际 {actual} 字节"
+    }
+  }
+};
+const enUS = {
+  common: {
+    ok: "OK",
+    cancel: "Cancel",
+    close: "Close",
+    delete: "Delete",
+    retry: "Retry",
+    on: "On",
+    off: "Off",
+    clickToCopy: "Click to copy"
+  },
+  settings: {
+    title: "Settings",
+    cache: "Cache",
+    files: "Files",
+    appearance: "Appearance",
+    thumbnailCache: "Thumbnail Cache",
+    cacheUsed: "{size} used",
+    clear: "Clear",
+    clearing: "Clearing…",
+    showHidden: "Show hidden files",
+    showHiddenDesc: "Dotfiles and hidden entries (⌘⇧.)",
+    showPermissions: "Show permissions",
+    showPermissionsDesc: "Show Unix permissions in list view",
+    theme: "Theme",
+    themeLight: "Light",
+    themeDark: "Dark",
+    themeSystem: "System",
+    language: "Language",
+    done: "Done"
+  },
+  devices: {
+    localName: "This Mac",
+    type: {
+      local: "Local",
+      android: "Android",
+      ohos: "HarmonyOS",
+      smb: "SMB Share",
+      ssh: "SSH/SFTP",
+      webdav: "WebDAV",
+      ios: "iOS"
+    }
+  },
+  tabs: {
+    newTab: "New Tab",
+    title: {
+      dupes: "Duplicates · {path}",
+      grep: "Search · {pattern}",
+      space: "Space · {path}"
+    }
+  },
+  palette: {
+    ariaLabel: "Command Palette",
+    placeholder: "Type a command, favorite name, or absolute path (starting with /)…",
+    goto: "Go to",
+    noMatch: "No matching commands",
+    favoritesGroup: "Favorites",
+    hintSelect: "↑↓ Navigate",
+    hintRun: "↩ Run",
+    hintClose: "Esc Close",
+    hintOpen: "⌘⇧P Open",
+    cmd: {
+      newTab: "New Tab",
+      closeTab: "Close Current Tab",
+      toggleDualPane: "Toggle Dual Pane",
+      viewList: "Switch to List View",
+      viewGrid: "Switch to Icon View",
+      viewColumns: "Switch to Columns View",
+      toggleHidden: "Show/Hide Hidden Files",
+      toggleTheme: "Toggle Light/Dark Theme",
+      openSettings: "Open Settings",
+      refresh: "Refresh Current Directory"
+    },
+    group: {
+      tabs: "Tabs",
+      view: "View",
+      appearance: "Appearance",
+      files: "Files"
+    }
+  },
+  sidebar: {
+    locations: "Locations",
+    addDevice: "Add Device",
+    addSmb: "SMB Share",
+    addSsh: "SSH/SFTP Server",
+    addWebdav: "WebDAV (HTTP/HTTPS)",
+    externalVolumes: "External Volumes",
+    mobileDevices: "Mobile Devices",
+    scanning: "Scanning…",
+    pairUnpaired: "Unpaired",
+    pairBadge: "Pairing...",
+    paired: "✓ Paired",
+    pairAction: "Pair",
+    pairActionTip: "Start pairing (the device will show a “Trust This Computer” prompt)",
+    pairInProgress: "Pairing…",
+    autoConnectEnabled: "Auto-connect enabled",
+    connect: "Connect",
+    forget: "Forget",
+    screenshot: "Screenshot",
+    screenshotting: "Capturing…",
+    screenshotAria: "Capture screenshot of {name}",
+    noMobileDevices: "No mobile devices detected",
+    iosSupportTitle: "iOS Support",
+    iosSupportDesc: "Install libimobiledevice for iOS device support",
+    places: "Places",
+    favorites: "Favorites",
+    removeFavorite: "Remove Favorite",
+    favoritesHint: "Right-click a folder to add it to Favorites",
+    toolsAria: "Application tools",
+    switchToLight: "Switch to Light Mode",
+    switchToDark: "Switch to Dark Mode",
+    fileOperations: "File Operations",
+    fileOperationsActive: "File Operations, {count} active task | File Operations, {count} active tasks",
+    toggleDualPane: "Toggle Dual Pane",
+    settings: "Settings",
+    connectFailed: "Cannot connect to {name}: {message}",
+    pairFailed: "Pairing failed: {reason}",
+    pairError: "Pairing error: {message}",
+    unknownReason: "unknown reason",
+    screenshotNeedConnect: "Connect the device to take screenshots",
+    screenshotNeedPair: "iOS requires pairing and connection before screenshots",
+    screenshotOf: "Capture a screenshot of {name}"
+  },
+  filePane: {
+    toolbar: {
+      undoRemoteDelete: "Undo last remote delete",
+      goBack: "Go Back",
+      goForward: "Go Forward",
+      goUp: "Go to Parent Folder",
+      recentLocations: "Recent locations",
+      noRecentLocations: "No recent locations",
+      searchPlaceholder: "Search or tag:work",
+      clearSearch: "Clear search",
+      searchHistory: "Search history",
+      history: "History",
+      clearHistory: "Clear search history",
+      clear: "Clear",
+      recursiveSearch: "Search recursively",
+      copyPaths: "Copy selected paths for sharing",
+      editTags: "Edit selected item tags",
+      inlinePreviewTip: "Toggle inline preview (single-click preview)",
+      inlinePreview: "Toggle inline preview",
+      screenshot: "Capture Device Screenshot",
+      revealInFinder: "Reveal in Finder",
+      revealInFinderLocalOnly: "Reveal in Finder (local folders only)",
+      newFolder: "New Folder",
+      newFile: "New File"
+    },
+    view: {
+      list: "List View",
+      grid: "Grid View",
+      columns: "Columns View",
+      gridHint: "{label} (right-click for sizes)"
+    },
+    gridSize: {
+      title: "Icon Size",
+      xlarge: "Extra Large Icons",
+      large: "Large Icons",
+      medium: "Medium Icons",
+      small: "Small Icons"
+    },
+    createDialog: {
+      fileAria: "Create File",
+      folderAria: "Create Folder",
+      createdIn: "Created in {path}",
+      folderPlaceholder: "Folder name",
+      create: "Create",
+      invalidName: "Enter a valid name without a slash.",
+      createFailed: "Could not create the item."
+    },
+    goToDialog: {
+      title: "Go to Folder",
+      desc: "Enter an absolute path on {device}",
+      thisDevice: "this device",
+      go: "Go",
+      emptyPath: "Enter a path.",
+      needFilesystemPath: "Enter a filesystem path (ZIP virtual paths only inside a ZIP).",
+      needAbsolutePath: "Enter an absolute path.",
+      notFolder: "Not a folder.",
+      notFound: "Folder not found: {path}"
+    },
+    gitChipTitle: "Git repository: {repoRoot} (ahead/behind {arrows})",
+    gitChipTitlePlain: "Git repository: {repoRoot}",
+    archivePrompt: "Archive name:",
+    screenshotFailed: "Screenshot failed"
+  },
+  fileList: {
+    loading: "Loading...",
+    emptyFolder: "This folder is empty",
+    columns: {
+      name: "Name",
+      dateModified: "Date Modified",
+      size: "Size",
+      kind: "Kind",
+      permissions: "Permissions",
+      root: "Root"
+    },
+    symlinkTitle: "Symbolic link → {target}",
+    typeahead: {
+      matches: "{count} match | {count} matches",
+      noMatches: "No matches",
+      escClear: "Esc clear"
+    },
+    renameBar: {
+      label: "Rename:",
+      confirm: "Confirm"
+    },
+    kind: {
+      folder: "Folder",
+      extDocument: "{ext} document",
+      document: "Document"
+    },
+    gitBadgeTitle: "Git: {letter}",
+    menu: {
+      refresh: "Refresh",
+      newFolder: "New Folder",
+      newFile: "New File",
+      newSymlink: "New Symlink…",
+      paste: "Paste",
+      addFavorite: "Add to Favorites",
+      showHidden: "Show Hidden Files",
+      hideHidden: "Hide Hidden Files",
+      goToFolder: "Go to Folder…",
+      findDuplicates: "Find Duplicate Files…",
+      analyzeSpace: "Visualize Disk Space…",
+      grepHere: "Search Content Here…",
+      openInTerminal: "Open in Terminal",
+      open: "Open",
+      openInNewTab: "Open in New Tab",
+      openInSplitTab: "Open in Dual-Pane Tab",
+      images: "Images",
+      previewImages: "Preview All Images",
+      previewImagesRecursive: "Preview Images (Recursive)",
+      copy: "Copy",
+      cut: "Cut",
+      copyToDevice: "Copy to Device",
+      moveToDevice: "Move to Device",
+      rename: "Rename",
+      info: "Properties",
+      openAsHex: "View as Hex",
+      batchRename: "Batch Rename",
+      archive: "Compress to ZIP",
+      extractZip: "Extract ZIP",
+      checksumCompare: "Compare Checksums",
+      checksumSingle: "Compute Checksum",
+      compareDirs: "Compare Directories",
+      revealInFinder: "Reveal in Finder",
+      copyPath: "Copy Path",
+      copyPathPosix: "POSIX Path",
+      copyPathUri: "file:// URI",
+      copyPathName: "File Name",
+      copyPathRelative: "Relative to Other Pane",
+      openWith: "Open With",
+      openWithDefault: "Default Application"
+    },
+    confirmDelete: "Delete {count} item? | Delete {count} items?"
+  },
+  dialogs: {
+    rename: {
+      title: "Rename",
+      cancel: "Cancel",
+      confirm: "Rename"
+    },
+    batchRename: {
+      title: "Batch Rename",
+      subtitle: "Rename {count} item while preserving each extension. | Rename {count} items while preserving each extension.",
+      prefix: "Prefix",
+      findReplace: "Find and Replace",
+      sequence: "Sequence",
+      start: "Start",
+      step: "Step",
+      pad: "Digits",
+      currentName: "Current Name",
+      newName: "New Name",
+      conflictError: "The rules produce {count} name conflict. Adjust and try again. | The rules produce {count} name conflicts. Adjust and try again.",
+      cancel: "Cancel",
+      submit: "Rename {count} item | Rename {count} items"
+    },
+    targetOperation: {
+      titleCopy: "Copy {count} item | Copy {count} items",
+      titleMove: "Move {count} item | Move {count} items",
+      desc: "Choose a connected destination and the exact folder path.",
+      deviceLabel: "Destination device",
+      folderLabel: "Destination folder",
+      conflictLabel: "If a file already exists",
+      conflictSkip: "Skip existing files",
+      conflictOverwrite: "Replace existing files",
+      conflictRename: "Keep both (rename new file)",
+      cancel: "Cancel",
+      confirmCopy: "Copy",
+      confirmMove: "Move"
+    },
+    fileInfo: {
+      previewAlt: "preview",
+      general: "General",
+      details: "Details",
+      media: "Media",
+      tags: "Tags",
+      kind: "Kind",
+      size: "Size",
+      itemCount: "Items",
+      location: "Location",
+      device: "Device",
+      modifiedTime: "Modified",
+      createdTime: "Created",
+      items: "Items",
+      totalSize: "Total Size",
+      extension: "Extension",
+      permissions: "Permissions",
+      symlink: "Symbolic Link",
+      symlinkUnreadable: "(target unreadable)",
+      editPermissions: "Modify Permissions",
+      editButton: "Edit…",
+      compressedSize: "Compressed Size",
+      ratio: "Ratio",
+      compressionMethod: "Compression",
+      unknownCompression: "Unknown ({method})",
+      scanning: "Calculating… {count} items scanned",
+      scanFailed: "Calculation failed: {message}",
+      cancelled: "Cancelled",
+      categoryImage: "Image",
+      categoryVideo: "Video",
+      categoryAudio: "Audio",
+      categoryArchive: "Archive",
+      categoryDocument: "Document",
+      categoryText: "Text",
+      categoryUnknown: "File",
+      kindFolder: "Folder",
+      kindZipEntry: "ZIP Entry",
+      multiTitle: "{count} items",
+      locatedAt: "in {location}",
+      itemCountLabel: "{fileCount} files, {dirCount} folders",
+      selectionLabel: "{count} items ({fileCount} files, {dirCount} folders)",
+      read: "Read r",
+      write: "Write w",
+      execute: "Exec x",
+      roleOwner: "Owner",
+      roleGroup: "Group",
+      roleOther: "Others",
+      octal: "Octal",
+      recursive: "Apply recursively to folder contents",
+      octalInvalid: "Octal must be 3-4 digits (e.g. 755 / 0644)",
+      cancel: "Cancel",
+      apply: "Apply",
+      name: "Name",
+      path: "Path",
+      tagsPlaceholder: "work, review (comma-separated; stored locally by Fileman)",
+      save: "Save",
+      copied: "Copied",
+      copyAll: "Copy All",
+      cancelCalc: "Stop Calculating",
+      close: "Close",
+      closeWindow: "Close Window",
+      mediaFormat: "Format",
+      mediaDuration: "Duration",
+      mediaResolution: "Resolution",
+      mediaFrameRate: "Frame Rate",
+      mediaVideoCodec: "Video Codec",
+      mediaVideoBitrate: "Video Bitrate",
+      mediaAudioCodec: "Audio Codec",
+      mediaSampleRate: "Sample Rate",
+      mediaChannels: "Channels",
+      mediaAudioBitrate: "Audio Bitrate",
+      mediaOverallBitrate: "Total Bitrate",
+      mediaDimensions: "Dimensions",
+      mediaCamera: "Camera",
+      mediaTakenAt: "Date Taken",
+      mediaIso: "ISO",
+      mediaAperture: "Aperture",
+      mediaShutter: "Shutter",
+      mediaFocalLength: "Focal Length",
+      videoCodecBitDepth: "{codec} ({bits}-bit)",
+      channelsValue: "{count} channel | {count} channels",
+      dimensionsValue: "{width} × {height} ({mp} MP)"
+    },
+    device: {
+      addSmbTitle: "Add SMB Server",
+      addSshTitle: "Add SSH/SFTP Server",
+      addWebdavTitle: "Add WebDAV Server",
+      type: "Type:",
+      host: "Host:",
+      share: "Share:",
+      url: "URL:",
+      port: "Port:",
+      name: "Name:",
+      username: "Username:",
+      password: "Password:",
+      namePlaceholder: "My Server",
+      cancel: "Cancel",
+      connect: "Connect",
+      needSmbFields: "Enter the SMB host address and share name",
+      needSshHost: "Enter the SSH/SFTP host address",
+      needWebdavUrl: "Enter the WebDAV HTTP/HTTPS address"
+    },
+    checksum: {
+      titleCompare: "Compare Checksums",
+      titleSingle: "Compute Checksum",
+      algo: "Algorithm",
+      computing: "Computing…",
+      copied: "Copied",
+      copy: "Copy",
+      matchSame: "✓ The two files are identical (byte-for-byte hash match)",
+      matchDiff: "✗ The two files differ",
+      preparing: "Preparing…",
+      hashing: "Hashing {index}/{total}",
+      completed: "Done",
+      cancelled: "Cancelled",
+      failed: "Failed: {message}",
+      unknownError: "Unknown error",
+      cancel: "Cancel",
+      close: "Close"
+    },
+    symlink: {
+      title: "New Symbolic Link",
+      defaultName: "New Link",
+      createIn: "Create in {path}",
+      targetLabel: "Target Path (can be relative)",
+      nameLabel: "Link Name",
+      targetEmpty: "Target path cannot be empty",
+      nameInvalid: "Link name cannot be empty or contain /",
+      cancel: "Cancel",
+      create: "Create"
+    },
+    saveImage: {
+      title: "Save Image",
+      overwrite: "Overwrite Original",
+      saveCopy: "Save a Copy",
+      suffix: "Suffix",
+      compressParams: "Compression",
+      estimating: "Estimating…",
+      estimateAbout: "about {size}",
+      quality: "Quality {value}",
+      maxEdge: "Longest Edge",
+      noLimit: "Unlimited",
+      pxDownscaleOnly: "px (downscale only)",
+      format: "Format",
+      formatKeep: "Keep Original",
+      cancel: "Cancel",
+      saving: "Saving…",
+      save: "Save"
+    },
+    batchCompress: {
+      title: "Batch Compress",
+      subtitle: "Apply to all {count} image in the current collection | Apply to all {count} images in the current collection",
+      quality: "Quality {value}",
+      maxEdge: "Longest Edge",
+      noLimit: "Unlimited",
+      pxDownscaleOnly: "px (downscale only)",
+      format: "Format",
+      formatKeep: "Keep Original",
+      overwrite: "Overwrite Original",
+      saveCopy: "Save a Copy",
+      suffix: "Suffix",
+      cancelTask: "Cancel Task",
+      close: "Close",
+      compress: "Compress {count} image | Compress {count} images",
+      resultOk: "{count} succeeded",
+      resultFailed: "{count} failed",
+      resultCancelled: "Cancelled"
+    }
+  },
+  compare: {
+    leftDevice: "Left Device",
+    rightDevice: "Right Device",
+    missingSide: "(none)",
+    loadingCompare: "Comparing directories…",
+    emptyBothDirs: "Both directories are empty",
+    emptyNoMatch: "No items match the current filter",
+    filterNotice: "Filtered: showing {visible}, {hidden} hidden",
+    clearFilter: "Clear Filter",
+    columns: {
+      name: "Name",
+      size: "Size",
+      modifiedTime: "Date Modified",
+      status: "Status"
+    },
+    statusBar: {
+      different: "Different",
+      leftOnly: "Left only",
+      rightOnly: "Right only",
+      metadataEqual: "Metadata equal",
+      contentEqual: "Content equal",
+      failed: "Failed",
+      selected: "Selected",
+      verifying: "Verifying",
+      shownSummary: "Showing {visible} / {total}, {hidden} hidden"
+    },
+    status: {
+      metadataEqual: "Metadata equal",
+      contentEqual: "Content equal",
+      different: "Content differs",
+      leftNewer: "Left newer",
+      rightNewer: "Right newer",
+      leftOnly: "Left only",
+      rightOnly: "Right only",
+      typeMismatch: "Type mismatch",
+      verifying: "Verifying",
+      verificationFailed: "Verification failed",
+      uncomparable: "Uncomparable"
+    },
+    toolbar: {
+      goParent: "Go to Parent Directory",
+      swapSides: "Swap Left/Right Directories",
+      copyLeft: "Copy to Left",
+      copyRight: "Copy to Right",
+      expandAll: "Expand All",
+      collapseAll: "Collapse All",
+      prevDiffTip: "Previous Difference (Shift+F7)",
+      prevDiff: "Previous Difference",
+      nextDiffTip: "Next Difference (F7)",
+      nextDiff: "Next Difference",
+      filterAllTip: "Show All",
+      filterAll: "All",
+      filterDiffTip: "Show Differences Only",
+      filterDiff: "Diff",
+      filterOrphanTip: "Show Orphans Only",
+      filterOrphan: "Orphans",
+      filterEqualTip: "Show Identical Only",
+      filterEqual: "Same",
+      rule: "Rule:",
+      ruleName: "By Name",
+      ruleSize: "By Size",
+      ruleTime: "By Timestamp",
+      verifySelection: "Verify Content of Selection",
+      cancelVerify: "Cancel Content Verification",
+      comparing: "Comparing…",
+      refreshTip: "Refresh Comparison (F5)",
+      refresh: "Refresh Comparison"
+    },
+    menu: {
+      retryVerify: "Retry Content Verification",
+      verify: "Verify Content",
+      copyRight: "Copy to Right",
+      copyLeft: "Copy to Left",
+      deleteLeft: "Delete (Left)",
+      deleteRight: "Delete (Right)",
+      deleteBoth: "Delete (Both)"
+    },
+    delete: {
+      leftPath: "Left: {path}",
+      rightPath: "Right: {path}",
+      confirm: "Delete the following files?"
+    },
+    copyDialog: {
+      title: "Confirm Copy",
+      directionLeftToRight: "Left → Right",
+      directionRightToLeft: "Right → Left",
+      visibleSelected: "{count} visible selected item | {count} visible selected items",
+      blockedNotice: "{count} directory contains unscanned or filtered descendants; recursive copy is blocked. Expand and show the full scope before confirming. | {count} directories contain unscanned or filtered descendants; recursive copy is blocked. Expand and show the full scope before confirming.",
+      pathsTitle: "Paths to Copy",
+      moreItems: "{count} more item | {count} more items",
+      conflictStrategy: "Conflict Handling",
+      strategySkip: "Skip Existing",
+      strategyOverwrite: "Overwrite Existing",
+      strategyRename: "Keep Both (Auto Rename)",
+      queueNote: "Copy tasks go into the transfer queue; failures never delete source files.",
+      confirm: "Copy"
+    },
+    error: {
+      leftDirUnreadable: "Left directory unreadable",
+      rightDirUnreadable: "Right directory unreadable",
+      readDirFailed: "Failed to read directory"
+    },
+    diff: {
+      closeTip: "Close Comparison (Esc)",
+      leftSide: "L",
+      rightSide: "R",
+      prevDiffTip: "Previous Difference (Shift+F7)",
+      nextDiffTip: "Next Difference (F7)",
+      toggleLayout: "Toggle Side-by-Side / Inline Mode",
+      loading: "Loading file contents…",
+      loadFailed: "Load failed: {message}",
+      noFile: "(no file)",
+      imgLeftLabel: "← L",
+      imgRightLabel: "R →",
+      computingDiff: "Computing diff…",
+      imgModeSideBySide: "Side by Side",
+      imgModeSlide: "Slide",
+      imgModeBlend: "Blend",
+      imgModeDiff: "Diff",
+      blendRightLabel: "Right",
+      diffPercent: "Diff {percent}%",
+      resetZoomTip: "Click to Reset Zoom",
+      zoomHint: "⌘+Scroll to Zoom",
+      leftFile: "Left File",
+      rightFile: "Right File",
+      fileName: "File Name",
+      size: "Size",
+      modifiedTime: "Date Modified",
+      noSuchFile: "(no such file)",
+      tooLarge: "File too large to preview contents"
+    },
+    diffStatus: {
+      metadataEqual: "Metadata equal",
+      contentEqual: "Content equal",
+      different: "Different",
+      leftNewer: "Left newer",
+      rightNewer: "Right newer",
+      leftOnly: "Left only",
+      rightOnly: "Right only",
+      typeMismatch: "Type mismatch",
+      verifying: "Verifying",
+      verificationFailed: "Verification failed",
+      uncomparable: "Uncomparable"
+    }
+  },
+  grep: {
+    cmd: {
+      rerun: "Re-run Content Search"
+    },
+    cmdGroup: "Content Search",
+    placeholder: "Search content… (⏎ Run)",
+    regexTip: "Search as regular expression",
+    caseTip: "Case sensitive",
+    includePlaceholder: "include *.ts",
+    excludePlaceholder: "exclude *.log",
+    search: "Search",
+    status: {
+      searching: "Searching · {count} match | Searching · {count} matches",
+      done: "Done · {fileCount} file / {matchCount} match | Done · {fileCount} files / {matchCount} matches",
+      truncated: " (limit reached, truncated)",
+      idle: "Type a pattern and press Enter to search"
+    },
+    noMatches: "No matches",
+    failed: "Search failed",
+    cancelled: "Cancelled"
+  },
+  dupes: {
+    cmd: {
+      rescan: "Rescan Duplicate Files"
+    },
+    cmdGroup: "Duplicate Files",
+    phaseIdle: "Not started",
+    selectOlder: "Select Older Copies",
+    rescan: "Rescan",
+    noDuplicates: "No duplicates found",
+    group: {
+      identicalCount: "{count} identical file | {count} identical files",
+      eachSize: "{size} each",
+      redundant: "{size} redundant"
+    },
+    truncatedNotice: "More than 5000 duplicate groups; only the 5000 groups wasting the most space are shown.",
+    summary: {
+      reclaimable: "{count} group · reclaimable | {count} groups · reclaimable",
+      checked: "{count} checked"
+    },
+    clearSelection: "Clear Selection",
+    deleteSelected: "Delete Selected ({count})",
+    scanFailed: "Scan failed",
+    cancelled: "Cancelled",
+    phase: {
+      scanning: "Scanning · {count} file | Scanning · {count} files",
+      partialHashing: "First-block compare · {count} candidate | First-block compare · {count} candidates",
+      fullHashing: "Full hash · {count} candidate | Full hash · {count} candidates",
+      completed: "Done · {count} group | Done · {count} groups",
+      failed: "Failed · {message}"
+    }
+  },
+  treemap: {
+    cmd: {
+      rerun: "Re-analyze Space"
+    },
+    cmdGroup: "Space Analysis",
+    analyzing: "Analyzing · {path}",
+    summary: "{count} file · {size} | {count} files · {size}",
+    rerun: "Re-analyze",
+    others: "{count} other item | {count} other items",
+    emptyDir: "Directory is empty",
+    tooltipSummary: "{size} · {fileCount} file · {dirCount} folder | {size} · {fileCount} files · {dirCount} folders"
+  },
+  tasks: {
+    type: {
+      copy: "Copying",
+      move: "Moving",
+      delete: "Deleting",
+      rename: "Renaming",
+      mkdir: "Creating Folder",
+      touch: "Creating File",
+      batchRename: "Batch Renaming",
+      recycle: "Moving to Trash",
+      restore: "Restoring",
+      unknown: "Unknown"
+    },
+    status: {
+      pending: "Pending",
+      running: "Running",
+      completed: "Completed",
+      failed: "Failed",
+      cancelled: "Cancelled"
+    },
+    itemCount: "{count} item | {count} items",
+    preparing: "Preparing...",
+    taskError: "Task Error",
+    error: {
+      itemsFailed: "{count} item failed | {count} items failed"
+    },
+    result: {
+      succeeded: "{count} succeeded",
+      skipped: "{count} skipped",
+      failed: "{count} failed"
+    },
+    completedIn: "Completed in {duration}",
+    sourceLabel: "Source",
+    destinationLabel: "Destination",
+    locate: "Locate",
+    locateSourceTip: "Locate source: {path}",
+    locateDestinationTip: "Locate destination: {path}",
+    openCopiedInFinder: "Open copied item in Finder",
+    tab: {
+      active: "Active",
+      history: "History"
+    },
+    clearAll: "Clear All",
+    noActiveTasks: "No active tasks",
+    noHistory: "No history yet",
+    transfersTitle: "Transfers",
+    noActiveTransfers: "No active transfers",
+    completedCount: "{count} completed"
+  },
+  mobile: {
+    screenshot: {
+      previewAria: "Device screenshot preview",
+      title: "{name} screenshot",
+      closeTip: "Close (Esc)",
+      retake: "Retake",
+      capturing: "Capturing…",
+      saving: "Saving…",
+      save: "Save…"
+    }
+  },
+  preview: {
+    common: {
+      viewAsHex: "View as Hexadecimal",
+      openWithSystem: "Open With Default App",
+      detectingType: "Detecting file type…",
+      closePreviewTip: "Close preview",
+      prevImageTip: "Previous (←)",
+      prevImageAria: "Previous image",
+      nextImageTip: "Next (→)",
+      nextImageAria: "Next image",
+      unknownError: "Unknown error",
+      zoomInTip: "Zoom In",
+      zoomOutTip: "Zoom Out",
+      expandAll: "Expand All",
+      collapseAll: "Collapse All",
+      mediaOversized: "File {size} MB exceeds the media preview limit of {limit} MB (whole-file load, no streaming)",
+      screenshotFailed: "Screenshot failed: {message}",
+      screenshotSaveFailed: "Failed to save screenshot: {message}"
+    },
+    hex: {
+      offset: "Offset",
+      selection: "Selection",
+      loadingRow: "Loading…",
+      emptyFile: "Empty file",
+      resizeTip: "Drag to resize (240–420px, double-click to reset)",
+      modeReadonly: "Read-only",
+      modeOverwrite: "Overwrite",
+      modeInsert: "Insert",
+      dirtyBadge: "• Modified",
+      dirtyTip: "Unsaved changes (Cmd/Ctrl+S to save)",
+      undoTip: "Undo (Cmd/Ctrl+Z)",
+      redoTip: "Redo (Shift+Cmd/Ctrl+Z)",
+      findModeHexTip: "Current: Hex bytes (? is a nibble wildcard, e.g. 4? ??); click to switch to text",
+      findModeTextTip: "Current: Text (UTF-8); click to switch to Hex",
+      findModeText: "Text",
+      findPlaceholderText: "Find text (UTF-8)",
+      matchPrefix: "Match",
+      prevMatchTip: "Previous match (Shift+F3)",
+      nextMatchTip: "Next match (F3)",
+      expandReplaceTip: "Expand replace row",
+      replace: "Replace",
+      jumpLabel: "Jump",
+      jumpTip: "Jump to offset (target row centered and highlighted; +0x20/-16 relative to cursor; Alt+←/→ jump history)",
+      editModeAria: "Edit mode",
+      editModeTip: "Switch edit mode (Insert toggles between overwrite/insert)",
+      viewSettingsTip: "View settings (bytes per row / font size / ASCII column)",
+      bytesPerRow: "Bytes per row",
+      auto: "Auto",
+      fontSize: "Font size",
+      showAsciiColumn: "Show ASCII column",
+      inspectorToggleTip: "Show or hide the Data Inspector (main editor widens when collapsed)",
+      save: "Save",
+      saving: "Saving",
+      savingEllipsis: "Saving…",
+      saveTip: "Save changes (Cmd/Ctrl+S; writes a temp file first, atomic replace)",
+      saveIdleTip: "No unsaved changes",
+      errorSuffix: " (loaded regions stay available; scroll to retry new windows)",
+      replaceBytesPlaceholder: "Replace bytes (e.g. 41 42)",
+      replaceTextPlaceholder: "Replace text",
+      replaceCurrentTip: "Replace current match",
+      replaceAllTip: "Replace all matches (confirm first)",
+      replaceAll: "Replace All",
+      collapseReplaceTip: "Collapse replace row (Esc)",
+      replaceAllConfirmAria: "Confirm replace all",
+      replaceAllConfirm: "Replace {count} matches. Proceed?",
+      replaceAllAction: "Replace {count} matches",
+      unsavedAria: "Unsaved changes",
+      unsavedPrompt: "There are unsaved changes. How do you want to close?",
+      saveAndClose: "Save and Close",
+      discard: "Discard Changes",
+      scrollerAria: "Hexadecimal content: arrow keys move the cursor, Shift extends the selection, PageUp/PageDown pages",
+      fetching: "Reading…",
+      singleByte: "1 byte",
+      currentModeTip: "Current mode: {mode}",
+      modifiedCount: "{n} modified region | {n} modified regions",
+      savedState: "Saved",
+      inspectorTitle: "Data Inspector",
+      inspectorSelectionCap: "Selection",
+      inspectorOffsetContext: "Offset 0x{start} · 1 byte",
+      inspectorRangeContext: "Range 0x{start}–0x{end} · {count} bytes",
+      inspectorEmptyMain: "Select bytes to see value interpretations",
+      inspectorEmptyHint: "Click, drag-select, or Cmd/Ctrl+A to select data",
+      inspectorLoadingMain: "Data at this location is not loaded yet",
+      inspectorLoadingHint: "Scroll or wait for window prefetching and it will appear automatically",
+      readonlyZipLock: "Files inside a ZIP are virtual paths; writing is not supported",
+      readonlyDeviceLock: "This device source does not support writing",
+      readonlyNotice: "Currently in read-only mode",
+      pasteInvalidChar: "Invalid character “{char}” (the Hex zone supports only 0-9 A-F and whitespace separators)",
+      pasteEmpty: "Pasted content has no valid bytes",
+      pasteOddDigits: "Hexadecimal digit count must be even (e.g. 41 2A / 412A)",
+      pasteTruncated: "Truncated to end of file (pasted {count} bytes)",
+      pasteCharOutOfRange: "Character “{char}” is outside the Latin-1 range and cannot be pasted as bytes",
+      savedNotice: "Saved",
+      saveFailed: "Save failed: {message}",
+      searching: "Searching…",
+      searchAborted: "Search aborted: data loading failed",
+      noMatchFound: "No matches found",
+      replaceNoWildcard: "Replace content does not support ? wildcards",
+      replaceInvalid: "Invalid replace content: {message}",
+      replacedOne: "Replaced 1 match",
+      replacedCount: "Replaced {n} match | Replaced {n} matches",
+      jumpClampedEnd: "Clamped to end of file 0x{offset}",
+      jumpClampedStart: "Clamped to start of file 0x{offset}"
+    },
+    image: {
+      loading: "Loading image...",
+      loadFailed: "Failed to load image",
+      displayFailed: "Failed to display image",
+      resetViewTip: "Reset View",
+      rotateLeftTip: "Rotate Left",
+      rotateRightTip: "Rotate Right",
+      fitWindowTip: "Fit to Window",
+      actualSizeTip: "Actual Size",
+      sizeNotReady: "Image dimensions are not ready yet, please retry shortly",
+      dragToCropHint: "Drag on the image to select a crop area",
+      aspectFree: "Free",
+      cropApply: "Crop",
+      textPlaceholder: "Type text, press Enter to confirm"
+    },
+    editToolbar: {
+      expandTip: "Expand edit toolbar",
+      collapseTip: "Collapse edit toolbar",
+      toolbarAria: "Image editing",
+      annoToolsAria: "Annotation tools",
+      toolArrow: "Arrow",
+      toolRect: "Rectangle",
+      toolEllipse: "Ellipse",
+      toolFreehand: "Pen",
+      toolText: "Text",
+      colorTip: "Color {color}",
+      strokeWidthTip: "Stroke width {width}px",
+      undoAnnoTip: "Undo last annotation",
+      clearAnnoTip: "Clear all annotations",
+      pickToolFirstTip: "Pick an annotation tool first",
+      saveAnnotate: "Save Annotations",
+      cropTip: "Crop",
+      annotateTip: "Annotate",
+      compressTip: "Compress",
+      batchCompressTip: "Batch compress the current collection",
+      batchCompress: "Batch Compress",
+      batchRenameTip: "Batch rename the current collection",
+      batchRename: "Batch Rename"
+    },
+    video: {
+      loading: "Loading video...",
+      playbackFailed: "Cannot play video",
+      pipTip: "Picture-in-Picture",
+      fullscreenTip: "Fullscreen",
+      back10Tip: "Back 10s",
+      forward10Tip: "Forward 10s",
+      muteTip: "Mute",
+      errAborted: "Video playback was aborted",
+      errNetwork: "Network error occurred",
+      errDecode: "Video decoding failed",
+      errUnsupported: "Container or codec not supported (Chromium decodes MP4/H.264, WebM, etc.; AVI/WMV/FLV/MPEG-2 need an external player)",
+      errUnknown: "Unknown video error"
+    },
+    audio: {
+      loading: "Loading audio...",
+      playbackFailed: "Cannot play audio",
+      browserUnsupported: "Your browser does not support audio playback.",
+      audioFallback: "Audio",
+      errAborted: "Audio playback was aborted",
+      errNetwork: "Network error occurred",
+      errDecode: "Audio decoding failed",
+      errFormat: "Audio format not supported",
+      errUnknown: "Unknown audio error"
+    },
+    text: {
+      loading: "Loading file...",
+      loadFailed: "Failed to load file",
+      truncatedBanner: "File is {size}; only the first {limit} MB is loaded (whole-read of large files risks stalls/memory)",
+      linesCount: "{n} line | {n} lines",
+      csvRowsCols: "{rows} rows · {cols} cols",
+      showingRows: "Showing first {shown} of {total} rows",
+      sortColumnTip: "Sort by this column",
+      sortColumnTipActive: "Sort by this column (click again to switch direction/cancel)",
+      colLabel: "Col {index}",
+      tableMode: "Table",
+      wordWrapEnable: "Enable Word Wrap",
+      wordWrapDisable: "Disable Word Wrap",
+      minimapTip: "Toggle Minimap",
+      modifiedBadge: "Modified",
+      diffLabel: "Diff",
+      save: "Save",
+      saveBlockedTip: "Cannot save the source file while a filtered view is active",
+      changesTitle: "Changes: {name}",
+      originalToModified: "Original → Modified",
+      escToClose: "(Press Esc to close)",
+      saveFailed: "Failed to save file"
+    },
+    pdf: {
+      loading: "Loading PDF...",
+      loadFailed: "Failed to load PDF"
+    },
+    zip: {
+      reading: "Reading archive...",
+      readingFile: "Reading file...",
+      parsing: "Parsing archive...",
+      buildingTree: "Building tree...",
+      readFailed: "Failed to read archive",
+      parseFailed: "Failed to parse ZIP: {message}",
+      itemsCount: "{n} item | {n} items",
+      searchPlaceholder: "Search..."
+    },
+    json: {
+      treeMode: "Tree",
+      sourceMode: "Source",
+      nodeCount: "{n} node | {n} nodes",
+      valid: "✓ valid",
+      invalid: "✗ invalid JSON",
+      treeUnavailable: "Invalid JSON - cannot display tree view",
+      formatJson: "Format",
+      formatJsonTip: "Format (pretty-print minified JSON)",
+      copyTs: "Copy TS",
+      copyTsTip: "Copy TypeScript interface definitions",
+      runPathQueryTip: "Run path query",
+      pathQueryFailed: "Query failed"
+    },
+    markdown: {
+      previewMode: "Preview",
+      sourceMode: "Source"
+    },
+    inline: {
+      titleFallback: "Preview",
+      selectFile: "Select a file to preview",
+      folder: "Folder",
+      kind: "Kind",
+      size: "Size",
+      modified: "Modified",
+      created: "Created",
+      permissions: "Permissions",
+      where: "Where",
+      fileTooLarge: "File too large for preview",
+      pdfDocument: "PDF Document",
+      loadPreviewFailed: "Error loading preview",
+      mediaLoading: "Loading media...",
+      mediaLoadFailed: "Failed to load media",
+      mediaSize: "Size:",
+      mediaDuration: "Duration:",
+      mediaResolution: "Resolution:",
+      mediaFormat: "Format:",
+      formatUnknown: "Unknown",
+      noVideoSupport: "Your browser does not support video playback.",
+      errAborted: "Playback was aborted",
+      errNetwork: "Network error occurred",
+      errDecode: "Decoding failed",
+      errFormat: "Format not supported"
+    },
+    quickLook: {
+      dialogAria: "Quick Look",
+      prevTip: "Previous (↑)",
+      nextTip: "Next (↓)",
+      closeTip: "Close (Esc / Space)"
+    },
+    logview: {
+      filterPlaceholder: "Filter (Enter to run): co(error) and level(warn)",
+      syntaxTip: "Syntax: co/eq/word/reg/level/lines + and/or/not",
+      matchCount: "{n} match | {n} matches",
+      clearTip: "Clear filter (Esc)",
+      exclude: "Exclude",
+      excludeTip: "Inverted filter: show non-matching lines",
+      context: "Context",
+      contextTip: "Show surrounding context of matched lines",
+      contextLinesTip: "Context lines",
+      prevHitTip: "Previous hit",
+      nextHitTip: "Next hit",
+      copy: "Copy",
+      copyTip: "Copy filtered results (with original line numbers)",
+      exportAction: "Export",
+      exporting: "Exporting…",
+      exportTip: "Export filtered results as a new file (<name>.filtered.log)",
+      schemeTip: "Color scheme",
+      noScheme: "No coloring",
+      manageSchemes: "Manage color schemes",
+      schemesButton: "Schemes…",
+      history: "History ▾",
+      historyTip: "History and favorites",
+      favorites: "Favorites",
+      recent: "Recent",
+      unfavorite: "Unfavorite",
+      favoriteToggle: "Favorite/Unfavorite",
+      clearHistory: "Clear history",
+      noHistory: "No history",
+      builtinSchemeLabel: "{name} (built-in)",
+      filterFailed: "Filter execution failed",
+      copiedLines: "Copied {n} line | Copied {n} lines",
+      copyFailed: "Copy failed (clipboard unavailable)",
+      exportNoWrite: "Target device does not support writing; cannot export",
+      exported: "Exported: {path}",
+      exportFailed: "Export failed: {message}",
+      editorTitle: "Color Scheme Manager",
+      editorCloseTip: "Close (Esc)",
+      builtinTag: "Built-in",
+      activeScheme: "Currently active",
+      newScheme: "＋ New Scheme",
+      importScheme: "⬆ Import Scheme…",
+      namePlaceholder: "Scheme name",
+      duplicateAsCustom: "Duplicate as Custom",
+      save: "Save",
+      restore: "Revert",
+      exportScheme: "⬇ Export",
+      builtinReadonly: "Built-in schemes cannot be edited; duplicate one to modify freely.",
+      matchTypeHeader: "Match",
+      valueHeader: "Value",
+      scopeHeader: "Scope",
+      colorHeader: "Color",
+      actionsHeader: "Actions",
+      matchContains: "Contains",
+      matchEquals: "Equals",
+      matchWord: "Whole word",
+      matchRegex: "Regex",
+      scopeLine: "Whole line",
+      scopeFragment: "Fragment",
+      moveUpTip: "Move up (higher priority)",
+      moveDownTip: "Move down",
+      removeRuleTip: "Delete",
+      addRule: "＋ Add Rule",
+      rulePriorityHint: "Rules are prioritized top-down: the line color comes from the first matching rule; fragment colors are first-come and do not overwrite each other.",
+      customLevelTitlePrefix: "Custom level words (the level() predicate can match",
+      customLevelTitleSuffix: "on them)",
+      removeWord: "Remove",
+      newWordPlaceholder: "New word + Enter",
+      selectOrCreateScheme: "Select or create a scheme",
+      newSchemeName: "New scheme",
+      unnamedScheme: "Untitled",
+      importFailed: "Import failed: {message}",
+      invalidRules: "Invalid rules ({count}, skipped after saving): {reasons}"
+    }
+  },
+  main: {
+    infoWindowTitle: "About “{name}”",
+    infoWindowTitleMulti: "About {count} items"
+  },
+  windows: {
+    fileInfo: {
+      loading: "Opening info…",
+      loadFailed: "Failed to read item info"
+    }
+  },
+  errors: {
+    main: {
+      fileInfoNoSelection: "Cannot open the info window without a selected item",
+      fileInfoNoContext: "This window has no available info context",
+      // ── main.ts · IPC capability gates / chunked read / hex save / drag import ──
+      symlinkUnsupported: "This device does not support creating symbolic links",
+      readlinkUnsupported: "This device does not support reading symbolic links",
+      chmodUnsupported: "This device does not support changing permissions",
+      chownUnsupported: "This device does not support changing ownership",
+      readChunkStreamUnsupported: "This device does not support streaming reads; cannot chunk-read files larger than 32 MB",
+      hexSaveUnsupported: "Saving hexadecimal edits is not yet supported on this device (local devices only)",
+      hexSavePieceOutOfBounds: "Save piece out of bounds: base {start}+{length} > file size {size}",
+      hexSaveFailed: "Save failed: {message}",
+      hexSaveFailedNoDetail: "Save failed",
+      dragInvalidPayload: "Invalid dropped content.",
+      dragNoImportableFiles: "No importable local files or folders found.",
+      // ── FileOperationManager · task-level / per-item failure records ──
+      statSourceFailed: "Cannot read source path attributes",
+      targetNotDirectory: "Target path is not a directory: {path}",
+      conflictNameExhausted: "Cannot generate an available name for the conflicting file: {path}",
+      batchRenameNoItems: "Batch rename is missing the previewed name list.",
+      batchRenameTargetExists: "Target name already exists: {name}",
+      recyclePathFailed: "Cannot prepare the recycle bin path",
+      restoreMissingOriginalPaths: "Restore operation is missing the original paths.",
+      restoreTargetExists: "An item with the same name already exists at the original location: {path}",
+      // ── AndroidAdapter ──────────────────────────────────────────────────
+      androidNoDevice: "No Android device detected. Connect a device and enable USB debugging.",
+      androidUnauthorized: 'USB debugging is not authorized on the device. Tap "Allow USB debugging" on the phone and try again.',
+      androidOffline: "Device is offline. Unplug and replug the USB cable, then try again.",
+      androidUnavailable: "Device is currently unavailable (status: {status}).",
+      androidNotConnected: "Android device not connected",
+      shellCommandFailed: "Command failed (code={code}): {command}; {output}",
+      // ── iOSAdapter ──────────────────────────────────────────────────────
+      iosAddonMissing: "The iOS native addon is not built or bundled. Run node-gyp build under native/iosafc (requires libimobiledevice development headers, compiled against the Electron ABI). See native/iosafc/README.md.",
+      iosNotConnected: "iOS device not connected",
+      iosPairingExpired: 'The "Trust This Computer" pairing for this iOS device has expired. Trust and pair the device again.',
+      iosAfcFileTooLarge: "The iOS AFC per-file limit is {size} bytes; cannot write: {path}",
+      iosAfcWriteFailed: "iOS AFC cannot write {path}; the location may not allow writing or the parent directory may not exist. {message}",
+      iosSearchUnsupported: "iOS devices do not support search (AFC has no general search)",
+      iosPairInitiateFailed: "Failed to initiate pairing — make sure the device is unlocked and firmly plugged in",
+      iosPairTimeout: 'Pairing timed out — "Trust This Computer" was not confirmed on the device',
+      // ── OhosAdapter / hdcRunner ─────────────────────────────────────────
+      ohosNotConnected: "HarmonyOS device not connected",
+      ohosHdcMissing: "hdc not detected. Install the platform-tools from DevEco Studio / HarmonyOS SDK, or make sure hdc is on $PATH.",
+      ohosDeviceOffline: "HarmonyOS device is not online (connectKey={key}). Connect the device and enable developer-mode USB debugging.",
+      ohosStatFailed: "Cannot get file attributes: {path}",
+      hdcTimeout: "hdc command timed out ({timeout}ms): hdc {command}",
+      hdcSpawnFailed: "Cannot start hdc ({message}). Install the platform-tools from DevEco Studio / HarmonyOS SDK, or make sure hdc is on $PATH.",
+      hdcCommandFailed: "hdc command failed (code={code}): {command}",
+      hdcShellNoExitMarker: "hdc shell did not return an exit code marker: {command}",
+      hdcShellFailed: "hdc shell failed (code={code}): {command}",
+      // ── WebDAV / SMB / device management ───────────────────────────────
+      webdavInvalidUrl: "Invalid WebDAV address: enter a URL starting with http:// or https://",
+      webdavProtocolUnsupported: "WebDAV supports only HTTP or HTTPS addresses",
+      webdavNotConnected: "WebDAV device is not connected yet",
+      smbMissingHostOrShare: "SMB connection requires a host address and share name",
+      smbNotConnected: "SMB device is not connected yet",
+      pairingNotApplicable: "This device type does not need / does not support pairing",
+      deviceStillUnavailable: "Device is still unavailable after connecting: {name}",
+      // ── image editing / content verification / hashing ────────────────
+      imageEditEmptyOps: "Edit operations are empty",
+      imageEditUnsupportedFormat: "Unsupported image format: .{ext}",
+      imageEditCropAnnotateExclusive: "crop and annotate are mutually exclusive; save them separately",
+      imageEditNameExhausted: "Cannot generate a unique output file name (100 candidates tried): {path}",
+      verifyDeviceNotConnected: "Device is not connected; cannot verify content",
+      hashStreamUnsupported: "This device does not support streaming reads; cannot process files larger than 32 MB",
+      // ── mobile screenshots ──────────────────────────────────────────────
+      screenshotDeviceMissing: "Device does not exist or is not connected yet.",
+      screenshotUnsupportedDevice: "Only Android / HarmonyOS / iOS devices support screenshots.",
+      screenshotInvalidAndroid: "The Android screenshot did not return valid image data.",
+      screenshotInvalidOhos: "The HarmonyOS screenshot did not return valid image data.",
+      screenshotInvalidIos: "The iOS screenshot did not return valid image data.",
+      screenshotAdbSpawnFailed: "Cannot start the adb screenshot: {message}",
+      screenshotAndroidFailed: "Android screenshot failed (code={code}): {message}",
+      screenshotIdeviceCliMissing: "idevicescreenshot not found; install libimobiledevice.",
+      screenshotIdeviceSpawnFailed: "Cannot start idevicescreenshot: {message}",
+      screenshotIosFailed: "iOS screenshot failed (code={code}): {message}",
+      // ── archives (ArchiveService / ZipService) ─────────────────────────
+      archiveUnsafeEntry: "Unsafe ZIP entry: {path}",
+      zipEntryNotFound: "ZIP entry not found: {path}",
+      zipTooSmall: "File too small to be a valid ZIP",
+      zipEocdNotFound: "EOCD not found in {path}",
+      zip64EocdMismatch: "ZIP64 EOCD signature mismatch",
+      zipLfhMismatch: "Local file header signature mismatch",
+      zipUnsupportedCompression: "Unsupported compression method: {method}",
+      // ── content search / directory walk & stats ────────────────────────
+      grepRgExit2: "ripgrep exited with code 2 (argument or permission error)",
+      grepRemoteExit: "remote grep exited with code {code}",
+      statsConsecutiveErrors: "{count} consecutive entries failed to access; the device may have disconnected",
+      walkConsecutiveErrors: "{count} consecutive directories failed to access; the device may have disconnected",
+      // ── optional dependencies / transfer verification ──────────────────
+      optionalDepUnavailable: "Optional dependency {name} is unavailable; the corresponding device type is disabled (original error: {message}). Install the dependency and restart the app.",
+      transferVerifyFailed: "Target file write verification failed: {path}; expected {expected} bytes, actual {actual} bytes"
+    }
+  }
+};
+const DEFAULT_LOCALE = "zh-CN";
+function isAppLocale(value) {
+  return value === "zh-CN" || value === "en-US";
+}
+const catalogs = {
+  "zh-CN": zhCN,
+  "en-US": enUS
+};
+let currentLocale = DEFAULT_LOCALE;
+function setMainLocale(value) {
+  currentLocale = isAppLocale(value) ? value : DEFAULT_LOCALE;
+}
+function t(key, params) {
+  const resolved = lookup(catalogs[currentLocale], key) ?? lookup(catalogs[DEFAULT_LOCALE], key) ?? key;
+  if (!params) return resolved;
+  return resolved.replace(
+    /\{(\w+)\}/g,
+    (match, name) => params[name] !== void 0 ? String(params[name]) : match
+  );
+}
+function lookup(catalog, key) {
+  let node = catalog;
+  for (const part of key.split(".")) {
+    if (node && typeof node === "object" && part in node) {
+      node = node[part];
+    } else {
+      return void 0;
+    }
+  }
+  return typeof node === "string" ? node : void 0;
 }
 const LOCAL_CAPABILITIES = {
   canRead: true,
@@ -309,6 +2685,43 @@ const ANDROID_CAPABILITIES = {
   // Some Android directories are read-only without root
   readonlyPaths: ["/system", "/vendor", "/product", "/data/app"]
 };
+const OHOS_CAPABILITIES = {
+  canRead: true,
+  canWrite: true,
+  canDelete: true,
+  canRename: true,
+  canMkdir: true,
+  canList: true,
+  canStat: true,
+  canCopy: true,
+  // Via shell cp -r
+  canMove: true,
+  // Via shell mv
+  canSearch: true,
+  // Via find -name
+  canCopyFrom: true,
+  // hdc file recv
+  canCopyTo: true,
+  // hdc file send
+  canMoveFrom: true,
+  // recv + delete
+  canMoveTo: true,
+  // send + delete source
+  canStream: false,
+  // hdc file recv/send 无流式 → buffer fallback(iOS 同姿态)
+  canCaptureScreenshot: true,
+  // hdc shell snapshot_display + file recv
+  canArchive: true,
+  canRecycle: true,
+  canGrepContent: true,
+  // hdc shell 远端 grep (toybox)
+  canSymlink: false,
+  // hdc shell ln -s 权限受限，v1 不开
+  canChmod: true,
+  // hdc shell chmod
+  canChown: false,
+  readonlyPaths: ["/system", "/vendor"]
+};
 const IOS_CAPABILITIES = {
   canRead: true,
   canWrite: true,
@@ -333,7 +2746,8 @@ const IOS_CAPABILITIES = {
   // Push + delete source
   canStream: false,
   // AFC has no usable stream CLI → buffer fallback
-  canCaptureScreenshot: false,
+  canCaptureScreenshot: true,
+  // idevicescreenshot (libimobiledevice CLI)
   canArchive: true,
   canRecycle: true,
   canGrepContent: false,
@@ -366,14 +2780,14 @@ function DEFAULT_REMOTE_CAPABILITIES(deviceType) {
     canMoveTo: true,
     canStream: false,
     // 连接后由具体适配器的 capability 覆盖
-    canCaptureScreenshot: deviceType === "android",
+    canCaptureScreenshot: deviceType === "android" || deviceType === "ohos" || deviceType === "ios",
     canArchive: true,
     canRecycle: true,
     canGrepContent: deviceType !== "ios",
     // 连接后由具体适配器覆盖
     canSymlink: deviceType === "ssh",
     // 连接后由具体适配器覆盖
-    canChmod: deviceType === "ssh" || deviceType === "android",
+    canChmod: deviceType === "ssh" || deviceType === "android" || deviceType === "ohos",
     canChown: deviceType === "ssh"
   };
 }
@@ -383,7 +2797,7 @@ class LocalAdapter {
   deviceId = "local";
   name;
   constructor() {
-    this.name = os.hostname();
+    this.name = os__default.hostname();
   }
   getCapabilities() {
     return LOCAL_CAPABILITIES;
@@ -549,15 +2963,16 @@ class LocalAdapter {
     await fs$1.chown(targetPath, uid, gid);
   }
 }
-const log$n = console;
+const log$p = console;
 async function loadOptional(id, loader) {
   try {
     return await loader();
   } catch (error) {
-    log$n.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
-    throw new Error(
-      `可选依赖 ${id} 不可用，对应设备类型已禁用（原始错误：${error instanceof Error ? error.message : String(error)}）。请安装该依赖后重启应用。`
-    );
+    log$p.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
+    throw new Error(t("errors.main.optionalDepUnavailable", {
+      name: id,
+      message: error instanceof Error ? error.message : String(error)
+    }));
   }
 }
 function shellQuote(s) {
@@ -568,7 +2983,10 @@ class ToolPathResolver {
     adb: { candidates: ["adb", "tools/adb"] },
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
-    rg: { candidates: ["rg/rg", "rg", "tools/rg"], probePath: true }
+    rg: { candidates: ["rg/rg", "rg", "tools/rg"], probePath: true },
+    // hdc（HarmonyOS Device Connector）常经 DevEco Studio 安装在 $PATH，
+    // 开发态值得探测；打包态同样支持捆绑（布局同 adb）
+    hdc: { candidates: ["hdc", "tools/hdc"], probePath: true }
   };
   /** undefined=未探测, null=无捆绑(回退 $PATH)。按工具名缓存。 */
   static bundledCache = /* @__PURE__ */ new Map();
@@ -613,6 +3031,30 @@ class ToolPathResolver {
   static getAdbExecutable() {
     return this.getExecutable("adb");
   }
+  // ============ hdc(HarmonyOS 设备连接器) ============
+  /** 解析 hdc 可执行文件路径(打包且存在 → 绝对路径;否则 undefined 走 $PATH)。 */
+  static getHdcPath() {
+    return this.getBundledPath("hdc");
+  }
+  /** 供 child_process spawn 使用的 hdc 命令。 */
+  static getHdcExecutable() {
+    return this.getExecutable("hdc");
+  }
+  /** hdc 是否可用(捆绑存在或 $PATH 上有)。 */
+  static hasHdc() {
+    if (this.getBundledPath("hdc")) return true;
+    if (this.pathCache.has("hdc")) return this.pathCache.get("hdc");
+    let found = false;
+    try {
+      execFileSync("which", ["hdc"], { stdio: "ignore" });
+      found = true;
+    } catch {
+      found = false;
+    }
+    this.pathCache.set("hdc", found);
+    if (found) console.log("[ToolPathResolver] hdc resolved via $PATH");
+    return found;
+  }
   // ============ ripgrep(grep 内容搜索引擎) ============
   /** rg 命令(捆绑绝对路径或 $PATH 上的 'rg')。 */
   static getRipgrepExecutable() {
@@ -639,7 +3081,7 @@ class ToolPathResolver {
     this.pathCache.clear();
   }
 }
-const log$m = console;
+const log$o = console;
 let adbkitModule = null;
 async function getAdbkit() {
   if (!adbkitModule) {
@@ -671,18 +3113,18 @@ class AndroidAdapter {
       this.client = adbkit.createClient(adbPath ? { bin: adbPath } : {});
       const devices = await this.client.listDevices();
       if (devices.length === 0) {
-        throw new Error("未检测到 Android 设备。请连接设备并开启 USB 调试。");
+        throw new Error(t("errors.main.androidNoDevice"));
       }
       const serial = this.config.deviceId ?? devices[0].id;
       const target = devices.find((d) => d.id === serial) ?? devices[0];
       if (target.type !== "device") {
         if (target.type === "unauthorized") {
-          throw new Error('设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。');
+          throw new Error(t("errors.main.androidUnauthorized"));
         }
         if (target.type === "offline") {
-          throw new Error("设备离线。请重新插拔数据线后重试。");
+          throw new Error(t("errors.main.androidOffline"));
         }
-        throw new Error(`设备当前不可用(状态:${target.type})。`);
+        throw new Error(t("errors.main.androidUnavailable", { status: target.type }));
       }
       this.device = this.client.getDevice(target.id);
       this.connected = true;
@@ -691,7 +3133,7 @@ class AndroidAdapter {
       this.connected = false;
       this.device = null;
       this.client = null;
-      log$m.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
+      log$o.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
       throw error;
     }
   }
@@ -705,7 +3147,7 @@ class AndroidAdapter {
   }
   dev() {
     if (!this.connected || !this.device) {
-      throw new Error("Android 设备未连接");
+      throw new Error(t("errors.main.androidNotConnected"));
     }
     return this.device;
   }
@@ -714,7 +3156,7 @@ class AndroidAdapter {
     const dev = this.dev();
     const entries = await dev.readdir(dirPath);
     const files = entries.filter((e) => e.name !== "." && e.name !== "..").map((e) => this.entryToFileInfo(dirPath, e));
-    return sortFiles(files);
+    return sortFiles$1(files);
   }
   async stat(targetPath) {
     const dev = this.dev();
@@ -785,7 +3227,7 @@ class AndroidAdapter {
   }
   async writeFile(filePath, data) {
     const dev = this.dev();
-    const parent = posixDirname$1(filePath);
+    const parent = posixDirname$2(filePath);
     if (parent && parent !== filePath) {
       try {
         await this.runShell(`mkdir -p ${shellQuote(parent)}`);
@@ -805,7 +3247,7 @@ class AndroidAdapter {
     for (const line of raw.split("\n")) {
       const p = line.trim();
       if (!p) continue;
-      const name = posixBaseName$1(p);
+      const name = posixBaseName$2(p);
       let isDirectory = false;
       let size = 0;
       let mtime = 0;
@@ -835,7 +3277,7 @@ class AndroidAdapter {
   }
   async openWriteStream(filePath) {
     const dev = this.dev();
-    const parent = posixDirname$1(filePath);
+    const parent = posixDirname$2(filePath);
     if (parent && parent !== filePath) {
       try {
         await this.runShell(`mkdir -p ${shellQuote(parent)}`);
@@ -868,7 +3310,7 @@ class AndroidAdapter {
     const mtime = entry.mtimeMs || 0;
     return {
       name,
-      path: joinPosix$3(dirPath, name),
+      path: joinPosix$4(dirPath, name),
       isDirectory,
       isFile: !isDirectory,
       size: Number(entry.size) || 0,
@@ -894,10 +3336,347 @@ class AndroidAdapter {
     const stdout = out.slice(0, markerIdx);
     const code = parseInt(codeStr, 10);
     if (!Number.isNaN(code) && code !== 0) {
-      throw new Error(`命令失败(code=${code}): ${command}
-${stdout.trim()}`);
+      throw new Error(t("errors.main.shellCommandFailed", { code, command, output: stdout.trim() }));
     }
     return stdout;
+  }
+}
+function joinPosix$4(dir, name) {
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
+}
+function posixBaseName$2(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx === -1 ? trimmed : trimmed.slice(idx + 1);
+}
+function posixDirname$2(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  if (idx === -1) return "";
+  if (idx === 0) return "/";
+  return trimmed.slice(0, idx);
+}
+function sortFiles$1(files) {
+  return files.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+const OHOS_EXIT_MARKER = "__FM_OHOS_EXIT__";
+function hdcTargetArgs(connectKey) {
+  return ["-t", connectKey];
+}
+function runHdc(args, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 3e4;
+  return new Promise((resolve, reject) => {
+    const child = spawn(ToolPathResolver.getHdcExecutable(), args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const chunks = [];
+    const errors = [];
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill();
+      reject(new Error(t("errors.main.hdcTimeout", { timeout: timeoutMs, command: args.join(" ") })));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    child.stderr.on("data", (chunk) => errors.push(Buffer.from(chunk)));
+    child.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(new Error(t("errors.main.hdcSpawnFailed", { message: error.message })));
+    });
+    child.once("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const stdout = Buffer.concat(chunks);
+      const stderr = Buffer.concat(errors).toString("utf8").trim();
+      if (code !== 0) {
+        reject(new Error(t("errors.main.hdcCommandFailed", {
+          code: String(code),
+          command: `hdc ${args.join(" ")}${stderr ? `: ${stderr}` : ""}`
+        })));
+        return;
+      }
+      resolve({ stdout, stderr, code });
+    });
+  });
+}
+async function runHdcShell(connectKey, command, options = {}) {
+  const wrapped = `${command}; printf '\\n${OHOS_EXIT_MARKER}%d' "$?"`;
+  const shellResult = await runHdc([...hdcTargetArgs(connectKey), "shell", wrapped], options);
+  const text2 = shellResult.stdout.toString("utf8");
+  const markerIndex = text2.lastIndexOf(OHOS_EXIT_MARKER);
+  if (markerIndex === -1) {
+    throw new Error(t("errors.main.hdcShellNoExitMarker", { command }));
+  }
+  const exitCode = parseInt(text2.slice(markerIndex + OHOS_EXIT_MARKER.length).trim(), 10);
+  if (!Number.isFinite(exitCode) || exitCode !== 0) {
+    const output = text2.slice(0, markerIndex).trim();
+    throw new Error(t("errors.main.hdcShellFailed", {
+      code: Number.isFinite(exitCode) ? exitCode : "?",
+      command: `${command}${output ? `: ${output}` : ""}`
+    }));
+  }
+  return text2.slice(0, markerIndex);
+}
+const HDC_INFO_LINE = /^\[[^\]]*\]/;
+function parseHdcListTargets(stdout) {
+  const keys = [];
+  for (const rawLine of stdout.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (HDC_INFO_LINE.test(line)) continue;
+    keys.push(line);
+  }
+  return keys;
+}
+function parseStatLines(stdout) {
+  const results = [];
+  for (const rawLine of stdout.split("\n")) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) continue;
+    results.push(parseStatLine(line));
+  }
+  return results;
+}
+function parseStatLine(line) {
+  const match = line.match(/^(.*)\|([^|]+)\|(\d+)\|(\d+)\|(\d+)$/);
+  if (!match) return null;
+  const [, name, kindRaw, sizeStr, mtimeStr, modeStr] = match;
+  if (!name) return null;
+  const kindText = (kindRaw ?? "").trim().toLowerCase();
+  let kind = "other";
+  if (kindText === "directory") kind = "directory";
+  else if (kindText === "regular file" || kindText === "regular empty file") kind = "file";
+  else if (kindText.includes("symbolic link") || kindText === "link") kind = "symlink";
+  const size = parseInt(sizeStr, 10);
+  const mtimeMs = parseInt(mtimeStr, 10) * 1e3;
+  const mode = parseInt(modeStr, 8);
+  if (!Number.isFinite(size) || !Number.isFinite(mtimeMs) || !Number.isFinite(mode)) return null;
+  return { name, kind, size, mtimeMs, mode };
+}
+const log$n = console;
+const STAT_BATCH_SIZE = 64;
+const TRANSFER_TIMEOUT_MS = 3e5;
+class OhosAdapter {
+  type = "ohos";
+  deviceId;
+  name;
+  config;
+  connected = false;
+  /** 本地临时文件去重序号(同毫秒并发时避免撞名)。 */
+  static tempSeq = 0;
+  constructor(deviceId, name, config = {}) {
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return OHOS_CAPABILITIES;
+  }
+  /** 设备 id 形如 "ohos:<connectKey>";hdc -t 需要裸 key(照 iOSAdapter.udid 剥前缀)。 */
+  connectKey() {
+    const raw = this.config.deviceId ?? this.deviceId;
+    return raw.startsWith("ohos:") ? raw.slice(4) : raw;
+  }
+  requireConnected() {
+    if (!this.connected) {
+      throw new Error(t("errors.main.ohosNotConnected"));
+    }
+    return this.connectKey();
+  }
+  async connect() {
+    try {
+      if (!ToolPathResolver.hasHdc()) {
+        throw new Error(t("errors.main.ohosHdcMissing"));
+      }
+      const key = this.connectKey();
+      const result = await runHdc(["list", "targets"]);
+      const keys = parseHdcListTargets(result.stdout.toString("utf8"));
+      if (!keys.includes(key)) {
+        throw new Error(t("errors.main.ohosDeviceOffline", { key }));
+      }
+      this.connected = true;
+      log$n.info(`[OhosAdapter] connected: connectKey=${key}`);
+    } catch (error) {
+      this.connected = false;
+      log$n.error(`[OhosAdapter] 连接失败 (connectKey=${this.connectKey()}):`, error);
+      throw error;
+    }
+  }
+  async disconnect() {
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  // ============ 文件系统操作 ============
+  async list(dirPath) {
+    const key = this.requireConnected();
+    const namesRaw = await runHdcShell(key, `ls -A ${shellQuote(dirPath)}`);
+    const names = namesRaw.split("\n").map((l) => l.replace(/\r$/, "")).filter((l) => l.length > 0 && l !== "." && l !== "..");
+    if (names.length === 0) return [];
+    const statByPath = /* @__PURE__ */ new Map();
+    for (let i = 0; i < names.length; i += STAT_BATCH_SIZE) {
+      const batch = names.slice(i, i + STAT_BATCH_SIZE).map((name) => shellQuote(joinPosix$3(dirPath, name)));
+      const statRaw = await runHdcShell(key, `stat -c '%n|%F|%s|%Y|%a' ${batch.join(" ")}`);
+      for (const entry of parseStatLines(statRaw)) {
+        if (entry) statByPath.set(entry.name, entry);
+      }
+    }
+    const files = [];
+    for (const name of names) {
+      const fullPath = joinPosix$3(dirPath, name);
+      const entry = statByPath.get(fullPath);
+      const isDirectory = entry?.kind === "directory";
+      const isSymlink = entry?.kind === "symlink";
+      files.push({
+        name,
+        path: fullPath,
+        isDirectory,
+        isFile: !isDirectory,
+        size: entry?.size ?? 0,
+        modifiedTime: new Date(entry?.mtimeMs ?? 0).toISOString(),
+        mode: entry?.mode,
+        isSymlink,
+        extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
+      });
+    }
+    return sortFiles(files);
+  }
+  async stat(targetPath) {
+    const key = this.requireConnected();
+    const raw = await runHdcShell(key, `stat -c '%n|%F|%s|%Y|%a' ${shellQuote(targetPath)}`);
+    const entry = parseStatLines(raw).find((e) => e !== null);
+    if (!entry) {
+      throw new Error(t("errors.main.ohosStatFailed", { path: targetPath }));
+    }
+    return {
+      size: entry.size,
+      isDirectory: entry.kind === "directory",
+      isFile: entry.kind !== "directory",
+      modifiedTime: new Date(entry.mtimeMs).toISOString(),
+      createdTime: new Date(entry.mtimeMs).toISOString(),
+      mode: entry.mode
+    };
+  }
+  async mkdir(dirPath) {
+    const key = this.requireConnected();
+    await runHdcShell(key, `mkdir -p ${shellQuote(dirPath)}`);
+  }
+  async rmdir(dirPath, recursive) {
+    const key = this.requireConnected();
+    const cmd = recursive ? `rm -rf ${shellQuote(dirPath)}` : `rmdir ${shellQuote(dirPath)}`;
+    await runHdcShell(key, cmd);
+  }
+  async delete(targetPath) {
+    const key = this.requireConnected();
+    await runHdcShell(key, `rm -rf ${shellQuote(targetPath)}`);
+  }
+  async rename(oldPath, newPath) {
+    const key = this.requireConnected();
+    await runHdcShell(key, `mv ${shellQuote(oldPath)} ${shellQuote(newPath)}`);
+  }
+  async copy(srcPath, dstPath) {
+    const key = this.requireConnected();
+    await runHdcShell(key, `cp -r ${shellQuote(srcPath)} ${shellQuote(dstPath)}`);
+  }
+  async exists(targetPath) {
+    try {
+      await this.stat(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  async chmod(targetPath, mode) {
+    const key = this.requireConnected();
+    await runHdcShell(key, `chmod ${mode.toString(8).padStart(3, "0")} ${shellQuote(targetPath)}`);
+  }
+  async readFile(filePath) {
+    const key = this.requireConnected();
+    const localPath = this.localTempPath();
+    try {
+      await runHdc([...hdcTargetArgs(key), "file", "recv", filePath, localPath], { timeoutMs: TRANSFER_TIMEOUT_MS });
+      return await fs.promises.readFile(localPath);
+    } finally {
+      void fs.promises.rm(localPath, { force: true }).catch(() => {
+      });
+    }
+  }
+  async writeFile(filePath, data) {
+    const key = this.requireConnected();
+    const parent = posixDirname$1(filePath);
+    if (parent && parent !== filePath) {
+      try {
+        await runHdcShell(key, `mkdir -p ${shellQuote(parent)}`);
+      } catch {
+      }
+    }
+    const localPath = this.localTempPath();
+    try {
+      await fs.promises.writeFile(localPath, data);
+      await runHdc([...hdcTargetArgs(key), "file", "send", localPath, filePath], { timeoutMs: TRANSFER_TIMEOUT_MS });
+    } finally {
+      void fs.promises.rm(localPath, { force: true }).catch(() => {
+      });
+    }
+  }
+  async search(dirPath, query) {
+    const key = this.requireConnected();
+    const pattern = (query.pattern || "").trim();
+    if (!pattern) return [];
+    const raw = await runHdcShell(
+      key,
+      `find ${shellQuote(dirPath)} -type f -name ${shellQuote("*" + pattern + "*")} 2>/dev/null`,
+      { timeoutMs: 6e4 }
+    );
+    const results = [];
+    for (const line of raw.split("\n")) {
+      const p = line.replace(/\r$/, "");
+      if (!p) continue;
+      results.push({
+        name: posixBaseName$1(p),
+        path: p,
+        isDirectory: false,
+        isFile: true,
+        size: 0,
+        modifiedTime: (/* @__PURE__ */ new Date(0)).toISOString(),
+        extension: path.extname(posixBaseName$1(p)).toLowerCase()
+      });
+    }
+    return results;
+  }
+  /**
+   * 远端命令执行（GrepService 的远端 grep 引擎）。复用 runHdcShell 的
+   * EXIT_MARKER 机制拿 stdout 与退出码（grep 无匹配 exit 1 不是错误，
+   * 由抛错语义转换为 code 字段返回）。
+   */
+  async exec(command) {
+    const key = this.requireConnected();
+    try {
+      const stdout = await runHdcShell(key, command);
+      return { stdout, stderr: "", code: 0 };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const codeMatch = message.match(/code=(\d+)/);
+      if (codeMatch) {
+        return { stdout: message.split("\n").slice(1).join("\n"), stderr: "", code: parseInt(codeMatch[1], 10) };
+      }
+      throw error;
+    }
+  }
+  // ============ 内部工具 ============
+  /** os.tmpdir 下的唯一临时文件路径(file recv/send 中转)。 */
+  localTempPath() {
+    const seq = ++OhosAdapter.tempSeq;
+    return path.join(os.tmpdir(), `fileman-ohos-${process.pid}-${Date.now()}-${seq}`);
   }
 }
 function joinPosix$3(dir, name) {
@@ -922,7 +3701,7 @@ function sortFiles(files) {
     return a.name.localeCompare(b.name);
   });
 }
-const log$l = console;
+const log$m = console;
 class SMBAdapter {
   type = "smb";
   deviceId;
@@ -940,7 +3719,7 @@ class SMBAdapter {
   }
   async connect() {
     if (!this.config.host || !this.config.share) {
-      throw new Error("SMB 连接需要主机地址和共享名称");
+      throw new Error(t("errors.main.smbMissingHostOrShare"));
     }
     const SMB2 = await loadOptional("@marsaud/smb2", async () => (await import("@marsaud/smb2")).default);
     const client = new SMB2({
@@ -956,7 +3735,7 @@ class SMBAdapter {
       this.connected = true;
     } catch (error) {
       client.disconnect();
-      log$l.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
+      log$m.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
       throw error;
     }
   }
@@ -1054,7 +3833,7 @@ class SMBAdapter {
     return results;
   }
   getClient() {
-    if (!this.connected || !this.client) throw new Error("SMB 设备尚未连接");
+    if (!this.connected || !this.client) throw new Error(t("errors.main.smbNotConnected"));
     return this.client;
   }
   remotePath(value) {
@@ -1364,10 +4143,10 @@ class WebDAVAdapter {
     try {
       endpoint = new URL(this.config.url);
     } catch {
-      throw new Error("WebDAV 地址无效：请输入以 http:// 或 https:// 开头的 URL");
+      throw new Error(t("errors.main.webdavInvalidUrl"));
     }
     if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
-      throw new Error("WebDAV 仅支持 HTTP 或 HTTPS 地址");
+      throw new Error(t("errors.main.webdavProtocolUnsupported"));
     }
     const client = createClient(endpoint.toString(), {
       username: this.config.username,
@@ -1451,7 +4230,7 @@ class WebDAVAdapter {
     return matches;
   }
   getClient() {
-    if (!this.connected || !this.client) throw new Error("WebDAV 设备尚未连接");
+    if (!this.connected || !this.client) throw new Error(t("errors.main.webdavNotConnected"));
     return this.client;
   }
   rootPath() {
@@ -1517,9 +4296,7 @@ function loadAddon() {
     } catch {
     }
   }
-  throw new Error(
-    "iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。"
-  );
+  throw new Error(t("errors.main.iosAddonMissing"));
 }
 class iOSAdapter {
   type = "ios";
@@ -1572,7 +4349,7 @@ class iOSAdapter {
     return loadAddon().pair(this.udid());
   }
   h() {
-    if (!this.connected || this.handle === null) throw new Error("iOS 设备未连接");
+    if (!this.connected || this.handle === null) throw new Error(t("errors.main.iosNotConnected"));
     if (!loadAddon().isPaired(this.udid())) {
       try {
         loadAddon().disconnect(this.handle);
@@ -1580,7 +4357,7 @@ class iOSAdapter {
       }
       this.handle = null;
       this.connected = false;
-      throw new Error("iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。");
+      throw new Error(t("errors.main.iosPairingExpired"));
     }
     return this.handle;
   }
@@ -1638,13 +4415,13 @@ class iOSAdapter {
   async writeFile(filePath, data) {
     const maxFileSize = this.getCapabilities().maxFileSize;
     if (maxFileSize !== void 0 && data.length > maxFileSize) {
-      throw new Error(`iOS AFC 单文件上限为 ${maxFileSize} 字节，无法写入: ${filePath}`);
+      throw new Error(t("errors.main.iosAfcFileTooLarge", { size: maxFileSize, path: filePath }));
     }
     try {
       loadAddon().writeFile(this.h(), filePath, data);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`iOS AFC 无法写入 ${filePath}；该位置可能不允许写入或父目录不存在。${message}`);
+      throw new Error(t("errors.main.iosAfcWriteFailed", { path: filePath, message }));
     }
   }
   async exists(targetPath) {
@@ -1656,7 +4433,7 @@ class iOSAdapter {
     }
   }
   async search(_dirPath, _query) {
-    throw new Error("iOS 设备不支持搜索(AFC 无通用搜索)");
+    throw new Error(t("errors.main.iosSearchUnsupported"));
   }
   // ============ 内部工具 ============
   toFileInfo(dirPath, e) {
@@ -1689,7 +4466,7 @@ async function pairIosDevice(deviceId, timeoutMs = 6e4) {
   try {
     const initiated = addon.pair(udid);
     if (!initiated) {
-      return { success: false, error: "发起配对失败 —— 请确认设备已解锁、已插稳" };
+      return { success: false, error: t("errors.main.iosPairInitiateFailed") };
     }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -1702,10 +4479,10 @@ async function pairIosDevice(deviceId, timeoutMs = 6e4) {
     } catch {
     }
   }
-  return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' };
+  return { success: false, error: t("errors.main.iosPairTimeout") };
 }
 const execAsync = promisify(exec);
-const log$k = {
+const log$l = {
   info: (message, ...args) => console.log(`[MobileDeviceScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[MobileDeviceScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[MobileDeviceScanner] DEBUG: ${message}`, ...args)
@@ -1717,6 +4494,7 @@ class MobileDeviceScanner {
   handlers = [];
   libimobiledeviceInstalled = null;
   adbAvailable = null;
+  hdcAvailable = null;
   constructor(options = {}) {
     this.options = {
       scanInterval: 3e3,
@@ -1731,7 +4509,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$k.info("Starting mobile device scanner", { interval: this.options.scanInterval });
+    log$l.info("Starting mobile device scanner", { interval: this.options.scanInterval });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -1744,7 +4522,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$k.info("Mobile device scanner stopped");
+      log$l.info("Mobile device scanner stopped");
     }
   }
   /**
@@ -1761,20 +4539,29 @@ class MobileDeviceScanner {
       if (this.libimobiledeviceInstalled === null) {
         this.libimobiledeviceInstalled = await this.checkLibimobiledeviceInstalled();
       }
+      if (this.hdcAvailable === null) {
+        this.hdcAvailable = await this.checkHdcInstalled();
+      }
       if (this.adbAvailable) {
         const androidDevices = await this.scanAndroid();
         devices.push(...androidDevices);
       } else {
-        log$k.info("ADB not available, skipping Android scan");
+        log$l.info("ADB not available, skipping Android scan");
       }
       if (this.libimobiledeviceInstalled) {
         const iosDevices = await this.scanIOS();
         devices.push(...iosDevices);
       } else {
-        log$k.debug("libimobiledevice not available, skipping iOS scan");
+        log$l.debug("libimobiledevice not available, skipping iOS scan");
+      }
+      if (this.hdcAvailable) {
+        const ohosDevices = await this.scanOHOS();
+        devices.push(...ohosDevices);
+      } else {
+        log$l.debug("hdc not available, skipping OHOS scan");
       }
     } catch (error) {
-      log$k.error("Mobile device scan error:", error);
+      log$l.error("Mobile device scan error:", error);
     }
     const newIds = new Set(devices.map((d) => d.id));
     const oldIds = new Set(this.currentDevices.keys());
@@ -1789,10 +4576,10 @@ class MobileDeviceScanner {
       }
     }
     if (added.length > 0) {
-      log$k.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
+      log$l.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
     }
     if (removed.length > 0) {
-      log$k.info("Devices removed:", removed);
+      log$l.info("Devices removed:", removed);
     }
     const changed = devices.some((device) => {
       const previous = this.currentDevices.get(device.id);
@@ -1837,10 +4624,10 @@ class MobileDeviceScanner {
   async checkLibimobiledeviceInstalled() {
     try {
       const { stdout, stderr } = await execAsync("which idevice_id");
-      log$k.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$l.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$k.debug("libimobiledevice check failed:", error);
+      log$l.debug("libimobiledevice check failed:", error);
       return false;
     }
   }
@@ -1850,15 +4637,33 @@ class MobileDeviceScanner {
   async checkAdbInstalled() {
     const bundled = ToolPathResolver.getAdbPath();
     if (bundled) {
-      log$k.debug("adb resolved (bundled):", bundled);
+      log$l.debug("adb resolved (bundled):", bundled);
       return true;
     }
     try {
       const { stdout, stderr } = await execAsync("which adb");
-      log$k.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      log$l.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
       return !!stdout.trim();
     } catch (error) {
-      log$k.debug("ADB check failed:", error);
+      log$l.debug("ADB check failed:", error);
+      return false;
+    }
+  }
+  /**
+   * Check if hdc (HarmonyOS Device Connector) is installed
+   */
+  async checkHdcInstalled() {
+    const bundled = ToolPathResolver.getHdcPath();
+    if (bundled) {
+      log$l.debug("hdc resolved (bundled):", bundled);
+      return true;
+    }
+    try {
+      const { stdout, stderr } = await execAsync("which hdc");
+      log$l.debug("hdc path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      return !!stdout.trim();
+    } catch (error) {
+      log$l.debug("hdc check failed:", error);
       return false;
     }
   }
@@ -1870,7 +4675,7 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`);
       if (stderr) {
-        log$k.debug("ADB command stderr:", stderr);
+        log$l.debug("ADB command stderr:", stderr);
       }
       const lines = stdout.trim().split("\n");
       for (const line of lines) {
@@ -1884,11 +4689,11 @@ class MobileDeviceScanner {
           const stateMatch = deviceInfo.match(/^(\S+)/);
           const state = stateMatch ? stateMatch[1] : "unknown";
           if (state === "offline") {
-            log$k.info("Device offline, skipping:", serial);
+            log$l.info("Device offline, skipping:", serial);
             continue;
           }
           if (state === "unauthorized") {
-            log$k.info("Device unauthorized (needs USB debugging authorization):", serial);
+            log$l.info("Device unauthorized (needs USB debugging authorization):", serial);
             devices.push({
               id: `android:${serial}`,
               type: "android",
@@ -1901,7 +4706,7 @@ class MobileDeviceScanner {
           const modelMatch = deviceInfo.match(/model:([^\s]+)/);
           if (modelMatch) {
             model = modelMatch[1].replace(/_/g, " ");
-            log$k.debug("Extracted model name:", model);
+            log$l.debug("Extracted model name:", model);
           }
           let product = "";
           const productMatch = deviceInfo.match(/product:([^\s]+)/);
@@ -1915,14 +4720,14 @@ class MobileDeviceScanner {
             model: deviceInfo
           });
         } else {
-          log$k.debug("Line did not match device pattern:", line);
+          log$l.debug("Line did not match device pattern:", line);
         }
       }
     } catch (error) {
-      log$k.error("Android scan error:", error);
+      log$l.error("Android scan error:", error);
       if (error instanceof Error) {
-        log$k.error("Error message:", error.message);
-        log$k.error("Error stack:", error.stack);
+        log$l.error("Error message:", error.message);
+        log$l.error("Error stack:", error.stack);
       }
     }
     return devices;
@@ -1935,44 +4740,44 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""');
       if (stderr) {
-        log$k.debug("idevice_id stderr:", stderr);
+        log$l.debug("idevice_id stderr:", stderr);
       }
       const udidList = stdout.trim().split("\n").filter((line) => line.trim());
       for (const udid of udidList) {
         if (!udid.trim()) continue;
-        log$k.debug("Processing iOS device:", udid);
+        log$l.debug("Processing iOS device:", udid);
         try {
           let deviceName = "iOS Device";
           try {
-            log$k.debug(`Getting device name for ${udid}...`);
+            log$l.debug(`Getting device name for ${udid}...`);
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
               `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             );
-            log$k.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
+            log$l.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
             if (nameOutput.trim()) {
               deviceName = nameOutput.trim();
             }
           } catch (nameError) {
-            log$k.debug("Failed to get device name:", nameError);
+            log$l.debug("Failed to get device name:", nameError);
           }
           let pairingStatus = "unpaired";
           try {
-            log$k.debug(`Checking pairing status for ${udid}...`);
+            log$l.debug(`Checking pairing status for ${udid}...`);
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
               `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
             );
-            log$k.debug(`idevicepair output:`, pairOutput, pairStderr);
+            log$l.debug(`idevicepair output:`, pairOutput, pairStderr);
             if (pairOutput.includes("SUCCESS")) {
               pairingStatus = "paired";
             } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
               pairingStatus = "unpaired";
-              log$k.info(`iOS device ${udid} needs pairing`);
+              log$l.info(`iOS device ${udid} needs pairing`);
             }
           } catch (pairError) {
-            log$k.debug("Failed to check pairing status:", pairError);
+            log$l.debug("Failed to check pairing status:", pairError);
             pairingStatus = "unpaired";
           }
-          log$k.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
+          log$l.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
           devices.push({
             id: `ios:${udid}`,
             type: "ios",
@@ -1980,14 +4785,49 @@ class MobileDeviceScanner {
             pairingStatus
           });
         } catch (error) {
-          log$k.error(`iOS device ${udid} scan error:`, error);
+          log$l.error(`iOS device ${udid} scan error:`, error);
         }
       }
     } catch (error) {
-      log$k.error("iOS scan error:", error);
+      log$l.error("iOS scan error:", error);
       if (error instanceof Error) {
-        log$k.error("Error message:", error.message);
+        log$l.error("Error message:", error.message);
       }
+    }
+    return devices;
+  }
+  /**
+   * Scan for HarmonyOS(OHOS) devices using hdc
+   */
+  async scanOHOS() {
+    const devices = [];
+    try {
+      const { stdout, stderr } = await execAsync(`${ToolPathResolver.getHdcExecutable()} list targets`);
+      if (stderr) {
+        log$l.debug("hdc list targets stderr:", stderr);
+      }
+      const connectKeys = parseHdcListTargets(stdout);
+      for (const key of connectKeys) {
+        let name = "HarmonyOS Device";
+        try {
+          const { stdout: nameOutput } = await execAsync(
+            `${ToolPathResolver.getHdcExecutable()} -t ${key} shell param get const.product.name 2>/dev/null || echo ""`
+          );
+          if (nameOutput.trim()) {
+            name = nameOutput.trim();
+          }
+        } catch (nameError) {
+          log$l.debug("Failed to get OHOS device name:", nameError);
+        }
+        log$l.info("Found OHOS device:", { connectKey: key, name });
+        devices.push({
+          id: `ohos:${key}`,
+          type: "ohos",
+          name
+        });
+      }
+    } catch (error) {
+      log$l.error("OHOS scan error:", error);
     }
     return devices;
   }
@@ -2001,12 +4841,12 @@ class MobileDeviceScanner {
    * Notify all handlers of device changes
    */
   notifyHandlers(devices, added, removed) {
-    log$k.debug(`Notifying ${this.handlers.length} handlers`);
+    log$l.debug(`Notifying ${this.handlers.length} handlers`);
     for (const handler of this.handlers) {
       try {
         handler(devices, added, removed);
       } catch (error) {
-        log$k.error("Device change handler error:", error);
+        log$l.error("Device change handler error:", error);
       }
     }
   }
@@ -2022,11 +4862,17 @@ class MobileDeviceScanner {
   isAdbAvailable() {
     return this.adbAvailable;
   }
+  /**
+   * Check if hdc is available
+   */
+  isHdcAvailable() {
+    return this.hdcAvailable;
+  }
 }
 function sameDetectedDevice(a, b) {
   return a.id === b.id && a.type === b.type && a.name === b.name && a.model === b.model && a.pairingStatus === b.pairingStatus;
 }
-const log$j = console;
+const log$k = console;
 class MobileDiscoveryService {
   constructor(configService2) {
     this.configService = configService2;
@@ -2067,13 +4913,13 @@ class MobileDiscoveryService {
   async rememberDevice(deviceId) {
     this.autoConnectDevices.add(deviceId);
     await this.saveAutoConnectDevices();
-    log$j.log(`[MobileDiscovery] remembered auto-connect device: ${deviceId}`);
+    log$k.log(`[MobileDiscovery] remembered auto-connect device: ${deviceId}`);
   }
   /** Forget a mobile device (remove from auto-connect) */
   async forgetDevice(deviceId) {
     this.autoConnectDevices.delete(deviceId);
     await this.saveAutoConnectDevices();
-    log$j.log(`[MobileDiscovery] forgot auto-connect device: ${deviceId}`);
+    log$k.log(`[MobileDiscovery] forgot auto-connect device: ${deviceId}`);
   }
   /** Get list of auto-connect device IDs */
   getAutoConnectDevices() {
@@ -2099,7 +4945,7 @@ class MobileDiscoveryService {
     this.configService.saveConfig(config);
   }
 }
-const log$i = console;
+const log$j = console;
 class AdapterConnectionManager {
   constructor(credentialService2, factory, hooks) {
     this.credentialService = credentialService2;
@@ -2154,7 +5000,7 @@ class AdapterConnectionManager {
         } catch {
         }
         this.adapters.delete(deviceId);
-        log$i.error(`[AdapterConnection] 设备连接失败 (${deviceId}):`, error);
+        log$j.error(`[AdapterConnection] 设备连接失败 (${deviceId}):`, error);
         this.hooks.onStatus(deviceId, "disconnected");
         throw error;
       } finally {
@@ -2212,7 +5058,7 @@ class DeviceManager {
     const os2 = require2("os");
     const hostname = os2.hostname().replace(/\.local$/, "");
     const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
-    return isIPv4 ? "本机" : hostname;
+    return isIPv4 ? t("devices.localName") : hostname;
   }
   /**
    * Handle mobile device discovery events
@@ -2444,7 +5290,7 @@ class DeviceManager {
       throw new Error(`Device not found: ${deviceId}`);
     }
     if (device.type !== "ios") {
-      return { success: false, error: "该设备类型无需/不支持配对" };
+      return { success: false, error: t("errors.main.pairingNotApplicable") };
     }
     return pairIosDevice(deviceId);
   }
@@ -2470,6 +5316,10 @@ class DeviceManager {
         return new LocalAdapter();
       case "android":
         return new AndroidAdapter(device.id, device.name, {
+          deviceId: config.id
+        });
+      case "ohos":
+        return new OhosAdapter(device.id, device.name, {
           deviceId: config.id
         });
       case "smb":
@@ -2530,7 +5380,7 @@ class DeviceManager {
     await this.connectDevice(deviceId);
     const connectedAdapter = this.connections.tryGetAdapter(deviceId);
     if (!connectedAdapter?.isConnected()) {
-      throw new Error(`设备连接后仍不可用: ${deviceId}`);
+      throw new Error(t("errors.main.deviceStillUnavailable", { name: deviceId }));
     }
     return connectedAdapter;
   }
@@ -2738,9 +5588,7 @@ class StreamTransfer {
   static async verifyTargetSize(target, dstPath, expectedBytes) {
     const stat2 = await target.stat(dstPath);
     if (!stat2.isFile || stat2.size !== expectedBytes) {
-      throw new Error(
-        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat2.size} 字节`
-      );
+      throw new Error(t("errors.main.transferVerifyFailed", { path: dstPath, expected: expectedBytes, actual: stat2.size }));
     }
   }
 }
@@ -2748,6 +5596,7 @@ const CH = {
   invoke: {
     // system:
     systemGetHomeDir: "system:getHomeDir",
+    systemSaveFileDialog: "system:saveFileDialog",
     // window:
     fileInfoWindowOpen: "window:fileInfo:open",
     fileInfoWindowGetContext: "window:fileInfo:getContext",
@@ -2804,6 +5653,7 @@ const CH = {
     fsDirStatsStart: "fs:dirStats:start",
     fsDirStatsCancel: "fs:dirStats:cancel",
     fsReadChunk: "fs:readChunk",
+    fsSaveHexFile: "fs:saveHexFile",
     fsSymlink: "fs:symlink",
     fsReadlink: "fs:readlink",
     fsChmod: "fs:chmod",
@@ -2837,12 +5687,17 @@ const CH = {
     mobileForgetDevice: "mobile:forgetDevice",
     mobileCheckLibimobiledevice: "mobile:checkLibimobiledevice",
     mobileCaptureScreenshot: "mobile:captureScreenshot",
+    mobileCaptureScreen: "mobile:captureScreen",
     // thumbnail:
     thumbnailGet: "thumbnail:get",
     thumbnailClearCache: "thumbnail:clearCache",
     thumbnailGetCacheSize: "thumbnail:getCacheSize",
     // image:
     imageDecodeNative: "image:decodeNative",
+    imageEditEstimate: "image:editEstimate",
+    imageEditApply: "image:editApply",
+    imageEditBatchStart: "image:editBatchStart",
+    imageEditBatchCancel: "image:editBatchCancel",
     // volumes:
     volumesList: "volumes:list"
   },
@@ -2858,13 +5713,14 @@ const CH = {
     checksumProgress: "checksum:progress",
     dupesProgress: "dupes:progress",
     grepProgress: "grep:progress",
-    spaceProgress: "space:progress"
+    spaceProgress: "space:progress",
+    imageEditBatchProgress: "image:editBatchProgress"
   },
   send: {
     dragStartNative: "drag:startNative"
   }
 };
-const log$h = console;
+const log$i = console;
 function generateTaskId() {
   return `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
@@ -2979,7 +5835,7 @@ class FileOperationManager {
     const task = new TransferTask(params);
     this.queue.push(task);
     this.notifyTaskAdded(task);
-    log$h.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
+    log$i.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
     this.processQueue();
     return task;
   }
@@ -2990,7 +5846,7 @@ class FileOperationManager {
     try {
       await this.executeTask(this.currentTask);
     } catch (error) {
-      log$h.error("[FileOperationManager] task execution error:", error);
+      log$i.error("[FileOperationManager] task execution error:", error);
     } finally {
       this.isRunning = false;
       const completedTask = this.currentTask;
@@ -3109,7 +5965,7 @@ class FileOperationManager {
     try {
       isDir = (await source.stat(sourcePath)).isDirectory;
     } catch {
-      task.recordItem({ sourcePath, status: "failed", error: "无法读取源路径属性" });
+      task.recordItem({ sourcePath, status: "failed", error: t("errors.main.statSourceFailed") });
       return false;
     }
     const name = posixBaseName(sourcePath);
@@ -3125,7 +5981,7 @@ class FileOperationManager {
     try {
       if (await target.exists(dstDir)) {
         const targetStat = await target.stat(dstDir);
-        if (!targetStat.isDirectory) throw new Error(`目标路径不是目录: ${dstDir}`);
+        if (!targetStat.isDirectory) throw new Error(t("errors.main.targetNotDirectory", { path: dstDir }));
       } else {
         await target.mkdir(dstDir);
       }
@@ -3231,7 +6087,7 @@ class FileOperationManager {
       const candidate = joinPosix$1(parent, `${stem} ${suffix}${extension}`);
       if (!await target.exists(candidate)) return candidate;
     }
-    throw new Error(`无法为冲突文件生成可用名称: ${destination}`);
+    throw new Error(t("errors.main.conflictNameExhausted", { path: destination }));
   }
   /** 统计总量(含目录递归)。 */
   async computeTotals(source, paths) {
@@ -3309,7 +6165,7 @@ class FileOperationManager {
     const adapter = this.adapters.get(task.sourceDeviceId);
     if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
     const items = task.renameItems ?? [];
-    if (items.length === 0) throw new Error("批量重命名缺少预览后的名称列表。");
+    if (items.length === 0) throw new Error(t("errors.main.batchRenameNoItems"));
     task.progress.totalFiles = items.length;
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
@@ -3318,7 +6174,7 @@ class FileOperationManager {
       task.setCurrentFile(item.newName, index);
       const result = { sourcePath: item.sourcePath, targetPath: destination, status: "success" };
       try {
-        if (await adapter.exists(destination)) throw new Error(`目标名称已存在: ${item.newName}`);
+        if (await adapter.exists(destination)) throw new Error(t("errors.main.batchRenameTargetExists", { name: item.newName }));
         await adapter.rename(item.sourcePath, destination);
       } catch (error) {
         result.status = "failed";
@@ -3345,7 +6201,7 @@ class FileOperationManager {
           const trashDirectory = joinPosix$1(joinPosix$1(parent, ".fileman-recycle-bin"), task.id);
           await adapter.mkdir(trashDirectory);
           const trashPath = await this.resolveTargetPath(adapter, joinPosix$1(trashDirectory, posixBaseName(sourcePath)), "rename");
-          if (!trashPath) throw new Error("无法准备回收站路径");
+          if (!trashPath) throw new Error(t("errors.main.recyclePathFailed"));
           await adapter.rename(sourcePath, trashPath);
           result.targetPath = trashPath;
         }
@@ -3361,14 +6217,14 @@ class FileOperationManager {
     const adapter = this.adapters.get(task.sourceDeviceId);
     if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
     const items = task.restoreItems ?? [];
-    if (items.length === 0) throw new Error("恢复操作缺少原始路径。");
+    if (items.length === 0) throw new Error(t("errors.main.restoreMissingOriginalPaths"));
     task.progress.totalFiles = items.length;
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       const result = { sourcePath: item.trashPath, targetPath: item.originalPath, status: "success" };
       task.setCurrentFile(posixBaseName(item.originalPath), index);
       try {
-        if (await adapter.exists(item.originalPath)) throw new Error(`原始位置已有同名项目: ${item.originalPath}`);
+        if (await adapter.exists(item.originalPath)) throw new Error(t("errors.main.restoreTargetExists", { path: item.originalPath }));
         await adapter.rename(item.trashPath, item.originalPath);
       } catch (error) {
         result.status = "failed";
@@ -3419,8 +6275,8 @@ class FileOperationManager {
     if (this.currentTask?.id === taskId) {
       this.cancelled = true;
     } else {
-      const queuedTask = this.queue.find((t) => t.id === taskId);
-      this.queue = this.queue.filter((t) => t.id !== taskId);
+      const queuedTask = this.queue.find((t2) => t2.id === taskId);
+      this.queue = this.queue.filter((t2) => t2.id !== taskId);
       if (queuedTask) {
         queuedTask.markCancelled();
         this.addToHistory(queuedTask);
@@ -3428,14 +6284,14 @@ class FileOperationManager {
         this.resolveCompletion(queuedTask);
         return;
       }
-      const historyIndex = this.history.findIndex((t) => t.id === taskId);
+      const historyIndex = this.history.findIndex((t2) => t2.id === taskId);
       if (historyIndex > -1) {
         this.history[historyIndex].status = "cancelled";
       }
     }
   }
   async retryTask(taskId) {
-    const historyTask = this.history.find((t) => t.id === taskId);
+    const historyTask = this.history.find((t2) => t2.id === taskId);
     if (!historyTask) return null;
     const newTask = await this.addTask({
       type: historyTask.type,
@@ -3445,7 +6301,7 @@ class FileOperationManager {
       targetPath: historyTask.targetPath,
       newName: historyTask.newName
     });
-    this.history = this.history.filter((t) => t.id !== taskId);
+    this.history = this.history.filter((t2) => t2.id !== taskId);
     return newTask;
   }
   getQueue() {
@@ -4016,7 +6872,7 @@ const EXTENSION_KINDS = {
 new Set(
   Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "image").map(([e]) => e)
 );
-new Set(
+const SIPS_IMAGE_EXTS = new Set(
   Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "image" && d.sips).map(([e]) => e)
 );
 new Set(
@@ -4025,8 +6881,26 @@ new Set(
 new Set(
   Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "audio").map(([e]) => e)
 );
+const SHARP_IMAGE_EXTS = /* @__PURE__ */ new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "tiff",
+  "tif",
+  "gif",
+  "avif",
+  "bmp"
+]);
+const EDITABLE_IMAGE_EXTS = /* @__PURE__ */ new Set([...SHARP_IMAGE_EXTS, ...SIPS_IMAGE_EXTS]);
+function isEditableImageExt(extension) {
+  return EDITABLE_IMAGE_EXTS.has(normalizeExt(extension));
+}
+function normalizeExt(extension) {
+  return extension.toLowerCase().replace(/^\./, "");
+}
 const LOG_PREFIX$1 = "[ThumbnailService]";
-function log$g(message, ...args) {
+function log$h(message, ...args) {
   console.log(`${LOG_PREFIX$1} ${message}`, ...args);
 }
 function logError$1(message, ...args) {
@@ -4050,14 +6924,14 @@ class ThumbnailService {
   maxDiskCacheSize = 500 * 1024 * 1024;
   constructor() {
     this.cacheDir = path__default.join(app.getPath("userData"), "thumbnails");
-    log$g("Initializing ThumbnailService");
-    log$g("Cache directory:", this.cacheDir);
+    log$h("Initializing ThumbnailService");
+    log$h("Cache directory:", this.cacheDir);
     this.ensureCacheDir();
   }
   async ensureCacheDir() {
     try {
       await fs$1.ensureDir(this.cacheDir);
-      log$g("Cache directory ensured:", this.cacheDir);
+      log$h("Cache directory ensured:", this.cacheDir);
     } catch (e) {
       logError$1("Failed to create cache directory:", e);
     }
@@ -4065,12 +6939,12 @@ class ThumbnailService {
   generateCacheKey(deviceId, filePath, size, mtime) {
     const raw = `${deviceId}:${filePath}:${size}:${mtime}`;
     const hash = crypto.createHash("md5").update(raw).digest("hex").slice(0, 16);
-    log$g("Generated cache key:", hash, "for file:", filePath);
+    log$h("Generated cache key:", hash, "for file:", filePath);
     return hash;
   }
   async getThumbnail(deviceId, filePath, size, mtime, thumbnailSize, readFile) {
     const ext = path__default.extname(filePath).toLowerCase().replace(".", "");
-    log$g("getThumbnail called:", {
+    log$h("getThumbnail called:", {
       deviceId,
       filePath,
       size,
@@ -4079,26 +6953,26 @@ class ThumbnailService {
       ext
     });
     const cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime);
-    log$g("Checking disk cache for key:", cacheKey);
+    log$h("Checking disk cache for key:", cacheKey);
     const cachedThumbnail = await this.getFromDiskCache(cacheKey);
     if (cachedThumbnail) {
-      log$g("Cache HIT for:", filePath, "key:", cacheKey);
+      log$h("Cache HIT for:", filePath, "key:", cacheKey);
       return { cacheKey, thumbnailBase64: cachedThumbnail };
     }
-    log$g("Cache MISS for:", filePath, "key:", cacheKey);
+    log$h("Cache MISS for:", filePath, "key:", cacheKey);
     if (!SUPPORTED_IMAGE_FORMATS.has(ext) && !SUPPORTED_VIDEO_FORMATS.has(ext)) {
       logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
       return null;
     }
     const dimensions = THUMBNAIL_SIZES[thumbnailSize];
-    log$g("Target dimensions:", dimensions);
+    log$h("Target dimensions:", dimensions);
     let thumbnailBuffer = null;
     const startTime = Date.now();
     if (SUPPORTED_IMAGE_FORMATS.has(ext)) {
-      log$g("Generating image thumbnail for:", filePath);
+      log$h("Generating image thumbnail for:", filePath);
       thumbnailBuffer = await this.generateImageThumbnail(filePath, deviceId, readFile, dimensions);
     } else if (SUPPORTED_VIDEO_FORMATS.has(ext)) {
-      log$g("Generating video thumbnail for:", filePath);
+      log$h("Generating video thumbnail for:", filePath);
       thumbnailBuffer = await this.generateVideoThumbnail(filePath, deviceId, readFile, dimensions);
     }
     const elapsed = Date.now() - startTime;
@@ -4106,7 +6980,7 @@ class ThumbnailService {
       logError$1("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
       return null;
     }
-    log$g(
+    log$h(
       "Thumbnail generated successfully for:",
       filePath,
       "size:",
@@ -4127,10 +7001,10 @@ class ThumbnailService {
     try {
       if (await fs$1.pathExists(cachePath)) {
         const buffer = await fs$1.readFile(cachePath);
-        log$g("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
+        log$h("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
         return buffer.toString("base64");
       } else {
-        log$g("Disk cache miss, key:", cacheKey, "path:", cachePath);
+        log$h("Disk cache miss, key:", cacheKey, "path:", cachePath);
       }
     } catch (e) {
       logError$1("Error reading disk cache:", cacheKey, e);
@@ -4141,24 +7015,24 @@ class ThumbnailService {
     const cachePath = path__default.join(this.cacheDir, `${cacheKey}.webp`);
     try {
       await fs$1.writeFile(cachePath, thumbnailBuffer);
-      log$g("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
+      log$h("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
     } catch (e) {
       logError$1("Failed to save to disk cache:", cacheKey, e);
     }
   }
   async generateImageThumbnail(filePath, deviceId, readFile, dimensions) {
     try {
-      log$g("Reading image file:", filePath, "deviceId:", deviceId);
+      log$h("Reading image file:", filePath, "deviceId:", deviceId);
       const readStartTime = Date.now();
       const fileBuffer = await readFile(deviceId, filePath);
-      log$g("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
-      log$g("Processing image with sharp, target dimensions:", dimensions);
+      log$h("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
+      log$h("Processing image with sharp, target dimensions:", dimensions);
       const processStartTime = Date.now();
       const result = await sharp(fileBuffer).resize(dimensions.width, dimensions.height, {
         fit: "cover",
         withoutEnlargement: true
       }).webp({ quality: 92 }).toBuffer();
-      log$g("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
+      log$h("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
       return result;
     } catch (e) {
       logError$1("Failed to generate image thumbnail:", filePath, e);
@@ -4170,10 +7044,10 @@ class ThumbnailService {
       logError$1("ffmpeg not available, cannot generate video thumbnail");
       return null;
     }
-    log$g("ffmpeg path:", ffmpeg);
+    log$h("ffmpeg path:", ffmpeg);
     try {
       if (deviceId === "local") {
-        log$g("Extracting video frame from local file:", filePath);
+        log$h("Extracting video frame from local file:", filePath);
         return await this.extractVideoFrameLocal(filePath, dimensions);
       }
       logWarn("Video thumbnail for remote files not yet supported, deviceId:", deviceId);
@@ -4189,11 +7063,11 @@ class ThumbnailService {
     const execFileAsync2 = util.promisify(execFile2);
     const tempDir = app.getPath("temp");
     const outputPath = path__default.join(tempDir, `thumb_${Date.now()}.webp`);
-    log$g("extractVideoFrameLocal - input:", filePath);
-    log$g("extractVideoFrameLocal - output:", outputPath);
-    log$g("extractVideoFrameLocal - dimensions:", dimensions);
+    log$h("extractVideoFrameLocal - input:", filePath);
+    log$h("extractVideoFrameLocal - output:", outputPath);
+    log$h("extractVideoFrameLocal - dimensions:", dimensions);
     try {
-      log$g("Attempting ffmpeg extraction at 1 second offset");
+      log$h("Attempting ffmpeg extraction at 1 second offset");
       const startTime = Date.now();
       await execFileAsync2(ffmpeg, [
         "-i",
@@ -4207,17 +7081,17 @@ class ThumbnailService {
         "-y",
         outputPath
       ], { timeout: 1e4 });
-      log$g("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
+      log$h("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
       const buffer = await fs$1.readFile(outputPath);
-      log$g("Read thumbnail file, size:", buffer.length, "bytes");
+      log$h("Read thumbnail file, size:", buffer.length, "bytes");
       await fs$1.unlink(outputPath).catch(() => {
       });
-      log$g("Cleaned up temp file:", outputPath);
+      log$h("Cleaned up temp file:", outputPath);
       return buffer;
     } catch (firstError) {
       logWarn("ffmpeg extraction at 1s failed, trying at 0s:", firstError);
       try {
-        log$g("Attempting ffmpeg extraction at 0 second offset");
+        log$h("Attempting ffmpeg extraction at 0 second offset");
         const startTime = Date.now();
         await execFileAsync2(ffmpeg, [
           "-i",
@@ -4231,12 +7105,12 @@ class ThumbnailService {
           "-y",
           outputPath
         ], { timeout: 1e4 });
-        log$g("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
+        log$h("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
         const buffer = await fs$1.readFile(outputPath);
-        log$g("Read thumbnail file, size:", buffer.length, "bytes");
+        log$h("Read thumbnail file, size:", buffer.length, "bytes");
         await fs$1.unlink(outputPath).catch(() => {
         });
-        log$g("Cleaned up temp file:", outputPath);
+        log$h("Cleaned up temp file:", outputPath);
         return buffer;
       } catch (secondError) {
         logError$1("ffmpeg extraction at 0s also failed:", filePath, secondError);
@@ -4245,10 +7119,10 @@ class ThumbnailService {
     }
   }
   async clearCache() {
-    log$g("Clearing disk cache at:", this.cacheDir);
+    log$h("Clearing disk cache at:", this.cacheDir);
     try {
       await fs$1.emptyDir(this.cacheDir);
-      log$g("Disk cache cleared successfully");
+      log$h("Disk cache cleared successfully");
     } catch (e) {
       logError$1("Failed to clear disk cache:", e);
     }
@@ -4257,12 +7131,12 @@ class ThumbnailService {
     let totalSize = 0;
     try {
       const files = await fs$1.readdir(this.cacheDir);
-      log$g("Calculating cache size, files count:", files.length);
+      log$h("Calculating cache size, files count:", files.length);
       for (const file of files) {
         const stat2 = await fs$1.stat(path__default.join(this.cacheDir, file));
         totalSize += stat2.size;
       }
-      log$g("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
+      log$h("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
     } catch (e) {
       logError$1("Failed to calculate cache size:", e);
     }
@@ -4271,7 +7145,7 @@ class ThumbnailService {
 }
 const execFileAsync = promisify(execFile);
 const LOG_PREFIX = "[ImageDecodeService]";
-function log$f(...args) {
+function log$g(...args) {
   console.log(LOG_PREFIX, ...args);
 }
 function logError(...args) {
@@ -4302,11 +7176,11 @@ class ImageDecodeService {
       }
       await this.runSips(inputFile, outFile, maxDim);
       const bytes = await fs$1.readFile(outFile);
-      log$f(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
+      log$g(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
       return { buffer: bytes.toString("base64"), mime: "image/jpeg" };
     } finally {
-      for (const t of temps) {
-        await fs$1.remove(t).catch(() => void 0);
+      for (const t2 of temps) {
+        await fs$1.remove(t2).catch(() => void 0);
       }
     }
   }
@@ -4337,7 +7211,7 @@ class ImageDecodeService {
   }
   tempPath(ext) {
     const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    return path__default.join(os.tmpdir(), `fileman-decode-${unique}${ext}`);
+    return path__default.join(os__default.tmpdir(), `fileman-decode-${unique}${ext}`);
   }
 }
 const EOCD_SIG = 101010256;
@@ -4419,13 +7293,13 @@ class ZipService {
   async readEntry(zipFilePath, entryPath) {
     const { buf, entries } = this._load(zipFilePath);
     const entry = entries.find((e) => e.path === entryPath || e.path === entryPath.replace(/\/$/, ""));
-    if (!entry) throw new Error(`ZIP entry not found: ${entryPath}`);
+    if (!entry) throw new Error(t("errors.main.zipEntryNotFound", { path: entryPath }));
     return this._readEntryData(buf, entry);
   }
   // ── Central Directory Parser ───────────────────────────────────────────────
   _parseCentralDirectory(buf, label) {
     const fileSize = buf.length;
-    if (fileSize < 22) throw new Error("File too small to be a valid ZIP");
+    if (fileSize < 22) throw new Error(t("errors.main.zipTooSmall"));
     const scanStart = Math.max(0, fileSize - 65557);
     let eocdOff = -1;
     for (let i = fileSize - 22; i >= scanStart; i--) {
@@ -4434,13 +7308,13 @@ class ZipService {
         break;
       }
     }
-    if (eocdOff < 0) throw new Error(`EOCD not found in ${label}`);
+    if (eocdOff < 0) throw new Error(t("errors.main.zipEocdNotFound", { path: label }));
     let cdOffset;
     let cdSize;
     const locOff = eocdOff - 20;
     if (locOff >= 0 && buf.readUInt32LE(locOff) === EOCD64_LOC_SIG) {
       const eocd64Abs = Number(buf.readBigUInt64LE(locOff + 8));
-      if (buf.readUInt32LE(eocd64Abs) !== EOCD64_SIG) throw new Error("ZIP64 EOCD signature mismatch");
+      if (buf.readUInt32LE(eocd64Abs) !== EOCD64_SIG) throw new Error(t("errors.main.zip64EocdMismatch"));
       cdSize = Number(buf.readBigUInt64LE(eocd64Abs + 40));
       cdOffset = Number(buf.readBigUInt64LE(eocd64Abs + 48));
     } else {
@@ -4511,7 +7385,7 @@ class ZipService {
   _readEntryData(buf, entry) {
     if (entry.isDirectory) return Buffer.alloc(0);
     const lfhOff = entry.localHeaderOffset;
-    if (buf.readUInt32LE(lfhOff) !== LFH_SIG) throw new Error("Local file header signature mismatch");
+    if (buf.readUInt32LE(lfhOff) !== LFH_SIG) throw new Error(t("errors.main.zipLfhMismatch"));
     const lfhFileNameLen = buf.readUInt16LE(lfhOff + 26);
     const lfhExtraLen = buf.readUInt16LE(lfhOff + 28);
     const dataOffset = lfhOff + 30 + lfhFileNameLen + lfhExtraLen;
@@ -4521,7 +7395,7 @@ class ZipService {
     } else if (entry.compressionMethod === 8) {
       return zlib.inflateRawSync(compressed);
     } else {
-      throw new Error(`Unsupported compression method: ${entry.compressionMethod}`);
+      throw new Error(t("errors.main.zipUnsupportedCompression", { method: entry.compressionMethod }));
     }
   }
 }
@@ -4538,7 +7412,7 @@ function dosDateToIso(date, time) {
   const seconds = (time & 31) * 2;
   return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
 }
-const log$e = {
+const log$f = {
   info: (message, ...args) => console.log(`[VolumeScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[VolumeScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[VolumeScanner] DEBUG: ${message}`, ...args)
@@ -4562,7 +7436,7 @@ class VolumeScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$e.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
+    log$f.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -4575,7 +7449,7 @@ class VolumeScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$e.info("Volume scanner stopped");
+      log$f.info("Volume scanner stopped");
     }
   }
   /**
@@ -4589,7 +7463,7 @@ class VolumeScanner {
       const detected = await this.detectVolumes();
       volumes.push(...detected);
     } catch (error) {
-      log$e.error("Volume scan error:", error);
+      log$f.error("Volume scan error:", error);
     }
     const newIds = new Set(volumes.map((v) => v.id));
     const oldIds = new Set(this.currentVolumes.keys());
@@ -4604,10 +7478,10 @@ class VolumeScanner {
       }
     }
     if (added.length > 0) {
-      log$e.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
+      log$f.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
     }
     if (removed.length > 0) {
-      log$e.info("Volumes removed:", removed);
+      log$f.info("Volumes removed:", removed);
     }
     this.currentVolumes.clear();
     for (const volume of volumes) {
@@ -4629,7 +7503,7 @@ class VolumeScanner {
     try {
       entries = await fs$1.readdir(this.options.volumesDir, { withFileTypes: true });
     } catch (error) {
-      log$e.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
+      log$f.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
       return [];
     }
     for (const entry of entries) {
@@ -4668,7 +7542,7 @@ class VolumeScanner {
       try {
         handler(volumes, added, removed);
       } catch (error) {
-        log$e.error("Volume change handler error:", error);
+        log$f.error("Volume change handler error:", error);
       }
     }
   }
@@ -4776,7 +7650,7 @@ end tell`;
    */
   detectDevApps() {
     if (this.detectedAppsCache) return this.detectedAppsCache;
-    const roots = ["/Applications", path__default.join(os.homedir(), "Applications")];
+    const roots = ["/Applications", path__default.join(os__default.homedir(), "Applications")];
     const found = [];
     for (const candidate of DEV_APP_CANDIDATES) {
       for (const root of roots) {
@@ -4795,7 +7669,7 @@ end tell`;
     return found;
   }
 }
-const log$d = console;
+const log$e = console;
 class FileMetadataService {
   constructor(configService2) {
     this.configService = configService2;
@@ -4809,7 +7683,7 @@ class FileMetadataService {
     const value = { deviceId, path: filePath, tags: normalized, updatedAt: Date.now() };
     metadata.push(value);
     this.save(metadata);
-    log$d.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
+    log$e.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
     return value;
   }
   findByTags(tags) {
@@ -4824,7 +7698,7 @@ class FileMetadataService {
     this.configService.saveConfig({ fileMetadata });
   }
 }
-const log$c = console;
+const log$d = console;
 function joinPath(parent, name) {
   return `${parent.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
 }
@@ -4843,20 +7717,20 @@ class ArchiveService {
     const safeName = archiveName.toLowerCase().endsWith(".zip") ? archiveName : `${archiveName}.zip`;
     const targetPath = joinPath(targetDirectory, safeName);
     await this.deviceManager.writeFile(deviceId, targetPath, Buffer.from(zipSync(entries, { level: 6 })));
-    log$c.info("[ArchiveService] archive created", { deviceId, targetPath, entryCount: Object.keys(entries).length });
+    log$d.info("[ArchiveService] archive created", { deviceId, targetPath, entryCount: Object.keys(entries).length });
     return { path: targetPath };
   }
   async extractZip(deviceId, archivePath, targetDirectory) {
     const entries = unzipSync(await this.deviceManager.readFile(deviceId, archivePath));
     let count = 0;
     for (const [entryPath, data] of Object.entries(entries)) {
-      if (entryPath.includes("..") || entryPath.startsWith("/")) throw new Error(`不安全的 ZIP 条目: ${entryPath}`);
+      if (entryPath.includes("..") || entryPath.startsWith("/")) throw new Error(t("errors.main.archiveUnsafeEntry", { path: entryPath }));
       const outputPath = joinPath(targetDirectory, entryPath);
       await this.ensureParentDirectories(deviceId, outputPath);
       await this.deviceManager.writeFile(deviceId, outputPath, Buffer.from(data));
       count++;
     }
-    log$c.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
+    log$d.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
     return { count };
   }
   async collect(deviceId, sourcePath, relativePath, entries) {
@@ -4878,31 +7752,71 @@ class ArchiveService {
     }
   }
 }
-const log$b = console;
+const log$c = console;
 function posixJoin(directory, name) {
   return `${directory.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
 }
-function screenshotName() {
-  return `Screenshot-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19)}.png`;
+function screenshotName(mime) {
+  const ext = mime === "image/png" ? "png" : "jpg";
+  return `Screenshot-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19)}.${ext}`;
+}
+let tempSeq = 0;
+function localTempPath(suffix) {
+  const seq = ++tempSeq;
+  return path.join(os.tmpdir(), `fileman-shot-${process.pid}-${Date.now()}-${seq}.${suffix}`);
+}
+function isPng(buf) {
+  return buf.length >= 8 && buf[0] === 137 && buf.subarray(1, 4).toString("ascii") === "PNG";
+}
+function isJpeg(buf) {
+  return buf.length >= 3 && buf[0] === 255 && buf[1] === 216 && buf[2] === 255;
+}
+function validateImage(buf) {
+  if (isPng(buf)) return "image/png";
+  if (isJpeg(buf)) return "image/jpeg";
+  return null;
 }
 class MobileScreenshotService {
   constructor(deviceManager2) {
     this.deviceManager = deviceManager2;
   }
-  async captureToDirectory(deviceId, targetDirectory) {
+  /** 截屏到内存(不落盘)——侧边栏工具栏的「先展示、后保存」流程。 */
+  async capture(deviceId) {
     const device = this.deviceManager.getDevice(deviceId);
-    if (!device || device.type !== "android") {
-      throw new Error("只有已连接的 Android 设备支持截屏。");
+    if (!device) {
+      throw new Error(t("errors.main.screenshotDeviceMissing"));
     }
-    const serial = deviceId.replace(/^android:/, "");
-    log$b.info("[MobileScreenshotService] capture started", { deviceId, targetDirectory });
-    const png = await this.capture(serial);
-    const targetPath = posixJoin(targetDirectory, screenshotName());
-    await this.deviceManager.writeFile(deviceId, targetPath, png);
-    log$b.info("[MobileScreenshotService] capture saved", { deviceId, targetPath, bytes: png.length });
+    if (device.type === "android") {
+      const serial = deviceId.replace(/^android:/, "");
+      log$c.info("[MobileScreenshotService] android capture started", { deviceId });
+      const png = await this.captureAndroid(serial);
+      return { data: png, mime: "image/png" };
+    }
+    if (device.type === "ohos") {
+      const connectKey = deviceId.replace(/^ohos:/, "");
+      log$c.info("[MobileScreenshotService] ohos capture started", { deviceId });
+      const shot = await this.captureOhos(connectKey);
+      return shot;
+    }
+    if (device.type === "ios") {
+      const udid = deviceId.replace(/^ios:/, "");
+      log$c.info("[MobileScreenshotService] ios capture started", { deviceId });
+      const png = await this.captureIos(udid);
+      return { data: png, mime: "image/png" };
+    }
+    throw new Error(t("errors.main.screenshotUnsupportedDevice"));
+  }
+  /** 截屏并直接写入目标目录(FilePane 工具栏旧行为,写回设备自身)。 */
+  async captureToDirectory(deviceId, targetDirectory) {
+    const { data, mime } = await this.capture(deviceId);
+    const targetPath = posixJoin(targetDirectory, screenshotName(mime));
+    await this.deviceManager.writeFile(deviceId, targetPath, data);
+    log$c.info("[MobileScreenshotService] capture saved", { deviceId, targetPath, bytes: data.length });
     return { path: targetPath };
   }
-  capture(serial) {
+  // ============ 各设备取像素 ============
+  /** Android: adb exec-out screencap -p,stdout 即 PNG 流。 */
+  captureAndroid(serial) {
     return new Promise((resolve, reject) => {
       const child = spawn(ToolPathResolver.getAdbExecutable(), ["-s", serial, "exec-out", "screencap", "-p"], {
         stdio: ["ignore", "pipe", "pipe"]
@@ -4911,18 +7825,66 @@ class MobileScreenshotService {
       const errors = [];
       child.stdout.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
       child.stderr.on("data", (chunk) => errors.push(Buffer.from(chunk)));
-      child.once("error", (error) => reject(new Error(`无法启动 adb 截屏: ${error.message}`)));
+      child.once("error", (error) => reject(new Error(t("errors.main.screenshotAdbSpawnFailed", { message: error.message }))));
       child.once("close", (code) => {
         if (code !== 0) {
-          reject(new Error(`Android 截屏失败(code=${code}): ${Buffer.concat(errors).toString("utf8").trim()}`));
+          reject(new Error(t("errors.main.screenshotAndroidFailed", { code: String(code), message: Buffer.concat(errors).toString("utf8").trim() })));
           return;
         }
-        const png = Buffer.concat(chunks);
-        if (png.length < 8 || png.subarray(1, 4).toString("ascii") !== "PNG") {
-          reject(new Error("Android 截屏没有返回有效 PNG 数据。"));
+        try {
+          const png = Buffer.concat(chunks);
+          if (!validateImage(png)) throw new Error(t("errors.main.screenshotInvalidAndroid"));
+          resolve(png);
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      });
+    });
+  }
+  /** OHOS: snapshot_display 落远端临时文件,file recv 拉回(默认 JPEG)。 */
+  async captureOhos(connectKey) {
+    const remotePath = `/data/local/tmp/fm-shot-${process.pid}-${Date.now()}.jpeg`;
+    const localPath = localTempPath("jpeg");
+    try {
+      await runHdcShell(connectKey, `snapshot_display -f ${remotePath}`);
+      await runHdc([...hdcTargetArgs(connectKey), "file", "recv", remotePath, localPath], { timeoutMs: 12e4 });
+      const data = await fs.promises.readFile(localPath);
+      const mime = validateImage(data);
+      if (!mime) throw new Error(t("errors.main.screenshotInvalidOhos"));
+      return { data, mime };
+    } finally {
+      void fs.promises.rm(localPath, { force: true }).catch(() => {
+      });
+      runHdcShell(connectKey, `rm -f ${remotePath}`).catch((error) => {
+        log$c.warn("[MobileScreenshotService] ohos remote temp cleanup failed:", error);
+      });
+    }
+  }
+  /** iOS: idevicescreenshot 写本地临时文件(PNG)。 */
+  captureIos(udid) {
+    const localPath = localTempPath("png");
+    return new Promise((resolve, reject) => {
+      const child = spawn("idevicescreenshot", ["-u", udid, localPath], {
+        stdio: ["ignore", "ignore", "pipe"]
+      });
+      const errors = [];
+      child.stderr.on("data", (chunk) => errors.push(Buffer.from(chunk)));
+      child.once("error", (error) => {
+        const message = error.code === "ENOENT" ? t("errors.main.screenshotIdeviceCliMissing") : t("errors.main.screenshotIdeviceSpawnFailed", { message: error.message });
+        reject(new Error(message));
+      });
+      child.once("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(t("errors.main.screenshotIosFailed", { code: String(code), message: Buffer.concat(errors).toString("utf8").trim() })));
           return;
         }
-        resolve(png);
+        fs.promises.readFile(localPath).then((data) => {
+          if (!validateImage(data)) throw new Error(t("errors.main.screenshotInvalidIos"));
+          resolve(data);
+        }).catch((error) => reject(error instanceof Error ? error : new Error(String(error)))).finally(() => {
+          void fs.promises.rm(localPath, { force: true }).catch(() => {
+          });
+        });
       });
     });
   }
@@ -4947,7 +7909,7 @@ async function hashAdapterFile(adapter, filePath, size, options = {}) {
     }
   }
   if (size > MAX_BUFFERED_BYTES) {
-    throw new Error("该设备不支持流式读取，无法处理超过 32 MB 的文件");
+    throw new Error(t("errors.main.hashStreamUnsupported"));
   }
   if (options.isCancelled?.()) throw new Error("cancelled by request");
   const data = await adapter.readFile(filePath);
@@ -4980,13 +7942,13 @@ async function hashAdapterFileRange(adapter, filePath, size, length, options = {
     }
   }
   if (size > MAX_BUFFERED_BYTES) {
-    throw new Error("该设备不支持流式读取，无法处理超过 32 MB 的文件");
+    throw new Error(t("errors.main.hashStreamUnsupported"));
   }
   if (options.isCancelled?.()) throw new Error("cancelled by request");
   const data = await adapter.readFile(filePath);
   return createHash(algo).update(data.subarray(0, length)).digest("hex");
 }
-const log$a = console;
+const log$b = console;
 class ContentVerificationService {
   constructor(devices) {
     this.devices = devices;
@@ -5004,7 +7966,7 @@ class ContentVerificationService {
     };
     this.tasks.set(task.taskId, task);
     this.sessionTasks.set(request.sessionId, task.taskId);
-    log$a.info("[ContentVerification] task started", { taskId: task.taskId, sessionId: task.sessionId, pairCount: request.pairs.length });
+    log$b.info("[ContentVerification] task started", { taskId: task.taskId, sessionId: task.sessionId, pairCount: request.pairs.length });
     void this.run(task, request.pairs, emit);
     return { taskId: task.taskId, total: request.pairs.length };
   }
@@ -5012,7 +7974,7 @@ class ContentVerificationService {
     const task = this.tasks.get(taskId);
     if (!task) return false;
     task.cancelled = true;
-    log$a.info("[ContentVerification] task cancellation requested", { taskId });
+    log$b.info("[ContentVerification] task cancellation requested", { taskId });
     task.streams.forEach((stream) => stream.destroy(new Error("Verification cancelled")));
     return true;
   }
@@ -5048,14 +8010,14 @@ class ContentVerificationService {
           }
           completed++;
           const message = error instanceof Error ? error.message : "内容校验失败";
-          log$a.warn("[ContentVerification] pair failed", { relativePath: pair.relativePath, message });
+          log$b.warn("[ContentVerification] pair failed", { relativePath: pair.relativePath, message });
           emit(this.event(task, pair.relativePath, "failed", completed, pairs.length, message));
         }
       }
     } finally {
       this.tasks.delete(task.taskId);
       if (this.sessionTasks.get(task.sessionId) === task.taskId) this.sessionTasks.delete(task.sessionId);
-      log$a.info("[ContentVerification] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed, total: pairs.length });
+      log$b.info("[ContentVerification] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed, total: pairs.length });
     }
   }
   event(task, relativePath, status, completed, total, message) {
@@ -5063,7 +8025,7 @@ class ContentVerificationService {
   }
   async hashFile(task, deviceId, filePath, size) {
     const adapter = this.devices.getAdapter(deviceId);
-    if (!adapter || !adapter.isConnected()) throw new Error("设备未连接，无法校验内容");
+    if (!adapter || !adapter.isConnected()) throw new Error(t("errors.main.verifyDeviceNotConnected"));
     return hashAdapterFile(adapter, filePath, size, {
       algo: "sha256",
       isCancelled: () => task.cancelled,
@@ -5099,8 +8061,8 @@ function parseZipVirtualPath(p) {
 function normalizeInnerPath(innerPath) {
   return innerPath.replace(/\/+$/, "");
 }
-const log$9 = console;
-const PROGRESS_EMIT_INTERVAL_MS$3 = 100;
+const log$a = console;
+const PROGRESS_EMIT_INTERVAL_MS$4 = 100;
 const MAX_CONSECUTIVE_ERRORS$1 = 20;
 class DirectoryStatsService {
   constructor(devices, zip) {
@@ -5115,7 +8077,7 @@ class DirectoryStatsService {
     const task = { taskId: randomUUID(), sessionId: request.sessionId, cancelled: false };
     this.tasks.set(task.taskId, task);
     this.sessionTasks.set(request.sessionId, task.taskId);
-    log$9.info("[DirectoryStats] task started", { taskId: task.taskId, sessionId: task.sessionId, pathCount: request.paths.length });
+    log$a.info("[DirectoryStats] task started", { taskId: task.taskId, sessionId: task.sessionId, pathCount: request.paths.length });
     void this.run(task, request, emit);
     return { taskId: task.taskId };
   }
@@ -5123,7 +8085,7 @@ class DirectoryStatsService {
     const task = this.tasks.get(taskId);
     if (!task) return false;
     task.cancelled = true;
-    log$9.info("[DirectoryStats] task cancellation requested", { taskId });
+    log$a.info("[DirectoryStats] task cancellation requested", { taskId });
     return true;
   }
   async run(task, request, emit) {
@@ -5132,7 +8094,7 @@ class DirectoryStatsService {
     let currentPath;
     const maybeEmit = (force = false) => {
       const now = Date.now();
-      if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS$3) return;
+      if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS$4) return;
       lastEmitAt = now;
       emit({ sessionId: task.sessionId, taskId: task.taskId, status: "scanning", ...totals, currentPath });
     };
@@ -5180,9 +8142,9 @@ class DirectoryStatsService {
             maybeEmit();
           } catch (error) {
             consecutiveErrors++;
-            log$9.warn("[DirectoryStats] entry skipped", { path: p, message: error instanceof Error ? error.message : String(error) });
+            log$a.warn("[DirectoryStats] entry skipped", { path: p, message: error instanceof Error ? error.message : String(error) });
             if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS$1) {
-              throw new Error(`连续 ${consecutiveErrors} 个条目访问失败，设备可能已断开`);
+              throw new Error(t("errors.main.statsConsecutiveErrors", { count: consecutiveErrors }));
             }
           }
         }
@@ -5191,12 +8153,12 @@ class DirectoryStatsService {
       emit({ sessionId: task.sessionId, taskId: task.taskId, status: task.cancelled ? "cancelled" : "completed", ...totals });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      log$9.warn("[DirectoryStats] task failed", { taskId: task.taskId, message });
+      log$a.warn("[DirectoryStats] task failed", { taskId: task.taskId, message });
       emit({ sessionId: task.sessionId, taskId: task.taskId, status: task.cancelled ? "cancelled" : "failed", ...totals, message });
     } finally {
       this.tasks.delete(task.taskId);
       if (this.sessionTasks.get(task.sessionId) === task.taskId) this.sessionTasks.delete(task.sessionId);
-      log$9.info("[DirectoryStats] task finished", { taskId: task.taskId, cancelled: task.cancelled, ...totals });
+      log$a.info("[DirectoryStats] task finished", { taskId: task.taskId, cancelled: task.cancelled, ...totals });
     }
   }
 }
@@ -5245,9 +8207,9 @@ class MediaInfoService {
   summarize(result) {
     const tracks = result?.media?.track;
     if (!tracks || tracks.length === 0) return null;
-    const general = tracks.find((t) => t["@type"] === "General");
-    const video2 = tracks.find((t) => t["@type"] === "Video");
-    const audio2 = tracks.find((t) => t["@type"] === "Audio");
+    const general = tracks.find((t2) => t2["@type"] === "General");
+    const video2 = tracks.find((t2) => t2["@type"] === "Video");
+    const audio2 = tracks.find((t2) => t2["@type"] === "Audio");
     if (!general && !video2 && !audio2) return null;
     const summary = {};
     if (general) {
@@ -5276,7 +8238,7 @@ class MediaInfoService {
     return summary;
   }
 }
-const log$8 = console;
+const log$9 = console;
 const MAX_REMOTE_CONSECUTIVE_FAILURES = 10;
 class WatchService {
   constructor(devices, options) {
@@ -5322,15 +8284,15 @@ class WatchService {
       if (local.coalesceTimer) clearTimeout(local.coalesceTimer);
       local.watcher.close();
       this.localWatches.delete(key);
-      log$8.info("[WatchService] local watch closed", { deviceId, dirPath });
+      log$9.info("[WatchService] local watch closed", { deviceId, dirPath });
     }
     if (this.remoteWatches.delete(key)) {
-      log$8.info("[WatchService] remote watch removed", { deviceId, dirPath });
+      log$9.info("[WatchService] remote watch removed", { deviceId, dirPath });
     }
     if (this.remoteWatches.size === 0 && this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
-      log$8.info("[WatchService] remote poll loop stopped (no subscriptions)");
+      log$9.info("[WatchService] remote poll loop stopped (no subscriptions)");
     }
   }
   // ============ 本地引擎 ============
@@ -5339,7 +8301,7 @@ class WatchService {
       const watcher = fs__default.watch(dirPath, () => this.scheduleLocalEmit(deviceId, dirPath));
       const entry = { deviceId, dirPath, watcher, coalesceTimer: null };
       watcher.on("error", (error) => {
-        log$8.warn("[WatchService] local watch error, dropping subscription", { dirPath, message: error instanceof Error ? error.message : String(error) });
+        log$9.warn("[WatchService] local watch error, dropping subscription", { dirPath, message: error instanceof Error ? error.message : String(error) });
         if (entry.coalesceTimer) clearTimeout(entry.coalesceTimer);
         try {
           watcher.close();
@@ -5351,9 +8313,9 @@ class WatchService {
         }
       });
       this.localWatches.set(WatchService.key(deviceId, dirPath), entry);
-      log$8.info("[WatchService] local watch started", { deviceId, dirPath });
+      log$9.info("[WatchService] local watch started", { deviceId, dirPath });
     } catch (error) {
-      log$8.warn("[WatchService] local watch failed to start", { dirPath, message: error instanceof Error ? error.message : String(error) });
+      log$9.warn("[WatchService] local watch failed to start", { dirPath, message: error instanceof Error ? error.message : String(error) });
     }
   }
   /** 事件风暴合并：窗口内首个事件起 300ms 后统一推送一次。 */
@@ -5376,7 +8338,7 @@ class WatchService {
     });
     if (!this.pollTimer) {
       this.pollTimer = setInterval(() => void this.pollRemoteOnce(), this.options.remotePollIntervalMs);
-      log$8.info("[WatchService] remote poll loop started", { intervalMs: this.options.remotePollIntervalMs });
+      log$9.info("[WatchService] remote poll loop started", { intervalMs: this.options.remotePollIntervalMs });
     }
   }
   async pollRemoteOnce() {
@@ -5403,7 +8365,7 @@ class WatchService {
         }
       } catch (error) {
         entry.consecutiveFailures++;
-        log$8.warn("[WatchService] remote poll failed", {
+        log$9.warn("[WatchService] remote poll failed", {
           deviceId: entry.deviceId,
           dirPath: entry.dirPath,
           consecutiveFailures: entry.consecutiveFailures,
@@ -5412,7 +8374,7 @@ class WatchService {
         if (entry.consecutiveFailures >= MAX_REMOTE_CONSECUTIVE_FAILURES) {
           this.remoteWatches.delete(WatchService.key(entry.deviceId, entry.dirPath));
           this.refCounts.delete(WatchService.key(entry.deviceId, entry.dirPath));
-          log$8.warn("[WatchService] remote watch dropped after repeated failures", { deviceId: entry.deviceId, dirPath: entry.dirPath });
+          log$9.warn("[WatchService] remote watch dropped after repeated failures", { deviceId: entry.deviceId, dirPath: entry.dirPath });
         }
       } finally {
         entry.inFlight = false;
@@ -5494,7 +8456,7 @@ function joinRepoPath(repoRoot, relPath) {
   if (relPath.startsWith("/")) return relPath;
   return repoRoot.endsWith("/") ? repoRoot + relPath : repoRoot + "/" + relPath;
 }
-const log$7 = console;
+const log$8 = console;
 const GIT_TIMEOUT_MS = 5e3;
 const NOT_REPO_TTL_MS = 3e4;
 const MAX_BUFFER = 16 * 1024 * 1024;
@@ -5523,7 +8485,7 @@ class GitStatusService {
       repoRoot = rev.stdout.trim();
       if (!repoRoot.startsWith("/")) return this.rememberNotRepo(dirPath);
     } catch (error) {
-      log$7.info("[GitStatus] not a repo (or git unavailable)", { dirPath, message: error instanceof Error ? error.message.split("\n")[0] : String(error) });
+      log$8.info("[GitStatus] not a repo (or git unavailable)", { dirPath, message: error instanceof Error ? error.message.split("\n")[0] : String(error) });
       return this.rememberNotRepo(dirPath);
     }
     try {
@@ -5531,7 +8493,7 @@ class GitStatusService {
       return toDirectoryStatus(parseGitStatusZ(status.stdout), repoRoot);
     } catch (error) {
       const message = error instanceof Error ? error.message.split("\n")[0] : String(error);
-      log$7.warn("[GitStatus] status failed", { dirPath, message });
+      log$8.warn("[GitStatus] status failed", { dirPath, message });
       return { isRepo: true, repoRoot, entries: [] };
     }
   }
@@ -5546,7 +8508,7 @@ class GitStatusService {
     return notARepoStatus();
   }
 }
-const log$6 = console;
+const log$7 = console;
 class TaskHandle {
   constructor(taskId, sessionId, state) {
     this.taskId = taskId;
@@ -5561,7 +8523,7 @@ class TaskHandle {
       try {
         fn();
       } catch (error) {
-        log$6.warn("[SessionTaskRegistry] cancel hook threw", { taskId: this.taskId, message: error instanceof Error ? error.message : String(error) });
+        log$7.warn("[SessionTaskRegistry] cancel hook threw", { taskId: this.taskId, message: error instanceof Error ? error.message : String(error) });
       }
       return;
     }
@@ -5575,7 +8537,7 @@ class TaskHandle {
       try {
         fn();
       } catch (error) {
-        log$6.warn("[SessionTaskRegistry] cancel hook threw", { taskId: this.taskId, message: error instanceof Error ? error.message : String(error) });
+        log$7.warn("[SessionTaskRegistry] cancel hook threw", { taskId: this.taskId, message: error instanceof Error ? error.message : String(error) });
       }
     }
   }
@@ -5604,7 +8566,7 @@ class SessionTaskRegistry {
     if (!task || task.cancelled) return false;
     task.cancelled = true;
     task.runCancelHooks();
-    log$6.info("[SessionTaskRegistry] cancellation requested", { taskId });
+    log$7.info("[SessionTaskRegistry] cancellation requested", { taskId });
     return true;
   }
   /** 任务收尾（无论 completed/cancelled/failed）：执行残留钩子并注销登记。 */
@@ -5616,7 +8578,7 @@ class SessionTaskRegistry {
     }
   }
 }
-const log$5 = console;
+const log$6 = console;
 class ChecksumService {
   constructor(devices) {
     this.devices = devices;
@@ -5624,7 +8586,7 @@ class ChecksumService {
   registry = new SessionTaskRegistry();
   start(request, emit) {
     const task = this.registry.create(request.sessionId, { streams: /* @__PURE__ */ new Set() });
-    log$5.info("[Checksum] task started", { taskId: task.taskId, sessionId: request.sessionId, items: request.items.length, algo: request.algo });
+    log$6.info("[Checksum] task started", { taskId: task.taskId, sessionId: request.sessionId, items: request.items.length, algo: request.algo });
     void this.run(task, request, emit);
     return { taskId: task.taskId };
   }
@@ -5670,7 +8632,7 @@ class ChecksumService {
           if (task.cancelled) break;
           const errorMessage = error instanceof Error ? error.message : String(error);
           results.push({ hex: null, error: errorMessage });
-          log$5.warn("[Checksum] item failed", { path: item.path, message: errorMessage });
+          log$6.warn("[Checksum] item failed", { path: item.path, message: errorMessage });
         }
       }
       let match;
@@ -5691,7 +8653,7 @@ class ChecksumService {
       });
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
-      log$5.warn("[Checksum] task failed", { taskId: task.taskId, message });
+      log$6.warn("[Checksum] task failed", { taskId: task.taskId, message });
       lastEmitAt = 0;
       emit({
         sessionId: task.sessionId,
@@ -5706,9 +8668,216 @@ class ChecksumService {
       });
     } finally {
       this.registry.finish(task);
-      log$5.info("[Checksum] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed: results.length });
+      log$6.info("[Checksum] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed: results.length });
     }
   }
+}
+function extensionForFormat(format) {
+  return format === "jpeg" ? "jpg" : format;
+}
+function resolveOutputPath(options) {
+  const { sourcePath, mode, format, suffix = "_edited", exists } = options;
+  if (mode === "overwrite") return sourcePath;
+  const dir = path__default.dirname(sourcePath);
+  const base = path__default.basename(sourcePath, path__default.extname(sourcePath));
+  const ext = extensionForFormat(format);
+  const candidate = (n) => path__default.join(dir, `${base}${suffix}${n > 0 ? `-${n}` : ""}.${ext}`);
+  for (let n = 0; n <= 100; n++) {
+    const p = candidate(n);
+    if (!exists(p)) return p;
+  }
+  throw new Error(t("errors.main.imageEditNameExhausted", { path: candidate(0) }));
+}
+const log$5 = console;
+const PROGRESS_EMIT_INTERVAL_MS$3 = 100;
+const EDIT_DECODE_MAX_DIM = 8192;
+class ImageEditService {
+  constructor(decoder) {
+    this.decoder = decoder;
+  }
+  registry = new SessionTaskRegistry();
+  /** 试编码预估（不落盘）。 */
+  async estimate(filePath, params) {
+    const t0 = Date.now();
+    log$5.info("[ImageEdit] estimate start", { filePath, quality: params.quality, maxEdge: params.maxEdge, format: params.format });
+    const { pipeline: pipeline2, format } = await this.buildPipeline(filePath, { compress: params });
+    const { data, info } = await pipeline2.toBuffer({ resolveWithObject: true });
+    const result = {
+      estimatedBytes: data.byteLength,
+      format: info.format,
+      width: info.width,
+      height: info.height
+    };
+    log$5.info("[ImageEdit] estimate done", { filePath, ms: Date.now() - t0, ...result });
+    return result;
+  }
+  /** 单图编辑落盘（原子）。 */
+  async apply(filePath, ops, save) {
+    const t0 = Date.now();
+    log$5.info("[ImageEdit] apply start", { filePath, crop: !!ops.crop, compress: !!ops.compress, mode: save.mode });
+    if (!ops.crop && !ops.compress && !ops.annotate) throw new Error(t("errors.main.imageEditEmptyOps"));
+    const { pipeline: pipeline2, format: inputFormat } = await this.buildPipeline(filePath, ops);
+    const outFormat = this.resolveOutFormat(save, ops, inputFormat);
+    const encoded = await this.encode(pipeline2, outFormat, ops.compress?.quality);
+    const target = resolveOutputPath({
+      sourcePath: filePath,
+      mode: save.mode,
+      format: outFormat,
+      suffix: save.suffix,
+      exists: (p) => fs$1.existsSync(p)
+    });
+    await this.writeAtomic(target, encoded, save.mode);
+    log$5.info("[ImageEdit] apply done", { filePath, target, bytes: encoded.byteLength, mode: save.mode, ms: Date.now() - t0 });
+    return { writtenPath: target, bytes: encoded.byteLength };
+  }
+  /** 批量顺序执行；进度节流 100ms，终态必发；单项失败记录后继续。 */
+  start(request, emit) {
+    const task = this.registry.create(`image-edit:${Date.now()}:${crypto.randomUUID()}`, { cancelled: false });
+    log$5.info("[ImageEdit] batch start", { taskId: task.taskId, items: request.items.length, mode: request.save.mode });
+    void this.runBatch(task, request, emit);
+    return { taskId: task.taskId };
+  }
+  cancel(taskId) {
+    return this.registry.cancel(taskId);
+  }
+  async runBatch(task, request, emit) {
+    const itemResults = [];
+    let lastEmit = 0;
+    const emitProgress = (index, status, force = false) => {
+      const now = Date.now();
+      if (!force && now - lastEmit < PROGRESS_EMIT_INTERVAL_MS$3) return;
+      lastEmit = now;
+      emit({
+        taskId: task.taskId,
+        status,
+        index,
+        total: request.items.length,
+        currentFile: path__default.basename(request.items[index] ?? ""),
+        itemResults: [...itemResults]
+      });
+    };
+    try {
+      for (let i = 0; i < request.items.length; i++) {
+        if (task.cancelled || task.state.cancelled) break;
+        const sourcePath = request.items[i];
+        emitProgress(i, "running");
+        try {
+          const result = await this.apply(sourcePath, request.ops, request.save);
+          itemResults.push({ sourcePath, targetPath: result.writtenPath, status: "success" });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          log$5.warn("[ImageEdit] batch item failed", { taskId: task.taskId, sourcePath, message });
+          itemResults.push({ sourcePath, status: "failed", error: message });
+        }
+      }
+      const status = task.cancelled ? "cancelled" : "completed";
+      const index = Math.min(itemResults.length, request.items.length - 1);
+      emitProgress(Math.max(0, index), status, true);
+      log$5.info("[ImageEdit] batch done", {
+        taskId: task.taskId,
+        status,
+        success: itemResults.filter((r) => r.status === "success").length,
+        failed: itemResults.filter((r) => r.status === "failed").length
+      });
+    } catch (error) {
+      log$5.error("[ImageEdit] batch crashed", { taskId: task.taskId, error: error instanceof Error ? error.message : String(error) });
+      emitProgress(Math.max(0, itemResults.length - 1), "failed", true);
+    } finally {
+      task.runCancelHooks();
+    }
+  }
+  // ── 管道 ────────────────────────────────────────────────────────────────────
+  /** 读取源图（SIPS 格式先解码）并按 ops 构建 sharp 管道；返回输入格式。 */
+  async buildPipeline(filePath, ops) {
+    const ext = path__default.extname(filePath).toLowerCase().replace(".", "");
+    if (!isEditableImageExt(ext)) {
+      throw new Error(t("errors.main.imageEditUnsupportedFormat", { ext }));
+    }
+    let input;
+    let format = ext;
+    if (SIPS_IMAGE_EXTS.has(ext)) {
+      const decoded = await this.decoder.decodeToRaster("local", filePath, { maxDim: EDIT_DECODE_MAX_DIM });
+      input = Buffer.from(decoded.buffer, "base64");
+      format = "jpeg";
+      log$5.info("[ImageEdit] sips decode", { filePath, bytes: input.byteLength });
+    } else {
+      input = await fs$1.readFile(filePath);
+    }
+    let pipeline2 = sharp(input, { limitInputPixels: 263409300 });
+    const meta = await pipeline2.metadata();
+    if (ops.crop && ops.annotate) {
+      throw new Error(t("errors.main.imageEditCropAnnotateExclusive"));
+    }
+    if (ops.annotate && meta.width && meta.height) {
+      const overlayInput = Buffer.from(ops.annotate.overlayBase64, "base64");
+      const overlayMeta = await sharp(overlayInput).metadata();
+      const targetW = meta.width;
+      const targetH = meta.height;
+      const resized = await sharp(overlayInput).resize(targetW, targetH, { fit: "fill" }).png().toBuffer();
+      pipeline2 = pipeline2.composite([{ input: resized, left: 0, top: 0 }]);
+      log$5.info("[ImageEdit] annotate composite", {
+        filePath,
+        overlay: `${overlayMeta.width}x${overlayMeta.height}`,
+        target: `${targetW}x${targetH}`
+      });
+    }
+    if (ops.crop && meta.width) {
+      const crop = ops.crop;
+      const ratio = meta.width / crop.referenceWidth;
+      const srcW = meta.width;
+      const srcH = meta.height ?? 1;
+      const left = clampInt(Math.round(crop.x * ratio), 0, srcW - 1);
+      const top = clampInt(Math.round(crop.y * ratio), 0, srcH - 1);
+      const width = clampInt(Math.round(crop.width * ratio), 1, srcW - left);
+      const height = clampInt(Math.round(crop.height * ratio), 1, srcH - top);
+      pipeline2 = pipeline2.extract({ left, top, width, height });
+    }
+    if (ops.compress?.maxEdge && ops.compress.maxEdge > 0) {
+      pipeline2 = pipeline2.resize({ width: ops.compress.maxEdge, height: ops.compress.maxEdge, fit: "inside", withoutEnlargement: true });
+    }
+    return { pipeline: pipeline2, format };
+  }
+  resolveOutFormat(save, ops, inputFormat) {
+    if (save.format) return save.format;
+    if (ops.compress?.format && ops.compress.format !== "keep") return ops.compress.format;
+    if (inputFormat === "png") return "png";
+    if (inputFormat === "webp") return "webp";
+    return "jpeg";
+  }
+  encode(pipeline2, format, quality) {
+    const q = Math.min(100, Math.max(1, quality ?? 85));
+    if (format === "webp") return pipeline2.webp({ quality: q }).toBuffer();
+    if (format === "png") return pipeline2.png().toBuffer();
+    return pipeline2.jpeg({ quality: q, mozjpeg: true }).toBuffer();
+  }
+  /** 覆盖 = 临时文件 + fs.move 原子替换；副本 = 'wx' 独占创建（TOCTOU 兜底）。 */
+  async writeAtomic(target, data, mode) {
+    if (mode === "overwrite") {
+      const temp = path__default.join(path__default.dirname(target), `.${path__default.basename(target)}.imgedit-${crypto.randomUUID()}.tmp`);
+      try {
+        await fs$1.writeFile(temp, data, { flag: "wx" });
+        await fs$1.move(temp, target, { overwrite: true });
+      } catch (error) {
+        await fs$1.remove(temp).catch(() => void 0);
+        throw error;
+      }
+      return;
+    }
+    try {
+      await fs$1.writeFile(target, data, { flag: "wx" });
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        const ext = path__default.extname(target);
+        const retry = target.slice(0, target.length - ext.length) + `-${crypto.randomUUID().slice(0, 6)}${ext}`;
+        await fs$1.writeFile(retry, data, { flag: "wx" });
+        return;
+      }
+      throw error;
+    }
+  }
+}
+function clampInt(v, min, max) {
+  return Math.min(Math.max(v, min), max);
 }
 const log$4 = console;
 const MAX_CONSECUTIVE_ERRORS = 20;
@@ -5731,7 +8900,7 @@ class DirectoryWalker {
         consecutiveErrors++;
         log$4.warn("[DirectoryWalker] directory skipped", { path: dirPath, message: error instanceof Error ? error.message : String(error) });
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          throw new Error(`连续 ${consecutiveErrors} 个目录访问失败，设备可能已断开`);
+          throw new Error(t("errors.main.walkConsecutiveErrors", { count: consecutiveErrors }));
         }
         continue;
       }
@@ -6124,7 +9293,7 @@ class GrepService {
           resolve();
           return;
         }
-        if (code === 2) reject(new Error(`ripgrep 退出码 2（参数或权限错误）`));
+        if (code === 2) reject(new Error(t("errors.main.grepRgExit2")));
         else resolve();
         finalize();
       });
@@ -6142,7 +9311,7 @@ class GrepService {
     ].filter(Boolean).join(" ");
     const { stdout, code } = await adapter.exec(command);
     if (code !== 0 && code !== 1) {
-      throw new Error(`远端 grep 退出码 ${code}`);
+      throw new Error(t("errors.main.grepRemoteExit", { code }));
     }
     for (const line of stdout.split("\n")) {
       const match = parseGrepLine(line, request.rootPath);
@@ -6307,11 +9476,13 @@ const log = console;
 let mainWindow = null;
 const fileInfoWindowContexts = /* @__PURE__ */ new Map();
 const configService = new ConfigService();
+setMainLocale(configService.get("settings").locale);
 const credentialService = new CredentialService();
 const deviceManager = new DeviceManager(configService, credentialService);
 const fileOperationManager = new FileOperationManager();
 const thumbnailService = new ThumbnailService();
 const imageDecodeService = new ImageDecodeService(deviceManager);
+const imageEditService = new ImageEditService(imageDecodeService);
 const zipService = new ZipService();
 const volumeScanner = new VolumeScanner({ scanInterval: 4e3 });
 const hostShellService = new HostShellService();
@@ -6374,7 +9545,7 @@ function createWindow() {
 }
 function createFileInfoWindow(parent, context) {
   const isSingle = context.files.length === 1;
-  const title = isSingle ? `“${context.files[0].name}”简介` : `${context.files.length} 个项目简介`;
+  const title = isSingle ? t("main.infoWindowTitle", { name: context.files[0].name }) : t("main.infoWindowTitleMulti", { count: context.files.length });
   const infoWindow = new BrowserWindow({
     width: 560,
     height: 720,
@@ -6405,18 +9576,18 @@ function createFileInfoWindow(parent, context) {
   }
 }
 ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
-  return os.homedir();
+  return os__default.homedir();
 });
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context) => {
   if (!context || !Array.isArray(context.files) || context.files.length === 0) {
-    throw new Error("无法为未选择的项目打开简介窗口");
+    throw new Error(t("errors.main.fileInfoNoSelection"));
   }
   const parent = BrowserWindow.fromWebContents(event.sender);
   createFileInfoWindow(parent, context);
 });
 ipcMain.handle(CH.invoke.fileInfoWindowGetContext, (event) => {
   const context = fileInfoWindowContexts.get(event.sender.id);
-  if (!context) throw new Error("此窗口没有可用的简介上下文");
+  if (!context) throw new Error(t("errors.main.fileInfoNoContext"));
   return context;
 });
 ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath) => {
@@ -6470,21 +9641,21 @@ ipcMain.handle(CH.invoke.grepCancel, (_, taskId) => {
 ipcMain.handle(CH.invoke.fsSymlink, async (_, deviceId, targetPath, linkPath) => {
   const adapter = await deviceManager.getReadyAdapter(deviceId);
   if (!adapter.getCapabilities().canSymlink || !adapter.symlink) {
-    throw new Error("该设备不支持创建符号链接");
+    throw new Error(t("errors.main.symlinkUnsupported"));
   }
   return adapter.symlink(targetPath, linkPath);
 });
 ipcMain.handle(CH.invoke.fsReadlink, async (_, deviceId, linkPath) => {
   const adapter = await deviceManager.getReadyAdapter(deviceId);
   if (!adapter.getCapabilities().canSymlink || !adapter.readlink) {
-    throw new Error("该设备不支持读取符号链接");
+    throw new Error(t("errors.main.readlinkUnsupported"));
   }
   return adapter.readlink(linkPath);
 });
 ipcMain.handle(CH.invoke.fsChmod, async (_, deviceId, targetPath, mode, recursive) => {
   const adapter = await deviceManager.getReadyAdapter(deviceId);
   if (!adapter.getCapabilities().canChmod || !adapter.chmod) {
-    throw new Error("该设备不支持修改权限");
+    throw new Error(t("errors.main.chmodUnsupported"));
   }
   if (!recursive) return adapter.chmod(targetPath, mode);
   await adapter.chmod(targetPath, mode);
@@ -6503,7 +9674,7 @@ ipcMain.handle(CH.invoke.fsChmod, async (_, deviceId, targetPath, mode, recursiv
 ipcMain.handle(CH.invoke.fsChown, async (_, deviceId, targetPath, uid, gid) => {
   const adapter = await deviceManager.getReadyAdapter(deviceId);
   if (!adapter.getCapabilities().canChown || !adapter.chown) {
-    throw new Error("该设备不支持修改属主");
+    throw new Error(t("errors.main.chownUnsupported"));
   }
   return adapter.chown(targetPath, uid, gid);
 });
@@ -6562,14 +9733,65 @@ ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId, path2, offset, length)
     return { base64: buffer.toString("base64"), bytesRead: buffer.length, fileSize };
   }
   if (fileSize > 32 * 1024 * 1024) {
-    throw new Error("该设备不支持流式读取，无法分块读取超过 32 MB 的文件");
+    throw new Error(t("errors.main.readChunkStreamUnsupported"));
   }
   const full = await adapter.readFile(path2);
   const slice = full.subarray(start, end);
   return { base64: slice.toString("base64"), bytesRead: slice.length, fileSize };
 });
+ipcMain.handle(CH.invoke.fsSaveHexFile, async (_, deviceId, path2, pieces) => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  if (adapter.type !== "local") {
+    throw new Error(t("errors.main.hexSaveUnsupported"));
+  }
+  const st = await adapter.stat(path2);
+  let bytesWritten = 0;
+  for (const piece of pieces) {
+    if (piece.kind === "base") {
+      if (piece.start < 0 || piece.length < 0 || piece.start + piece.length > st.size) {
+        throw new Error(t("errors.main.hexSavePieceOutOfBounds", { start: piece.start, length: piece.length, size: st.size }));
+      }
+      bytesWritten += piece.length;
+    } else {
+      bytesWritten += Buffer.from(piece.base64, "base64").length;
+    }
+  }
+  const tempPath = join(dirname(path2), `.${basename$1(path2)}.hexsave-${process.pid}-${Date.now()}.tmp`);
+  const out = fs$1.createWriteStream(tempPath, { mode: st.mode });
+  try {
+    await new Promise((resolve, reject) => {
+      out.on("error", reject);
+      void (async () => {
+        const write = (chunk) => out.write(chunk) ? void 0 : new Promise((onDrain) => out.once("drain", () => onDrain()));
+        for (const piece of pieces) {
+          if (piece.kind === "edit") {
+            await write(Buffer.from(piece.base64, "base64"));
+            continue;
+          }
+          if (piece.length === 0) continue;
+          const src = fs$1.createReadStream(path2, { start: piece.start, end: piece.start + piece.length - 1 });
+          src.on("error", reject);
+          for await (const chunkRaw of src) {
+            await write(chunkRaw);
+          }
+        }
+        out.end();
+        out.on("finish", () => resolve());
+      })().catch(reject);
+    });
+    await fs$1.promises.rename(tempPath, path2);
+    return { bytesWritten };
+  } catch (error) {
+    out.destroy();
+    await fs$1.promises.rm(tempPath, { force: true }).catch(() => void 0);
+    throw error instanceof Error ? new Error(t("errors.main.hexSaveFailed", { message: error.message })) : new Error(t("errors.main.hexSaveFailedNoDetail"));
+  }
+});
 ipcMain.handle(CH.invoke.configGet, () => configService.getConfig());
-ipcMain.handle(CH.invoke.configSave, (_, config) => configService.saveConfig(config));
+ipcMain.handle(CH.invoke.configSave, (_, config) => {
+  configService.saveConfig(config);
+  setMainLocale(configService.get("settings").locale);
+});
 ipcMain.handle(CH.invoke.deviceList, () => {
   return deviceManager.getDevices();
 });
@@ -6714,6 +9936,15 @@ ipcMain.handle(
   CH.invoke.mobileCaptureScreenshot,
   (_, deviceId, targetDirectory) => mobileScreenshotService.captureToDirectory(deviceId, targetDirectory)
 );
+ipcMain.handle(CH.invoke.mobileCaptureScreen, async (_, deviceId) => {
+  const shot = await mobileScreenshotService.capture(deviceId);
+  return { base64: shot.data.toString("base64"), mime: shot.mime };
+});
+ipcMain.handle(CH.invoke.systemSaveFileDialog, async (event, options) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = win ? await dialog.showSaveDialog(win, { defaultPath: options.defaultPath, filters: options.filters }) : await dialog.showSaveDialog({ defaultPath: options.defaultPath, filters: options.filters });
+  return result.canceled || !result.filePath ? null : result.filePath;
+});
 ipcMain.handle(CH.invoke.fsCopyBetween, async (_, srcDeviceId, srcPaths, dstDeviceId, dstPath) => {
   await fileOperationManager.addTaskAndWait({
     type: "copy",
@@ -6734,11 +9965,11 @@ ipcMain.handle(CH.invoke.fsMoveBetween, async (_, srcDeviceId, srcPaths, dstDevi
 });
 ipcMain.handle(CH.invoke.fsImportExternal, async (_, sourcePaths, targetDeviceId, targetPath) => {
   if (!Array.isArray(sourcePaths)) {
-    throw new Error("拖入内容无效。");
+    throw new Error(t("errors.main.dragInvalidPayload"));
   }
   const validSourcePaths = (await Promise.all(sourcePaths.filter((sourcePath) => typeof sourcePath === "string" && path__default.isAbsolute(sourcePath)).map(async (sourcePath) => await fs$1.pathExists(sourcePath) ? sourcePath : null))).filter((sourcePath) => sourcePath !== null);
   if (validSourcePaths.length === 0) {
-    throw new Error("未找到可导入的本地文件或文件夹。");
+    throw new Error(t("errors.main.dragNoImportableFiles"));
   }
   return fileOperationManager.addTask({
     type: "copy",
@@ -6850,6 +10081,20 @@ ipcMain.handle(CH.invoke.thumbnailGetCacheSize, async () => {
 ipcMain.handle(CH.invoke.imageDecodeNative, async (_, deviceId, filePath, opts) => {
   const result = await imageDecodeService.decodeToRaster(deviceId, filePath, opts);
   return result;
+});
+ipcMain.handle(CH.invoke.imageEditEstimate, (_, filePath, params) => {
+  return imageEditService.estimate(filePath, params);
+});
+ipcMain.handle(CH.invoke.imageEditApply, (_, filePath, ops, save) => {
+  return imageEditService.apply(filePath, ops, save);
+});
+ipcMain.handle(CH.invoke.imageEditBatchStart, (event, request) => {
+  return imageEditService.start(request, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.imageEditBatchProgress, progress);
+  });
+});
+ipcMain.handle(CH.invoke.imageEditBatchCancel, (_, taskId) => {
+  return imageEditService.cancel(taskId);
 });
 ipcMain.handle(CH.invoke.volumesList, () => {
   return volumeScanner.getVolumes();

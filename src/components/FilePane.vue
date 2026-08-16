@@ -15,24 +15,24 @@
       <div class="finder-pane-toolbar file-pane-toolbar h-10 min-w-0 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
       <!-- Navigation Buttons -->
       <div class="file-pane-toolbar-nav flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-        <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" title="Undo last remote delete" aria-label="Undo last remote delete" @click="undoRecycle">
+        <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" :title="$t('filePane.toolbar.undoRemoteDelete')" :aria-label="$t('filePane.toolbar.undoRemoteDelete')" @click="undoRecycle">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 101.9-5.2M4 4v4h4"/></svg>
         </button>
         <button
           class="toolbar-btn-enhanced"
           :disabled="pane.historyIndex <= 0"
           @click="tabsStore.goBack(paneId)"
-          title="Go Back"
-          aria-label="Go Back"
+          :title="$t('filePane.toolbar.goBack')"
+          :aria-label="$t('filePane.toolbar.goBack')"
         >
           <FinderIcon name="arrowLeft" />
         </button>
         <div ref="recentMenuRef" class="relative flex-shrink-0">
-          <button class="toolbar-btn-enhanced" title="Recent locations" aria-label="Recent locations" :aria-expanded="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
+          <button class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.recentLocations')" :aria-label="$t('filePane.toolbar.recentLocations')" :aria-expanded="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </button>
-          <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto rounded-lg border border-border py-1 shadow-xl" role="menu" aria-label="Recent locations">
-            <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-tertiary">No recent locations</div>
+          <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto rounded-lg border border-border py-1 shadow-xl" role="menu" :aria-label="$t('filePane.toolbar.recentLocations')">
+            <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-tertiary">{{ $t('filePane.toolbar.noRecentLocations') }}</div>
             <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="block w-full px-3 py-2 text-left text-xs hover:bg-bg-hover" role="menuitem" @click="openRecentLocation(location.deviceId, location.path)">
               <span class="block truncate text-text-primary">{{ location.path }}</span><span class="block truncate text-text-tertiary">{{ location.deviceId }}</span>
             </button>
@@ -42,16 +42,16 @@
           class="toolbar-btn-enhanced"
           :disabled="pane.historyIndex >= pane.history.length - 1"
           @click="tabsStore.goForward(paneId)"
-          title="Go Forward"
-          aria-label="Go Forward"
+          :title="$t('filePane.toolbar.goForward')"
+          :aria-label="$t('filePane.toolbar.goForward')"
         >
           <FinderIcon name="arrowRight" />
         </button>
         <button
           class="toolbar-btn-enhanced"
           @click="tabsStore.goUp(paneId)"
-          title="Go to Parent Folder"
-          aria-label="Go to Parent Folder"
+          :title="$t('filePane.toolbar.goUp')"
+          :aria-label="$t('filePane.toolbar.goUp')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
@@ -96,7 +96,7 @@
           ref="searchInputRef"
           v-model="searchQuery"
           type="text"
-          placeholder="Search or tag:work"
+          :placeholder="$t('filePane.toolbar.searchPlaceholder')"
           class="w-36 h-8 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
           :class="searchQuery ? 'pr-7 pl-3' : 'px-3'"
           @focus="searchHistoryOpen = true"
@@ -107,8 +107,8 @@
         <button
           v-if="searchQuery"
           class="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-          title="Clear search"
-          aria-label="Clear search"
+          :title="$t('filePane.toolbar.clearSearch')"
+          :aria-label="$t('filePane.toolbar.clearSearch')"
           @mousedown.prevent
           @click="clearSearch"
         >
@@ -118,15 +118,15 @@
           v-if="searchHistoryOpen && filteredSearchHistory.length > 0"
           class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto rounded-lg border border-border py-1 shadow-xl"
           role="menu"
-          aria-label="Search history"
+          :aria-label="$t('filePane.toolbar.searchHistory')"
         >
           <div class="flex items-center justify-between px-3 py-1">
-            <span class="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">History</span>
+            <span class="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('filePane.toolbar.history') }}</span>
             <button
               class="text-[10px] text-text-tertiary hover:text-red-500"
-              title="Clear search history"
+              :title="$t('filePane.toolbar.clearHistory')"
               @mousedown.prevent="browserStore.clearSearchHistory()"
-            >Clear</button>
+            >{{ $t('filePane.toolbar.clear') }}</button>
           </div>
           <button
             v-for="item in filteredSearchHistory"
@@ -140,7 +140,7 @@
           </button>
         </div>
       </div>
-      <button class="file-pane-toolbar-search-mode toolbar-btn-enhanced flex-shrink-0" :class="{ active: browserState.recursiveSearch }" title="Search recursively" aria-label="Search recursively" @click="browserStore.toggleRecursiveSearch(paneId)">
+      <button class="file-pane-toolbar-search-mode toolbar-btn-enhanced flex-shrink-0" :class="{ active: browserState.recursiveSearch }" :title="$t('filePane.toolbar.recursiveSearch')" :aria-label="$t('filePane.toolbar.recursiveSearch')" @click="browserStore.toggleRecursiveSearch(paneId)">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
       </button>
 
@@ -151,7 +151,7 @@
           :key="mode.value"
           class="w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all"
           :class="pane.viewMode === mode.value ? 'bg-accent-blue text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
-          :title="mode.value === 'grid' ? `${mode.label} (right-click for sizes)` : mode.label"
+          :title="mode.value === 'grid' ? $t('filePane.view.gridHint', { label: mode.label }) : mode.label"
           :aria-label="mode.label"
           @click="tabsStore.setViewMode(paneId, mode.value)"
           @contextmenu.prevent="onViewButtonContextMenu(mode.value, $event)"
@@ -163,8 +163,8 @@
       <button
         class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
-        title="Copy selected paths for sharing"
-        aria-label="Copy selected paths for sharing"
+        :title="$t('filePane.toolbar.copyPaths')"
+        :aria-label="$t('filePane.toolbar.copyPaths')"
         @click="copySelectedPaths"
       >
         <FinderIcon name="share" />
@@ -172,8 +172,8 @@
       <button
         class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
-        title="Edit selected item tags"
-        aria-label="Edit selected item tags"
+        :title="$t('filePane.toolbar.editTags')"
+        :aria-label="$t('filePane.toolbar.editTags')"
         @click="editSelectedTags"
       >
         <FinderIcon name="tags" />
@@ -183,8 +183,8 @@
       <button
         class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
         :class="{ active: inlinePreviewEnabled }"
-        title="Toggle inline preview (single-click preview)"
-        aria-label="Toggle inline preview"
+        :title="$t('filePane.toolbar.inlinePreviewTip')"
+        :aria-label="$t('filePane.toolbar.inlinePreview')"
         @click="toggleInlinePreview"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,14 +195,14 @@
 
       <!-- Actions -->
       <div class="file-pane-toolbar-actions flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-        <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" title="Capture Device Screenshot" aria-label="Capture Device Screenshot" @click="captureScreenshot">
+        <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.screenshot')" :aria-label="$t('filePane.toolbar.screenshot')" @click="captureScreenshot">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 5l1-2h6l1 2M12 10v4m-2-2h4"/></svg>
         </button>
         <button
           class="toolbar-btn-enhanced"
           :disabled="!canRevealInFinder"
-          :title="canRevealInFinder ? 'Reveal in Finder' : 'Reveal in Finder (local folders only)'"
-          aria-label="Reveal in Finder"
+          :title="canRevealInFinder ? $t('filePane.toolbar.revealInFinder') : $t('filePane.toolbar.revealInFinderLocalOnly')"
+          :aria-label="$t('filePane.toolbar.revealInFinder')"
           @click="revealCurrentFolderInFinder"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,12 +212,12 @@
             <path stroke-linecap="round" stroke-width="2" d="M18 17.5l1.5 1.5" />
           </svg>
         </button>
-        <button class="toolbar-btn-enhanced" title="New Folder" aria-label="New Folder" @click="openCreateDialog('folder')">
+        <button class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.newFolder')" :aria-label="$t('filePane.toolbar.newFolder')" @click="openCreateDialog('folder')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
           </svg>
         </button>
-        <button class="toolbar-btn-enhanced" title="New File" aria-label="New File" @click="openCreateDialog('file')">
+        <button class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.newFile')" :aria-label="$t('filePane.toolbar.newFile')" @click="openCreateDialog('file')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -284,7 +284,7 @@
         class="fixed z-50 min-w-[170px] py-1 bg-bg-secondary border border-border rounded-lg shadow-lg animate-fade-in"
         :style="{ left: gridSizeMenu.x + 'px', top: gridSizeMenu.y + 'px' }"
       >
-        <div class="px-3 py-1 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Icon Size</div>
+        <div class="px-3 py-1 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('filePane.gridSize.title') }}</div>
         <div
           v-for="opt in gridSizeOptions"
           :key="opt.value"
@@ -299,27 +299,27 @@
 
     <!-- Operation Dialog -->
     <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
-      <form class="w-80 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="createDialog.kind === 'file' ? 'Create File' : 'Create Folder'" @submit.prevent="confirmCreateDialog">
-        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.kind === 'file' ? 'New File' : 'New Folder' }}</h3>
-        <p class="mb-4 text-sm text-text-tertiary">Created in {{ pane?.path || '/' }}</p>
-        <input ref="createNameInputRef" v-model="createDialog.name" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none" :placeholder="createDialog.kind === 'file' ? 'example.txt' : 'Folder name'" @input="createDialog.error = ''" @keydown.escape.prevent="closeCreateDialog" />
+      <form class="w-80 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
+        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.kind === 'file' ? $t('filePane.toolbar.newFile') : $t('filePane.toolbar.newFolder') }}</h3>
+        <p class="mb-4 text-sm text-text-tertiary">{{ $t('filePane.createDialog.createdIn', { path: pane?.path || '/' }) }}</p>
+        <input ref="createNameInputRef" v-model="createDialog.name" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none" :placeholder="createDialog.kind === 'file' ? 'example.txt' : $t('filePane.createDialog.folderPlaceholder')" @input="createDialog.error = ''" @keydown.escape.prevent="closeCreateDialog" />
         <p v-if="createDialog.error" class="mt-2 text-xs text-accent-red">{{ createDialog.error }}</p>
         <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeCreateDialog">Cancel</button>
-          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">Create</button>
+          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeCreateDialog">{{ $t('common.cancel') }}</button>
+          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">{{ $t('filePane.createDialog.create') }}</button>
         </div>
       </form>
     </div>
     <!-- Go to Folder Dialog (⇧⌘G) -->
     <div v-if="goToDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeGoToDialog">
-      <form class="w-96 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" aria-label="Go to Folder" @submit.prevent="confirmGoToDialog">
-        <h3 class="mb-1 text-lg font-medium text-text-primary">Go to Folder</h3>
-        <p class="mb-4 text-sm text-text-tertiary">Enter an absolute path on {{ currentDeviceName || 'this device' }}</p>
+      <form class="w-96 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="$t('filePane.goToDialog.title')" @submit.prevent="confirmGoToDialog">
+        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ $t('filePane.goToDialog.title') }}</h3>
+        <p class="mb-4 text-sm text-text-tertiary">{{ $t('filePane.goToDialog.desc', { device: currentDeviceName || $t('filePane.goToDialog.thisDevice') }) }}</p>
         <input ref="goToNameInputRef" v-model="goToDialog.path" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 font-mono text-sm text-text-primary focus:border-accent-blue focus:outline-none" placeholder="/usr/local" @input="goToDialog.error = ''" @keydown.escape.prevent="closeGoToDialog" />
         <p v-if="goToDialog.error" class="mt-2 text-xs text-accent-red">{{ goToDialog.error }}</p>
         <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeGoToDialog">Cancel</button>
-          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">Go</button>
+          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeGoToDialog">{{ $t('common.cancel') }}</button>
+          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">{{ $t('filePane.goToDialog.go') }}</button>
         </div>
       </form>
     </div>
@@ -379,6 +379,7 @@ import SymlinkDialog from './dialogs/SymlinkDialog.vue'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
 import { hideDropHint } from '@/utils/dropHint'
 import { useDragSessionStore } from '@/stores/dragSession'
+import { t } from '@/i18n'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
 import type { ChecksumAlgo, ChecksumItem } from '@shared/types'
@@ -403,7 +404,7 @@ const dragSessionStore = useDragSessionStore()
 const pane = computed(() => tabsStore.findPane(props.paneId))
 const browserState = computed(() => browserStore.stateFor(props.paneId))
 const currentDevice = computed(() => devicesStore.devices.find(device => device.id === pane.value?.deviceId))
-const currentDeviceName = computed(() => currentDevice.value?.name || pane.value?.deviceId || 'Local')
+const currentDeviceName = computed(() => currentDevice.value?.name || pane.value?.deviceId || t('devices.localName'))
 const canCaptureScreenshot = computed(() => ['android', 'ohos', 'ios'].includes(currentDevice.value?.type ?? ''))
 
 const searchQuery = ref('')
@@ -555,7 +556,9 @@ const gitBranchInfo = computed<{ label: string; title: string } | null>(() => {
   ].filter(Boolean).join(' ')
   return {
     label: arrows ? `${status.branch} ${arrows}` : status.branch,
-    title: `Git 仓库：${status.repoRoot ?? ''}${arrows ? `（领先/落后 ${arrows}）` : ''}`
+    title: arrows
+      ? t('filePane.gitChipTitle', { repoRoot: status.repoRoot ?? '', arrows })
+      : t('filePane.gitChipTitlePlain', { repoRoot: status.repoRoot ?? '' })
   }
 })
 
@@ -610,19 +613,20 @@ const ColumnsIcon: Component = {
   }
 }
 
-const viewModes = [
-  { value: 'list' as const, icon: ListIcon, label: 'List View' },
-  { value: 'grid' as const, icon: GridIcon, label: 'Grid View' },
-  { value: 'columns' as const, icon: ColumnsIcon, label: 'Columns View' }
-]
+// 标签经 t() 取词：必须包在 computed 里随语言切换重算（禁止 setup 级常量存 t() 结果）
+const viewModes = computed(() => [
+  { value: 'list' as const, icon: ListIcon, label: t('filePane.view.list') },
+  { value: 'grid' as const, icon: GridIcon, label: t('filePane.view.grid') },
+  { value: 'columns' as const, icon: ColumnsIcon, label: t('filePane.view.columns') }
+])
 
 // ── 网格规格（大/中/小）：右击网格按钮弹出选择 ────────────────────────────────
-const gridSizeOptions = [
-  { value: 'xlarge' as const, label: 'Extra Large Icons' },
-  { value: 'large' as const, label: 'Large Icons' },
-  { value: 'medium' as const, label: 'Medium Icons' },
-  { value: 'small' as const, label: 'Small Icons' }
-]
+const gridSizeOptions = computed(() => [
+  { value: 'xlarge' as const, label: t('filePane.gridSize.xlarge') },
+  { value: 'large' as const, label: t('filePane.gridSize.large') },
+  { value: 'medium' as const, label: t('filePane.gridSize.medium') },
+  { value: 'small' as const, label: t('filePane.gridSize.small') }
+])
 const gridSizeMenu = reactive({ visible: false, x: 0, y: 0 })
 const gridSizeMenuRef = ref<HTMLElement | null>(null)
 const activeGridSize = computed(() => pane.value?.gridSize ?? 'large')
@@ -778,7 +782,7 @@ function handleRefreshBroadcast(): void {
 
 function openCreateDialog(kind: 'file' | 'folder') {
   createDialog.kind = kind
-  createDialog.name = kind === 'file' ? 'untitled.txt' : 'New Folder'
+  createDialog.name = kind === 'file' ? 'untitled.txt' : t('filePane.toolbar.newFolder')
   createDialog.error = ''
   createDialog.visible = true
   void nextTick(() => createNameInputRef.value?.select())
@@ -807,7 +811,7 @@ function closeGoToDialog() {
 async function confirmGoToDialog() {
   const raw = goToDialog.path.trim()
   if (!raw) {
-    goToDialog.error = 'Enter a path.'
+    goToDialog.error = t('filePane.goToDialog.emptyPath')
     return
   }
   // 规范化：去尾部斜杠（根目录除外）
@@ -816,7 +820,7 @@ async function confirmGoToDialog() {
   // ZIP 虚拟路径内：同一压缩包内跳转，无法用 exists 校验（inner 条目不是文件系统路径）
   if (isZipVirtualPath(path)) {
     if (!isZipVirtualPath(pane.value?.path ?? '')) {
-      goToDialog.error = 'Enter a filesystem path (ZIP virtual paths only inside a ZIP).'
+      goToDialog.error = t('filePane.goToDialog.needFilesystemPath')
       return
     }
     tabsStore.navigatePane(props.paneId, path)
@@ -824,7 +828,7 @@ async function confirmGoToDialog() {
     return
   }
   if (!path.startsWith('/')) {
-    goToDialog.error = 'Enter an absolute path.'
+    goToDialog.error = t('filePane.goToDialog.needAbsolutePath')
     return
   }
 
@@ -832,11 +836,11 @@ async function confirmGoToDialog() {
   try {
     const stats = await window.fileman.getStats(deviceId, path)
     if (!stats.isDirectory) {
-      goToDialog.error = 'Not a folder.'
+      goToDialog.error = t('filePane.goToDialog.notFolder')
       return
     }
   } catch (e) {
-    goToDialog.error = `Folder not found: ${path}`
+    goToDialog.error = t('filePane.goToDialog.notFound', { path })
     return
   }
 
@@ -888,7 +892,7 @@ function refreshCurrentDirectory() {
 async function confirmCreateDialog() {
   const name = createDialog.name.trim()
   if (!name || name === '.' || name === '..' || name.includes('/')) {
-    createDialog.error = 'Enter a valid name without a slash.'
+    createDialog.error = t('filePane.createDialog.invalidName')
     return
   }
 
@@ -901,7 +905,7 @@ async function confirmCreateDialog() {
     trackDirectoryRefresh(task)
     closeCreateDialog()
   } catch (error) {
-    createDialog.error = error instanceof Error ? error.message : 'Could not create the item.'
+    createDialog.error = error instanceof Error ? error.message : t('filePane.createDialog.createFailed')
   }
 }
 
@@ -1082,7 +1086,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'delete':
-      if (confirm(`Delete ${op.files.length} item(s)?`)) {
+      if (confirm(t('fileList.confirmDelete', op.files.length))) {
         await fileOpsStore.createRecycleTask(deviceId, op.files)
         tabsStore.setSelectedFiles(props.paneId, [])
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
@@ -1130,7 +1134,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'archive': {
-      const name = prompt('Archive name:', 'Archive.zip')
+      const name = prompt(t('filePane.archivePrompt'), 'Archive.zip')
       if (name && op.files.length) {
         await window.fileman.createArchive(deviceId, op.files, targetPath, name)
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
@@ -1224,7 +1228,7 @@ async function captureScreenshot() {
     tabsStore.navigatePane(props.paneId, pane.value.path)
   } catch (error) {
     log.error('[FilePane] screenshot capture failed', { deviceId: pane.value.deviceId, error })
-    alert(error instanceof Error ? error.message : 'Screenshot failed')
+    alert(error instanceof Error ? error.message : t('filePane.screenshotFailed'))
   }
 }
 

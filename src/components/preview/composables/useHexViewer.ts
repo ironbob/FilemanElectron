@@ -1,4 +1,5 @@
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import type { HexSavePiece } from '@shared/types'
 import {
@@ -343,7 +344,10 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
     }
     setJumpNotice(
       parsed.clamped
-        ? `已钳制到${parsed.offset === journal.logicalSize - 1 ? '文件末尾' : '文件头'} 0x${parsed.offset.toString(16)}`
+        ? t(
+            parsed.offset === journal.logicalSize - 1 ? 'preview.hex.jumpClampedEnd' : 'preview.hex.jumpClampedStart',
+            { offset: parsed.offset.toString(16) }
+          )
         : null
     )
     log.info('jump', { input: text.trim(), offset: parsed.offset, relative: parsed.relative, clamped: parsed.clamped })  // 入口
@@ -460,7 +464,7 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
   /** 只读守卫：键入/粘贴前置检查（true = 拦截并提示）。 */
   function guardReadonly(): boolean {
     if (editMode.value === 'readonly') {
-      showNotice('当前为只读模式', 'warn')
+      showNotice(t('preview.hex.readonlyNotice'), 'warn')
       return true
     }
     return false
@@ -543,29 +547,29 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
       const compact = text.replace(/\s+/g, '')
       const bad = compact.match(/[^0-9a-fA-F]/)
       if (bad) {
-        showNotice(`非法字符 “${bad[0]}”（Hex 区仅支持 0-9 A-F 与空白分隔）`, 'error')
+        showNotice(t('preview.hex.pasteInvalidChar', { char: bad[0] }), 'error')
         return false
       }
       if (compact.length === 0) {
-        showNotice('粘贴内容无有效字节', 'warn')
+        showNotice(t('preview.hex.pasteEmpty'), 'warn')
         return false
       }
       if (compact.length % 2 !== 0) {
-        showNotice('十六进制位数须为偶数（如 41 2A / 412A）', 'error')
+        showNotice(t('preview.hex.pasteOddDigits'), 'error')
         return false
       }
       bytes = new Uint8Array(compact.length / 2)
       for (let i = 0; i < bytes.length; i++) bytes[i] = Number.parseInt(compact.slice(i * 2, i * 2 + 2), 16)
       if (editMode.value === 'overwrite' && cur.offset + bytes.length > journal.logicalSize) {
         bytes = bytes.subarray(0, journal.logicalSize - cur.offset)
-        showNotice(`已截断至文件末尾（粘贴 ${bytes.length} 字节）`, 'warn')
+        showNotice(t('preview.hex.pasteTruncated', { count: bytes.length }), 'warn')
       }
     } else {
       const codes: number[] = []
       for (const ch of text) {
         const code = ch.codePointAt(0) ?? 0
         if (code > 0xff) {
-          showNotice(`字符 “${ch}” 超出 Latin-1 范围，无法按字节粘贴`, 'error')
+          showNotice(t('preview.hex.pasteCharOutOfRange', { char: ch }), 'error')
           return false
         }
         codes.push(code)
@@ -646,12 +650,12 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
       const result = await window.fileman.saveHexFile(deviceId, file.path, exportSavePieces())
       journal.markSaved()
       editRevision.value++
-      showNotice('已保存', 'success', { duration: 1200 })
+      showNotice(t('preview.hex.savedNotice'), 'success', { duration: 1200 })
       log.info('save ok', { bytesWritten: result.bytesWritten })  // 出口
       return true
     } catch (err) {
       // 异常点：状态栏 sticky 呈现，journal 不动（可重试保存或继续编辑）
-      showNotice(`保存失败：${err instanceof Error ? err.message : String(err)}`, 'error', { duration: 0 })
+      showNotice(t('preview.hex.saveFailed', { message: err instanceof Error ? err.message : String(err) }), 'error', { duration: 0 })
       log.warn('save failed', { error: err instanceof Error ? err.message : String(err) })  // 异常
       return false
     } finally {
@@ -686,7 +690,7 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
 
   /** 匹配计数标签：`3/17` / `0/0` / 搜索中…。 */
   const matchCountLabel = computed(() => {
-    if (searching.value) return '搜索中…'
+    if (searching.value) return t('preview.hex.searching')
     if (findMatches.value.length === 0) return findQuery.value.trim().length > 0 ? '0/0' : ''
     return `${findMatchIndex.value + 1}/${findMatches.value.length}`
   })
@@ -745,7 +749,7 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
         while (offset < size) {
           const length = Math.min(CHUNK, size - offset)
           const data = await readLogicalAsync(offset, length)
-          if (!data) throw new Error('查找中断：数据加载失败')
+          if (!data) throw new Error(t('preview.hex.searchAborted'))
           for (const hit of findMatchesInChunk(data, pattern, offset, lastEnd)) {
             found.push(hit)
             lastEnd = hit + pattern.length
@@ -755,7 +759,7 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
       }
       findMatches.value = found
       findMatchIndex.value = found.length > 0 ? 0 : -1
-      if (found.length === 0) showNotice('未找到匹配', 'info')
+      if (found.length === 0) showNotice(t('preview.hex.noMatchFound'), 'info')
       if (found.length > 0) revealMatch(0, false)
     } catch (err) {
       showNotice(err instanceof Error ? err.message : String(err), 'error')
@@ -791,12 +795,12 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
   function buildReplaceBytes(): Uint8Array | null {
     if (findMode.value === 'hex') {
       if (replaceQuery.value.includes('?')) {
-        showNotice('替换内容不支持 ? 通配', 'error')
+        showNotice(t('preview.hex.replaceNoWildcard'), 'error')
         return null
       }
       const parsed = parseHexPattern(replaceQuery.value)
       if ('error' in parsed) {
-        showNotice(`替换内容非法：${parsed.error}`, 'error')
+        showNotice(t('preview.hex.replaceInvalid', { message: parsed.error }), 'error')
         return null
       }
       return Uint8Array.from(parsed.pattern, p => ((p.hi ?? 0) << 4) | (p.lo ?? 0))
@@ -824,7 +828,7 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
     if (offset === undefined) return
     applyReplace(offset, findPatternLength.value, newBytes)
     await runFind()
-    showNotice('已替换 1 处', 'success')
+    showNotice(t('preview.hex.replacedOne'), 'success')
   }
 
   /** 请求全部替换：先弹确认条（N 处）。 */
@@ -845,7 +849,7 @@ export function useHexViewer(file: FileInfo, deviceId: string, options?: HexView
       applyReplace(findMatches.value[i], findPatternLength.value, newBytes)
     }
     await runFind()
-    showNotice(`已替换 ${count} 处`, 'success')
+    showNotice(t('preview.hex.replacedCount', count), 'success')
   }
 
   function cancelReplaceAll(): void {

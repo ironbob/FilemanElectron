@@ -1,4 +1,5 @@
 import { ref, shallowRef, computed, watch, onUnmounted, type Ref } from 'vue'
+import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import type {
   EditAnnotate,
@@ -213,7 +214,7 @@ export function useImageEdit(options: UseImageEditOptions) {
     if (pendingCrop.value) {
       // referenceWidth = 用户看到的 naturalWidth（SIPS 图 = 光栅宽度；见 EditCrop 注释）
       if (!naturalWidthCache.value) {
-        error.value = '图片尺寸尚未就绪，请稍后重试'
+        error.value = t('preview.image.sizeNotReady')
         return
       }
       ops.crop = { ...pendingCrop.value, referenceWidth: naturalWidthCache.value }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { ChecksumAlgo, ChecksumItem, ChecksumProgress } from '@shared/types'
+import { t } from '@/i18n'
 import { useLongTaskProgress } from '@/composables/useLongTaskProgress'
 import { formatSize } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -58,11 +59,11 @@ async function copyHex(index: number): Promise<void> {
 
 function statusText(): string {
   const p = progress.value
-  if (!p) return '准备中…'
-  if (p.status === 'hashing') return `哈希中 ${p.index + 1}/${p.total}`
-  if (p.status === 'completed') return '完成'
-  if (p.status === 'cancelled') return '已取消'
-  return `失败：${p.message ?? '未知错误'}`
+  if (!p) return t('dialogs.checksum.preparing')
+  if (p.status === 'hashing') return t('dialogs.checksum.hashing', { index: p.index + 1, total: p.total })
+  if (p.status === 'completed') return t('dialogs.checksum.completed')
+  if (p.status === 'cancelled') return t('dialogs.checksum.cancelled')
+  return t('dialogs.checksum.failed', { message: p.message ?? t('dialogs.checksum.unknownError') })
 }
 </script>
 
@@ -71,7 +72,7 @@ function statusText(): string {
     <div class="w-[520px] max-w-[90vw] rounded-lg border border-border bg-bg-secondary shadow-xl">
       <div class="px-5 py-4 border-b border-border flex items-center justify-between">
         <h3 class="text-sm font-semibold text-text-primary">
-          {{ items.length === 2 ? '校验和对比' : '计算校验和' }}
+          {{ items.length === 2 ? $t('dialogs.checksum.titleCompare') : $t('dialogs.checksum.titleSingle') }}
         </h3>
         <button class="text-text-tertiary hover:text-text-primary" @click="emit('close')">✕</button>
       </div>
@@ -79,7 +80,7 @@ function statusText(): string {
       <div class="px-5 py-4 space-y-4">
         <!-- 算法选择 -->
         <div class="flex items-center gap-2">
-          <span class="text-xs text-text-secondary w-14">算法</span>
+          <span class="text-xs text-text-secondary w-14">{{ $t('dialogs.checksum.algo') }}</span>
           <div class="flex gap-1">
             <button
               v-for="a in (['md5', 'sha1', 'sha256'] as ChecksumAlgo[])"
@@ -107,13 +108,13 @@ function statusText(): string {
             </div>
             <div class="mt-1 flex items-center gap-2">
               <code class="flex-1 text-[11px] text-text-secondary font-mono break-all">
-                {{ progress?.results?.[index]?.hex ?? progress?.results?.[index]?.error ?? (progress?.index === index && isRunning ? '计算中…' : '—') }}
+                {{ progress?.results?.[index]?.hex ?? progress?.results?.[index]?.error ?? (progress?.index === index && isRunning ? $t('dialogs.checksum.computing') : '—') }}
               </code>
               <button
                 v-if="progress?.results?.[index]?.hex"
                 class="text-[10px] px-1.5 py-0.5 rounded border border-border text-text-secondary hover:bg-bg-hover flex-shrink-0"
                 @click="copyHex(index)"
-              >{{ copiedIndex === index ? '已复制' : '复制' }}</button>
+              >{{ copiedIndex === index ? $t('dialogs.checksum.copied') : $t('dialogs.checksum.copy') }}</button>
             </div>
           </div>
         </div>
@@ -126,7 +127,7 @@ function statusText(): string {
             ? 'bg-accent-green/15 text-accent-green'
             : 'bg-accent-red/15 text-accent-red'"
         >
-          {{ progress.match ? '✓ 两个文件内容一致（逐字节哈希相同）' : '✗ 两个文件内容不同' }}
+          {{ progress.match ? $t('dialogs.checksum.matchSame') : $t('dialogs.checksum.matchDiff') }}
         </div>
 
         <!-- 进度 -->
@@ -149,11 +150,11 @@ function statusText(): string {
           v-if="isRunning"
           class="px-3 py-1.5 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover"
           @click="cancel()"
-        >取消</button>
+        >{{ $t('dialogs.checksum.cancel') }}</button>
         <button
           class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90"
           @click="emit('close')"
-        >关闭</button>
+        >{{ $t('dialogs.checksum.close') }}</button>
       </div>
     </div>
   </div>

@@ -11,6 +11,7 @@
 
 import * as fs from 'fs'
 import * as zlib from 'zlib'
+import { t } from '../i18n'
 
 // ── Signatures ───────────────────────────────────────────────────────────────
 const EOCD_SIG       = 0x06054b50  // PK\x05\x06
@@ -130,7 +131,7 @@ export class ZipService {
   async readEntry(zipFilePath: string, entryPath: string): Promise<Buffer> {
     const { buf, entries } = this._load(zipFilePath)
     const entry = entries.find(e => e.path === entryPath || e.path === entryPath.replace(/\/$/, ''))
-    if (!entry) throw new Error(`ZIP entry not found: ${entryPath}`)
+    if (!entry) throw new Error(t('errors.main.zipEntryNotFound', { path: entryPath }))
     return this._readEntryData(buf, entry)
   }
 
@@ -138,7 +139,7 @@ export class ZipService {
 
   private _parseCentralDirectory(buf: Buffer, label: string): ZipEntry[] {
     const fileSize = buf.length
-    if (fileSize < 22) throw new Error('File too small to be a valid ZIP')
+    if (fileSize < 22) throw new Error(t('errors.main.zipTooSmall'))
 
     // Step 1: find EOCD by scanning backward through last 65 557 bytes
     const scanStart = Math.max(0, fileSize - 65_557)
@@ -146,7 +147,7 @@ export class ZipService {
     for (let i = fileSize - 22; i >= scanStart; i--) {
       if (buf.readUInt32LE(i) === EOCD_SIG) { eocdOff = i; break }
     }
-    if (eocdOff < 0) throw new Error(`EOCD not found in ${label}`)
+    if (eocdOff < 0) throw new Error(t('errors.main.zipEocdNotFound', { path: label }))
 
     // Step 2: detect ZIP64 locator (20 bytes before EOCD)
     let cdOffset: number
@@ -155,7 +156,7 @@ export class ZipService {
     const locOff = eocdOff - 20
     if (locOff >= 0 && buf.readUInt32LE(locOff) === EOCD64_LOC_SIG) {
       const eocd64Abs = Number(buf.readBigUInt64LE(locOff + 8))
-      if (buf.readUInt32LE(eocd64Abs) !== EOCD64_SIG) throw new Error('ZIP64 EOCD signature mismatch')
+      if (buf.readUInt32LE(eocd64Abs) !== EOCD64_SIG) throw new Error(t('errors.main.zip64EocdMismatch'))
       cdSize   = Number(buf.readBigUInt64LE(eocd64Abs + 40))
       cdOffset = Number(buf.readBigUInt64LE(eocd64Abs + 48))
     } else {
@@ -239,7 +240,7 @@ export class ZipService {
     if (entry.isDirectory) return Buffer.alloc(0)
 
     const lfhOff = entry.localHeaderOffset
-    if (buf.readUInt32LE(lfhOff) !== LFH_SIG) throw new Error('Local file header signature mismatch')
+    if (buf.readUInt32LE(lfhOff) !== LFH_SIG) throw new Error(t('errors.main.zipLfhMismatch'))
 
     const lfhFileNameLen = buf.readUInt16LE(lfhOff + 26)
     const lfhExtraLen    = buf.readUInt16LE(lfhOff + 28)
@@ -252,7 +253,7 @@ export class ZipService {
     } else if (entry.compressionMethod === 8) {
       return zlib.inflateRawSync(compressed) // Deflate
     } else {
-      throw new Error(`Unsupported compression method: ${entry.compressionMethod}`)
+      throw new Error(t('errors.main.zipUnsupportedCompression', { method: entry.compressionMethod }))
     }
   }
 }

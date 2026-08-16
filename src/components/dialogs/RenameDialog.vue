@@ -1,7 +1,7 @@
 <template>
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-modal animate-fade-in" @click.self="$emit('close')">
     <div class="bg-bg-secondary rounded-lg shadow-xl p-4 w-80 border border-border">
-      <h3 class="text-lg font-medium mb-4 text-text-primary">Rename</h3>
+      <h3 class="text-lg font-medium mb-4 text-text-primary">{{ $t('dialogs.rename.title') }}</h3>
       <input
         v-model="newName"
         type="text"
@@ -15,13 +15,13 @@
           class="px-3 py-1.5 rounded text-sm text-text-secondary hover:bg-bg-hover transition-colors"
           @click="$emit('close')"
         >
-          Cancel
+          {{ $t('dialogs.rename.cancel') }}
         </button>
         <button
           class="px-3 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors"
           @click="confirm"
         >
-          Rename
+          {{ $t('dialogs.rename.confirm') }}
         </button>
       </div>
     </div>
