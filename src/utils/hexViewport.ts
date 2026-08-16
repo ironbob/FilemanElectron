@@ -85,3 +85,18 @@ export function scrollTopToCenter(row: number, viewportHeight: number): number {
   const center = rowTop(row) + ROW_HEIGHT / 2 - viewportHeight / 2
   return Number.isFinite(center) && center > 0 ? center : 0
 }
+
+/**
+ * 键盘导航定位：让 row 整行进入可视区所需的最小 scrollTop。
+ * 不变量：行已在视口内返回 -1（无需滚动）；向上离开视口 → 滚到行顶；
+ * 向下离开视口 → 滚到行底贴住视口底；结果恒 ≥ 0。
+ */
+export function scrollTopToShow(row: number, scrollTop: number, viewportHeight: number): number {
+  const safeTop = Number.isFinite(scrollTop) && scrollTop > 0 ? scrollTop : 0
+  const safeHeight = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : 0
+  const top = rowTop(row)
+  const bottom = top + ROW_HEIGHT
+  if (top >= safeTop && bottom <= safeTop + safeHeight) return -1
+  if (top < safeTop) return top
+  return Math.max(0, bottom - safeHeight)
+}

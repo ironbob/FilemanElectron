@@ -7,6 +7,7 @@
     v-if="type === 'hex'"
     :file="file"
     :device-id="deviceId"
+    :session-id="sessionId"
   />
   <PreviewTextContent
     v-else-if="type === 'text'"
@@ -81,6 +82,8 @@ import type { ImageEditController } from '@/composables/useImageEdit'
 const props = defineProps<{
   file: FileInfo
   deviceId: string
+  /** 预览会话 id（PreviewView 传入；hex 内容用于注册关闭守卫，QuickLook 不传）。 */
+  sessionId?: string
   /** 初始定位行号（grep 命中跳入；仅 text 内容消费）。 */
   initialLine?: number
   /** 强制内容类型（显式入口；覆盖扩展名推断与 initialLine）。 */

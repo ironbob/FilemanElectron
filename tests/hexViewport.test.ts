@@ -13,6 +13,7 @@ import {
   rowToOffset,
   rowTop,
   scrollTopToCenter,
+  scrollTopToShow,
   visibleRowRange
 } from '../src/utils/hexViewport'
 
@@ -95,5 +96,24 @@ assert.equal(scrollTopToCenter(0, 500), 0) // 首行不产生负滚动
 const center = scrollTopToCenter(1000, 500)
 assert.equal(center, Math.max(0, 1000 * ROW_HEIGHT + ROW_HEIGHT / 2 - 250))
 assert.equal(scrollTopToCenter(-1, 500), 0)
+
+// ============ 键盘导航最小滚动 ============
+
+// 行 10 顶部 220 ∈ [0, 500-22]，已在视口内 → -1（不滚动）
+assert.equal(scrollTopToShow(10, 0, 500), -1)
+
+// 行在视口上方 → 滚到行顶
+assert.equal(scrollTopToShow(10, 300, 500), 10 * ROW_HEIGHT)
+
+// 行在视口下方 → 行底贴视口底
+assert.equal(scrollTopToShow(100, 0, 500), 101 * ROW_HEIGHT - 500)
+
+// 边界：行 21 底部 484 ≤ 500 恰好完全可见；行 22 底部 506 需滚 6px
+assert.equal(scrollTopToShow(Math.floor(500 / ROW_HEIGHT) - 1, 0, 500), -1)
+assert.equal(scrollTopToShow(Math.floor(500 / ROW_HEIGHT), 0, 500), 6)
+
+// 负 scrollTop / 非法视口高收敛
+assert.equal(scrollTopToShow(10, -50, 500), -1)
+assert.equal(scrollTopToShow(100, 0, Number.NaN), 101 * ROW_HEIGHT) // 视口高非法按 0 收敛
 
 console.log('✓ hexViewport 坐标不变量测试全部通过')

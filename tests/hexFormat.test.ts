@@ -53,21 +53,32 @@ assert.equal(rows3[0].ascii, '...')
 
 // ============ parseOffsetInput（跳转解析） ============
 
-// 三种合法形态
-assert.deepEqual(parseOffsetInput('0x1A2B', 10000), { ok: true, offset: 0x1A2B, clamped: false })
-assert.deepEqual(parseOffsetInput('1A2B', 10000), { ok: true, offset: 0x1A2B, clamped: false }) // 纯 hex 含字母
-assert.deepEqual(parseOffsetInput('6667', 10000), { ok: true, offset: 6667, clamped: false })  // 十进制
-assert.deepEqual(parseOffsetInput(' 0x10 ', 10000), { ok: true, offset: 16, clamped: false })  // 容错空白
-assert.deepEqual(parseOffsetInput('0X10', 10000), { ok: true, offset: 16, clamped: false })    // 大写 X
+// 三种合法形态（绝对）
+assert.deepEqual(parseOffsetInput('0x1A2B', 10000), { ok: true, offset: 0x1A2B, clamped: false, relative: false })
+assert.deepEqual(parseOffsetInput('1A2B', 10000), { ok: true, offset: 0x1A2B, clamped: false, relative: false }) // 纯 hex 含字母
+assert.deepEqual(parseOffsetInput('6667', 10000), { ok: true, offset: 6667, clamped: false, relative: false })  // 十进制
+assert.deepEqual(parseOffsetInput(' 0x10 ', 10000), { ok: true, offset: 16, clamped: false, relative: false })  // 容错空白
+assert.deepEqual(parseOffsetInput('0X10', 10000), { ok: true, offset: 16, clamped: false, relative: false })    // 大写 X
 
 // 歧义消解：纯数字按十进制（'10'=10 而非 16）
-assert.deepEqual(parseOffsetInput('10', 10000), { ok: true, offset: 10, clamped: false })
+assert.deepEqual(parseOffsetInput('10', 10000), { ok: true, offset: 10, clamped: false, relative: false })
 // 'ff' 纯字母 hex
-assert.deepEqual(parseOffsetInput('ff', 10000), { ok: true, offset: 255, clamped: false })
+assert.deepEqual(parseOffsetInput('ff', 10000), { ok: true, offset: 255, clamped: false, relative: false })
 
 // 越界钳制
-assert.deepEqual(parseOffsetInput('999999', 100), { ok: true, offset: 99, clamped: true })
-assert.deepEqual(parseOffsetInput('0x64', 100), { ok: true, offset: 99, clamped: true })
+assert.deepEqual(parseOffsetInput('999999', 100), { ok: true, offset: 99, clamped: true, relative: false })
+assert.deepEqual(parseOffsetInput('0x64', 100), { ok: true, offset: 99, clamped: true, relative: false })
+
+// 相对偏移（+0x20 / -16，相对 baseOffset）
+assert.deepEqual(parseOffsetInput('+0x20', 1000, 0x10), { ok: true, offset: 0x30, clamped: false, relative: true })
+assert.deepEqual(parseOffsetInput('-16', 1000, 100), { ok: true, offset: 84, clamped: false, relative: true })
+assert.deepEqual(parseOffsetInput('+1A', 1000, 0x20), { ok: true, offset: 0x3a, clamped: false, relative: true }) // 纯 hex 含字母
+assert.deepEqual(parseOffsetInput('+10', 1000, 5), { ok: true, offset: 15, clamped: false, relative: true })      // 纯数字十进制
+// 相对越界钳制（负向到 0 / 正向到末尾）
+assert.deepEqual(parseOffsetInput('-0x20', 1000, 0x10), { ok: true, offset: 0, clamped: true, relative: true })
+assert.deepEqual(parseOffsetInput('+0x20', 100, 90), { ok: true, offset: 99, clamped: true, relative: true })
+// base 缺省按 0
+assert.deepEqual(parseOffsetInput('+20', 1000), { ok: true, offset: 20, clamped: false, relative: true })
 
 // 非法输入（不抛异常）
 assert.equal(parseOffsetInput('', 100).ok, false)
@@ -76,7 +87,9 @@ assert.equal(parseOffsetInput('0x', 100).ok, false)          // 0x 后无数
 assert.equal(parseOffsetInput('0xZZ', 100).ok, false)
 assert.equal(parseOffsetInput('12g4', 100).ok, false)        // 混非法字符
 assert.equal(parseOffsetInput('1 2', 100).ok, false)
-assert.equal(parseOffsetInput('-5', 100).ok, false)
+assert.equal(parseOffsetInput('++20', 100).ok, false)
+assert.equal(parseOffsetInput('+-20', 100).ok, false)
+assert.equal(parseOffsetInput('+0x', 100).ok, false)
 assert.equal(parseOffsetInput('12345678901234567', 100).ok, false) // >16 位
 
 // ============ interpretAt（DataView 对照） ============

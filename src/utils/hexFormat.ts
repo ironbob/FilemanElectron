@@ -51,40 +51,57 @@ export function rowCountForSize(size: number): number {
 // ── 偏移跳转输入解析（纯函数） ────────────────────────────────────────────────
 
 export type OffsetParseResult =
-  | { ok: true; offset: number; clamped: boolean }
+  | { ok: true; offset: number; clamped: boolean; relative: boolean }
   | { ok: false; error: string }
 
 /**
- * 解析跳转偏移输入：'0x1A2B'（显式 hex）/ '1A2B'（纯 hex 且含字母）/
- * '6667'（十进制）。越界钳至 [0, size-1] 并置 clamped；非法输入返回
- * ok:false（不抛异常）。空串/超长（>16 位）/含非进制字符均非法。
+ * 解析跳转偏移输入：
+ *   绝对：'0x1A2B'（显式 hex）/ '1A2B'（纯 hex 且含字母）/ '6667'（十进制）
+ *   相对：'+0x20' / '-16'（相对 baseOffset，十进制/hex 规则同上）
+ * 越界钳至 [0, size-1] 并置 clamped；非法输入返回 ok:false（不抛异常）。
+ * 空串/超长（>16 位）/含非进制字符均非法。
  */
-export function parseOffsetInput(text: string, size: number): OffsetParseResult {
+export function parseOffsetInput(text: string, size: number, baseOffset = 0): OffsetParseResult {
   const trimmed = text.trim()
   if (trimmed.length === 0) {
-    return { ok: false, error: '请输入偏移（0x… 或十进制）' }
+    return { ok: false, error: '请输入偏移（0x1A2B / 1234 / +0x20）' }
   }
-  if (trimmed.length > 16) {
-    return { ok: false, error: '输入过长（≤16 位）' }
+  if (trimmed.length > 20) {
+    return { ok: false, error: '输入过长（数字部分 ≤16 位）' }
   }
-  let offset: number
-  if (/^0[xX][0-9a-fA-F]+$/.test(trimmed)) {
-    offset = parseInt(trimmed.slice(2), 16)
-  } else if (/^[0-9a-fA-F]+$/.test(trimmed) && /[a-fA-F]/.test(trimmed)) {
+  const relativeMatch = /^([+-])(.+)$/.exec(trimmed)
+  const relative = relativeMatch !== null
+  const body = relative ? relativeMatch[2] : trimmed
+  const sign = relative && relativeMatch[1] === '-' ? -1 : 1
+  if (body.replace(/^0[xX]/, '').length > 16) {
+    return { ok: false, error: '输入过长（数字部分 ≤16 位）' }
+  }
+  let value: number
+  if (/^0[xX][0-9a-fA-F]+$/.test(body)) {
+    value = parseInt(body.slice(2), 16)
+  } else if (/^[0-9a-fA-F]+$/.test(body) && /[a-fA-F]/.test(body)) {
     // 纯十六进制字符且含字母 → 按 hex（避免 '10' 被误判为 hex 的歧义）
-    offset = parseInt(trimmed, 16)
-  } else if (/^[0-9]+$/.test(trimmed)) {
-    offset = parseInt(trimmed, 10)
+    value = parseInt(body, 16)
+  } else if (/^[0-9]+$/.test(body)) {
+    value = parseInt(body, 10)
   } else {
-    return { ok: false, error: '无法识别（支持 0x1A2B / 1A2B / 6667）' }
+    return { ok: false, error: '无法识别（支持 0x1A2B / 1A2B / 6667 / +0x20 / -16）' }
   }
-  if (!Number.isFinite(offset)) {
+  if (!Number.isFinite(value)) {
     return { ok: false, error: '数值超界' }
   }
-  if (offset >= size) {
-    return { ok: true, offset: Math.max(size - 1, 0), clamped: true }
+  const base = relative && Number.isFinite(baseOffset) && baseOffset > 0 ? baseOffset : 0
+  let offset = relative ? base + sign * value : value
+  let clamped = false
+  if (offset < 0) {
+    offset = 0
+    clamped = true
   }
-  return { ok: true, offset, clamped: false }
+  if (offset >= size) {
+    offset = Math.max(size - 1, 0)
+    clamped = true
+  }
+  return { ok: true, offset, clamped, relative }
 }
 
 // ── Data Inspector 字节解读（纯函数，DataView 语义） ────────────────────────

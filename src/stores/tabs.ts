@@ -149,9 +149,33 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
+  // ── 关闭守卫（预览内容组件注册；如 hex 编辑的未保存修改确认） ────────────────
+  // 键 = preview session id（tab.preview.id）；守卫返回 false 阻止本次关闭。
+
+  const closeGuards = new Map<string, () => boolean>()
+
+  /** 注册关闭守卫；返回反注册函数（组件卸载时调用）。 */
+  function registerCloseGuard(sessionId: string, guard: () => boolean): () => void {
+    closeGuards.set(sessionId, guard)
+    return () => {
+      if (closeGuards.get(sessionId) === guard) closeGuards.delete(sessionId)
+    }
+  }
+
+  /** 按 preview session id 关闭所在 tab（守卫语义同 closeTab）。 */
+  function closePreviewSession(sessionId: string) {
+    const tab = tabs.value.find(t => t.preview?.id === sessionId)
+    if (tab) closeTab(tab.id)
+  }
+
   function closeTab(tabId: string) {
     const index = tabs.value.findIndex(t => t.id === tabId)
     if (index === -1) return
+
+    // 守卫拦截（保存确认等）：返回 false 则本次关闭中止，由守卫方自行处理
+    const guardKey = tabs.value[index].preview?.id
+    const guard = guardKey ? closeGuards.get(guardKey) : undefined
+    if (guard && !guard()) return
 
     if (tabs.value.length === 1) {
       // 唯一的普通浏览 tab 拒绝关闭；唯一的临时 tab（预览/对比/diff）
@@ -480,6 +504,8 @@ export const useTabsStore = defineStore('tabs', () => {
     setActiveTab,
     createTab,
     closeTab,
+    closePreviewSession,
+    registerCloseGuard,
     setActivePane,
     toggleActiveSplit,
     openPathInNewTab,

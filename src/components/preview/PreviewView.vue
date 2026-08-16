@@ -10,6 +10,7 @@
       <PreviewContentRouter
         :file="session.file"
         :device-id="session.deviceId"
+        :session-id="session.id"
         :initial-line="session.initialLine"
         :force-type="session.forceType"
         :edit="session.type === 'image' ? edit : undefined"
