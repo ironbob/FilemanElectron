@@ -4,6 +4,7 @@
   <div
     ref="rootEl"
     class="absolute inset-0 z-20"
+    :style="{ cursor: edit.annoTool.value === 'text' ? 'text' : 'crosshair' }"
     @pointerdown.prevent="onPointerDown"
   >
     <canvas
@@ -28,7 +29,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted, nextTick } from 'vue'
+import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import type { ImageEditController } from '@/composables/useImageEdit'
 import { drawShapes, shapeBBox, textFontSize, type AnnoShape } from '@/utils/annotationShapes'
 import type { ImageLayout } from '@/utils/cropGeometry'
@@ -208,16 +210,21 @@ function cancelText() {
   textInput.value = ''
 }
 
-// Esc 退出标注模式（capture 消费；零副作用——形状保留在 VM，重进可继续）
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && !textInput.visible) {
+// Esc 退出标注模式：capture + return true 消费（阻止冒泡到 App.vue 的
+// Esc-关闭预览 tab 处理——否则退出模式的同时整个 tab 被关掉）。
+// 文字输入可见时先关输入（不退出模式）。
+useKeyInterceptor(e => {
+  if (e.key !== 'Escape') return
+  if (textInput.visible) {
     e.preventDefault()
-    props.edit.exitAnnotate()
+    cancelText()
+    return true
   }
-}
-onMounted(() => window.addEventListener('keydown', onKeydown, true))
+  e.preventDefault()
+  props.edit.exitAnnotate()
+  return true
+})
 onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown, true)
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
 })

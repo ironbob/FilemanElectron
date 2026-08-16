@@ -3,13 +3,15 @@
        View 只渲染与转发意图；坐标换算全部来自 cropGeometry（纯函数）。 -->
   <div
     ref="rootEl"
-    class="absolute inset-0 z-20 select-none"
+    class="absolute inset-0 z-20 select-none cursor-crosshair"
     @mousedown.prevent="onSurfaceMouseDown"
   >
-    <!-- 四块暗化区域：用超大 box-shadow 实现选中框外变暗 -->
+    <!-- 四块暗化区域：用超大 box-shadow 实现选中框外变暗；
+         pointer-events-auto + cursor-move 让选区悬停显示移动光标
+         （mousedown 冒泡到 root：insideRect → 进入移动拖拽） -->
     <div
       v-if="rect"
-      class="absolute pointer-events-none"
+      class="absolute cursor-move"
       :style="{
         left: rect.x + 'px',
         top: rect.y + 'px',
@@ -56,7 +58,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
+import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { applyAspectLock, displayedImageRect, displayedToSourceRect, sourceToDisplayedRect, type ImageLayout, type Rect } from '@/utils/cropGeometry'
 
 const props = defineProps<{
@@ -216,16 +219,15 @@ function handleStyle(h: Handle): Record<string, string> {
 
 const rootEl = ref<HTMLElement | null>(null)
 
-// Esc 取消（capture 消费，避免落到 PreviewView 的集合导航）
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    e.preventDefault()
-    emit('cancel')
-  }
-}
-onMounted(() => window.addEventListener('keydown', onKeydown, true))
+// Esc 取消：capture + return true 消费（阻止冒泡到 App.vue 的
+// Esc-关闭预览 tab 处理——否则退出裁剪的同时整个 tab 被关掉）
+useKeyInterceptor(e => {
+  if (e.key !== 'Escape') return
+  e.preventDefault()
+  emit('cancel')
+  return true
+})
 onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown, true)
   onDragEnd()
 })
 
