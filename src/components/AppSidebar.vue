@@ -248,8 +248,19 @@
         <svg v-if="theme === 'dark'" class="w-4 h-4 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
         <svg v-else class="w-4 h-4 text-accent-indigo" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
       </button>
-      <button class="sidebar-utility-button" :class="{ active: isFileOperationsVisible }" @click="emit('toggle-file-operations')" title="File Operations" aria-label="File Operations">
+      <button
+        class="sidebar-utility-button relative"
+        :class="{ active: isFileOperationsVisible }"
+        @click="emit('toggle-file-operations')"
+        title="File Operations"
+        :aria-label="activeTaskCount > 0 ? `File Operations, ${activeTaskCount} active task${activeTaskCount === 1 ? '' : 's'}` : 'File Operations'"
+      >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        <span
+          v-if="activeTaskCount > 0"
+          class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 font-semibold text-center ring-2 ring-bg-sidebar"
+          aria-hidden="true"
+        >{{ activeTaskCount }}</span>
       </button>
       <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" title="Toggle Dual Pane" aria-label="Toggle Dual Pane">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 012-2M9 7a2 2 0 012-2h2a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
@@ -289,6 +300,7 @@ const favoritesStore = useFavoritesStore()
 defineProps<{
   theme: 'light' | 'dark'
   isFileOperationsVisible: boolean
+  activeTaskCount: number
   isDualPaneActive: boolean
   isSplitToggleDisabled: boolean
 }>()

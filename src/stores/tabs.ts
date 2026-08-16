@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Tab, Pane, DirCompareSession, FileDiffSession, FileInfo, CompareStatus } from '@/types'
+import type { Tab, Pane, DirCompareSession, FileDiffSession, FileInfo, CompareStatus, DuplicateSession, GrepSession, SpaceSession } from '@/types'
 import { isZipVirtualPath, zipVirtualParent } from '@shared/zipPath'
 
 const log = console
@@ -50,11 +50,20 @@ interface PersistedTabState {
   activeTabId: string
 }
 
+/**
+ * 瞬态（工具视图）标签判定：带任一会话字段的标签不持久化、重启即弃。
+ * 新工具页（grep / 重复查找 / 空间分析…）在 Tab 上加可选 session 字段后，
+ * 在此追加条件即可（单一事实源，saveToStorage 与恢复逻辑共用）。
+ */
+export function isTransientTab(tab: Tab): boolean {
+  return Boolean(tab.compareSession || tab.fileDiffSession || tab.preview || tab.dupesSession || tab.grepSession || tab.spaceSession)
+}
+
 function saveToStorage(state: PersistedTabState) {
   try {
     // selectedFiles 是瞬态 UI 状态，不需要持久化（避免序列化大量路径字符串）
-    // Compare/diff/preview tabs are ephemeral — don't persist them across restarts
-    const regularTabs = state.tabs.filter(tab => !tab.compareSession && !tab.fileDiffSession && !tab.preview)
+    // 工具视图标签（compare/diff/preview 及后续 grep/dupes/space）重启即弃
+    const regularTabs = state.tabs.filter(tab => !isTransientTab(tab))
     const stripped: PersistedTabState = {
       activeTabId: regularTabs.find(t => t.id === state.activeTabId)
         ? state.activeTabId
@@ -375,6 +384,63 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab.id
   }
 
+  /** 重复文件查找工具页（瞬态；同 rootPath 已开着则复用并激活）。 */
+  function openDuplicatesTab(deviceId: string, rootPath: string, minSize = 1): string {
+    const existing = tabs.value.find(tab => tab.dupesSession &&
+      tab.dupesSession.deviceId === deviceId && tab.dupesSession.rootPath === rootPath)
+    if (existing) {
+      activeTabId.value = existing.id
+      return existing.id
+    }
+    const session: DuplicateSession = { id: generateId(), deviceId, rootPath, minSize }
+    const tab: Tab = {
+      id: generateId(),
+      title: `重复文件 · ${getPathDisplayName(rootPath)}`,
+      panes: [],
+      activePaneId: '',
+      dupesSession: session
+    }
+    tabs.value.push(tab)
+    activeTabId.value = tab.id
+    return tab.id
+  }
+
+  /** 内容搜索工具页（瞬态）。 */
+  function openGrepTab(session: Omit<GrepSession, 'id'>): string {
+    const full: GrepSession = { id: generateId(), ...session }
+    const tab: Tab = {
+      id: generateId(),
+      title: `搜索 · ${full.pattern}`,
+      panes: [],
+      activePaneId: '',
+      grepSession: full
+    }
+    tabs.value.push(tab)
+    activeTabId.value = tab.id
+    return tab.id
+  }
+
+  /** 空间分析工具页（瞬态；同 root 已开着则复用——下钻用）。 */
+  function openSpaceTab(deviceId: string, rootPath: string): string {
+    const existing = tabs.value.find(tab => tab.spaceSession &&
+      tab.spaceSession.deviceId === deviceId && tab.spaceSession.rootPath === rootPath)
+    if (existing) {
+      activeTabId.value = existing.id
+      return existing.id
+    }
+    const session: SpaceSession = { id: generateId(), deviceId, rootPath }
+    const tab: Tab = {
+      id: generateId(),
+      title: `空间 · ${getPathDisplayName(rootPath)}`,
+      panes: [],
+      activePaneId: '',
+      spaceSession: session
+    }
+    tabs.value.push(tab)
+    activeTabId.value = tab.id
+    return tab.id
+  }
+
   function openFileDiffTab(
     leftDeviceId: string,
     left: FileInfo | undefined,
@@ -429,6 +495,9 @@ export const useTabsStore = defineStore('tabs', () => {
     setColumns,
     findPane,
     openCompareTab,
+    openDuplicatesTab,
+    openGrepTab,
+    openSpaceTab,
     openFileDiffTab,
   }
 })

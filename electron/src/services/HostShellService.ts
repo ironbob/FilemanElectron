@@ -1,21 +1,40 @@
 import { execFile } from 'child_process'
+import fs from 'fs'
+import os from 'os'
 import path from 'path'
+import type { OpenWithApp } from '@shared/types'
 
 /**
  * HostShellService
  *
- * 平台相关的「宿主集成」执行：用系统终端打开一个本地目录。
- * 唯一封装『如何在本平台启动终端并 cd 到目录』；上层 IPC controller
- * 只依赖此抽象，不感知 osascript / 平台命令细节。
+ * 平台相关的「宿主集成」执行：用系统终端打开一个本地目录、用指定应用
+ * 打开文件/目录、探测已安装的开发者应用。
+ * 唯一封装『如何在本平台与宿主 shell/应用交互』；上层 IPC controller
+ * 只依赖此抽象，不感知 osascript / open / 平台命令细节。
  *
- * 当前实现：macOS（osascript 激活 Terminal.app 并在新窗口 cd）。
- * 扩展到 Windows/Linux：在 openInTerminal 内按 process.platform 分支，
+ * 当前实现：macOS（osascript 激活 Terminal.app 并在新窗口 cd；open -a 启动应用）。
+ * 扩展到 Windows/Linux：在各方法内按 process.platform 分支，
  * controller / renderer 无需改动（OCP 已为此封口，见架构文档「已知缺口」）。
  *
- * 设计依据：SRP（只做平台终端启动）、OCP（平台策略可扩展）、
+ * 设计依据：SRP（只做宿主集成）、OCP（平台策略可扩展）、
  * separation_of_concerns（OS 细节隔离在 main，不漏到 controller/renderer）。
  */
+
+/** 已知开发者应用探测表（bundle 目录名 → 展示名）。 */
+const DEV_APP_CANDIDATES: Array<{ bundle: string; name: string }> = [
+  { bundle: 'Visual Studio Code.app', name: 'VS Code' },
+  { bundle: 'VSCodium.app', name: 'VSCodium' },
+  { bundle: 'Cursor.app', name: 'Cursor' },
+  { bundle: 'Sublime Text.app', name: 'Sublime Text' },
+  { bundle: 'iTerm.app', name: 'iTerm2' },
+  { bundle: 'Zed.app', name: 'Zed' },
+  { bundle: 'JetBrains Toolbox.app', name: 'JetBrains Toolbox' },
+  { bundle: 'Xcode.app', name: 'Xcode' }
+]
+
 export class HostShellService {
+  private detectedAppsCache: OpenWithApp[] | null = null
+
   /**
    * 在系统终端中打开目录（macOS：新开 Terminal 窗口并 cd 进 dirPath）。
    *
@@ -62,5 +81,53 @@ export class HostShellService {
         resolve()
       })
     })
+  }
+
+  /**
+   * 用指定应用打开本地文件/目录（macOS：`open -a <app> <target>`）。
+   * execFile 传参数组，不经 shell——沿用本服务的「无引号地狱」原则。
+   */
+  openWith(appPath: string, targetPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const normalized = path.resolve(targetPath)
+      execFile('open', ['-a', path.resolve(appPath), normalized], (err, _stdout, stderr) => {
+        if (err) {
+          console.error('[HostShellService] openWith failed:', err.message)
+          reject(new Error(`Failed to open "${normalized}" with "${appPath}": ${err.message}`))
+          return
+        }
+        if (stderr && stderr.trim()) {
+          console.warn('[HostShellService] open stderr:', stderr.trim())
+        }
+        console.log(`[HostShellService] Opened "${normalized}" with ${appPath}`)
+        resolve()
+      })
+    })
+  }
+
+  /**
+   * 探测本机已安装的开发者应用（/Applications 与 ~/Applications）。
+   * 结果 memoize（应用安装是罕见事件；重探经重启或后续显式刷新）。
+   */
+  detectDevApps(): OpenWithApp[] {
+    if (this.detectedAppsCache) return this.detectedAppsCache
+    const roots = ['/Applications', path.join(os.homedir(), 'Applications')]
+    const found: OpenWithApp[] = []
+    for (const candidate of DEV_APP_CANDIDATES) {
+      for (const root of roots) {
+        const bundlePath = path.join(root, candidate.bundle)
+        try {
+          if (fs.existsSync(bundlePath)) {
+            found.push({ id: candidate.bundle, name: candidate.name, bundlePath })
+            break
+          }
+        } catch {
+          // 探测异常按未安装处理
+        }
+      }
+    }
+    this.detectedAppsCache = found
+    console.log(`[HostShellService] detected dev apps: ${found.map(app => app.name).join(', ') || '(none)'}`)
+    return found
   }
 }

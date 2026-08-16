@@ -130,6 +130,37 @@ export function formatSize(bytes: number): string {
 }
 
 /**
+ * Compute the POSIX relative path from a directory to a target
+ * (e.g. toRelativePath('/a/b', '/a/b/c/d.txt') === 'c/d.txt';
+ *       toRelativePath('/a/b', '/a/x.txt')        === '../x.txt').
+ *
+ * 写脚本/配置引用另一面板文件时极常用。仅做词法分段计算，不触碰文件系统，
+ * 也不解析符号链接（与 readlink -m 的词法语义一致）。
+ */
+export function toRelativePath(fromDir: string, targetPath: string): string {
+  const fromParts = fromDir.split('/').filter(Boolean)
+  const targetParts = targetPath.split('/').filter(Boolean)
+
+  // 公共前缀
+  let common = 0
+  while (common < fromParts.length && common < targetParts.length && fromParts[common] === targetParts[common]) {
+    common++
+  }
+
+  const upSegments = fromParts.length - common
+  const downSegments = targetParts.slice(common)
+  const relative = [...Array(upSegments).fill('..'), ...downSegments]
+  return relative.length > 0 ? relative.join('/') : '.'
+}
+
+/**
+ * Encode a POSIX absolute path as a file:// URI（空格等保留字符百分号转义）。
+ */
+export function toFileUri(posixPath: string): string {
+  return 'file://' + posixPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+}
+
+/**
  * Device type icons mapping (for UI)
  */
 export const deviceTypeIcons: Record<string, string> = {

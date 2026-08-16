@@ -9,11 +9,24 @@ import type {
   Device,
   DeviceCapabilities,
   FileInfo,
+  FileInfoWindowContext,
   SearchQuery,
   ContentVerificationPair,
   ContentVerificationProgress,
   DirectoryStatsRequest,
   DirectoryStatsProgress,
+  WatchChangeEvent,
+  OpenWithApp,
+  GitDirectoryStatus,
+  ChecksumRequest,
+  ChecksumProgress,
+  DuplicateScanRequest,
+  DuplicateScanProgress,
+  GrepRequest,
+  GrepProgress,
+  SpaceAnalysisRequest,
+  SpaceAnalysisProgress,
+  ReadChunkResult,
   MediaInfoSummary,
   FileOperationTask,
   CreateTaskParams,
@@ -24,6 +37,12 @@ import type {
 const filemanAPI = {
   // ============ System ============
   getHomeDir: () => ipcRenderer.invoke(CH.invoke.systemGetHomeDir),
+
+  // ============ Windows ============
+  openFileInfoWindow: (context: FileInfoWindowContext): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.fileInfoWindowOpen, context),
+  getFileInfoWindowContext: (): Promise<FileInfoWindowContext> =>
+    ipcRenderer.invoke(CH.invoke.fileInfoWindowGetContext),
 
   // ============ Config ============
   getConfig: () => ipcRenderer.invoke(CH.invoke.configGet),
@@ -131,6 +150,79 @@ const filemanAPI = {
     ipcRenderer.on(CH.push.dirStatsProgress, handler)
     return () => ipcRenderer.removeListener(CH.push.dirStatsProgress, handler)
   },
+  onWatchChanged: (callback: (event: WatchChangeEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, change: WatchChangeEvent) => callback(change)
+    ipcRenderer.on(CH.push.watchChanged, handler)
+    return () => ipcRenderer.removeListener(CH.push.watchChanged, handler)
+  },
+
+  // ============ Directory Watch (自动刷新) ============
+  watchSubscribe: (deviceId: string, dirPath: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(CH.invoke.watchSubscribe, deviceId, dirPath),
+  watchUnsubscribe: (deviceId: string, dirPath: string): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.watchUnsubscribe, deviceId, dirPath),
+
+  // ============ Git Status (只读徽标, 仅本地) ============
+  getGitStatus: (deviceId: string, dirPath: string): Promise<GitDirectoryStatus> =>
+    ipcRenderer.invoke(CH.invoke.gitStatus, deviceId, dirPath),
+
+  // ============ Checksum (哈希校验) ============
+  startChecksum: (request: ChecksumRequest): Promise<{ taskId: string }> =>
+    ipcRenderer.invoke(CH.invoke.checksumStart, request),
+  cancelChecksum: (taskId: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.checksumCancel, taskId),
+  onChecksumProgress: (callback: (progress: ChecksumProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: ChecksumProgress) => callback(progress)
+    ipcRenderer.on(CH.push.checksumProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.checksumProgress, handler)
+  },
+
+  // ============ Duplicate Finder (重复文件查找) ============
+  startDuplicateScan: (request: DuplicateScanRequest): Promise<{ taskId: string }> =>
+    ipcRenderer.invoke(CH.invoke.dupesStart, request),
+  cancelDuplicateScan: (taskId: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.dupesCancel, taskId),
+  onDuplicateScanProgress: (callback: (progress: DuplicateScanProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: DuplicateScanProgress) => callback(progress)
+    ipcRenderer.on(CH.push.dupesProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.dupesProgress, handler)
+  },
+
+  // ============ Grep (内容搜索) ============
+  startGrep: (request: GrepRequest): Promise<{ taskId: string }> =>
+    ipcRenderer.invoke(CH.invoke.grepStart, request),
+  cancelGrep: (taskId: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.grepCancel, taskId),
+  onGrepProgress: (callback: (progress: GrepProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: GrepProgress) => callback(progress)
+    ipcRenderer.on(CH.push.grepProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.grepProgress, handler)
+  },
+
+  // ============ Symlink / Permission (M5) ============
+  createSymlink: (deviceId: string, targetPath: string, linkPath: string): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.fsSymlink, deviceId, targetPath, linkPath),
+  readSymlink: (deviceId: string, linkPath: string): Promise<string> =>
+    ipcRenderer.invoke(CH.invoke.fsReadlink, deviceId, linkPath),
+  chmod: (deviceId: string, targetPath: string, mode: number, recursive: boolean): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.fsChmod, deviceId, targetPath, mode, recursive),
+  chown: (deviceId: string, targetPath: string, uid: number, gid: number): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.fsChown, deviceId, targetPath, uid, gid),
+
+  // ============ Read Chunk (hex 预览分块读取) ============
+  readChunk: (deviceId: string, path: string, offset: number, length: number): Promise<ReadChunkResult> =>
+    ipcRenderer.invoke(CH.invoke.fsReadChunk, deviceId, path, offset, length),
+
+  // ============ Space Analysis (空间分析 treemap) ============
+  startSpaceAnalysis: (request: SpaceAnalysisRequest): Promise<{ taskId: string }> =>
+    ipcRenderer.invoke(CH.invoke.spaceStart, request),
+  cancelSpaceAnalysis: (taskId: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.spaceCancel, taskId),
+  onSpaceAnalysisProgress: (callback: (progress: SpaceAnalysisProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: SpaceAnalysisProgress) => callback(progress)
+    ipcRenderer.on(CH.push.spaceProgress, handler)
+    return () => ipcRenderer.removeListener(CH.push.spaceProgress, handler)
+  },
 
   // ============ Shell Operations ============
   showInFolder: (path: string) => {
@@ -139,6 +231,12 @@ const filemanAPI = {
   // Open a local directory in the system Terminal (macOS: Terminal.app via osascript).
   openInTerminal: (path: string): Promise<void> =>
     ipcRenderer.invoke(CH.invoke.shellOpenInTerminal, path),
+  // Open a local file/directory with a chosen app (macOS: open -a).
+  openWith: (appPath: string, targetPath: string): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.shellOpenWith, appPath, targetPath),
+  // Detect installed developer apps (memoized in main; VS Code / iTerm / …).
+  detectOpenWithApps: (): Promise<OpenWithApp[]> =>
+    ipcRenderer.invoke(CH.invoke.shellDetectOpenWithApps),
 
   // ============ File Operations ============
   createFileOperation: (params: CreateTaskParams) =>

@@ -42,4 +42,31 @@ export interface IFileSystemAdapter {
    */
   openReadStream?(path: string): Promise<Readable>
   openWriteStream?(path: string): Promise<Writable>
+
+  /**
+   * Remote command execution (optional). Adapters that support it set
+   * `canGrepContent: true`. Used by GrepService to run server-side
+   * `grep -rn` (SSH exec / adb shell) instead of streaming every file
+   * over the wire.
+   *
+   * Why optional + capability-gated (ISP): SMB/WebDAV have no exec
+   * channel — they fall back to the stream-based line-scan engine.
+   * Command construction MUST go through shellQuote (no interpolation).
+   */
+  exec?(command: string): Promise<{ stdout: string; stderr: string; code: number }>
+
+  /**
+   * Symlink operations (optional), gated by `canSymlink`.
+   * symlink: create link at linkPath pointing to targetPath.
+   */
+  symlink?(targetPath: string, linkPath: string): Promise<void>
+  readlink?(linkPath: string): Promise<string>
+
+  /**
+   * Permission / ownership (optional), gated by `canChmod` / `canChown`.
+   * Recursive application for directories is orchestrated by the caller
+   * (main walks via DirectoryWalker); the adapter applies to one path.
+   */
+  chmod?(path: string, mode: number): Promise<void>
+  chown?(path: string, uid: number, gid: number): Promise<void>
 }

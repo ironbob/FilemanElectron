@@ -73,6 +73,13 @@
               <template v-if="isSingle">
                 <InfoRow label="扩展名" :value="file.extension" />
                 <InfoRow v-if="showPermissions" label="权限" mono :value="stats?.mode != null ? formatPermissions(stats.mode) : undefined" />
+                <InfoRow v-if="file?.isSymlink" label="符号链接" mono :value="file.symlinkTarget ?? '（目标不可读）'" />
+                <InfoRow v-if="canChmod && stats?.mode != null && !chmodEditing" label="修改权限">
+                  <button
+                    class="text-xs px-1.5 py-0.5 rounded border border-border text-text-secondary hover:bg-bg-hover"
+                    @click.prevent="startChmodEdit"
+                  >编辑…</button>
+                </InfoRow>
                 <template v-if="zipEntry">
                   <InfoRow label="压缩后大小" :value="formatSize(zipEntry.compressedSize)" />
                   <InfoRow label="压缩率" :value="ratioLabel" />
@@ -80,6 +87,58 @@
                 </template>
               </template>
             </dl>
+          </div>
+        </section>
+
+        <!-- ── chmod 编辑（canChmod 且单选非 ZIP） ─────────────── -->
+        <section v-if="chmodEditing" class="rounded-lg border border-accent-blue/40 p-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-semibold uppercase tracking-wide text-accent-blue">修改权限</h4>
+            <span class="text-[11px] text-text-tertiary font-mono">{{ chmodOctal }}</span>
+          </div>
+          <!-- rwx 复选格：owner / group / other 三行 -->
+          <div class="grid grid-cols-[64px_repeat(3,48px)] gap-y-1.5 items-center text-xs">
+            <span class="text-text-tertiary"></span>
+            <span class="text-center text-text-tertiary">读 r</span>
+            <span class="text-center text-text-tertiary">写 w</span>
+            <span class="text-center text-text-tertiary">执行 x</span>
+            <template v-for="{ label, role } in chmodRoles" :key="role">
+              <span class="text-text-secondary">{{ label }}</span>
+              <div v-for="bit in (['r', 'w', 'x'] as const)" :key="bit" class="flex justify-center">
+                <input
+                  type="checkbox"
+                  class="accent-blue-500"
+                  :checked="chmodBits[role][bit]"
+                  @change="chmodBits[role][bit] = ($event.target as HTMLInputElement).checked"
+                >
+              </div>
+            </template>
+          </div>
+          <!-- 八进制输入 + 递归（目录） -->
+          <div class="flex items-center gap-3 text-xs">
+            <label class="flex items-center gap-1.5 text-text-secondary">
+              八进制
+              <input
+                :value="chmodOctal"
+                type="text"
+                class="w-16 px-2 py-1 font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
+                maxlength="4"
+                @change="applyOctalInput(($event.target as HTMLInputElement).value)"
+              >
+            </label>
+            <label v-if="file?.isDirectory" class="flex items-center gap-1.5 text-text-secondary cursor-pointer">
+              <input v-model="chmodRecursive" type="checkbox" class="accent-blue-500">
+              递归应用到目录内容
+            </label>
+            <span v-if="chmodError" class="text-accent-red">{{ chmodError }}</span>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button class="px-2.5 py-1 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover" @click.prevent="chmodEditing = false">取消</button>
+            <button
+              class="px-2.5 py-1 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90 disabled:opacity-40"
+              :disabled="chmodError !== null"
+              @click.prevent="applyChmod"
+            >应用</button>
           </div>
         </section>
 
@@ -145,14 +204,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import exifr from 'exifr'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import type { FileStats, MediaInfoSummary } from '@shared/types'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { formatSize } from '@/utils/path'
-import { formatPermissions } from '@/utils/permissions'
+import { formatPermissions, parseOctalPermissions } from '@/utils/permissions'
+import type { DeviceCapabilities } from '@shared/types'
 import { getFileCategory, isImageFile, needsNativeDecode } from '@/utils/fileTypes'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -231,6 +291,74 @@ const compressionLabel = computed(() => {
 
 // ── 异步数据 ──────────────────────────────────────────────────────────────────
 const stats = ref<FileStats | null>(null)
+
+// ── chmod 编辑（M5；canChmod 门控 + 本地/SSH 权限语义可靠条件）──
+const chmodEditing = ref(false)
+const chmodRecursive = ref(false)
+const chmodError = ref<string | null>(null)
+const chmodBits = reactive({
+  owner: { r: false, w: false, x: false },
+  group: { r: false, w: false, x: false },
+  other: { r: false, w: false, x: false }
+})
+
+const chmodRoles: Array<{ label: string; role: keyof typeof chmodBits }> = [
+  { label: '所有者', role: 'owner' },
+  { label: '组', role: 'group' },
+  { label: '其他', role: 'other' }
+]
+
+const deviceCapabilities = ref<DeviceCapabilities | null>(null)
+
+const canChmod = computed(() => {
+  if (!showPermissions.value || isZipEntry.value) return false
+  // 能力未知（未加载）按支持处理——应用失败在错误位呈现
+  return deviceCapabilities.value?.canChmod !== false
+})
+
+const chmodOctal = computed(() => {
+  const digit = (bits: { r: boolean; w: boolean; x: boolean }) =>
+    (bits.r ? 4 : 0) + (bits.w ? 2 : 0) + (bits.x ? 1 : 0)
+  return `${digit(chmodBits.owner)}${digit(chmodBits.group)}${digit(chmodBits.other)}`
+})
+
+function startChmodEdit(): void {
+  const mode = stats.value?.mode
+  if (mode == null) return
+  chmodBits.owner.r = !!(mode & 0o400); chmodBits.owner.w = !!(mode & 0o200); chmodBits.owner.x = !!(mode & 0o100)
+  chmodBits.group.r = !!(mode & 0o040); chmodBits.group.w = !!(mode & 0o020); chmodBits.group.x = !!(mode & 0o010)
+  chmodBits.other.r = !!(mode & 0o004); chmodBits.other.w = !!(mode & 0o002); chmodBits.other.x = !!(mode & 0o001)
+  chmodRecursive.value = false
+  chmodError.value = null
+  chmodEditing.value = true
+}
+
+/** 八进制输入回填复选格（"755"/"0644"）。 */
+function applyOctalInput(text: string): void {
+  const mode = parseOctalPermissions(text)
+  if (mode === null) {
+    chmodError.value = '八进制应为 3-4 位（如 755 / 0644）'
+    return
+  }
+  chmodError.value = null
+  chmodBits.owner.r = !!(mode & 0o400); chmodBits.owner.w = !!(mode & 0o200); chmodBits.owner.x = !!(mode & 0o100)
+  chmodBits.group.r = !!(mode & 0o040); chmodBits.group.w = !!(mode & 0o020); chmodBits.group.x = !!(mode & 0o010)
+  chmodBits.other.r = !!(mode & 0o004); chmodBits.other.w = !!(mode & 0o002); chmodBits.other.x = !!(mode & 0o001)
+}
+
+async function applyChmod(): Promise<void> {
+  if (!file.value) return
+  const mode = parseOctalPermissions(chmodOctal.value)
+  if (mode === null) return
+  try {
+    await window.fileman.chmod(props.deviceId, file.value.path, mode, chmodRecursive.value && file.value.isDirectory)
+    chmodEditing.value = false
+    // 重取 stats 刷新显示
+    try { stats.value = await window.fileman.getStats(props.deviceId, file.value.path) } catch { /* 保持旧值 */ }
+  } catch (error) {
+    chmodError.value = error instanceof Error ? error.message : String(error)
+  }
+}
 const zipEntry = ref<{ compressedSize: number; size: number; compressionMethod: number } | null>(null)
 const thumbnailSrc = ref<string | null>(null)
 
@@ -252,6 +380,8 @@ let unsubProgress: (() => void) | null = null
 let disposed = false
 
 onMounted(async () => {
+  // 设备能力（chmod 编辑门控；失败保持 null=按支持处理）
+  try { deviceCapabilities.value = await window.fileman.getDeviceCapabilities(props.deviceId) } catch { /* 能力未知 */ }
   // 先订阅再发起扫描，防止首条进度早于订阅到达
   unsubProgress = window.fileman.onDirectoryStatsProgress(progress => {
     if (progress.sessionId !== sessionId) return

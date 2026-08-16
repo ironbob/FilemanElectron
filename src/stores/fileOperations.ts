@@ -229,10 +229,6 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       this.isPanelVisible = !this.isPanelVisible
     },
 
-    showPanel(): void {
-      this.isPanelVisible = true
-    },
-
     hidePanel(): void {
       this.isPanelVisible = false
     },

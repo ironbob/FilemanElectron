@@ -87,6 +87,7 @@ export class SMBAdapter implements IFileSystemAdapter {
         size: Number((entry as unknown as { size?: number }).size || 0),
         modifiedTime: entry.mtime?.toISOString() || new Date(0).toISOString(),
         createdTime: entry.birthtime?.toISOString() || entry.ctime?.toISOString(),
+        mode: (entry as unknown as { mode?: number }).mode,
         extension: isDirectory ? undefined : path.posix.extname(entry.name).toLowerCase()
       }
     }).sort(sortDirectoriesFirst)

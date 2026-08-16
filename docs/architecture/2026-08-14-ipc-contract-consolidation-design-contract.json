@@ -282,14 +282,14 @@
       "role_kind": "layer",
       "layer": "service",
       "domain_role": null,
-      "responsibility": "设备注册/连接/代理；能力兜底委托 DEFAULT_REMOTE_CAPABILITIES；构造函数不再自动启动移动扫描（由 main 显式启动）",
-      "hidden_secret": "设备生命周期与 adapter 注册表",
-      "change_triggers": ["连接策略/设备注册规则调整"],
-      "data_owned": "devices/adapters Map 与连接尝试去重表",
+      "responsibility": "设备门面：注册表/配置持久化 + 文件操作代理入口；连接生命周期与移动发现分别拆出 AdapterConnectionManager/MobileDiscoveryService（公共 API 不变）；能力兜底委托 DEFAULT_REMOTE_CAPABILITIES；构造函数无生命周期副作用",
+      "hidden_secret": "设备清单与配置/凭据持久化编排（连接协议细节与扫描器已分别下沉两个子服务）",
+      "change_triggers": ["设备注册规则调整（连接策略改 AdapterConnectionManager、发现机制改 MobileDiscoveryService）"],
+      "data_owned": "devices Map 与变更订阅 handlers（adapters/连接去重移入 AdapterConnectionManager）",
       "depends_on": ["ROLE-D01", "ROLE-D03"],
-      "industry_basis": "应用服务 + 注册表模式（设备→适配器的工厂与生命周期管理）",
+      "industry_basis": "门面模式（Facade）+ 注册表模式：保留公共 API，内部职责分治",
       "design_principles": ["SRP", "DIP"],
-      "code_units": ["electron/src/services/DeviceManager.ts"]
+      "code_units": ["electron/src/services/DeviceManager.ts", "electron/src/services/AdapterConnectionManager.ts", "electron/src/services/MobileDiscoveryService.ts"]
     }
   ],
   "interfaces": [

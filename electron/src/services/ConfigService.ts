@@ -9,6 +9,7 @@ interface AppConfig {
     showHiddenFiles: boolean
     confirmDelete: boolean
     autoConnectDevices?: string[]
+    autoRefresh?: boolean
   }
 }
 
@@ -18,7 +19,8 @@ const defaultConfig: AppConfig = {
   settings: {
     defaultView: 'list',
     showHiddenFiles: false,
-    confirmDelete: true
+    confirmDelete: true,
+    autoRefresh: true
   }
 }
 

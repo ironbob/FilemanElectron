@@ -9,7 +9,9 @@ const log = (message: string, ...args: unknown[]) => {
 const DEFAULT_SETTINGS: AppSettings = {
   defaultView: 'list',
   showHiddenFiles: false,
-  confirmDelete: true
+  showPermissions: false,
+  confirmDelete: true,
+  autoRefresh: true
 }
 
 /**
@@ -65,5 +67,32 @@ export const useSettingsStore = defineStore('settings', () => {
     await setShowHiddenFiles(!settings.value.showHiddenFiles)
   }
 
-  return { settings, loaded, load, setShowHiddenFiles, toggleShowHiddenFiles }
+  async function setShowPermissions(v: boolean): Promise<void> {
+    if (settings.value.showPermissions === v) return
+    settings.value.showPermissions = v
+    log('showPermissions →', v)
+    await persist()
+  }
+
+  async function toggleShowPermissions(): Promise<void> {
+    await setShowPermissions(!settings.value.showPermissions)
+  }
+
+  async function setAutoRefresh(v: boolean): Promise<void> {
+    if (settings.value.autoRefresh === v) return
+    settings.value.autoRefresh = v
+    log('autoRefresh →', v)
+    await persist()
+  }
+
+  return {
+    settings,
+    loaded,
+    load,
+    setShowHiddenFiles,
+    toggleShowHiddenFiles,
+    setShowPermissions,
+    toggleShowPermissions,
+    setAutoRefresh
+  }
 })

@@ -1,0 +1,115 @@
+{
+  "feature": "dir-watch-quickwin",
+  "title": "目录监听自动刷新 + 路径快赢（M1）",
+  "stack": "Electron29+Vue3",
+  "analyzed_at": "2026-08-15",
+  "existing_alignment": {
+    "recognized_style": "主进程服务窄接口注入（DeviceAdapterProvider）+ emit 回调推送（compareVerifyStart 先例）；renderer setup-style Pinia + composable；纯函数置于 utils 并以 esbuild 最小 harness 单测（logAnalysis 先例）；IPC 四处同步（@shared/types → channels.ts → main.ts → preload.ts → env.d.ts）；结构化日志 [组件名] 前缀。",
+    "new_code_follows": "WatchService 沿用 VolumeScanner 轮询形态与 emit 注入；HostShellService 原地扩展（同文件同风格）；FileList 以分段注释集成（不拆既有巨型组件，遵守 RISK-04 触发式重构约束）；共享基建 support/ 子目录集中。"
+  },
+  "interaction_confirmation": {
+    "profile_selected": "standard（随总体规划批准）",
+    "proposal_revision": 1,
+    "candidate_confirmed": "ALT-1（FileList 持有订阅 + 渲染层 diff 守卫）",
+    "source": "用户批准 ~/.claude/plans/ancient-tickling-alpaca.md 实施计划后进入编码",
+    "quoted_evidence": "规划批准记录（2026-08-15）"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      { "id": "QA-1", "name": "选区/滚动保护", "priority": "P0", "scenario": "无变化推送后选中项与滚动位置不变" },
+      { "id": "QA-2", "name": "及时性", "priority": "P0", "scenario": "本地变化 ≤1s 可见" },
+      { "id": "QA-3", "name": "资源即释", "priority": "P0", "scenario": "无订阅时零 watcher 零 interval" },
+      { "id": "QA-4", "name": "设备友好", "priority": "P1", "scenario": "远程轮询单请求在途、失焦跳过" },
+      { "id": "QA-5", "name": "零新依赖", "priority": "P0", "scenario": "不引入 chokidar" }
+    ],
+    "candidates": [
+      { "id": "ALT-1", "summary": "FileList 持有订阅 + 渲染层 diff 守卫", "selected": true },
+      { "id": "ALT-2", "summary": "FilePane 持有订阅 + directoryLoadKey 重挂载刷新（丢滚动位置，否决）", "selected": false },
+      { "id": "ALT-3", "summary": "主进程推送带明细 diff（需基线缓存，与渲染层重复，否决）", "selected": false }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "订阅生命周期与展示精确对齐；diff 复用列表页已有数据，主进程零额外状态。",
+    "top_down_check": "R1-R8 全部映射到角色（R2→listingDiff+FileList 守卫；R3→WatchService 引用计数；R4→远程引擎；R5→ZIP 分支；R6→path utils；R7→HostShellService；R8→settings）",
+    "bottom_up_check": "每个新模块均被 ≥1 条业务规则或共享基建复用点（M3/M4）追溯",
+    "risk_spikes": ["fs.watch 非递归事件语义确认（macOS FSEvents 直接条目）", "e2e 中 mock Proxy 兜底返回 undefined 导致 ref 被覆盖——已以 Array.isArray 守卫修复"],
+    "review": "自评通过；已知缺口见 open_questions"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Pinia（setup style）",
+    "current_patterns": "FileList 巨型组件（RISK-04 约束：不拆结构）、右键菜单 items 数组 + children 子菜单、对话框本地 reactive 状态",
+    "target_patterns": "同左（本套件不引入新 UI 模式；菜单扩展沿用 children 结构）",
+    "state_management": "settings store 增 autoRefresh（spread-merge 持久化）；FileList 局部 ref 持有菜单快照",
+    "view_model_policy": "无新 store；逻辑内聚组件 + 纯函数 utils",
+    "mvvm_suitability": "不适用机械 MVVM；沿用既有 composable-as-ViewModel 渐进路线",
+    "migration_impact": "无迁移",
+    "impact_scope": ["src/components/FileList.vue（集成点）", "src/stores/settings.ts", "src/stores/tabs.ts（isTransientTab 提取）"],
+    "migration_confirmation": "无 UI 迁移",
+    "decision_reason": "遵循仓库「改到哪个抽哪个」的 RISK-04 约束"
+  },
+  "roles": [
+    { "id": "ROLE-L01", "role_kind": "layer", "layer": "infrastructure(main)", "domain_role": "目录监听服务", "responsibility": "订阅登记（引用计数）、本地/远程引擎分流、变化推送", "hidden_secret": "fs.watch 非递归语义、300ms 合并窗口、轮询周期与失败上限", "change_triggers": "新设备类型接入监听；推送协议变化", "data_owned": "localWatches/remoteWatches/refCounts", "depends_on": ["DeviceAdapterProvider（窄接口）", "emit 回调"], "industry_basis": "观察者模式 + 策略模式", "design_principles": ["SRP", "DIP", "OCP"], "code_units": ["electron/src/services/WatchService.ts"] },
+    { "id": "ROLE-D01", "role_kind": "domain", "layer": "domain", "domain_role": "列表差异判定", "responsibility": "签名（isDir+size+mtime+name）差异判定纯函数", "hidden_secret": "签名构成与顺序无关性", "change_triggers": "签名字段增减", "data_owned": "无状态", "depends_on": [], "industry_basis": "值对象比较", "design_principles": ["纯函数", "可测性"], "code_units": ["src/utils/listingDiff.ts"] },
+    { "id": "ROLE-D02", "role_kind": "domain", "layer": "domain", "domain_role": "路径计算", "responsibility": "toRelativePath 词法相对路径、toFileUri 转义", "hidden_secret": "公共前缀分段算法、encodeURIComponent 规则", "change_triggers": "URI 编码规则变化", "data_owned": "无状态", "depends_on": [], "industry_basis": "readlink -m 词法语义", "design_principles": ["纯函数"], "code_units": ["src/utils/path.ts"] },
+    { "id": "ROLE-V01", "role_kind": "layer", "layer": "view", "domain_role": "自动刷新集成", "responsibility": "订阅生命周期、事件合并、diff 守卫后 loadFiles", "hidden_secret": "挂载周期=展示周期的对齐", "change_triggers": "列表组件重构（RISK-04）", "data_owned": "watchRefreshTimer 局部", "depends_on": ["IFC-1", "ROLE-D01", "settings store"], "industry_basis": "生命周期对齐订阅", "design_principles": ["SRP"], "code_units": ["src/components/FileList.vue（自动刷新段）"] },
+    { "id": "ROLE-L02", "role_kind": "layer", "layer": "infrastructure(main)", "domain_role": "宿主集成扩展", "responsibility": "openWith（open -a）、detectDevApps 探测缓存", "hidden_secret": "DEV_APP_CANDIDATES 白名单、Applications 搜索、memoize", "change_triggers": "候选应用清单变化", "data_owned": "detectedAppsCache", "depends_on": ["execFile"], "industry_basis": "SRP 宿主集成", "design_principles": ["SRP", "OCP"], "code_units": ["electron/src/services/HostShellService.ts"] },
+    { "id": "ROLE-V02", "role_kind": "layer", "layer": "view", "domain_role": "右键菜单扩展", "responsibility": "复制路径/打开方式子菜单构建与分发", "hidden_secret": "菜单打开时快照（otherPane/targetFile）", "change_triggers": "新路径变体/新应用", "data_owned": "contextMenuOtherPanePath/openWithApps ref", "depends_on": ["ROLE-D02", "clipboard utils", "IFC-2"], "industry_basis": "既有菜单 items 模式", "design_principles": ["一致性"], "code_units": ["src/components/FileList.vue（菜单段）"] },
+    { "id": "ROLE-L03", "role_kind": "layer", "layer": "infrastructure(main)/shared", "domain_role": "长任务登记处", "responsibility": "任务登记/同 session 取消/取消钩子/注销", "hidden_secret": "TaskHandle 状态机与幂等钩子", "change_triggers": "新长任务服务接入（M3 grep/dupes）", "data_owned": "tasks/sessionTasks Map", "depends_on": [], "industry_basis": "DRY（两处手写模式抽出）", "design_principles": ["DRY", "OCP（state 泛型）"], "code_units": ["electron/src/services/support/SessionTaskRegistry.ts"] },
+    { "id": "ROLE-L04", "role_kind": "layer", "layer": "infrastructure(main)/shared", "domain_role": "目录遍历器", "responsibility": "顺序 BFS + 协作取消 + 容错 + 回调注入", "hidden_secret": "连续失败上限、symlink 目录不递归", "change_triggers": "遍历策略变化（并行度）", "data_owned": "无", "depends_on": ["DeviceAdapterProvider"], "industry_basis": "模板方法变体", "design_principles": ["SRP"], "code_units": ["electron/src/services/support/DirectoryWalker.ts"] },
+    { "id": "ROLE-L05", "role_kind": "layer", "layer": "infrastructure(main)/shared", "domain_role": "文件哈希", "responsibility": "流式哈希/首块哈希/缓冲回退", "hidden_secret": "32MB 回退上限、取消语义、流登记钩子", "change_triggers": "新算法/分块策略", "data_owned": "无", "depends_on": ["IFileSystemAdapter", "crypto"], "industry_basis": "ContentVerificationService.hashFile 泛化", "design_principles": ["DRY"], "code_units": ["electron/src/services/support/fileHashing.ts", "electron/src/services/ContentVerificationService.ts（改委托）"] }
+  ],
+  "interfaces": [
+    { "id": "IFC-1", "provider": "WatchService（main.ts handler）", "consumers": ["FileList"], "input": "watchSubscribe(deviceId, dirPath) / watchUnsubscribe(deviceId, dirPath)", "output": "{ ok: boolean } / void；push WatchChangeEvent{deviceId, dirPath}", "preconditions": "dirPath 非 ZIP 虚拟路径（渲染层过滤）", "postconditions": "引用计数 ±1，归零释放 watcher/停轮询", "invariants": "推送只表明可能变化；同 key 并发订阅幂等", "errors": "订阅失败记录日志返回 ok，不抛 IPC 异常", "data_ownership": "主进程持有订阅表；渲染层持列表基线", "transaction": "无", "concurrency": "本地 watcher error 自清；远程单飞行在途" },
+    { "id": "IFC-2", "provider": "HostShellService", "consumers": ["FileList 右键菜单"], "input": "openWith(appPath, targetPath) / detectOpenWithApps()", "output": "void / OpenWithApp[]（memoized）", "preconditions": "本地设备非 ZIP", "postconditions": "目标以指定应用打开", "invariants": "execFile 参数数组不经 shell", "errors": "open 失败 reject；探测失败空数组", "data_ownership": "主进程缓存探测结果", "transaction": "无", "concurrency": "探测结果缓存线程安全（主进程单线程）" },
+    { "id": "IFC-3", "provider": "listingDiff / path utils", "consumers": ["FileList", "测试"], "input": "listingDiffers(current, fresh) / toRelativePath(fromDir, target) / toFileUri(path)", "output": "boolean / string / string", "preconditions": "无", "postconditions": "无副作用", "invariants": "顺序无关；纯词法；同路径得 '.'", "errors": "无（纯函数）", "data_ownership": "无", "transaction": "无", "concurrency": "无" },
+    { "id": "IFC-4", "provider": "共享基建（SessionTaskRegistry/DirectoryWalker/fileHashing/ToolPathResolver/useLongTaskProgress/isTransientTab/shellQuote）", "consumers": ["M3 GrepService/DuplicateFinderService", "M4 SpaceAnalyzerService", "ContentVerificationService（已改委托）"], "input": "见各模块签名", "output": "见各模块签名", "preconditions": "适配器就绪（getReadyAdapter）", "postconditions": "任务注销不留残余", "invariants": "取消协作标志逐项检查；首块哈希不读完整个文件", "errors": "取消抛 cancelled by request；>32MB 非流式抛错", "data_ownership": "任务表归 registry", "transaction": "无", "concurrency": "顺序遍历单请求在途" }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "推送通道统一经 CH.push 常量表", "principle": "IPC 单一事实源", "role_scope": ["ROLE-L01"] },
+    { "id": "DC-2", "item": "服务不持有 webContents（emit 注入 + isDestroyed 守卫在组合根）", "principle": "DIP", "role_scope": ["ROLE-L01", "ROLE-L02"] },
+    { "id": "DC-3", "item": "刷新决策在渲染层（diff 守卫），主进程不缓存列表基线", "principle": "关注点分离", "role_scope": ["ROLE-V01", "ROLE-D01"] },
+    { "id": "DC-4", "item": "ContentVerificationService 委托 fileHashing 后行为不变（sha256/取消/流登记）", "principle": "重构不改变外部行为", "role_scope": ["ROLE-L05"] },
+    { "id": "DC-5", "item": "settings 持久化 spread-merge（主进程整体替换语义）", "principle": "既有坑位遵守", "role_scope": ["ROLE-V01"] }
+  ],
+  "business_process": [
+    { "step": 1, "name": "订阅建立", "roles": ["ROLE-V01", "ROLE-L01"], "code_refs": ["src/components/FileList.vue watchSubscribe 段"], "doc_ref": "二/S1", "exception": "目录已删：记录日志退化手动刷新" },
+    { "step": 2, "name": "本地监听推送", "roles": ["ROLE-L01"], "code_refs": ["electron/src/services/WatchService.ts startLocalWatch/scheduleLocalEmit"], "doc_ref": "二/S2", "exception": "watcher error 自清订阅" },
+    { "step": 3, "name": "远程轮询推送", "roles": ["ROLE-L01"], "code_refs": ["electron/src/services/WatchService.ts pollRemoteOnce"], "doc_ref": "二/S3", "exception": "连续失败≥10 放弃订阅" },
+    { "step": 4, "name": "diff 守卫刷新", "roles": ["ROLE-V01", "ROLE-D01"], "code_refs": ["src/components/FileList.vue refreshAfterWatchEvent"], "doc_ref": "二/S4", "exception": "拉取失败静默待下一事件" },
+    { "step": 5, "name": "路径快赢", "roles": ["ROLE-V02", "ROLE-D02", "ROLE-L02"], "code_refs": ["src/components/FileList.vue handleCopyPath/open-with 分发"], "doc_ref": "二/S5", "exception": "剪贴板回退 execCommand" }
+  ],
+  "logging_standard": "结构化 [组件名] 前缀（[WatchService]/[HostShellService]/[FileList]），info 级记录订阅生命周期与终态，warn 记录容错路径，不输出用户路径以外的敏感信息。",
+  "verification": {
+    "commands": [
+      { "cmd": "npm run typecheck", "status": "pass", "evidence": "exit 0，renderer 0 error" },
+      { "cmd": "npx tsc -p tsconfig.node.json", "status": "pass", "evidence": "16 errors = 既有基线，零新增" },
+      { "cmd": "npm run build", "status": "pass", "evidence": "out/ 三端产物生成" },
+      { "cmd": "npm run test:relative-path", "status": "pass", "evidence": "全部断言通过（纯函数 14+ 条）" },
+      { "cmd": "npx playwright test e2e/watch-autorefresh.spec.ts e2e/copy-path.spec.ts", "status": "pass", "evidence": "8 passed" }
+    ],
+    "checks": [
+      { "target": "R2 选区保护", "method": "new_test", "evidence": "watch-autorefresh.spec.ts「does not disturb selection」" },
+      { "target": "QA-2 及时性", "method": "new_test", "evidence": "watch-autorefresh.spec.ts「reloads and shows the new file」" },
+      { "target": "R6 路径变体", "method": "new_test", "evidence": "copy-path.spec.ts 四用例" },
+      { "target": "IFC-4 哈希泛化回归", "method": "static_check", "evidence": "typecheck + build；既有 compare e2e 不变" }
+    ],
+    "unverified": [
+      { "item": "fs.watch 对 /Volumes 网络卷的及时性", "follow_up": "实测；必要时此类卷改走远程轮询引擎" },
+      { "item": "远程轮询真实设备表现（SMB/SSH）", "follow_up": "M3 设备联调时验证" }
+    ]
+  },
+  "summary": "M1 套件交付目录监听自动刷新（本地 fs.watch 非递归 + 远程轮询快照 diff + 渲染层 diff 守卫）与路径快赢（四形态复制 + 开发者应用打开），并落地 M3/M4 复用的共享基建（SessionTaskRegistry/DirectoryWalker/fileHashing/ToolPathResolver 泛化/useLongTaskProgress/isTransientTab/shellQuote）。",
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "quick-look.spec.ts 2 个既有失败属在途 Finder 样式改造，非本套件引入。"
+  },
+  "open_questions": [
+    "远程轮询周期是否按设备类型区分（统一 3.5s，M3 评估）",
+    "open -a 对无关联类型文件仅打开应用不定位——macOS 语义可接受降级"
+  ]
+}

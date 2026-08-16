@@ -1,0 +1,491 @@
+{
+  "feature": "search-hash",
+  "title": "内容搜索 + 哈希链（M3）",
+  "stack": "Electron29+Vue3",
+  "analyzed_at": "2026-08-15",
+  "existing_alignment": {
+    "recognized_style": "长任务三通道模式（start/cancel/push + 终态必达，DirectoryStatsService 先例）；瞬态工具页（compareSession 配方）；composable-as-ViewModel（useDirCompare/useLogAnalysis）；共享基建 support/ 集中；execFile/spawn 参数数组无 shell（HostShellService/AndroidAdapter 原则）。",
+    "new_code_follows": "三服务全部消费 M1 的 SessionTaskRegistry/Walker/hashAdapter*/useLongTaskProgress；新增能力位 canGrepContent 同步 6 常量 + DEFAULT_REMOTE（编译期安全网）；UI 颜色仅 CSS 变量。"
+  },
+  "interaction_confirmation": {
+    "profile_selected": "standard（随总体规划批准）",
+    "proposal_revision": 1,
+    "candidate_confirmed": "ALT-1（三引擎矩阵 + 共享基建复用）；grep 引擎为用户明确选择的「混合引擎」",
+    "source": "用户批准实施计划 + AskUserQuestion 确认（2026-08-15）",
+    "quoted_evidence": "「grep 引擎 = 混合引擎 (Recommended)」用户选择记录"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {
+        "id": "QA-1",
+        "name": "及时反馈",
+        "priority": "P0",
+        "scenario": "grep 100ms/200 条批量流式；哈希字节进度"
+      },
+      {
+        "id": "QA-2",
+        "name": "可取消",
+        "priority": "P0",
+        "scenario": "协作标志 + 杀 rg 子进程/销毁流"
+      },
+      {
+        "id": "QA-3",
+        "name": "引擎自动降级",
+        "priority": "P0",
+        "scenario": "rg 捆绑→$PATH→流式三级"
+      },
+      {
+        "id": "QA-4",
+        "name": "载荷上限",
+        "priority": "P0",
+        "scenario": "10000 命中/5000 组/400 字截断"
+      },
+      {
+        "id": "QA-5",
+        "name": "删除安全",
+        "priority": "P0",
+        "scenario": "dupes 删除走既有队列"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "ALT-1",
+        "summary": "三引擎矩阵 + 共享基建复用",
+        "selected": true
+      },
+      {
+        "id": "ALT-2",
+        "summary": "全流式引擎（本地慢一个量级，用户已否决）",
+        "selected": false
+      },
+      {
+        "id": "ALT-3",
+        "summary": "全远端 exec（SMB/WebDAV 无通道，不可行）",
+        "selected": false
+      }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "用户明确选择混合引擎；矩阵判定输入全部本地可判；M1 基建已就位边际成本低。",
+    "top_down_check": "R1-R7 全映射（R2→能力门控；R3→SessionTaskRegistry；R4→上限常量；R5→flush 策略；R6→shellQuote；R7→入口与瞬态页）",
+    "bottom_up_check": "grepParsing/matchGlob 等纯函数均有单测；三 composable 均有 e2e 覆盖",
+    "risk_spikes": [
+      "rg exit 1 语义实测",
+      "porcelain/rg 输出冒号歧义解析实测",
+      ".ts 被 classifier 判为视频——initialLine 强制 text 修复"
+    ],
+    "review": "自评通过"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Pinia",
+    "current_patterns": "瞬态工具页（dupesSession/grepSession 加入 Tab 可选字段 + isTransientTab 单一事实源）；弹窗本地 reactive（ChecksumDialog 沿用）",
+    "target_patterns": "同左；新增 dupes/ grep/ 组件目录",
+    "state_management": "会话在 composable；无新持久化 store",
+    "view_model_policy": "composable 持运行会话",
+    "mvvm_suitability": "不引入机械 MVVM",
+    "migration_impact": "Tab 类型加两个可选字段（向后兼容）",
+    "impact_scope": [
+      "src/types/index.ts",
+      "src/stores/tabs.ts",
+      "src/App.vue 分发链"
+    ],
+    "migration_confirmation": "可选字段无迁移风险",
+    "decision_reason": "复用既有瞬态页配方，新增视图零模式引入"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L07",
+      "role_kind": "layer",
+      "layer": "infrastructure(main)",
+      "domain_role": "校验和服务",
+      "responsibility": "逐项哈希（跨设备）、终态 results+match",
+      "hidden_secret": "字节进度基线累加、结果序与 items 对齐",
+      "change_triggers": "新算法/并行策略",
+      "data_owned": "无（registry 持任务）",
+      "depends_on": [
+        "STR",
+        "FH"
+      ],
+      "industry_basis": "DRY 复用",
+      "design_principles": [
+        "SRP"
+      ],
+      "code_units": [
+        "electron/src/services/ChecksumService.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L08",
+      "role_kind": "layer",
+      "layer": "infrastructure(main)",
+      "domain_role": "重复查找服务",
+      "responsibility": "三阶段漏斗编排",
+      "hidden_secret": "收敛序、5000 组截断、浪费空间降序",
+      "change_triggers": "阶段策略调整",
+      "data_owned": "无",
+      "depends_on": [
+        "STR",
+        "DW",
+        "FH"
+      ],
+      "industry_basis": "漏斗式批处理",
+      "design_principles": [
+        "SRP"
+      ],
+      "code_units": [
+        "electron/src/services/DuplicateFinderService.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L09",
+      "role_kind": "layer",
+      "layer": "infrastructure(main)",
+      "domain_role": "内容搜索服务",
+      "responsibility": "引擎矩阵选择与执行",
+      "hidden_secret": "rg 流式解析、远端命令构造、流式护栏",
+      "change_triggers": "新引擎/新设备类型",
+      "data_owned": "无",
+      "depends_on": [
+        "STR",
+        "DW",
+        "GP",
+        "TPR"
+      ],
+      "industry_basis": "策略模式矩阵",
+      "design_principles": [
+        "OCP"
+      ],
+      "code_units": [
+        "electron/src/services/GrepService.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D04",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "grep 解析构造",
+      "responsibility": "输出解析/命令构造/嗅探/行匹配/glob",
+      "hidden_secret": ":数字: 边界消歧、./ 归一、极简 glob 转正则",
+      "change_triggers": "rg/grep 版本差异",
+      "data_owned": "无",
+      "depends_on": [],
+      "industry_basis": "解析器",
+      "design_principles": [
+        "纯函数"
+      ],
+      "code_units": [
+        "electron/src/services/support/grepParsing.ts"
+      ]
+    },
+    {
+      "id": "ROLE-VM03",
+      "role_kind": "layer",
+      "layer": "viewmodel",
+      "domain_role": "dupes 会话",
+      "responsibility": "驱动/终态抽取/勾选策略",
+      "hidden_secret": "保留最新算法、可回收计算",
+      "change_triggers": "勾选策略",
+      "data_owned": "会话局部",
+      "depends_on": [
+        "ULT"
+      ],
+      "industry_basis": "composable-as-VM",
+      "design_principles": [
+        "一致性"
+      ],
+      "code_units": [
+        "src/components/dupes/useDuplicates.ts"
+      ]
+    },
+    {
+      "id": "ROLE-VM04",
+      "role_kind": "layer",
+      "layer": "viewmodel",
+      "domain_role": "grep 会话",
+      "responsibility": "驱动/增量累加/分组派生",
+      "hidden_secret": "searching 批次 append、终态冻结",
+      "change_triggers": "推送协议",
+      "data_owned": "会话局部",
+      "depends_on": [
+        "ULT"
+      ],
+      "industry_basis": "composable-as-VM",
+      "design_principles": [
+        "一致性"
+      ],
+      "code_units": [
+        "src/components/grep/useGrepSearch.ts"
+      ]
+    },
+    {
+      "id": "ROLE-V05",
+      "role_kind": "layer",
+      "layer": "viewmodel",
+      "layer_note": "view",
+      "domain_role": "三视图",
+      "responsibility": "弹窗/工具页 UI、折叠勾选、命令注册",
+      "hidden_secret": "命令生命周期对称",
+      "change_triggers": "交互调整",
+      "data_owned": "局部 reactive",
+      "depends_on": [
+        "ROLE-VM03",
+        "ROLE-VM04"
+      ],
+      "industry_basis": "工具页模式",
+      "design_principles": [
+        "一致性"
+      ],
+      "code_units": [
+        "src/components/dialogs/ChecksumDialog.vue",
+        "src/components/dupes/DuplicateFinderView.vue",
+        "src/components/grep/GrepSearchView.vue"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IFC-1",
+      "provider": "ChecksumService",
+      "consumers": [
+        "ChecksumDialog"
+      ],
+      "input": "ChecksumRequest",
+      "output": "{taskId} + ChecksumProgress 流（终态 results+match）",
+      "preconditions": "items ≥1 ≤2",
+      "postconditions": "终态必达",
+      "invariants": "逐项顺序执行",
+      "errors": "单项失败入 results.error",
+      "data_ownership": "主进程",
+      "transaction": "无",
+      "concurrency": "同 session 取消旧任务"
+    },
+    {
+      "id": "IFC-2",
+      "provider": "DuplicateFinderService",
+      "consumers": [
+        "useDuplicates"
+      ],
+      "input": "DuplicateScanRequest",
+      "output": "{taskId} + DuplicateScanProgress 流（终态 groups）",
+      "preconditions": "canList+canStat",
+      "postconditions": "groups ≤5000 + truncated",
+      "invariants": "分组键=全量哈希；浪费空间降序",
+      "errors": "遍历连续失败→failed",
+      "data_ownership": "主进程",
+      "transaction": "无",
+      "concurrency": "顺序遍历"
+    },
+    {
+      "id": "IFC-3",
+      "provider": "GrepService",
+      "consumers": [
+        "useGrepSearch"
+      ],
+      "input": "GrepRequest",
+      "output": "{taskId} + GrepProgress 批量流",
+      "preconditions": "canGrepContent",
+      "postconditions": "matchCount 单调；truncated 语义",
+      "invariants": "iOS 直接 failed；行文本 ≤400 字",
+      "errors": "rg exit 2 / 远端 exit>1 → failed",
+      "data_ownership": "主进程",
+      "transaction": "无",
+      "concurrency": "子进程/远端单飞行"
+    },
+    {
+      "id": "IFC-4",
+      "provider": "preview store + Router + TextContent",
+      "consumers": [
+        "GrepSearchView"
+      ],
+      "input": "openPreview(file, deviceId, initialLine?)",
+      "output": "预览标签页 + Monaco 定位",
+      "preconditions": "initialLine>0",
+      "postconditions": "一次性 reveal+选中+聚焦",
+      "invariants": "initialLine 存在时强制 text 类型",
+      "errors": "行号超界钳制到末行",
+      "data_ownership": "renderer",
+      "transaction": "无",
+      "concurrency": "无"
+    }
+  ],
+  "design_contract_checks": [
+    {
+      "id": "DC-1",
+      "item": "canGrepContent 同步 6 常量 + DEFAULT_REMOTE",
+      "principle": "编译期安全网",
+      "role_scope": [
+        "ROLE-L09"
+      ]
+    },
+    {
+      "id": "DC-2",
+      "item": "远端命令 shellQuote + 参数数组",
+      "principle": "无引号地狱",
+      "role_scope": [
+        "ROLE-L09",
+        "ROLE-D04"
+      ]
+    },
+    {
+      "id": "DC-3",
+      "item": "三服务消费 M1 基建而非重写",
+      "principle": "DRY",
+      "role_scope": [
+        "ROLE-L07",
+        "ROLE-L08",
+        "ROLE-L09"
+      ]
+    },
+    {
+      "id": "DC-4",
+      "item": "dupesSession/grepSession 进 isTransientTab",
+      "principle": "瞬态页单一事实源",
+      "role_scope": [
+        "ROLE-V05"
+      ]
+    }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "入口分发",
+      "roles": [
+        "ROLE-V05"
+      ],
+      "code_refs": [
+        "src/components/FileList.vue 右键分发"
+      ],
+      "doc_ref": "二",
+      "exception": "能力门控隐藏入口"
+    },
+    {
+      "step": 2,
+      "name": "任务启动",
+      "roles": [
+        "ROLE-VM03",
+        "ROLE-VM04",
+        "ULT"
+      ],
+      "code_refs": [
+        "src/composables/useLongTaskProgress.ts"
+      ],
+      "doc_ref": "二",
+      "exception": "同 session 取消旧任务"
+    },
+    {
+      "step": 3,
+      "name": "引擎执行",
+      "roles": [
+        "ROLE-L09"
+      ],
+      "code_refs": [
+        "electron/src/services/GrepService.ts run*"
+      ],
+      "doc_ref": "二",
+      "exception": "降级矩阵"
+    },
+    {
+      "step": 4,
+      "name": "批量推送/终态",
+      "roles": [
+        "ROLE-L07",
+        "ROLE-L08",
+        "ROLE-L09"
+      ],
+      "code_refs": [
+        "各服务 flush/terminal"
+      ],
+      "doc_ref": "二",
+      "exception": "终态必达"
+    },
+    {
+      "step": 5,
+      "name": "命中跳转预览",
+      "roles": [
+        "ROLE-V05"
+      ],
+      "code_refs": [
+        "src/components/preview/PreviewContentRouter.vue",
+        "PreviewTextContent.vue initialLine 段"
+      ],
+      "doc_ref": "二",
+      "exception": "行号钳制"
+    }
+  ],
+  "logging_standard": "[Checksum]/[Dupes]/[Grep] 结构化前缀；info 记录阶段边界与终态计数；warn 记录降级与单点失败；pattern 打印但不含文件内容。",
+  "verification": {
+    "commands": [
+      {
+        "cmd": "npm run typecheck",
+        "status": "pass",
+        "evidence": "0 error"
+      },
+      {
+        "cmd": "npx tsc -p tsconfig.node.json",
+        "status": "pass",
+        "evidence": "16 = 基线"
+      },
+      {
+        "cmd": "npm run build",
+        "status": "pass",
+        "evidence": "通过"
+      },
+      {
+        "cmd": "npm run test:grep-parse",
+        "status": "pass",
+        "evidence": "全过"
+      },
+      {
+        "cmd": "npx playwright test e2e/grep-results-tab.spec.ts e2e/duplicates-tab.spec.ts e2e/git-badges.spec.ts e2e/command-palette.spec.ts",
+        "status": "pass",
+        "evidence": "12 passed"
+      }
+    ],
+    "checks": [
+      {
+        "target": "R5 批量推送与分组",
+        "method": "new_test",
+        "evidence": "grep-results-tab streams 用例"
+      },
+      {
+        "target": "IFC-4 行号定位",
+        "method": "new_test",
+        "evidence": "grep-results-tab preview 用例"
+      },
+      {
+        "target": "勾选旧副本+队列删除",
+        "method": "new_test",
+        "evidence": "duplicates-tab delete 用例"
+      },
+      {
+        "target": "解析纯函数",
+        "method": "new_test",
+        "evidence": "grepParsing.test.ts"
+      }
+    ],
+    "unverified": [
+      {
+        "item": "真实 SMB/SSH 设备上的引擎表现",
+        "follow_up": "设备联调"
+      },
+      {
+        "item": "rg 二进制投放后的打包路径解析（fetch-rg.sh 已投放 15.2.0；dist:mac 验证 Resources/rg/rg 解析）",
+        "follow_up": "DMG 实测运行 grep"
+      }
+    ]
+  },
+  "summary": "M3 交付三条内容链路：grep 三引擎矩阵（rg/exec/流式）+ 命中跳转预览定位、checksum 跨设备哈希对比、dupes 三阶段漏斗批量清理；全部建立在 M1 共享基建之上。",
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": ""
+  },
+  "open_questions": [
+    "grep 命中行内高亮（matchStart/End 数据已到位，UI 未渲染）",
+    "跨设备 checksum 对比需跨面板选择 UI（服务端已支持）"
+  ]
+}

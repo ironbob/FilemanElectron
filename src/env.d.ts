@@ -30,12 +30,27 @@ declare module 'vue-virtual-scroller' {
 // import() 类型导入形态别名到全局作用域，供下方 Window['fileman'] 引用。
 
 type FileInfo = import('@shared/types').FileInfo
+type FileInfoWindowContext = import('@shared/types').FileInfoWindowContext
 type FileStats = import('@shared/types').FileStats
 type SearchQuery = import('@shared/types').SearchQuery
 type ContentVerificationPair = import('@shared/types').ContentVerificationPair
 type ContentVerificationProgress = import('@shared/types').ContentVerificationProgress
 type DirectoryStatsRequest = import('@shared/types').DirectoryStatsRequest
 type DirectoryStatsProgress = import('@shared/types').DirectoryStatsProgress
+type WatchChangeEvent = import('@shared/types').WatchChangeEvent
+type OpenWithApp = import('@shared/types').OpenWithApp
+type GitDirectoryStatus = import('@shared/types').GitDirectoryStatus
+type ChecksumRequest = import('@shared/types').ChecksumRequest
+type ChecksumProgress = import('@shared/types').ChecksumProgress
+type DuplicateScanRequest = import('@shared/types').DuplicateScanRequest
+type DuplicateScanProgress = import('@shared/types').DuplicateScanProgress
+type DuplicateGroup = import('@shared/types').DuplicateGroup
+type GrepRequest = import('@shared/types').GrepRequest
+type GrepProgress = import('@shared/types').GrepProgress
+type GrepMatch = import('@shared/types').GrepMatch
+type SpaceAnalysisRequest = import('@shared/types').SpaceAnalysisRequest
+type SpaceAnalysisProgress = import('@shared/types').SpaceAnalysisProgress
+type ReadChunkResult = import('@shared/types').ReadChunkResult
 type MediaInfoSummary = import('@shared/types').MediaInfoSummary
 type DeviceConfig = import('@shared/types').DeviceConfig
 type Credentials = import('@shared/types').Credentials
@@ -50,6 +65,8 @@ interface Window {
   fileman: {
     // System
     getHomeDir: () => Promise<string>
+    openFileInfoWindow: (context: FileInfoWindowContext) => Promise<void>
+    getFileInfoWindowContext: () => Promise<FileInfoWindowContext>
 
     // Config
     getConfig: () => Promise<unknown>
@@ -86,6 +103,43 @@ interface Window {
     // Directory stats (属性弹窗递归统计) — progress 终态即为结果
     startDirectoryStats: (request: DirectoryStatsRequest) => Promise<{ taskId: string }>
     cancelDirectoryStats: (taskId: string) => Promise<boolean>
+
+    // Directory watch (自动刷新) — 订阅变化推送；renderer 端 diff 守卫后再刷新
+    watchSubscribe: (deviceId: string, dirPath: string) => Promise<{ ok: boolean }>
+    watchUnsubscribe: (deviceId: string, dirPath: string) => Promise<void>
+    onWatchChanged: (callback: (event: WatchChangeEvent) => void) => () => void
+
+    // Git status (只读徽标；非本地设备或非仓库返回 isRepo:false)
+    getGitStatus: (deviceId: string, dirPath: string) => Promise<GitDirectoryStatus>
+
+    // Checksum (哈希校验；1 项单哈希 / 2 项跨设备对比；终态携带 results+match)
+    startChecksum: (request: ChecksumRequest) => Promise<{ taskId: string }>
+    cancelChecksum: (taskId: string) => Promise<boolean>
+    onChecksumProgress: (callback: (progress: ChecksumProgress) => void) => () => void
+
+    // Duplicate finder (重复文件查找；groups 只随 completed 终态携带)
+    startDuplicateScan: (request: DuplicateScanRequest) => Promise<{ taskId: string }>
+    cancelDuplicateScan: (taskId: string) => Promise<boolean>
+    onDuplicateScanProgress: (callback: (progress: DuplicateScanProgress) => void) => () => void
+
+    // Grep (内容搜索；matches 增量批量推送；iOS 不支持)
+    startGrep: (request: GrepRequest) => Promise<{ taskId: string }>
+    cancelGrep: (taskId: string) => Promise<boolean>
+    onGrepProgress: (callback: (progress: GrepProgress) => void) => () => void
+
+    // Symlink / permission (能力门控；递归 chmod 由 main 编排)
+    createSymlink: (deviceId: string, targetPath: string, linkPath: string) => Promise<void>
+    readSymlink: (deviceId: string, linkPath: string) => Promise<string>
+    chmod: (deviceId: string, targetPath: string, mode: number, recursive: boolean) => Promise<void>
+    chown: (deviceId: string, targetPath: string, uid: number, gid: number) => Promise<void>
+
+    // Read chunk (分块读取；hex 预览用；本地/流式远程支持区间，非流式整读 slice)
+    readChunk: (deviceId: string, path: string, offset: number, length: number) => Promise<ReadChunkResult>
+
+    // Space analysis (空间分析 treemap；entries 只随 completed 终态携带)
+    startSpaceAnalysis: (request: SpaceAnalysisRequest) => Promise<{ taskId: string }>
+    cancelSpaceAnalysis: (taskId: string) => Promise<boolean>
+    onSpaceAnalysisProgress: (callback: (progress: SpaceAnalysisProgress) => void) => () => void
 
     // Media info (属性弹窗多媒体元数据；非媒体或远程文件返回 null)
     getMediaInfo: (deviceId: string, filePath: string) => Promise<MediaInfoSummary | null>
@@ -137,6 +191,10 @@ interface Window {
     showInFolder: (path: string) => void
     // Open a local directory in the system Terminal (macOS only; rejects on other platforms).
     openInTerminal: (path: string) => Promise<void>
+    // Open a local file/directory with a chosen app (macOS: open -a).
+    openWith: (appPath: string, targetPath: string) => Promise<void>
+    // Detect installed developer apps (VS Code / iTerm2 / …; memoized in main).
+    detectOpenWithApps: () => Promise<OpenWithApp[]>
 
     // Events
     onDeviceChange: (callback: (devices: Device[]) => void) => () => void

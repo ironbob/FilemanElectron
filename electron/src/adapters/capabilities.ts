@@ -29,6 +29,10 @@ export const LOCAL_CAPABILITIES: DeviceCapabilities = {
   canCaptureScreenshot: false,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: true, // 捆绑 ripgrep / $PATH rg
+  canSymlink: true,     // fs.symlink/readlink/lstat
+  canChmod: true,       // fs.chmod（+ 递归遍历）
+  canChown: true,       // fs.chown
 }
 
 export const SMB_CAPABILITIES: DeviceCapabilities = {
@@ -50,6 +54,10 @@ export const SMB_CAPABILITIES: DeviceCapabilities = {
   canCaptureScreenshot: false,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: true, // 流式逐行扫描回退（无 exec 通道）
+  canSymlink: false,    // SMB 协议无 symlink 语义
+  canChmod: false,
+  canChown: false,
 }
 
 export const SSH_CAPABILITIES: DeviceCapabilities = {
@@ -71,6 +79,10 @@ export const SSH_CAPABILITIES: DeviceCapabilities = {
   canCaptureScreenshot: false,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: true, // client.exec 远端 grep
+  canSymlink: true,     // sftp symlink/readlink/lstat
+  canChmod: true,       // sftp chmod / exec chmod -R
+  canChown: true,       // sftp chown
 }
 
 export const WEBDAV_CAPABILITIES: DeviceCapabilities = {
@@ -92,6 +104,10 @@ export const WEBDAV_CAPABILITIES: DeviceCapabilities = {
   canCaptureScreenshot: false,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: true, // 流式逐行扫描回退（无 exec 通道）
+  canSymlink: false,    // SMB 协议无 symlink 语义
+  canChmod: false,
+  canChown: false,
 }
 
 export const ANDROID_CAPABILITIES: DeviceCapabilities = {
@@ -113,6 +129,10 @@ export const ANDROID_CAPABILITIES: DeviceCapabilities = {
   canCaptureScreenshot: true,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: true, // adb shell 远端 grep (toybox)
+  canSymlink: false,    // adb shell ln -s 权限受限，v1 不开
+  canChmod: true,       // adb shell chmod（runShell）
+  canChown: false,
   // Some Android directories are read-only without root
   readonlyPaths: ['/system', '/vendor', '/product', '/data/app'],
 }
@@ -136,6 +156,10 @@ export const IOS_CAPABILITIES: DeviceCapabilities = {
   canCaptureScreenshot: false,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: false, // AFC 无 exec 通道且无流式（buffer 上限 32MB）
+  canSymlink: false,
+  canChmod: false,
+  canChown: false,
   // AFC itself is the sandbox boundary. Do not mark `/` read-only here: doing
   // so makes every write/delete action unavailable in the UI even when AFC
   // grants access to a writable container. Unsupported paths are rejected by
@@ -200,5 +224,9 @@ export function DEFAULT_REMOTE_CAPABILITIES(deviceType: 'android' | 'smb' | 'ssh
     canCaptureScreenshot: deviceType === 'android',
     canArchive: true,
     canRecycle: true,
+    canGrepContent: deviceType !== 'ios', // 连接后由具体适配器覆盖
+    canSymlink: deviceType === 'ssh',     // 连接后由具体适配器覆盖
+    canChmod: deviceType === 'ssh' || deviceType === 'android',
+    canChown: deviceType === 'ssh',
   }
 }

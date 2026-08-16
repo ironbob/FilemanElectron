@@ -15,6 +15,39 @@ export interface Tab {
   fileDiffSession?: FileDiffSession
   /** When set, this tab renders a file preview view instead of file panes */
   preview?: PreviewTab
+  /** When set, this tab renders a duplicate-finder tool view */
+  dupesSession?: DuplicateSession
+  /** When set, this tab renders a grep content-search view */
+  grepSession?: GrepSession
+  /** When set, this tab renders a space-analysis treemap view */
+  spaceSession?: SpaceSession
+}
+
+/** 重复文件查找会话（瞬态工具页，重启即弃）。 */
+export interface DuplicateSession {
+  id: string
+  deviceId: string
+  rootPath: string
+  minSize: number
+}
+
+/** 内容搜索会话（瞬态工具页）。 */
+export interface GrepSession {
+  id: string
+  deviceId: string
+  rootPath: string
+  pattern: string
+  isRegex: boolean
+  caseSensitive: boolean
+  includeGlob?: string
+  excludeGlob?: string
+}
+
+/** 空间分析会话（瞬态工具页）。 */
+export interface SpaceSession {
+  id: string
+  deviceId: string
+  rootPath: string
 }
 
 export interface Column {
@@ -50,7 +83,11 @@ export interface Favorite {
 export interface AppSettings {
   defaultView: 'list' | 'grid' | 'columns'
   showHiddenFiles: boolean
+  /** 在列表视图中显示 Unix rwx 权限列。 */
+  showPermissions: boolean
   confirmDelete: boolean
+  /** 目录变化自动刷新（fs.watch / 远程轮询；关闭后依赖手动 Cmd+R）。 */
+  autoRefresh?: boolean
 }
 
 // ── Directory Compare Types ──────────────────────────────────────────────────

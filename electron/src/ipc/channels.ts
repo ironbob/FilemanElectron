@@ -19,8 +19,30 @@ export const CH = {
   invoke: {
     // system:
     systemGetHomeDir: 'system:getHomeDir',
+    // window:
+    fileInfoWindowOpen: 'window:fileInfo:open',
+    fileInfoWindowGetContext: 'window:fileInfo:getContext',
     // shell:
     shellOpenInTerminal: 'shell:openInTerminal',
+    shellOpenWith: 'shell:openWith',
+    shellDetectOpenWithApps: 'shell:detectOpenWithApps',
+    // git (只读徽标):
+    gitStatus: 'git:status',
+    // checksum (哈希校验):
+    checksumStart: 'checksum:start',
+    checksumCancel: 'checksum:cancel',
+    // dupes (重复文件查找):
+    dupesStart: 'dupes:start',
+    dupesCancel: 'dupes:cancel',
+    // grep (内容搜索):
+    grepStart: 'grep:start',
+    grepCancel: 'grep:cancel',
+    // space (空间分析):
+    spaceStart: 'space:start',
+    spaceCancel: 'space:cancel',
+    // watch (自动刷新):
+    watchSubscribe: 'watch:subscribe',
+    watchUnsubscribe: 'watch:unsubscribe',
     // config:
     configGet: 'config:get',
     configSave: 'config:save',
@@ -51,6 +73,11 @@ export const CH = {
     fsImportExternal: 'fs:importExternal',
     fsDirStatsStart: 'fs:dirStats:start',
     fsDirStatsCancel: 'fs:dirStats:cancel',
+    fsReadChunk: 'fs:readChunk',
+    fsSymlink: 'fs:symlink',
+    fsReadlink: 'fs:readlink',
+    fsChmod: 'fs:chmod',
+    fsChown: 'fs:chown',
     fsMediaInfo: 'fs:mediaInfo',
     // compare:
     compareVerifyStart: 'compare:verify:start',
@@ -98,6 +125,11 @@ export const CH = {
     transferProgress: 'transfer:progress',
     compareVerificationProgress: 'compare:verification-progress',
     dirStatsProgress: 'fs:dirStats-progress',
+    watchChanged: 'watch:changed',
+    checksumProgress: 'checksum:progress',
+    dupesProgress: 'dupes:progress',
+    grepProgress: 'grep:progress',
+    spaceProgress: 'space:progress',
   },
   send: {
     dragStartNative: 'drag:startNative',

@@ -187,10 +187,10 @@ sequenceDiagram
 - 依据原则：SRP；defensive_design。
 - 业界来源：端口-适配器（Adapter）+ 优雅降级。
 
-### DeviceManager
-- 划分理由：设备生命周期职责不变；能力兜底委托 CapabilitiesRegistry、扫描启动移交组合根，构造函数不再有生命周期副作用。
-- 依据原则：SRP（一个变化理由）；DIP（能力策略依赖声明模块而非内联）。
-- 业界来源：应用服务 + 注册表模式。
+### DeviceManager（+ AdapterConnectionManager / MobileDiscoveryService）
+- 划分理由：设备生命周期职责不变；能力兜底委托 CapabilitiesRegistry、扫描启动移交组合根，构造函数不再有生命周期副作用。后续演进（2026-08-15 补充）：连接生命周期（adapters 注册表 + 并发去重 + 连接协议）拆出 `AdapterConnectionManager`（工厂注入 + onStatus 回报），移动发现与自动连接偏好拆出 `MobileDiscoveryService`——DeviceManager 转为门面（公共 API 签名不变，main.ts 调用面零改动），665 行降至 609 行 + 两个 108/124 行子服务。
+- 依据原则：SRP（设备清单 vs 连接生命周期 vs 设备发现是独立变化轴）；DIP（连接器经注入的 AdapterFactory 依赖抽象）。
+- 业界来源：门面模式（Facade）+ 注册表模式。
 
 **UI 架构决策**：框架 Vue 3；当前/目标模式均为 Redux/Store（Pinia）+ Direct View；view_model_policy=not_used；mvvm_suitability=not_suitable（本 feature 仅替换视图内纯函数调用，不改状态边界与页面状态转换）；migration_impact=none、migration_confirmation=not_required——机械引入 ViewModel 反增复杂度，与 ui-architecture-policy 一致。
 

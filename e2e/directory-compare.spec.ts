@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const callbacks: Array<(event: any) => void> = []
+    const operationCallbacks: Array<(task: any) => void> = []
     const files = (deviceId: string, path: string) => {
       if (deviceId === 'left-device' && path === '/left') return [
         { name: 'same.txt', path: '/left/same.txt', isDirectory: false, isFile: true, size: 3, modifiedTime: '2026-08-14T10:00:00Z', extension: '.txt' },
@@ -44,7 +45,14 @@ test.beforeEach(async ({ page }) => {
       },
       createFileOperation: async (task: any) => {
         ;(window as any).__copyTasks = [...((window as any).__copyTasks ?? []), task]
-        return { id: 'copy-task', ...task, status: 'pending', progress: { itemResults: [] } }
+        ;(window as any).__createdTasks = [...((window as any).__createdTasks ?? []), task]
+        const created = { id: `task-${(window as any).__createdTasks.length}`, ...task, status: 'pending', progress: { itemResults: [] } }
+        window.setTimeout(() => operationCallbacks.forEach(callback => callback({ ...created, status: 'completed' })), 20)
+        return created
+      },
+      onFileOperationUpdated: (callback: (task: any) => void) => {
+        operationCallbacks.push(callback)
+        return () => operationCallbacks.splice(operationCallbacks.indexOf(callback), 1)
       }
     }
     ;(window as any).fileman = new Proxy(api, {
@@ -103,6 +111,31 @@ test('renders recent locations on an opaque popup surface', async ({ page }) => 
   await expect(menu.getByText('/Volumes/JINGZAO/avideo')).toBeVisible()
   await page.getByPlaceholder('Search or tag:work').click()
   await expect(menu).toBeHidden()
+})
+
+test('keeps navigation and search available in a narrow file pane', async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 700 })
+  await page.getByRole('button', { name: 'New Tab' }).click()
+  await expect(page.getByRole('button', { name: 'Go Back' })).toBeVisible()
+  await expect(page.getByPlaceholder('Search or tag:work')).toBeVisible()
+  await expect(page.locator('.file-pane-toolbar-breadcrumb')).toBeHidden()
+})
+
+test('creates a file through the toolbar and refreshes the directory', async ({ page }) => {
+  await page.getByRole('button', { name: 'New Tab' }).click()
+  await page.getByRole('button', { name: 'New File' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Create File' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByPlaceholder('example.txt').fill('notes.txt')
+  await dialog.getByRole('button', { name: 'Create' }).click()
+
+  await expect.poll(() => page.evaluate(() => (window as any).__createdTasks?.[0])).toMatchObject({
+    type: 'touch',
+    targetPath: '/notes.txt'
+  })
+  await expect.poll(() => page.evaluate(() => ((window as any).__listCalls ?? [])
+    .filter((call: any) => call.deviceId === 'local' && call.path === '/').length)).toBeGreaterThan(1)
 })
 
 test('filters differences and submits an explicit copy plan', async ({ page }) => {

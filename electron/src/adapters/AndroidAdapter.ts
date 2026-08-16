@@ -4,6 +4,7 @@ import { Readable, Writable, PassThrough } from 'stream'
 import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './types'
 import { ANDROID_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 import { loadOptional } from './optionalDeps'
+import { shellQuote } from './shellQuote'
 import { ToolPathResolver } from '../services/ToolPathResolver'
 
 const log = console
@@ -151,6 +152,31 @@ export class AndroidAdapter implements IFileSystemAdapter {
   async rmdir(dirPath: string, recursive?: boolean): Promise<void> {
     const cmd = recursive ? `rm -rf ${shellQuote(dirPath)}` : `rmdir ${shellQuote(dirPath)}`
     await this.runShell(cmd)
+  }
+
+  async chmod(targetPath: string, mode: number): Promise<void> {
+    // 八进制字符串形式（mode 0o755 → '755'）
+    await this.runShell(`chmod ${mode.toString(8).padStart(3, '0')} ${shellQuote(targetPath)}`)
+  }
+
+  /**
+   * 远端命令执行（GrepService 的远端 grep 引擎）。复用 runShell 的
+   * EXIT_MARKER 机制拿 stdout 与退出码（grep 无匹配 exit 1 不是错误，
+   * 由 runShell 抛错语义转换为 code 字段返回）。
+   */
+  async exec(command: string): Promise<{ stdout: string; stderr: string; code: number }> {
+    try {
+      const stdout = await this.runShell(command)
+      return { stdout, stderr: '', code: 0 }
+    } catch (error) {
+      // runShell 对非零退出码抛「命令失败(code=N)」——还原退出码语义
+      const message = error instanceof Error ? error.message : String(error)
+      const codeMatch = message.match(/code=(\d+)/)
+      if (codeMatch) {
+        return { stdout: message.split('\n').slice(1).join('\n'), stderr: '', code: parseInt(codeMatch[1], 10) }
+      }
+      throw error
+    }
   }
 
   async delete(targetPath: string): Promise<void> {
@@ -340,10 +366,6 @@ function posixDirname(p: string): string {
   if (idx === -1) return ''
   if (idx === 0) return '/'
   return trimmed.slice(0, idx)
-}
-
-function shellQuote(s: string): string {
-  return "'" + String(s).replace(/'/g, "'\\''") + "'"
 }
 
 function sortFiles(files: FileInfo[]): FileInfo[] {

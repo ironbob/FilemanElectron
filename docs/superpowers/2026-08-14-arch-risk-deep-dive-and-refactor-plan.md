@@ -90,9 +90,9 @@
    - 扫描器启动移出构造函数：删 DeviceManager.ts:88，main.ts `app.whenReady` 里 `deviceManager.startMobileDeviceScan()`（与 volumeScanner.start() 并排，启动语义集中）。
 2. **拆 `MobileDiscoveryService`**：把 627-702 的移动发现代理 + autoConnectDevices 持久化整体移入，DeviceManager 持有其引用并保留同名方法转发（门面）。
 3. **拆 `AdapterConnectionManager`**：adapters Map + connectionAttempts + connect/disconnect/getReadyAdapter。11 个文件操作代理方法保留在 DeviceManager（它们本质是"取 adapter 然后调"，一行委托，不算职责）。
-4. 触发点：下次需要给 DeviceManager 加第 7 种设备类型或网络发现时执行；当前若无该计划，仅做第 1 步（约 1 小时）即可显著止血。
+4. 触发点：~~下次需要给 DeviceManager 加第 7 种设备类型或网络发现时执行~~ **已于 2026-08-15 完成完整拆分**：`MobileDiscoveryService`（发现+自动连接偏好，108 行）与 `AdapterConnectionManager`（连接协议+adapters 注册表+并发去重，124 行）已拆出，DeviceManager 转门面（公共 API 签名不变，main.ts 调用面零改动），验证零新增类型错误。
 
-**成本**：第 1 步 1 小时；完整拆分 1-1.5 天。**建议只排第 1 步**，完整拆分等触发点。
+**成本**：第 1 步 1 小时；完整拆分 1-1.5 天。~~建议只排第 1 步，完整拆分等触发点~~ 已全部完成。
 
 ---
 

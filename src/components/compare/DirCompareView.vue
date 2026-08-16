@@ -572,7 +572,6 @@ async function executeCopyPlan(strategy: Exclude<CopyConflictStrategy, 'ask'>) {
     await fileOpsStore.createCopyTask(item.sourceDeviceId, [item.sourcePath], item.targetDeviceId, item.targetDirectory, strategy)
   }
   copyPlan.value = null
-  if (plan.items.length) fileOpsStore.showPanel()
   scheduleRefresh()
 }
 
@@ -596,7 +595,6 @@ async function deleteSide(entry: CompareEntry, side: 'left' | 'right' | 'both') 
   if ((side === 'right' || side === 'both') && entry.right) {
     await fileOpsStore.createDeleteTask(localSession.rightDeviceId, [entry.right.path])
   }
-  fileOpsStore.showPanel()
   scheduleRefresh()
 }
 

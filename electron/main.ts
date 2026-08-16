@@ -17,6 +17,14 @@ import { MobileScreenshotService } from './src/services/MobileScreenshotService'
 import { ContentVerificationService, type ContentVerificationRequest } from './src/services/ContentVerificationService'
 import { DirectoryStatsService } from './src/services/DirectoryStatsService'
 import { MediaInfoService } from './src/services/MediaInfoService'
+import { WatchService } from './src/services/WatchService'
+import { GitStatusService } from './src/services/GitStatusService'
+import { ChecksumService } from './src/services/ChecksumService'
+import { DuplicateFinderService } from './src/services/DuplicateFinderService'
+import { GrepService } from './src/services/GrepService'
+import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
+import { DirectoryWalker } from './src/services/support/DirectoryWalker'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult } from '@shared/types'
 import { CH } from './src/ipc/channels'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { DirectoryStatsRequest } from '@shared/types'
@@ -40,6 +48,22 @@ const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService)
 const mediaInfoService = new MediaInfoService()
+const gitStatusService = new GitStatusService()
+const checksumService = new ChecksumService(deviceManager)
+const duplicateFinderService = new DuplicateFinderService(deviceManager)
+const grepService = new GrepService(deviceManager)
+const spaceAnalyzerService = new SpaceAnalyzerService(deviceManager)
+// 目录监听（自动刷新推送源）。emit 由组合根注入（服务不持有 webContents）；
+// 轮询循环随首个远程订阅按需启停，无需 whenReady 显式启动。
+// 窗口失焦时跳过远程轮询（减少无谓的 SSH/SMB 流量）。
+const watchService = new WatchService(deviceManager, {
+  emit: event => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(CH.push.watchChanged, event)
+    }
+  },
+  shouldSkipRemotePoll: () => mainWindow !== null && !mainWindow.isFocused()
+})
 
 // ZIP 虚拟路径协议（"<zipFilePath>::<innerPath>"）的解析/构造统一在
 // @shared/zipPath（main 与 renderer 共用的单一事实源），此处不再本地实现。
@@ -105,6 +129,188 @@ ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
 
 ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath: string): Promise<void> => {
   return hostShellService.openInTerminal(dirPath)
+})
+ipcMain.handle(CH.invoke.shellOpenWith, async (_, appPath: string, targetPath: string): Promise<void> => {
+  return hostShellService.openWith(appPath, targetPath)
+})
+ipcMain.handle(CH.invoke.shellDetectOpenWithApps, () => {
+  return hostShellService.detectDevApps()
+})
+
+// ============ Directory Watch IPC Handlers ============
+// 自动刷新订阅：FileList 挂载/路径切换时订阅，卸载/切换时退订（引用计数）。
+
+ipcMain.handle(CH.invoke.watchSubscribe, (_, deviceId: string, dirPath: string) => {
+  return watchService.subscribe(deviceId, dirPath)
+})
+
+ipcMain.handle(CH.invoke.watchUnsubscribe, (_, deviceId: string, dirPath: string) => {
+  watchService.unsubscribe(deviceId, dirPath)
+})
+
+// ============ Git Status IPC Handlers ============
+// 只读徽标查询：仅本地设备（git 是宿主工具链概念，远程无意义）。
+
+ipcMain.handle(CH.invoke.gitStatus, (_, deviceId: string, dirPath: string) => {
+  if (deviceId !== 'local') {
+    return { isRepo: false, entries: [] }
+  }
+  return gitStatusService.getStatus(dirPath)
+})
+
+// ============ Checksum IPC Handlers ============
+
+ipcMain.handle(CH.invoke.checksumStart, (event, request: ChecksumRequest) => {
+  return checksumService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.checksumProgress, progress)
+  })
+})
+
+ipcMain.handle(CH.invoke.checksumCancel, (_, taskId: string) => {
+  return checksumService.cancel(taskId)
+})
+
+// ============ Duplicate Finder IPC Handlers ============
+
+ipcMain.handle(CH.invoke.dupesStart, (event, request: DuplicateScanRequest) => {
+  return duplicateFinderService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.dupesProgress, progress)
+  })
+})
+
+ipcMain.handle(CH.invoke.dupesCancel, (_, taskId: string) => {
+  return duplicateFinderService.cancel(taskId)
+})
+
+// ============ Grep IPC Handlers ============
+
+ipcMain.handle(CH.invoke.grepStart, (event, request: GrepRequest) => {
+  return grepService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.grepProgress, progress)
+  })
+})
+
+ipcMain.handle(CH.invoke.grepCancel, (_, taskId: string) => {
+  return grepService.cancel(taskId)
+})
+
+// ============ Symlink / Permission IPC Handlers ============
+// 能力门控（canSymlink/canChmod/canChown）；递归 chmod 由 main 用
+// DirectoryWalker 编排，adapter 只负责单路径应用。
+
+ipcMain.handle(CH.invoke.fsSymlink, async (_, deviceId: string, targetPath: string, linkPath: string): Promise<void> => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  if (!adapter.getCapabilities().canSymlink || !adapter.symlink) {
+    throw new Error('该设备不支持创建符号链接')
+  }
+  return adapter.symlink(targetPath, linkPath)
+})
+
+ipcMain.handle(CH.invoke.fsReadlink, async (_, deviceId: string, linkPath: string): Promise<string> => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  if (!adapter.getCapabilities().canSymlink || !adapter.readlink) {
+    throw new Error('该设备不支持读取符号链接')
+  }
+  return adapter.readlink(linkPath)
+})
+
+ipcMain.handle(CH.invoke.fsChmod, async (_, deviceId: string, targetPath: string, mode: number, recursive: boolean): Promise<void> => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  if (!adapter.getCapabilities().canChmod || !adapter.chmod) {
+    throw new Error('该设备不支持修改权限')
+  }
+  if (!recursive) return adapter.chmod(targetPath, mode)
+  // 目录递归：walk + 逐项应用（含根；symlink 目录不跟随）
+  await adapter.chmod(targetPath, mode)
+  const stat = await adapter.stat(targetPath)
+  if (!stat.isDirectory) return
+  const walker = new DirectoryWalker(deviceManager)
+  await walker.walk(deviceId, targetPath, () => false, {
+    onFile: async file => { await adapter.chmod!(file.path, mode) },
+    onDirectory: async dir => { await adapter.chmod!(dir.path, mode) }
+  })
+})
+
+ipcMain.handle(CH.invoke.fsChown, async (_, deviceId: string, targetPath: string, uid: number, gid: number): Promise<void> => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  if (!adapter.getCapabilities().canChown || !adapter.chown) {
+    throw new Error('该设备不支持修改属主')
+  }
+  return adapter.chown(targetPath, uid, gid)
+})
+
+// ============ Space Analysis IPC Handlers ============
+
+ipcMain.handle(CH.invoke.spaceStart, (event, request: SpaceAnalysisRequest) => {
+  return spaceAnalyzerService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.spaceProgress, progress)
+  })
+})
+
+ipcMain.handle(CH.invoke.spaceCancel, (_, taskId: string) => {
+  return spaceAnalyzerService.cancel(taskId)
+})
+
+// ============ Read Chunk IPC Handlers ============
+// hex 预览等的分块读取：本地走 fs.createReadStream 区间；canStream 远程走
+// openReadStream 丢弃前缀；非流式设备 readFile 后 slice（32MB 守卫）。
+
+ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId: string, path: string, offset: number, length: number): Promise<ReadChunkResult> => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  const st = await adapter.stat(path)
+  const fileSize = st.size
+  const start = Math.max(0, Math.min(Math.floor(offset), fileSize))
+  const end = Math.min(start + Math.max(1, Math.floor(length)), fileSize)
+  if (end <= start) return { base64: '', bytesRead: 0, fileSize }
+
+  if (adapter.type === 'local') {
+    const stream = fs.createReadStream(path, { start, end: end - 1 })
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) chunks.push(chunk as Buffer)
+    const buffer = Buffer.concat(chunks)
+    return { base64: buffer.toString('base64'), bytesRead: buffer.length, fileSize }
+  }
+
+  const capabilities = adapter.getCapabilities()
+  if (capabilities.canStream && adapter.openReadStream) {
+    const stream = await adapter.openReadStream(path)
+    const chunks: Buffer[] = []
+    let received = 0
+    let skipped = 0
+    for await (const chunkRaw of stream) {
+      const chunk = chunkRaw as Buffer
+      if (skipped < start) {
+        const need = start - skipped
+        if (chunk.length <= need) {
+          skipped += chunk.length
+          continue
+        }
+        const tail = chunk.subarray(need)
+        skipped = start
+        const take = Math.min(tail.length, end - start - received)
+        chunks.push(tail.subarray(0, take))
+        received += take
+      } else if (received < end - start) {
+        const take = Math.min(chunk.length, end - start - received)
+        chunks.push(chunk.subarray(0, take))
+        received += take
+      }
+      if (received >= end - start) {
+        stream.destroy()
+        break
+      }
+    }
+    const buffer = Buffer.concat(chunks)
+    return { base64: buffer.toString('base64'), bytesRead: buffer.length, fileSize }
+  }
+
+  // 非流式回退：整读后 slice（守卫 32MB，与 fileHashing 一致）
+  if (fileSize > 32 * 1024 * 1024) {
+    throw new Error('该设备不支持流式读取，无法分块读取超过 32 MB 的文件')
+  }
+  const full = await adapter.readFile(path)
+  const slice = full.subarray(start, end)
+  return { base64: slice.toString('base64'), bytesRead: slice.length, fileSize }
 })
 
 // ============ Config IPC Handlers ============

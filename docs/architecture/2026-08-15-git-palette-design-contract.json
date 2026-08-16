@@ -1,0 +1,100 @@
+{
+  "feature": "git-palette",
+  "title": "Git 状态徽标 + 命令面板（M2）",
+  "stack": "Electron29+Vue3",
+  "analyzed_at": "2026-08-15",
+  "existing_alignment": {
+    "recognized_style": "服务窄职责 + execFile 参数数组（HostShellService 先例）；纯函数抽 support/ 单测（gitStatusParse 对齐 fileHashing 位置约定）；store setup-style（gitStatus 对齐 logAnalysis）；IPC 四处同步；徽标原子组件对齐 FileNameMatchLabel。",
+    "new_code_follows": "徽标内联于既有行结构（不改 RecycleScroller/行高，RISK-04）；命令面板按键消费走 useKeyInterceptor 捕获期（疑难记录既定模式）；颜色仅 CSS 变量。"
+  },
+  "interaction_confirmation": {
+    "profile_selected": "standard（随总体规划批准）",
+    "proposal_revision": 1,
+    "candidate_confirmed": "ALT-1（git 集成为宿主级独立服务）",
+    "source": "用户批准 ~/.claude/plans/ancient-tickling-alpaca.md 实施计划后进入编码",
+    "quoted_evidence": "规划批准记录（2026-08-15）"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      { "id": "QA-1", "name": "只读安全", "priority": "P0", "scenario": "全程仅 status/rev-parse" },
+      { "id": "QA-2", "name": "零开销退化", "priority": "P0", "scenario": "非仓库无 exec 风暴（双层缓存）" },
+      { "id": "QA-3", "name": "及时性", "priority": "P1", "scenario": "watch 联动徽标刷新" },
+      { "id": "QA-4", "name": "键盘正确性", "priority": "P0", "scenario": "面板按键不泄漏到 FileList" },
+      { "id": "QA-5", "name": "视觉稳定性", "priority": "P0", "scenario": "徽标不改行高/滚动结构" }
+    ],
+    "candidates": [
+      { "id": "ALT-1", "summary": "宿主级独立 GitStatusService（不进 adapter）", "selected": true },
+      { "id": "ALT-2", "summary": "LocalAdapter 可选方法（污染 adapter 接口，否决）", "selected": false },
+      { "id": "ALT-3", "summary": "renderer 直接 spawn（contextIsolation 不可能，否决）", "selected": false }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "git 是宿主工具链概念而非文件系统操作；ISP 上不应迫使 5 个远程 adapter 声明无意义的 git 能力。",
+    "top_down_check": "R1-R8 全部映射角色（R1/R3→GitStatusService；R4→gitStatus store；R5→FileGitBadge；R6→commandRegistry；R7→CommandPalette 拦截器；R8→typedPathNavigation）",
+    "bottom_up_check": "每个模块被 ≥1 规则或后续里程碑（M3/M4 命令注册）追溯",
+    "risk_spikes": ["porcelain -z R 原路径跟随实测验证", "badge kind 与 CSS 类名一致性（测试发现并修复 KIND_BY_LETTER）"],
+    "review": "自评通过"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Pinia（setup style）",
+    "current_patterns": "原子小组件 + 巨型组件内嵌（RISK-04）；z-modal 级覆盖层",
+    "target_patterns": "新增 palette/ 组件目录；徽标原子组件复用 FileNameMatchLabel 高亮约定",
+    "state_management": "两个新 store（gitStatus / commandRegistry）均为纯查询/注册库，无持久化",
+    "view_model_policy": "store 持缓存与注册表；交互态（query/activeIndex）留在组件",
+    "mvvm_suitability": "不引入机械 MVVM",
+    "migration_impact": "无迁移",
+    "impact_scope": ["src/components/FileList.vue", "src/components/FilePane.vue", "src/App.vue"],
+    "migration_confirmation": "无 UI 迁移",
+    "decision_reason": "遵守 RISK-04 触发式重构约束"
+  },
+  "roles": [
+    { "id": "ROLE-L06", "role_kind": "layer", "layer": "infrastructure(main)", "domain_role": "git 状态查询", "responsibility": "rev-parse + status 两次 exec、负缓存", "hidden_secret": "5s 超时、16MB maxBuffer、porcelain 路径相对仓库根", "change_triggers": "git 版本差异；缓存策略", "data_owned": "notRepoUntil Map", "depends_on": ["execFile"], "industry_basis": "SRP 宿主集成", "design_principles": ["SRP", "execFile 无 shell"], "code_units": ["electron/src/services/GitStatusService.ts"] },
+    { "id": "ROLE-D03", "role_kind": "domain", "layer": "domain", "domain_role": "porcelain 解析", "responsibility": "-z NUL 记录状态机、R 原路径跟随、头解析、绝对路径转换", "hidden_secret": "R 条目双记录消耗", "change_triggers": "porcelain 格式变化", "data_owned": "无", "depends_on": [], "industry_basis": "解析器模式", "design_principles": ["纯函数"], "code_units": ["electron/src/services/support/gitStatusParse.ts"] },
+    { "id": "ROLE-VM01", "role_kind": "layer", "layer": "viewmodel", "domain_role": "git 状态缓存", "responsibility": "(deviceId,dirPath) 缓存、在途去重、watch 失效重取", "hidden_secret": "失效条件（本目录或仓库范围前缀）", "change_triggers": "失效策略", "data_owned": "cache Map", "depends_on": ["IFC-1", "onWatchChanged"], "industry_basis": "读模型缓存", "design_principles": ["presentation-state 惯例"], "code_units": ["src/stores/gitStatus.ts"] },
+    { "id": "ROLE-V03", "role_kind": "layer", "layer": "view", "domain_role": "徽标原子组件", "responsibility": "XY → 字母/kind 归并渲染", "hidden_secret": "归并优先级与 KIND_BY_LETTER 映射", "change_triggers": "视觉规范变化", "data_owned": "无", "depends_on": [], "industry_basis": "原子组件", "design_principles": ["CSS 变量"], "code_units": ["src/components/FileGitBadge.vue"] },
+    { "id": "ROLE-VM02", "role_kind": "layer", "layer": "viewmodel", "domain_role": "命令注册表", "responsibility": "注册/注销/清单", "hidden_secret": "id 去重与注册顺序稳定性", "change_triggers": "命令元数据扩展（参数）", "data_owned": "commands Map", "depends_on": [], "industry_basis": "注册表模式", "design_principles": ["OCP"], "code_units": ["src/stores/commandRegistry.ts"] },
+    { "id": "ROLE-V04", "role_kind": "layer", "layer": "view", "domain_role": "命令面板", "responsibility": "过滤评分、键盘导航、三类候选执行", "hidden_secret": "捕获期按键消费（LIFO）、路径候选置顶", "change_triggers": "候选源扩展", "data_owned": "query/activeIndex 局部", "depends_on": ["ROLE-VM02", "fuzzyMatch", "favorites store"], "industry_basis": "VS Code 命令面板形态", "design_principles": ["键盘优先"], "code_units": ["src/components/palette/CommandPalette.vue"] }
+  ],
+  "interfaces": [
+    { "id": "IFC-1", "provider": "GitStatusService（main.ts handler）", "consumers": ["gitStatus store"], "input": "(deviceId, dirPath)", "output": "GitDirectoryStatus", "preconditions": "本地设备（非 local 直接 isRepo:false）", "postconditions": "负结果进 30s 缓存", "invariants": "entries.path 恒绝对路径；不向渲染层抛异常", "errors": "git 缺失/超时→负缓存；status 失败→isRepo:true+空 entries", "data_ownership": "主进程负缓存；渲染层全量缓存", "transaction": "无", "concurrency": "并发调用幂等" },
+    { "id": "IFC-2", "provider": "commandRegistry store", "consumers": ["CommandPalette", "App（播种）", "M3/M4 功能组件"], "input": "registerCommands(items)/unregisterCommands(ids)", "output": "allCommands 清单", "preconditions": "无", "postconditions": "id 重复注册覆盖", "invariants": "清单顺序=注册顺序", "errors": "无", "data_ownership": "store", "transaction": "无", "concurrency": "Vue 响应式" },
+    { "id": "IFC-3", "provider": "fuzzyMatch 纯函数", "consumers": ["CommandPalette", "测试"], "input": "fuzzyMatch(target, query) / rankFuzzyMatches(candidates, getText, query, limit?)", "output": "{indices, score} | null / 排序结果", "preconditions": "无", "postconditions": "无副作用", "invariants": "code-point 索引；空查询/超长查询 null", "errors": "无", "data_ownership": "无", "transaction": "无", "concurrency": "无" }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "git 集成不进 IFileSystemAdapter（宿主级服务）", "principle": "ISP", "role_scope": ["ROLE-L06"] },
+    { "id": "DC-2", "item": "徽标渲染不改行结构/行高", "principle": "RISK-04 红线", "role_scope": ["ROLE-V03"] },
+    { "id": "DC-3", "item": "面板按键捕获期消费", "principle": "疑难记录/子组件ESC键消费", "role_scope": ["ROLE-V04"] },
+    { "id": "DC-4", "item": "命令注册生命周期对称（挂载注册/卸载注销）", "principle": "OCP", "role_scope": ["ROLE-VM02"] }
+  ],
+  "business_process": [
+    { "step": 1, "name": "状态查询", "roles": ["ROLE-VM01", "ROLE-L06", "ROLE-D03"], "code_refs": ["src/stores/gitStatus.ts fetch", "electron/src/services/GitStatusService.ts getStatus"], "doc_ref": "二/S1", "exception": "git 缺失/超时→负缓存" },
+    { "step": 2, "name": "徽标/chip 渲染", "roles": ["ROLE-V03"], "code_refs": ["src/components/FileList.vue gitEntryMap", "src/components/FilePane.vue gitBranchInfo"], "doc_ref": "二/S2", "exception": "非仓库零渲染" },
+    { "step": 3, "name": "watch 失效重取", "roles": ["ROLE-VM01"], "code_refs": ["src/stores/gitStatus.ts initialize"], "doc_ref": "二/S3", "exception": "仓库范围前缀判定" },
+    { "step": 4, "name": "命令面板执行", "roles": ["ROLE-V04", "ROLE-VM02"], "code_refs": ["src/components/palette/CommandPalette.vue", "src/App.vue seedBuiltinCommands"], "doc_ref": "二/S4", "exception": "活动面板为空时命令降级" }
+  ],
+  "logging_standard": "[GitStatus]/[GitStatusStore] 结构化前缀；info 记录查询与仓库识别，warn 记录失败；不打印仓库内容。",
+  "verification": {
+    "commands": [
+      { "cmd": "npm run typecheck", "status": "pass", "evidence": "exit 0" },
+      { "cmd": "npx tsc -p tsconfig.node.json", "status": "pass", "evidence": "16 = 基线零新增" },
+      { "cmd": "npm run build", "status": "pass", "evidence": "三端产物" },
+      { "cmd": "npm run test:git-parse", "status": "pass", "evidence": "解析断言全通过" },
+      { "cmd": "npm run test:fuzzy-match", "status": "pass", "evidence": "评分/排序断言全通过" },
+      { "cmd": "npx playwright test e2e/git-badges.spec.ts e2e/command-palette.spec.ts e2e/watch-autorefresh.spec.ts", "status": "pass", "evidence": "10 passed" }
+    ],
+    "checks": [
+      { "target": "R5 徽标归并", "method": "new_test", "evidence": "git-badges.spec.ts 三分态" },
+      { "target": "R4 watch 联动", "method": "new_test", "evidence": "git-badges.spec.ts refresh 用例" },
+      { "target": "QA-4 键盘契约", "method": "new_test", "evidence": "command-palette.spec.ts toggles/执行用例" },
+      { "target": "porcelain 解析", "method": "new_test", "evidence": "gitStatusParse.test.ts" }
+    ],
+    "unverified": [
+      { "item": "超大仓库（>5s）status 超时表现", "follow_up": "真实大仓库实测，必要时防抖" }
+    ]
+  },
+  "summary": "M2 交付只读 git 徽标（解析纯函数 + 宿主级服务 + 渲染层缓存联动 M1 watch）与 ⌘⇧P 命令面板（注册表 + 模糊评分 + 三类跳转候选），并铺设 M3/M4 功能的命令注册入口。",
+  "gate": { "architecture": "go", "logging": "go", "coverage": "go", "verification": "go", "verdict": "go", "issues": [], "notes": "" },
+  "open_questions": [
+    "命令面板最近使用置顶排序（评分平分按注册顺序，后续按使用频率优化）"
+  ]
+}

@@ -7,6 +7,12 @@
 #
 # Requires: npm install (electron-builder + sharp are dev/runtime deps).
 # Output:   dist/Fileman-<version>-<arch>.dmg  (unsigned — see note below)
+#
+# Optional bundled tools (extraResources, 缺省不阻塞打包):
+#   - build/tools/rg/rg    — ripgrep macOS 二进制（grep 内容搜索本地引擎）。
+#     一键投放（自动按本机架构取最新版 + SHA256 校验）：
+#     bash scripts/fetch-rg.sh          # 或指定版本: bash scripts/fetch-rg.sh 14.1.1
+#     缺省时运行时回退 $PATH 的 rg，再退化为流式扫描。
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

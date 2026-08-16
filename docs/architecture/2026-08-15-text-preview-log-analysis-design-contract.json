@@ -1,0 +1,839 @@
+{
+  "feature": "text-preview-log-analysis",
+  "title": "文本预览日志排查（表达式过滤 + 着色方案）",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-15",
+  "existing_alignment": {
+    "recognized_style": "Electron renderer 使用 Vue 3 Composition API + Pinia + Monaco，纯逻辑放 src/utils/（textFilter 引擎为 lexer/parser/evaluator 分层），复杂屏幕以 composable 作为 Feature ViewModel（先例 useDirCompare.ts），Store 用 localStorage 持久化（先例 fileBrowser.searchHistory），日志用 console.log('[模块名]') 前缀打点，无测试框架，唯一静态检查为 npm run typecheck。",
+    "new_code_follows": "表达式引擎在 src/utils/textFilter/ 内按谓词注册表增量扩展；过滤管线与方案模型放 src/utils/logAnalysis/ 纯 TS；会话状态用 src/components/preview/composables/useLogAnalysis.ts；方案库与历史放 src/stores/logAnalysis.ts + localStorage；渲染适配器与 UI 组件放 src/components/preview/logview/；日志沿用 console 前缀打点；验证沿用 typecheck + 最小 esbuild+node 断言 harness（不引入测试框架）。"
+  },
+  "interaction_confirmation": {
+    "proposal_revision": 1,
+    "profile_selection": {
+      "status": "user_selected",
+      "selected_profile": "standard",
+      "source": "user_message",
+      "evidence": "等级选择门展示后用户回复：standard。"
+    },
+    "design_confirmation": {
+      "status": "user_confirmed",
+      "confirmed_candidate": "ALT-1",
+      "confirmed_revision": 1,
+      "source": "later_user_message",
+      "evidence": "方案展示后的用户回复：ALT-1 进入编码。"
+    }
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {
+        "name": "large_file_latency",
+        "priority": "high",
+        "scenario": "100MB/百万行日志上按 Enter 执行 co(error) and not co(timeout)。",
+        "acceptance": "过滤求值分块执行且块间让出主线程；输入过程中不重扫（仅 Enter/防抖后求值），秒级出结果。"
+      },
+      {
+        "name": "line_fidelity",
+        "priority": "high",
+        "scenario": "过滤、上下文、反向任意组合下查看与导出。",
+        "acceptance": "显示行号恒等于原始文件行号（Monaco lineNumbers 回调映射）；导出内容与原始行一一对应。"
+      },
+      {
+        "name": "readonly_safety",
+        "priority": "high",
+        "scenario": "过滤或着色激活时用户尝试编辑并 Cmd+S。",
+        "acceptance": "过滤视图强制 readOnly；导出仅写同目录新文件（<原名>.filtered.log，重名加序号），源文件不可被修改。"
+      },
+      {
+        "name": "theme_compatibility",
+        "priority": "high",
+        "scenario": "dark/light 任一主题下使用任意自定义方案。",
+        "acceptance": "规则颜色以 [data-theme] 作用域 CSS 类表达，双主题均可读；行号/计数等非颜色信号并存。"
+      },
+      {
+        "name": "expression_feedback",
+        "priority": "medium",
+        "scenario": "输入非法表达式、非法正则或方案中单条规则正则非法。",
+        "acceptance": "表达式解析失败报错误位置并保持旧视图；规则级非法只禁用该规则并标红，其余规则照常着色。"
+      },
+      {
+        "name": "scheme_portability",
+        "priority": "medium",
+        "scenario": "方案导出后在另一台机器导入，或导入非法文件。",
+        "acceptance": "序列化含版本号；导入非法文件报错且不产生半成品方案；重名自动加后缀不覆盖既有方案。"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "ALT-1",
+        "summary": "纯函数管线 + composable ViewModel + Monaco 适配器：表达式/过滤/方案全部无框架纯 TS（src/utils/logAnalysis/），会话状态收进 useLogAnalysis，Monaco 交互由过滤视图与着色装饰两个适配器承接，持久化独立 logAnalysis store，UI 拆独立组件。",
+        "strengths": [
+          "管线与方案模型可脱离 DOM/Monaco 独立断言",
+          "PreviewTextContent.vue（1300+ 行）只做集成不再膨胀",
+          "过滤与着色两个变化方向隔离，信息隐藏边界清晰"
+        ],
+        "weaknesses": [
+          "新增约 10 个代码文件",
+          "适配器必须遵守仓库 Monaco 接入规约（shallowRef、dispose 顺序）"
+        ],
+        "risks": [
+          "百万行装饰器性能——以视口惰性装饰化解（IFC-4）"
+        ]
+      },
+      {
+        "id": "ALT-2",
+        "summary": "store 集中式：过滤结果、方案、历史全放一个 Pinia store，渲染逻辑内联在 PreviewTextContent.vue（沿用现有 applyFilterToContent 内联风格）。",
+        "strengths": [
+          "文件少、与现有过滤实现风格一致"
+        ],
+        "weaknesses": [
+          "PreviewTextContent.vue 再增 600+ 行，SRP 失守",
+          "纯逻辑与 Monaco/DOM 耦合，无法脱离组件验证",
+          "单 tab 会话状态入全局 store 需手工清理"
+        ],
+        "risks": [
+          "组件进一步失控，P2 演进无落脚点"
+        ]
+      },
+      {
+        "id": "ALT-3",
+        "summary": "ALT-1 + Web Worker 求值：过滤求值移入 inline worker。",
+        "strengths": [
+          "百万行正则完全不让出主线程"
+        ],
+        "weaknesses": [
+          "Monaco 0.44 + electron-vite 的 worker 方案有专门坑（?worker&inline 规约）",
+          "结果回传需序列化大数组"
+        ],
+        "risks": [
+          "违反 YAGNI：PRD 仅要求防抖+秒级，分块让出已满足"
+        ]
+      }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "QA-1/2/5 依赖可独立验证的纯管线（ALT-2 做不到）；QA-4/6 依赖方案模型与渲染解耦；ALT-3 的 worker 复杂度超出 PRD 性能承诺（YAGNI），登记为性能退化时的演进方向。",
+    "top_down_check": "用户流程＝输入表达式→解析→分块求值→视图重建（行号映射/上下文/只读）→视口着色→计数/导航/复制/导出，每步唯一所有者：解析=D1、求值=D2、视图重建=L4、着色=L5、编排=L2、方案库=L1。",
+    "bottom_up_check": "引擎谓词经 PREDICATE_FUNCTIONS 注册表分发，level/lines 为注册表内增量；match(text) 扩为 match(text, ctx?) 后旧调用方不传 ctx 行为不变；Monaco lineNumbers 回调与装饰集合为 0.44 稳定 API；导出复用 window.fileman.writeFile 写同目录新文件，不改三处 IPC 契约；远程文件内容经现有 readFile 已在 renderer，管线与设备来源无关。",
+    "risk_spikes": [],
+    "review": {
+      "mode": "user",
+      "reviewer": "用户",
+      "findings": "用户选择 standard 并在方案展示后确认 ALT-1。",
+      "disposition": "按 ALT-1 实现并执行四门复核。"
+    }
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Electron renderer",
+    "current_patterns": [
+      "Direct View",
+      "Redux/Store"
+    ],
+    "target_patterns": [
+      "MVVM",
+      "Redux/Store"
+    ],
+    "state_management": "logAnalysis Store 拥有全局方案库、生效方案 id、级别词表与过滤历史/收藏（localStorage 持久化）；useLogAnalysis 拥有当前预览 tab 的过滤会话状态与编排；UI 组件仅持短生命周期交互状态；Monaco 实例仍归 PreviewTextContent 所有。",
+    "view_model_policy": "required",
+    "mvvm_suitability": "already_used",
+    "migration_impact": "low",
+    "impact_scope": [
+      "src/components/preview/PreviewTextContent.vue",
+      "src/components/preview/logview/",
+      "src/components/preview/composables/useLogAnalysis.ts",
+      "src/stores/logAnalysis.ts",
+      "src/utils/logAnalysis/",
+      "src/utils/textFilter/"
+    ],
+    "migration_confirmation": "not_required",
+    "decision_reason": "本 feature 存在异步分块求值、代际竞态防护、多状态组合（表达式/反向/上下文/方案/计数）与可独立验证的纯管线；沿用仓库既有 composable-as-ViewModel 模式（先例 useDirCompare），非全局 MVVM 迁移。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-D01",
+      "name": "textFilter 表达式引擎（扩展）",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "domain_service",
+      "responsibility": "词法→语法→求值；新增 level()/lines() 谓词并将 match 扩展为 match(text, ctx?) 以携带行号上下文。",
+      "hidden_secret": "谓词语法与求值策略（谓词增减只改此处）；lines 谓词对 ctx 的依赖。",
+      "change_triggers": [
+        "新增/修改匹配谓词",
+        "表达式错误信息格式变化"
+      ],
+      "data_owned": "无状态（每次 ComposeExpression 新建编译闭包）。",
+      "depends_on": [],
+      "industry_basis": "DDD 领域服务（无状态领域计算）；解释器模式的谓词注册表扩展。",
+      "design_principles": [
+        "domain_service",
+        "SRP",
+        "OCP"
+      ],
+      "code_units": [
+        "src/utils/textFilter/types.ts",
+        "src/utils/textFilter/lexer.ts",
+        "src/utils/textFilter/parser.ts",
+        "src/utils/textFilter/evaluator.ts",
+        "src/utils/textFilter/predicates.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D02",
+      "name": "过滤管线 filterPipeline",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "domain_service",
+      "responsibility": "输入原文行+已编译表达式+选项（反向/上下文前后 N），分块求值输出 FilterResult（可见行条目+命中计数+命中行号集）。",
+      "hidden_secret": "过滤语义细节：上下文合并去重、反向语义、分块让出调度。",
+      "change_triggers": [
+        "上下文/反向语义调整",
+        "分块粒度或调度策略变化"
+      ],
+      "data_owned": "无状态（每次调用产出新 FilterResult）。",
+      "depends_on": [
+        "ROLE-D01"
+      ],
+      "industry_basis": "DDD 领域服务（跨行组合计算，不属于任何实体）。",
+      "design_principles": [
+        "domain_service",
+        "SRP",
+        "minimize_complexity"
+      ],
+      "code_units": [
+        "src/utils/logAnalysis/filterPipeline.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D03",
+      "name": "着色方案模型 schemeModel",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "aggregate",
+      "responsibility": "定义 HighlightRule/HighlightScheme 类型、内置预设方案、规则校验（正则合法性、invalid 标记）与规则优先级叠加语义。",
+      "hidden_secret": "方案数据形态与内置预设内容；叠加优先级算法。",
+      "change_triggers": [
+        "规则字段增减",
+        "内置预设调整",
+        "叠加语义变化"
+      ],
+      "data_owned": "无持久状态（纯类型定义+预设常量+纯函数）。",
+      "depends_on": [],
+      "industry_basis": "DDD 聚合根（方案为一致性边界，规则为值对象）。",
+      "design_principles": [
+        "aggregate",
+        "value_object",
+        "SRP"
+      ],
+      "code_units": [
+        "src/utils/logAnalysis/schemeModel.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D04",
+      "name": "方案序列化 schemeSerializer",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "domain_service",
+      "responsibility": "方案↔JSON 文件的导出/导入（版本号、格式校验、重名加后缀策略）。",
+      "hidden_secret": "导入导出文件格式（格式演进只改此处）。",
+      "change_triggers": [
+        "文件格式版本升级",
+        "校验规则变化"
+      ],
+      "data_owned": "无状态。",
+      "depends_on": [
+        "ROLE-D03"
+      ],
+      "industry_basis": "DDD 领域服务（序列化边界，隔离格式演进）。",
+      "design_principles": [
+        "domain_service",
+        "information_hiding"
+      ],
+      "code_units": [
+        "src/utils/logAnalysis/schemeSerializer.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L01",
+      "name": "logAnalysis store",
+      "role_kind": "layer",
+      "layer": "store",
+      "domain_role": null,
+      "responsibility": "持久化自定义方案库、生效方案 id、级别词表、过滤历史与收藏（localStorage，仿 fileBrowser.searchHistory 的去重置顶/上限/可清空）。",
+      "hidden_secret": "持久化键名、去重/上限策略与 localStorage 读写。",
+      "change_triggers": [
+        "持久化策略调整",
+        "历史条数上限变化"
+      ],
+      "data_owned": "全局方案库、生效方案 id、级别词表、历史/收藏（localStorage）。",
+      "depends_on": [
+        "ROLE-D03"
+      ],
+      "industry_basis": "Pinia setup store 惯例（跨组件共享状态与动作）。",
+      "design_principles": [
+        "SRP",
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "src/stores/logAnalysis.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "useLogAnalysis",
+      "role_kind": "layer",
+      "layer": "view_model",
+      "domain_role": null,
+      "responsibility": "持有当前预览 tab 的过滤会话状态（表达式、错误、反向、上下文 N、代际号、命中导航指针），编排引擎/管线/store/适配器，输出 View 可直接消费的状态与意图方法。",
+      "hidden_secret": "会话状态机与编排逻辑（含代际竞态防护）。",
+      "change_triggers": [
+        "会话状态字段变化",
+        "编排流程调整",
+        "导航语义变化"
+      ],
+      "data_owned": "当前预览 tab 的会话状态（不持久化，随组件卸载销毁）。",
+      "depends_on": [
+        "ROLE-D01",
+        "ROLE-D02",
+        "ROLE-L01",
+        "ROLE-L04",
+        "ROLE-L05"
+      ],
+      "industry_basis": "MVVM Presentation Model（Vue composable-as-ViewModel，先例 useDirCompare）。",
+      "design_principles": [
+        "SRP",
+        "DIP",
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "src/components/preview/composables/useLogAnalysis.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "日志分析工具栏与宿主集成",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "呈现表达式输入/错误/计数、历史收藏下拉、反向与上下文开关、方案切换、复制/导出/导航按钮；PreviewTextContent 作为宿主集成工具栏并交接编辑器实例。",
+      "hidden_secret": "工具栏交互布局与局部 UI 状态（下拉开合、按钮态）。",
+      "change_triggers": [
+        "工具栏布局变化",
+        "交互组合变化"
+      ],
+      "data_owned": "组件局部 UI 状态（下拉可见性等）。",
+      "depends_on": [
+        "ROLE-L02",
+        "ROLE-L01",
+        "ROLE-L06"
+      ],
+      "industry_basis": "smart-dumb 组件（props in/events out 单向数据流）。",
+      "design_principles": [
+        "SRP",
+        "ISP"
+      ],
+      "code_units": [
+        "src/components/preview/logview/LogAnalysisToolbar.vue",
+        "src/components/preview/PreviewTextContent.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "Monaco 过滤视图适配器 monacoFilterView",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "由 FilterResult 重建编辑器内容、自定义行号映射（原始行号）、上下文行视觉弱化装饰、只读切换与命中导航定位。",
+      "hidden_secret": "Monaco 视图重建细节（内容注入、行号回调、装饰句柄生命周期）。",
+      "change_triggers": [
+        "Monaco API 用法变化",
+        "行号映射或上下文呈现方式变化"
+      ],
+      "data_owned": "装饰集合句柄与行号映射表（随编辑器实例销毁）。",
+      "depends_on": [],
+      "industry_basis": "端口适配器（隔离第三方 Monaco API，领域不反向依赖）。",
+      "design_principles": [
+        "DIP",
+        "information_hiding"
+      ],
+      "code_units": [
+        "src/components/preview/logview/monacoFilterView.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "Monaco 着色渲染器 monacoHighlighter",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "按生效方案对可视视口+缓冲区行惰性计算规则命中并增量应用装饰（整行/片段 CSS 类），滚动时增量补齐，缓冲区外回收。",
+      "hidden_secret": "装饰应用与视口惰性策略（性能技巧）。",
+      "change_triggers": [
+        "视口缓冲策略变化",
+        "装饰 CSS 类命名/主题适配变化"
+      ],
+      "data_owned": "已应用装饰集合与已装饰行区间记录。",
+      "depends_on": [
+        "ROLE-D03"
+      ],
+      "industry_basis": "端口适配器 + 虚拟化视口渲染（大列表只渲染可见部分的通行做法）。",
+      "design_principles": [
+        "DIP",
+        "high_cohesion_low_coupling"
+      ],
+      "code_units": [
+        "src/components/preview/logview/monacoHighlighter.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L06",
+      "name": "方案编辑对话框 SchemeEditorDialog",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "方案规则的新建/编辑/删除/排序/颜色选择、方案级导入导出与内置方案复制。",
+      "hidden_secret": "编辑表单交互与草稿状态。",
+      "change_triggers": [
+        "规则编辑表单变化",
+        "导入导出交互变化"
+      ],
+      "data_owned": "表单草稿状态（确认前不落库）。",
+      "depends_on": [
+        "ROLE-L01",
+        "ROLE-D03",
+        "ROLE-D04"
+      ],
+      "industry_basis": "对话框组件惯例（草稿-确认两段式提交）。",
+      "design_principles": [
+        "SRP",
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "src/components/preview/logview/SchemeEditorDialog.vue"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IFC-1",
+      "name": "ComposeExpression.match(text, ctx?) 扩展",
+      "provider": "ROLE-D01",
+      "consumers": [
+        "ROLE-D02",
+        "ROLE-L02"
+      ],
+      "input": "text: string（行文本）；ctx?: { lineNumber: number }（1-based 原始行号）。",
+      "output": "boolean 是否命中。",
+      "preconditions": [
+        "lines(n)/lines(n-m) 谓词必须携带 ctx 才可求值",
+        "level() 仅需 text，无 ctx 可用"
+      ],
+      "postconditions": [
+        "不传 ctx 时既有谓词（co/CO/eq/EQ/word/WORD/reg/REG）行为与扩展前逐字节一致"
+      ],
+      "invariants": [
+        "文件列表过滤等既有调用方零回归",
+        "lines() 值语法非法在 parse 阶段报错而非求值期"
+      ],
+      "errors": [
+        "reg/REG 正则非法上浮为表达式解析错误（含位置），不再静默返回 false；lines 谓词缺 ctx 时该谓词求值为 false 且 error() 说明需要行号上下文"
+      ],
+      "data_ownership": "编译闭包归 ComposeExpression 实例所有，调用方只读。",
+      "transaction": "not_applicable",
+      "concurrency": "纯函数式求值，无共享可变状态。"
+    },
+    {
+      "id": "IFC-2",
+      "name": "filterPipeline.runFilter",
+      "provider": "ROLE-D02",
+      "consumers": [
+        "ROLE-L02"
+      ],
+      "input": "{ lines: string[], expr: ComposedExpression, options: { invert: boolean, contextBefore: number, contextAfter: number } }。",
+      "output": "FilterResult { entries: Array<{ sourceLine: number, text: string, kind: 'match'|'context' }>, matchCount: number, matchSourceLines: number[] }。",
+      "preconditions": [
+        "expr 必须已通过 isValid()（调用方前置拦截非法表达式）"
+      ],
+      "postconditions": [
+        "entries 按 sourceLine 升序且不重复",
+        "matchCount === entries 中 kind='match' 的数量",
+        "contextBefore/After 为 0 时无 context 条目",
+        "invert 时 kind 语义对调：不匹配的行是 match"
+      ],
+      "invariants": [
+        "同一行不因被多个匹配行共享上下文而重复出现"
+      ],
+      "errors": [
+        "0 命中返回空 entries + matchCount=0（非异常），由视图显示 0 命中"
+      ],
+      "data_ownership": "FilterResult 归调用方所有，管线不保留引用。",
+      "transaction": "not_applicable",
+      "concurrency": "分块求值、块间让出（setTimeout 0）；L02 持代际号使旧代结果作废，防止旧表达式结果覆盖新表达式视图。"
+    },
+    {
+      "id": "IFC-3",
+      "name": "schemeModel 叠加解析",
+      "provider": "ROLE-D03",
+      "consumers": [
+        "ROLE-L05",
+        "ROLE-L06"
+      ],
+      "input": "HighlightScheme + 单行文本。",
+      "output": "行级命中结果：整行类名 + 片段区间列表（start/end/类名）。",
+      "preconditions": [
+        "方案规则数组顺序即优先级（PRD R5）"
+      ],
+      "postconditions": [
+        "片段色先到先得不叠加",
+        "整行背景可与片段共存，后规则不覆盖先规则已着色片段"
+      ],
+      "invariants": [
+        "单条规则正则非法只标记该规则 invalid 并跳过，不影响其余规则（QA-5）"
+      ],
+      "errors": [
+        "规则值非法（空值/非法正则）在 validateScheme 中标 invalid 并给出原因"
+      ],
+      "data_ownership": "方案对象不可变（值对象语义），修改走 store 的整体替换。",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-4",
+      "name": "monacoHighlighter.setCompiledScheme / scheduleRefresh 视口着色",
+      "provider": "ROLE-L05",
+      "consumers": [
+        "ROLE-L02"
+      ],
+      "input": "编辑器实例 + 可视行范围（getVisibleRanges + 上下缓冲）+ 生效方案 + 行文本访问器。",
+      "output": "无（副作用：装饰集合增量更新）。",
+      "preconditions": [
+        "编辑器实例已创建且未 dispose",
+        "方案规则已通过 validateScheme（invalid 规则被跳过）"
+      ],
+      "postconditions": [
+        "视口内行装饰与方案一致",
+        "已滚出缓冲区的装饰可回收，装饰总数有上限"
+      ],
+      "invariants": [
+        "滚动期间不整表重算（增量 delta）",
+        "无方案/无编辑器时为无操作"
+      ],
+      "errors": [
+        "装饰应用异常被捕获并 console.error 带上下文（不中断视图）"
+      ],
+      "data_ownership": "装饰集合句柄归渲染器所有，dispose 时清理。",
+      "transaction": "not_applicable",
+      "concurrency": "由 L02 在滚动/方案变更回调中串行调用；渲染器内部去抖动。"
+    },
+    {
+      "id": "IFC-5",
+      "name": "导出过滤结果 exportFiltered",
+      "provider": "ROLE-L02",
+      "consumers": [
+        "ROLE-L03"
+      ],
+      "input": "源文件 { deviceId, dirPath, name } + FilterResult 当前视图行。",
+      "output": "导出结果的绝对路径（写入成功时）。",
+      "preconditions": [
+        "FilterResult 非空",
+        "源设备可写（DeviceCapabilities）"
+      ],
+      "postconditions": [
+        "新文件位于源文件同目录，命名 <原名>.filtered.log，已存在则追加序号",
+        "导出内容含原始行号前缀（行号 + 空格 + 原文）"
+      ],
+      "invariants": [
+        "绝不写回源文件（PRD R1）"
+      ],
+      "errors": [
+        "writeFile 失败时向用户报明确错误（含路径与原因），不产生半成品提示"
+      ],
+      "data_ownership": "导出文本在调用方构建，一次性提交。",
+      "transaction": "not_applicable",
+      "concurrency": "导出期间禁止重复触发（按钮态锁定）。"
+    }
+  ],
+  "design_contract_checks": [
+    {
+      "id": "DC-1",
+      "item": "依赖方向单向：utils(logAnalysis/textFilter) ← composables/stores ← components/logview；utils 不反向 import Vue 组件或 store。",
+      "principle": "dependency_direction",
+      "role_scope": [
+        "ROLE-D01",
+        "ROLE-D02",
+        "ROLE-D03",
+        "ROLE-D04",
+        "ROLE-L01",
+        "ROLE-L02"
+      ]
+    },
+    {
+      "id": "DC-2",
+      "item": "引擎扩展零回归：不传 ctx 的既有 match(text) 行为不变；新谓词只在注册表与解析层增量添加。",
+      "principle": "OCP",
+      "role_scope": [
+        "ROLE-D01"
+      ]
+    },
+    {
+      "id": "DC-3",
+      "item": "过滤视图只读铁律：过滤激活时编辑器 readOnly，退出过滤恢复；导出只写新文件。",
+      "principle": "defensive_design",
+      "role_scope": [
+        "ROLE-L02",
+        "ROLE-L04"
+      ]
+    },
+    {
+      "id": "DC-4",
+      "item": "着色 CSS 类使用主题 CSS 变量并在 [data-theme] 双主题下定义，不硬编码单主题颜色。",
+      "principle": "separation_of_concerns",
+      "role_scope": [
+        "ROLE-L05",
+        "ROLE-L03"
+      ]
+    },
+    {
+      "id": "DC-5",
+      "item": "分块求值 + 代际号：新求值开始使旧代结果作废，旧代结果不得写回视图。",
+      "principle": "defensive_design",
+      "role_scope": [
+        "ROLE-D02",
+        "ROLE-L02"
+      ]
+    },
+    {
+      "id": "DC-6",
+      "item": "关键节点日志：过滤执行入口/出口/异常、导出调用、方案导入导出、装饰异常，均带 [模块名] 前缀。",
+      "principle": "separation_of_concerns",
+      "role_scope": []
+    },
+    {
+      "id": "DC-7",
+      "item": "Monaco 实例与模型遵守仓库规约：shallowRef 持有、先 dispose 模型再 dispose 编辑器、装饰集合随编辑器清理。",
+      "principle": "information_hiding",
+      "role_scope": [
+        "ROLE-L04",
+        "ROLE-L05",
+        "ROLE-L03"
+      ]
+    }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "输入并解析过滤表达式",
+      "roles": [
+        "ROLE-L03",
+        "ROLE-L02",
+        "ROLE-D01"
+      ],
+      "code_refs": [
+        "src/components/preview/logview/LogAnalysisToolbar.vue",
+        "src/components/preview/composables/useLogAnalysis.ts:applyFilter",
+        "src/utils/textFilter/parser.ts:parse"
+      ],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": "表达式非法 → 保持上一有效视图并显示错误位置/原因（PRD R8）。"
+    },
+    {
+      "step": 2,
+      "name": "分块求值生成过滤结果",
+      "roles": [
+        "ROLE-L02",
+        "ROLE-D02"
+      ],
+      "code_refs": [
+        "src/components/preview/composables/useLogAnalysis.ts:applyFilter",
+        "src/utils/logAnalysis/filterPipeline.ts:runFilterAsync"
+      ],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "0 命中 → 显示 0 命中并保留可撤销状态；新求值使旧代结果作废。"
+    },
+    {
+      "step": 3,
+      "name": "重建过滤视图（行号映射/上下文/只读）",
+      "roles": [
+        "ROLE-L04"
+      ],
+      "code_refs": [
+        "src/components/preview/logview/monacoFilterView.ts:applyFilterResult"
+      ],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": "编辑器未就绪时为无操作并记日志。"
+    },
+    {
+      "step": 4,
+      "name": "视口着色装饰",
+      "roles": [
+        "ROLE-L05",
+        "ROLE-D03",
+        "ROLE-L01"
+      ],
+      "code_refs": [
+        "src/components/preview/logview/monacoHighlighter.ts:setCompiledScheme",
+        "src/utils/logAnalysis/schemeModel.ts:matchLine",
+        "src/stores/logAnalysis.ts"
+      ],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": "单条规则正则非法 → 该规则标 invalid 跳过，其余照常。"
+    },
+    {
+      "step": 5,
+      "name": "命中导航与复制/导出",
+      "roles": [
+        "ROLE-L03",
+        "ROLE-L02"
+      ],
+      "code_refs": [
+        "src/components/preview/composables/useLogAnalysis.ts:navigateHit",
+        "src/components/preview/composables/useLogAnalysis.ts:exportFiltered",
+        "src/components/preview/logview/LogAnalysisToolbar.vue"
+      ],
+      "doc_ref": "业务流程图-步骤5",
+      "exception": "远程/本地写入失败 → 报明确错误；无命中时导航/导出入口禁用。"
+    },
+    {
+      "step": 6,
+      "name": "方案管理与导入导出",
+      "roles": [
+        "ROLE-L06",
+        "ROLE-L01",
+        "ROLE-D04"
+      ],
+      "code_refs": [
+        "src/components/preview/logview/SchemeEditorDialog.vue",
+        "src/utils/logAnalysis/schemeSerializer.ts:serializeScheme",
+        "src/utils/logAnalysis/schemeSerializer.ts:deserializeScheme",
+        "src/stores/logAnalysis.ts"
+      ],
+      "doc_ref": "业务流程图-步骤6",
+      "exception": "导入文件非法/版本不兼容 → 报错且不产生半成品方案；重名自动加后缀。"
+    }
+  ],
+  "logging_standard": {
+    "library": "browser console (renderer)",
+    "key_nodes_instrumented": [
+      "入口",
+      "异常",
+      "外部调用"
+    ]
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "npm run test:log-analysis",
+        "result": "通过",
+        "evidence": "2026-08-15 exit 0：23 项断言全部通过（引擎谓词扩展与向后兼容、管线不变量、方案叠加语义、序列化往返）。",
+        "status": "passed"
+      },
+      {
+        "command": "npm run typecheck",
+        "result": "通过",
+        "evidence": "2026-08-15 exit 0：vue-tsc --noEmit 无诊断。",
+        "status": "passed"
+      },
+      {
+        "command": "npm run build",
+        "result": "通过",
+        "evidence": "2026-08-15 exit 0：electron-vite build 完成 main、preload 与 renderer bundle。",
+        "status": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "result": "通过",
+        "evidence": "2026-08-15 exit 0：无空白错误。",
+        "status": "passed"
+      }
+    ],
+    "checks": [
+      {
+        "target": "IFC-1 引擎扩展零回归 + level/lines 语义",
+        "method": "new_test",
+        "evidence": "tests/logAnalysis.test.ts：level 词汇表/未知级别回退/自定义词表、lines 带/不带 LineContext、lines 与 reg 非法值在 parse 期报错、7 项旧谓词语义不变的向后兼容断言。",
+        "status": "passed"
+      },
+      {
+        "target": "IFC-2 管线不变量（行号保真/上下文去重/反向/0命中/代际取消）",
+        "method": "new_test",
+        "evidence": "tests/logAnalysis.test.ts：match-only 行号断言、上下文重叠合并无重复、invert 计数互补、0 命中为合法结果、取消运行返回 null、async 与 sync 结果一致。",
+        "status": "passed"
+      },
+      {
+        "target": "IFC-3 方案叠加语义（优先级/片段先到先得/单规则非法跳过）",
+        "method": "new_test",
+        "evidence": "tests/logAnalysis.test.ts：首条命中的整行规则生效、片段区间不重叠、非法正则规则被标 invalid 且其余规则照常、内置预设全部干净编译、整行与片段共存。",
+        "status": "passed"
+      },
+      {
+        "target": "QA-6 方案序列化（往返/拒绝非法/重名）",
+        "method": "new_test",
+        "evidence": "tests/logAnalysis.test.ts：serialize→deserialize 保序往返、非 JSON/错类型/错版本/非法枚举全部拒绝且无半成品、uniqueName 与 importedToScheme 防冲突。",
+        "status": "passed"
+      },
+      {
+        "target": "QA-1 分块求出不冻结 UI",
+        "method": "static_check",
+        "evidence": "src/utils/logAnalysis/filterPipeline.ts:runFilterAsync 按 CHUNK_SIZE=20000 分块并在块间 await setTimeout(0) 让出主线程；useLogAnalysis.ts 仅在 Enter/变更时求值，输入过程不重扫；真实大文件手感登记为 unverified。",
+        "status": "passed"
+      },
+      {
+        "target": "QA-2/QA-3 只读安全与行号保真",
+        "method": "static_check",
+        "evidence": "monacoFilterView.ts 过滤视图强制 readOnly + lineNumbers 回调映射原始行号，激活前置 active 标记抑制宿主 isModified 误判；PreviewTextContent.vue saveFile/保存按钮在 isViewTransformed 时禁用；useLogAnalysis.ts:exportFiltered 仅写 <原路径>.filtered[N].log 新文件且 exists 探测防覆盖。",
+        "status": "passed"
+      },
+      {
+        "target": "QA-4 双主题着色可读",
+        "method": "static_check",
+        "evidence": "src/style.css 新增 --fma-* 调色板，:root（dark 默认）与 [data-theme=light] 双份定义，fma-hl-line-*/fma-hl-frag-*/fma-swatch-* 全部引用 CSS 变量，无硬编码单主题色；行号/命中计数等非颜色信号并存。",
+        "status": "passed"
+      }
+    ],
+    "unverified": [
+      {
+        "item": "100MB 级真实日志的过滤耗时、滚动流畅度与内存占用手感",
+        "impact": "QA-1 的最终确认依赖真实数据量下的体感，静态检查与单元断言不能替代",
+        "follow_up": "npm run dev 下用真实大日志人工冒烟；若不达标按契约登记的 ALT-3（Worker 求值）演进方向处理"
+      },
+      {
+        "item": "Monaco 装饰器快速滚动时的视觉稳定性与两主题下对比度实测",
+        "impact": "视口惰性装饰策略正确性已由代码结构保证，视觉效果需人眼确认",
+        "follow_up": "npm run dev 人工冒烟，重点看滚动时装饰补齐与回收"
+      },
+      {
+        "item": "远程设备（SMB/SSH/Android/iOS）日志文件的过滤与导出实测",
+        "impact": "远程内容链路与本地一致（readFile 已在 renderer），但真机未验证",
+        "follow_up": "连接真实设备后验证远程日志过滤与导出"
+      }
+    ]
+  },
+  "summary": {
+    "roles_count": 10,
+    "interfaces_count": 5,
+    "process_steps": 6,
+    "verification_checks": 7,
+    "layer_roles": 6,
+    "domain_roles": 4
+  },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "四门由 validate_gate.py 结构证据 + LLM 语义自检共同支撑：角色↔文件存在、依赖方向 utils←store/composable←components 单向无环、流程 6 步均有 code_refs 与文档 doc_ref 对账；测试/typecheck/build/git diff --check 全部实跑通过。语义项（职责是否真单一、Monaco 渲染手感）超出脚本近似能力，已在 unverified 与文档已知缺口登记，置信度说明见架构文档。"
+  },
+  "open_questions": [
+    {
+      "question": "过滤历史条数上限与清理策略（PRD 未决）",
+      "impact": "影响历史下拉可用性",
+      "后续": "交互实现时取 50 条上限 + 手动清空，如需调整再议。"
+    },
+    {
+      "question": "是否需要系统级保存对话框选择导出路径",
+      "impact": "当前设计写同目录新文件，避免改三处 IPC 契约；用户期望另存任意路径时需新增 IPC",
+      "后续": "如反馈需要，另立 feature 增加 system:saveDialog IPC。"
+    }
+  ]
+}

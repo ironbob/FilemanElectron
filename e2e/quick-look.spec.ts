@@ -112,3 +112,25 @@ test('arrows still step after clicking into the preview content (Monaco focus)',
   await page.keyboard.press('Space')
   await expect(overlay).toBeHidden()
 })
+
+test('selected rows keep the accent-blue background while hovered', async ({ page }) => {
+  // 选中两个文件，hover 其中一个：选中态背景不得被 hover 灰底覆盖
+  await page.locator('[data-file-path="/file-01.txt"]').click()
+  await page.keyboard.press('Shift+ArrowDown')
+  await page.keyboard.press('Shift+ArrowDown')
+  const hovered = page.locator('[data-file-path="/file-02.txt"]')
+  const idle = page.locator('[data-file-path="/file-03.txt"]')
+  await expect(hovered).toHaveClass(/bg-accent-blue/)
+  await expect(idle).toHaveClass(/bg-accent-blue/)
+  await hovered.hover()
+  await page.waitForTimeout(200)
+  const colors = await page.evaluate(() => {
+    const get = (p: string) => {
+      const el = document.querySelector(`[data-file-path="${p}"]`) as HTMLElement | null
+      return el ? getComputedStyle(el).backgroundColor : 'missing'
+    }
+    return { hovered: get('/file-02.txt'), idle: get('/file-03.txt') }
+  })
+  // hover 中的选中行与未 hover 的选中行背景必须完全一致（蓝底）
+  expect(colors.hovered).toBe(colors.idle)
+})

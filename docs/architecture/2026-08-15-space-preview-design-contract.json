@@ -1,0 +1,100 @@
+{
+  "feature": "space-preview",
+  "title": "空间分析 + 预览增强（M4）",
+  "stack": "Electron29+Vue3",
+  "analyzed_at": "2026-08-15",
+  "existing_alignment": {
+    "recognized_style": "长任务三通道 + 终态必达；瞬态工具页配方（spaceSession/isTransientTab）；Preview*Content 按类型分派（Router 单一事实源）；纯函数 utils + esbuild harness 单测。",
+    "new_code_follows": "SpaceAnalyzerService 消费 M1 Walker/Registry；hex 走新 readChunk 单通道；PreviewTextContent 三处增量修改（不抽组件，RISK-04）。"
+  },
+  "interaction_confirmation": {
+    "profile_selected": "standard（随总体规划批准）",
+    "proposal_revision": 1,
+    "candidate_confirmed": "ALT-1（独立 SpaceAnalyzer + opt-in hex + 增量预览修改）",
+    "source": "规划批准记录（2026-08-15）",
+    "quoted_evidence": "总体规划批准"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      { "id": "QA-1", "name": "布局正确性", "priority": "P0", "scenario": "面积守恒/无重叠/确定性" },
+      { "id": "QA-2", "name": "大文件可行", "priority": "P0", "scenario": "hex 分块 LRU；treemap 200 节点" },
+      { "id": "QA-3", "name": "分类稳定", "priority": "P0", "scenario": "hex 仅 opt-in；unknown 兜底不变" },
+      { "id": "QA-4", "name": "只读安全", "priority": "P0", "scenario": "格式化外全只读" }
+    ],
+    "candidates": [
+      { "id": "ALT-1", "summary": "独立 SpaceAnalyzer + opt-in hex + 增量预览修改", "selected": true },
+      { "id": "ALT-2", "summary": "扩展 DirectoryStatsService 携带 entries（破坏既有契约，否决）", "selected": false },
+      { "id": "ALT-3", "summary": "unknown 全走 hex（误重分类，否决）", "selected": false }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "最小爆炸半径：FileInfoDialog 契约不动，预览分类不回退，预览组件增量演进。",
+    "top_down_check": "R1-R6 全映射（R2→窗口/LRU/节点上限；R3→hexExts；R4→32MB 守卫；R5→detectCsvDelimiter；R6→三态排序）",
+    "bottom_up_check": "squarify/hexFormat/jsonQuery/jsonToTs 均有单测；TreemapView/PreviewHexContent 有 e2e",
+    "risk_spikes": ["squarify 面积守恒错误（全局总量 vs 剩余总量）——修复并固化单测"],
+    "review": "自评通过"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Pinia",
+    "current_patterns": "瞬态工具页（spaceSession）；Preview Router 类型分派；PreviewTextContent 增量",
+    "target_patterns": "同左；treemap/ 组件目录 + 纯布局函数同目录",
+    "state_management": "会话在组件（ULT harness）；无新 store",
+    "view_model_policy": "TreemapView 内联消费 progress",
+    "mvvm_suitability": "不引入机械 MVVM",
+    "migration_impact": "Tab 加 spaceSession 可选字段",
+    "impact_scope": ["src/types/index.ts", "src/stores/tabs.ts", "src/App.vue", "src/types/preview.ts", "src/components/preview/PreviewContentRouter.vue", "src/components/preview/PreviewTextContent.vue"],
+    "migration_confirmation": "可选字段零迁移",
+    "decision_reason": "复用既有配方"
+  },
+  "roles": [
+    { "id": "ROLE-L10", "role_kind": "layer", "layer": "infrastructure(main)", "domain_role": "空间分析服务", "responsibility": "顶层条目聚合 + 终态 entries", "hidden_secret": "per-top-child walk、降序", "change_triggers": "聚合维度扩展", "data_owned": "无", "depends_on": ["STR", "DW"], "industry_basis": "SRP", "design_principles": ["不破坏既有契约"], "code_units": ["electron/src/services/SpaceAnalyzerService.ts"] },
+    { "id": "ROLE-D05", "role_kind": "domain", "layer": "domain", "domain_role": "squarified 布局", "responsibility": "值→矩形布局", "hidden_secret": "剩余总量归一、贪心行", "change_triggers": "布局算法替换", "data_owned": "无", "depends_on": [], "industry_basis": "Bruls 经典算法", "design_principles": ["纯函数"], "code_units": ["src/components/treemap/squarify.ts"] },
+    { "id": "ROLE-V06", "role_kind": "layer", "layer": "view", "domain_role": "treemap 视图", "responsibility": "色块渲染/下钻/tooltip", "hidden_secret": "200 节点+Others、HSL 色调插值", "change_triggers": "视觉规范", "data_owned": "局部 reactive", "depends_on": ["SQ", "ULT"], "industry_basis": "工具页模式", "design_principles": ["CSS 变量优先（HSL 色带为例外——动态计算色相）"], "code_units": ["src/components/treemap/TreemapView.vue"] },
+    { "id": "ROLE-L11", "role_kind": "layer", "layer": "infrastructure(main)", "domain_role": "分块读取 handler", "responsibility": "区间读取三引擎", "hidden_secret": "本地零冗余/远端前缀丢弃/非流式守卫", "change_triggers": "适配器区间语义", "data_owned": "无", "depends_on": ["adapter"], "industry_basis": "能力分流", "design_principles": ["OCP"], "code_units": ["electron/main.ts fsReadChunk handler"] },
+    { "id": "ROLE-D06", "role_kind": "domain", "layer": "domain", "domain_role": "hex 格式化", "responsibility": "16 字节行三列", "hidden_secret": "可打印 ASCII 范围", "change_triggers": "列宽调整", "data_owned": "无", "depends_on": [], "industry_basis": "hexdump 惯例", "design_principles": ["纯函数"], "code_units": ["src/utils/hexFormat.ts"] },
+    { "id": "ROLE-V07", "role_kind": "layer", "layer": "view", "domain_role": "hex 视图", "responsibility": "窗口按需加载 + 行渲染", "hidden_secret": "256KB 窗口 LRU(4)、绝对定位虚拟化", "change_triggers": "性能调参", "data_owned": "windowCache", "depends_on": ["HF", "readChunk"], "industry_basis": "分页加载", "design_principles": ["只读"], "code_units": ["src/components/preview/PreviewHexContent.vue"] },
+    { "id": "ROLE-D07", "role_kind": "domain", "layer": "domain", "domain_role": "JSON 工具", "responsibility": "路径查询 + TS 生成", "hidden_secret": "token 状态机；样本合并算法", "change_triggers": "JSONPath 扩展", "data_owned": "无", "depends_on": [], "industry_basis": "JSONPath 子集", "design_principles": ["纯函数、不抛异常"], "code_units": ["src/utils/jsonQuery.ts", "src/utils/jsonToTs.ts"] },
+    { "id": "ROLE-V08", "role_kind": "layer", "layer": "view", "domain_role": "预览增量增强", "responsibility": "CSV 排序/分隔符、JSON 三工具", "hidden_secret": "数值感知三态排序；格式化走编辑语义", "change_triggers": "预览重构（RISK-04）", "data_owned": "局部 ref", "depends_on": ["ROLE-D07"], "industry_basis": "增量演进", "design_principles": ["RISK-04 约束"], "code_units": ["src/components/preview/PreviewTextContent.vue（增量段）"] }
+  ],
+  "interfaces": [
+    { "id": "IFC-1", "provider": "SpaceAnalyzerService", "consumers": ["TreemapView"], "input": "SpaceAnalysisRequest", "output": "{taskId} + 终态 entries", "preconditions": "canList", "postconditions": "entries 按 size 降序", "invariants": "顶层目录计入 directoryCount", "errors": "遍历失败→failed", "data_ownership": "主进程", "transaction": "无", "concurrency": "顺序遍历" },
+    { "id": "IFC-2", "provider": "fsReadChunk handler", "consumers": ["PreviewHexContent"], "input": "(deviceId, path, offset, length)", "output": "ReadChunkResult", "preconditions": "非流式设备 ≤32MB", "postconditions": "bytesRead=base64 解码长度", "invariants": "越界钳制空块", "errors": "超限抛错", "data_ownership": "无状态", "transaction": "无", "concurrency": "并发安全" },
+    { "id": "IFC-3", "provider": "squarify", "consumers": ["TreemapView", "测试"], "input": "items + w/h", "output": "rects", "preconditions": "value>0 过滤", "postconditions": "Σ面积=容器", "invariants": "乱序输入同输出", "errors": "空输入空输出", "data_ownership": "无", "transaction": "无", "concurrency": "无" },
+    { "id": "IFC-4", "provider": "jsonQuery/jsonToTs", "consumers": ["PreviewTextContent", "测试"], "input": "queryJson(root, path) / jsonToInterfaces(root)", "output": "JsonQueryResult / string|null", "preconditions": "无", "postconditions": "无副作用", "invariants": "非法输入不抛异常；循环引用安全", "errors": "ok:false/null", "data_ownership": "无", "transaction": "无", "concurrency": "无" }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "DirectoryStatsService 契约不动", "principle": "不破坏既有消费者", "role_scope": ["ROLE-L10"] },
+    { "id": "DC-2", "item": "hex 扩展名 opt-in", "principle": "分类稳定", "role_scope": ["ROLE-V07"] },
+    { "id": "DC-3", "item": "PreviewTextContent 增量而非抽取", "principle": "RISK-04 触发式重构", "role_scope": ["ROLE-V08"] },
+    { "id": "DC-4", "item": "格式化是唯一写动作且走编辑语义", "principle": "只读铁律例外显式化", "role_scope": ["ROLE-V08"] }
+  ],
+  "business_process": [
+    { "step": 1, "name": "空间分析", "roles": ["ROLE-L10", "ROLE-V06"], "code_refs": ["electron/src/services/SpaceAnalyzerService.ts", "src/components/treemap/TreemapView.vue"], "doc_ref": "二", "exception": "空目录提示" },
+    { "step": 2, "name": "下钻", "roles": ["ROLE-V06"], "code_refs": ["src/components/treemap/TreemapView.vue drillDown"], "doc_ref": "二", "exception": "Others 聚合项不可下钻" },
+    { "step": 3, "name": "hex 预览", "roles": ["ROLE-L11", "ROLE-V07"], "code_refs": ["electron/main.ts fsReadChunk", "src/components/preview/PreviewHexContent.vue"], "doc_ref": "二", "exception": "读取失败居中错误" },
+    { "step": 4, "name": "CSV/JSON 增强", "roles": ["ROLE-V08", "ROLE-D07"], "code_refs": ["src/components/preview/PreviewTextContent.vue 增量段"], "doc_ref": "二", "exception": "非法 JSON 工具不可用" }
+  ],
+  "logging_standard": "[Space] 结构化前缀记录阶段与终态；hex/JSON 工具为 renderer 局部逻辑不打日志（错误就地呈现）。",
+  "verification": {
+    "commands": [
+      { "cmd": "npm run typecheck", "status": "pass", "evidence": "0 error" },
+      { "cmd": "npx tsc -p tsconfig.node.json", "status": "pass", "evidence": "16 = 基线" },
+      { "cmd": "npm run build", "status": "pass", "evidence": "通过" },
+      { "cmd": "npm run test:squarify && npm run test:hex-format && npm run test:json-utils", "status": "pass", "evidence": "全过" },
+      { "cmd": "npx playwright test e2e/treemap-tab.spec.ts e2e/hex-preview.spec.ts e2e/grep-results-tab.spec.ts", "status": "pass", "evidence": "5 passed" }
+    ],
+    "checks": [
+      { "target": "QA-1 布局正确性", "method": "new_test", "evidence": "squarify.test.ts 面积守恒/无重叠" },
+      { "target": "R3 hex 分类", "method": "new_test", "evidence": "hex-preview.spec.ts" },
+      { "target": "JSON 工具", "method": "new_test", "evidence": "jsonUtils.test.ts" }
+    ],
+    "unverified": [
+      { "item": "远端设备 readChunk 实测（前缀丢弃路径）", "follow_up": "设备联调" }
+    ]
+  },
+  "summary": "M4 交付空间 treemap（squarified 布局+下钻）、hex 查看器（分块读取+窗口 LRU）、CSV/JSON 增强（排序/分隔符自适应/路径查询/TS 生成/格式化）。",
+  "gate": { "architecture": "go", "logging": "go", "coverage": "go", "verification": "go", "verdict": "go", "issues": [], "notes": "" },
+  "open_questions": [
+    "CsvTableView 抽取推迟至预览大改（RISK-04 触发式）"
+  ]
+}

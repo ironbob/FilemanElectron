@@ -1,0 +1,610 @@
+{
+  "feature": "hex-viewer-baseline",
+  "title": "Hex 查看器成熟基线升级（全文件虚拟滚动 + 偏移跳转 + Data Inspector）",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-16",
+  "existing_alignment": {
+    "recognized_style": "Electron 29 + Vue 3 + Pinia renderer 侧（本 feature 无后端/IPC 变更，stack 取 Vue 侧映射）；纯函数置 src/utils 并以 esbuild harness 单测（hexFormat 先例）；交互状态用 composable-as-ViewModel 配方（useDirCompare/useGrepSearch 先例）；组件本地 reactive；颜色仅 CSS 变量；[组件名] 前缀结构化 console 日志；零新第三方依赖（RISK-04）。",
+    "new_code_follows": "useHexViewer composable 放 src/components/preview/composables/；HexWindowCache 与视口几何纯函数放 src/utils/；解读/解析并入既有 hexFormat.ts；单测沿用 tests/*.test.ts + npm run test:* esbuild 模式；e2e 扩展既有 hex-preview.spec.ts。"
+  },
+  "interaction_confirmation": {
+    "proposal_revision": 1,
+    "profile_selection": {
+      "status": "user_selected",
+      "selected_profile": "standard",
+      "source": "user_message",
+      "evidence": "用户在等级选择门（AskUserQuestion）回复：standard (Recommended) —— 2026-08-16"
+    },
+    "design_confirmation": {
+      "status": "user_confirmed",
+      "confirmed_candidate": "ALT-1",
+      "confirmed_revision": 1,
+      "source": "later_user_message",
+      "evidence": "完整方案（质量属性/双候选/5 角色/4 接口/5 流程/验证策略）展示后，用户回复：确认，按 ALT-1 编码 —— 2026-08-16"
+    }
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {
+        "name": "规模可扩展",
+        "priority": "high",
+        "scenario": "1GB 文件拖动滚动条到任意位置，数据 2s 内可见",
+        "acceptance": "占位高度=真实总行数×22px（不再 5000 行封顶）；任意时刻 DOM 行数 ≤ ~120（可视+overscan），与文件大小无关"
+      },
+      {
+        "name": "坐标不变量",
+        "priority": "high",
+        "scenario": "滚动/跳转/渲染三处都依赖同一坐标换算",
+        "acceptance": "row≡⌊offset/16⌋、top≡row×22px 唯一经 hexViewport 换算；全部输出钳在 [0,totalRows)；单测覆盖"
+      },
+      {
+        "name": "跳转正确",
+        "priority": "high",
+        "scenario": "输入 0x1A2B / 6667 / 1A2B 跳转",
+        "acceptance": "三种形态均可解析；越界钳至 [0,size) 且提示；非法输入就地报错不产生滚动"
+      },
+      {
+        "name": "解读正确",
+        "priority": "high",
+        "scenario": "Inspector 对行内字节做 int8/16/32/64、float32/64 × LE/BE 解读",
+        "acceptance": "与 DataView 语义逐位一致（单测对照）；行尾字节不足 N 时跳过该类型，不伪造数据"
+      },
+      {
+        "name": "健壮",
+        "priority": "medium",
+        "scenario": "窗口读取失败 / 同窗口并发请求",
+        "acceptance": "失败时保留已加载区并呈现错误；同窗口在途 get 共享同一 Promise；缓存不留半成品"
+      },
+      {
+        "name": "约束符合",
+        "priority": "high",
+        "scenario": "RISK-04 红线",
+        "acceptance": "零新第三方依赖；颜色仅 CSS 变量；新增逻辑纯函数化且走 esbuild 单测"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "ALT-1",
+        "summary": "视口驱动 + 保留绝对定位渲染，自管可视行集：占位高度=真实总行数；渲染行集=visibleRowRange±overscan 内且窗口缓存命中的行（未命中渲染色块占位）；滚动→换算区间→按需 ensureWindow",
+        "strengths": [
+          "现有行定位已是 top=行号×行高 的绝对定位，天然 O(可视) 渲染，改动收敛在组件与其新 composable",
+          "滚动数学自管且可纯函数单测（正是 QA-2 不变量所在）",
+          "适配『行数天文数字、数据稀疏』场景"
+        ],
+        "weaknesses": [
+          "需自写视口换算与 overscan 策略（以 hexViewport 纯函数+单测补偿）"
+        ],
+        "risks": [
+          "滚动高频触发导致的窗口请求风暴 → 在途合并 + rAF 节流缓解"
+        ]
+      },
+      {
+        "id": "ALT-2",
+        "summary": "RecycleScroller 真虚拟化：items=全部行号占位数组，slot 内按行号查窗口缓存",
+        "strengths": [
+          "复用 FileList 同款虚拟化设施，滚动数学交库管理"
+        ],
+        "weaknesses": [
+          "vue-virtual-scroller 需要实体 items 数组：1GB 文件 ≈ 6700 万占位对象，构建即 O(n) 内存/时间",
+          "scrollToItem 在千万级数组上退化"
+        ],
+        "risks": [
+          "库能力边界导致大文件不可用（功能性风险，不可接受）"
+        ]
+      }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "QA-1（1GB 规模）与 QA-2（坐标不变量）由 ALT-1 直接满足；ALT-2 被基础设施约束否决（items 实体数组模型不适配稀疏行场景）——这也是 Hex Fiend 等成熟 hex 工具自绘滚动区的原因；ALT-1 的滚动数学以纯函数+单测补偿，风险可控。",
+    "top_down_check": "从流程（打开→滚动→跳转→解读）与质量属性（规模/坐标/健壮）推导出：数据获取需独立缓存角色（HexWindowCache）、坐标需唯一换算角色（hexViewport）、编排需 VM 角色（useHexViewer）、渲染需薄 View 角色、解析/解读需纯函数角色（hexFormat）——五角色各担一责，无凭空添加。",
+    "bottom_up_check": "现有组件已具备绝对定位行渲染与 readChunk 通道（复用）；vue-virtual-scroller 实测约束（FileList 用法）排除 ALT-2；esbuild 单测 harness 与 e2e mock 基建就绪，可承接验证策略。",
+    "risk_spikes": [],
+    "review": {
+      "mode": "user",
+      "reviewer": "用户（方案确认门）",
+      "findings": "用户审阅完整方案（质量属性/双候选/5 角色/4 接口/5 流程/验证策略）并确认 ALT-1；模块 E 另做新视角语义自审",
+      "disposition": "模块 E 新视角语义复核（十项清单）通过：五角色↔五文件存在且单一职责；依赖 view→vm→infra/domain 单向无环；坐标换算唯一经 hexViewport（View 仅导入 ROW_HEIGHT 常量做样式，无自算 top/row）；解析/解读纯函数全量单测；日志四关键节点落地 VM 与缓存；无 placeholder。unverified 两项（真实 1GB 手感/远端大偏移延迟）已登记并降低对应置信度。"
+    }
+  },
+  "ui_architecture": {
+    "framework": "Vue 3",
+    "current_patterns": [
+      "Direct View"
+    ],
+    "target_patterns": [
+      "MVVM"
+    ],
+    "state_management": "会话状态（视口/光标/错误/行集）唯一归 useHexViewer composable（feature-scoped，ref/shallowRef）；组件不持有派生状态；窗口字节归 HexWindowCache 实例（VM 持有）",
+    "view_model_policy": "required",
+    "mvvm_suitability": "suitable",
+    "migration_impact": "low",
+    "impact_scope": [
+      "src/components/preview/PreviewHexContent.vue（内部重构，零跨组件接口变化）"
+    ],
+    "migration_confirmation": "not_required",
+    "decision_reason": "异步分块加载、多状态组合（加载/错误/占位）、跳转与选行意图值得独立单测——符合 composable-as-VM 适用条件；且是仓库既有配方（useDirCompare/useGrepSearch 先例）而非新引入 MVVM，迁移影响仅单组件内部。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "PreviewHexContent",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染行列表/偏移跳转框/Data Inspector 面板，转发滚动与点击意图到 VM",
+      "hidden_secret": "DOM 结构、行/面板样式与 CSS 变量配色",
+      "change_triggers": [
+        "视觉/布局调整",
+        "面板增删"
+      ],
+      "data_owned": "无（全部来自 useHexViewer）",
+      "depends_on": [
+        "ROLE-L02"
+      ],
+      "industry_basis": "Vue 页面组件惯例（View 只渲染与转发意图，单向数据流）",
+      "design_principles": [
+        "SRP",
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "src/components/preview/PreviewHexContent.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "useHexViewer",
+      "role_kind": "layer",
+      "layer": "view_model",
+      "domain_role": null,
+      "responsibility": "持有视口/光标/错误会话状态，编排取窗、滚动节流、跳转定位与行选中解读，输出去可直接消费的行集与 Inspector 数据",
+      "hidden_secret": "视口↔窗口协调、overscan/rAF 节流策略、跳转高亮时序",
+      "change_triggers": [
+        "视口策略/预取策略调整",
+        "交互意图增删"
+      ],
+      "data_owned": "会话 ref（scrollTop 派生行区间、cursorRow、error、jumpHighlight）+ HexWindowCache 实例所有权",
+      "depends_on": [
+        "ROLE-L03",
+        "ROLE-D01",
+        "ROLE-D02"
+      ],
+      "industry_basis": "MVVM Presentation Model / Vue composable-store 惯例（useDirCompare/useGrepSearch 同款）",
+      "design_principles": [
+        "SRP",
+        "separation_of_concerns",
+        "DIP"
+      ],
+      "code_units": [
+        "src/components/preview/composables/useHexViewer.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "HexWindowCache",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "以 64KB 对齐窗口为单位调 readChunk、解码 base64、LRU 缓存与在途合并",
+      "hidden_secret": "窗口大小/LRU 容量/边界对齐/在途去重的实现",
+      "change_triggers": [
+        "缓存策略调整",
+        "读取通道语义变化"
+      ],
+      "data_owned": "窗口字节缓存 Map + 在途 Promise Map",
+      "depends_on": [],
+      "industry_basis": "Repository/端口适配器（fetcher 构造注入，数据获取抽象可替换可单测）",
+      "design_principles": [
+        "information_hiding",
+        "DIP",
+        "defensive_design"
+      ],
+      "code_units": [
+        "src/utils/hexWindowCache.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D01",
+      "name": "hexViewport",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "提供滚动条坐标系的唯一换算：visibleRowRange/rowToOffset/offsetToRow/rowTop/clampOffset",
+      "hidden_secret": "坐标系定义（16B/行 × 22px/行）与钳制规则",
+      "change_triggers": [
+        "行宽/行高常量变化",
+        "坐标语义变化"
+      ],
+      "data_owned": "无（纯函数）",
+      "depends_on": [
+        "ROLE-D02"
+      ],
+      "industry_basis": "DDD 值对象（以纯函数集形态承载坐标语义，不可变输入输出；BYTES_PER_ROW 常量复用 hexFormat，单一行宽定义）",
+      "design_principles": [
+        "value_object",
+        "SRP",
+        "defensive_design"
+      ],
+      "code_units": [
+        "src/utils/hexViewport.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D02",
+      "name": "hexFormat",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "行三列格式化（既有）+ 偏移输入解析 parseOffsetInput + 字节解读 interpretAt（int/float × LE/BE）",
+      "hidden_secret": "输入解析启发式（0x 前缀/含字母按 hex/十进制）与 DataView 语义映射",
+      "change_triggers": [
+        "解读类型增删",
+        "解析规则变化"
+      ],
+      "data_owned": "无（纯函数）",
+      "depends_on": [],
+      "industry_basis": "DDD 值对象（纯函数形态，与既有 hexFormat.ts 一脉相承）",
+      "design_principles": [
+        "value_object",
+        "SRP"
+      ],
+      "code_units": [
+        "src/utils/hexFormat.ts"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IFC-1",
+      "name": "HexWindowCache.get / has",
+      "provider": "ROLE-L03",
+      "consumers": [
+        "ROLE-L02"
+      ],
+      "input": "get(offset:number)——任意字节偏移（内部对齐到 windowBytes 边界）；has(offset:number) 同步探测",
+      "output": "Promise<Uint8Array>（含该 offset 的整窗字节，长度=min(64KB, size-offset)）；boolean",
+      "preconditions": [
+        "offset ≥ 0",
+        "offset < fileSize（调用方保证；构造时传入 fileSize 用于窗口截尾）"
+      ],
+      "postconditions": [
+        "返回窗口覆盖 [alignedStart, alignedStart+min(64KB,size-alignedStart))"
+      ],
+      "invariants": [
+        "同窗口在途 get 共享同一 Promise（不重复请求）",
+        "LRU 容量 4，驱逐最久未用窗",
+        "get 失败时缓存与在途表不留半成品"
+      ],
+      "errors": [
+        "fetcher 抛错原样透传（错误信息含窗口起始偏移）；调用方负责呈现与保留已加载区"
+      ],
+      "data_ownership": "窗口字节归缓存实例；Uint8Array 视为不可变（消费方不得改写）",
+      "transaction": "not_applicable",
+      "concurrency": "同窗合并、异窗并行；无取消语义（窗口小、请求短，取消收益低于复杂度）"
+    },
+    {
+      "id": "IFC-2",
+      "name": "useHexViewer 会话 API",
+      "provider": "ROLE-L02",
+      "consumers": [
+        "ROLE-L01"
+      ],
+      "input": "useHexViewer(file: FileInfo, deviceId: string)；View 转发 onScroll(scrollTop, viewportHeight)、jumpTo(text)、selectRow(rowIndex)",
+      "output": "响应式：totalRows、rows（可视±overscan 行集，窗口未命中项带 loaded=false）、inspector 条目、error、jumpHighlight(row)、loading 窗描述",
+      "preconditions": [
+        "file.size ≥ 0 已知"
+      ],
+      "postconditions": [
+        "rows 行数有界（≈viewport/22 + 2×overscan）",
+        "jumpTo 成功后视口以目标行为中心"
+      ],
+      "invariants": [
+        "行集只由 visibleRowRange 派生",
+        "cursorRow 变更必触发 interpretAt 重算",
+        "坐标换算全部委托 hexViewport（VM 不自算 top）"
+      ],
+      "errors": [
+        "窗口读取失败 → error 状态（保留已加载行集）；跳转非法输入 → parseError 就地返回，不滚动"
+      ],
+      "data_ownership": "会话状态归 composable 实例（组件卸载即弃）；无持久化",
+      "transaction": "not_applicable",
+      "concurrency": "滚动经 rAF 合帧；在途窗口经 IFC-1 合并"
+    },
+    {
+      "id": "IFC-3",
+      "name": "hexViewport 坐标换算",
+      "provider": "ROLE-D01",
+      "consumers": [
+        "ROLE-L02"
+      ],
+      "input": "scrollTop/viewportHeight/totalRows/overscan 或 offset/row",
+      "output": "visibleRowRange{first,last,bufferFirst,bufferLast}、rowToOffset、offsetToRow、rowTop、clampOffset",
+      "preconditions": [
+        "常量 BYTES_PER_ROW=16、ROW_HEIGHT=22 与渲染层一致"
+      ],
+      "postconditions": [
+        "range 覆盖 [⌊scrollTop/22⌋, ⌈(scrollTop+viewportH)/22⌉] 并向两侧扩展 overscan 行"
+      ],
+      "invariants": [
+        "row≡⌊offset/16⌋",
+        "top≡row×22",
+        "一切输出钳在 [0,totalRows)"
+      ],
+      "errors": [
+        "纯函数不抛异常；非法输入（负数/NaN）按钳制规则收敛"
+      ],
+      "data_ownership": "无状态",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-4",
+      "name": "hexFormat.parseOffsetInput / interpretAt",
+      "provider": "ROLE-D02",
+      "consumers": [
+        "ROLE-L02"
+      ],
+      "input": "parseOffsetInput(text:string, size:number)；interpretAt(bytes:Uint8Array, offset:number)",
+      "output": "{ok:true, offset, clamped} | {ok:false, error}；InspectorEntry[]（label/value 成对 LE/BE，类型含 int8/16/32/64、float32/64）",
+      "preconditions": [
+        "size>0；bytes 为窗口内片段"
+      ],
+      "postconditions": [
+        "解析不改变输入；解读只读窗口字节"
+      ],
+      "invariants": [
+        "'0x'前缀→hex；纯[0-9a-f]含字母→按 hex；纯数字→十进制",
+        "offset 钳至 [0,size)",
+        "行尾字节不足 N 的类型跳过不输出",
+        "数值与 DataView 同位读数逐位一致"
+      ],
+      "errors": [
+        "非法输入返回 {ok:false}（不抛异常）；空串/超长/非进制字符均非法"
+      ],
+      "data_ownership": "无状态纯函数",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    }
+  ],
+  "design_contract_checks": [
+    {
+      "id": "DC-1",
+      "item": "依赖方向 view→view_model→infrastructure/domain 单向，不反向、不跨层直连（View 不得直接调 HexWindowCache/hexViewport）",
+      "principle": "dependency_direction",
+      "role_scope": [
+        "ROLE-L01",
+        "ROLE-L02",
+        "ROLE-L03"
+      ]
+    },
+    {
+      "id": "DC-2",
+      "item": "窗口缓存在途合并、失败不留半成品、Uint8Array 视为不可变",
+      "principle": "information_hiding",
+      "role_scope": [
+        "ROLE-L03"
+      ]
+    },
+    {
+      "id": "DC-3",
+      "item": "坐标换算唯一经 hexViewport；组件与 VM 不得自算 top/row 公式",
+      "principle": "minimize_complexity",
+      "role_scope": [
+        "ROLE-L01",
+        "ROLE-L02",
+        "ROLE-D01"
+      ]
+    },
+    {
+      "id": "DC-4",
+      "item": "解析与解读为纯函数（无副作用、非法输入不抛异常）并全部纳入 esbuild 单测",
+      "principle": "SRP",
+      "role_scope": [
+        "ROLE-D02"
+      ]
+    },
+    {
+      "id": "DC-5",
+      "item": "颜色仅 CSS 变量、零新第三方依赖；DOM 行数有界与文件大小无关",
+      "principle": "separation_of_concerns",
+      "role_scope": [
+        "ROLE-L01"
+      ]
+    }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "打开与首屏加载",
+      "roles": [
+        "ROLE-L02",
+        "ROLE-L03"
+      ],
+      "code_refs": [
+        "src/components/preview/composables/useHexViewer.ts:useHexViewer",
+        "src/utils/hexWindowCache.ts:get"
+      ],
+      "doc_ref": "步骤1：mount",
+      "exception": "readChunk 失败 → error 状态呈现，保留空行集"
+    },
+    {
+      "step": 2,
+      "name": "滚动视口驱动加载",
+      "roles": [
+        "ROLE-L01",
+        "ROLE-L02",
+        "ROLE-D01"
+      ],
+      "code_refs": [
+        "src/components/preview/PreviewHexContent.vue:onScroll",
+        "src/components/preview/composables/useHexViewer.ts:onScroll",
+        "src/utils/hexViewport.ts:visibleRowRange"
+      ],
+      "doc_ref": "步骤2：scroll",
+      "exception": "窗口未命中 → 该区行渲染 loaded=false 占位，到达后替换"
+    },
+    {
+      "step": 3,
+      "name": "偏移跳转",
+      "roles": [
+        "ROLE-L02",
+        "ROLE-D02"
+      ],
+      "code_refs": [
+        "src/components/preview/composables/useHexViewer.ts:jumpTo",
+        "src/utils/hexFormat.ts:parseOffsetInput"
+      ],
+      "doc_ref": "步骤3：输入",
+      "exception": "非法输入 → parseError 就地显示不滚动；越界 → 钳至 size-1 并提示"
+    },
+    {
+      "step": 4,
+      "name": "选中行解读",
+      "roles": [
+        "ROLE-L01",
+        "ROLE-L02",
+        "ROLE-D02"
+      ],
+      "code_refs": [
+        "src/components/preview/composables/useHexViewer.ts:selectRow",
+        "src/utils/hexFormat.ts:interpretAt"
+      ],
+      "doc_ref": "步骤4：点行",
+      "exception": "行尾字节不足类型宽度 → 跳过该类型条目"
+    },
+    {
+      "step": 5,
+      "name": "错误呈现与恢复",
+      "roles": [
+        "ROLE-L01",
+        "ROLE-L02"
+      ],
+      "code_refs": [
+        "src/components/preview/PreviewHexContent.vue:error"
+      ],
+      "doc_ref": "步骤5：错误条呈现",
+      "exception": "读取失败保留已加载区；后续滚动触发新窗口仍可恢复"
+    }
+  ],
+  "logging_standard": {
+    "library": "console 结构化日志（[HexViewer]/[HexWindowCache] 前缀 + log.info/log.warn 结构化 helper，renderer 既有惯例）",
+    "key_nodes_instrumented": [
+      "入口",
+      "出口",
+      "异常",
+      "外部调用"
+    ]
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "npm run typecheck",
+        "result": "0 error",
+        "evidence": "vue-tsc exit 0",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:hex-viewport && npm run test:hex-window-cache && npm run test:hex-format",
+        "result": "三套全部通过",
+        "evidence": "✓ hexViewport 坐标不变量 / ✓ HexWindowCache 窗口缓存 / ✓ hexFormat 跳转解析+Inspector 解读（esbuild harness）",
+        "status": "passed"
+      },
+      {
+        "command": "npx playwright test e2e/hex-preview.spec.ts",
+        "result": "6 passed",
+        "evidence": "既有 2 用例回归 + 全文件滚动高度(1441792px) + 跳转高亮/非法输入 + 越界钳制 + Inspector 解读",
+        "status": "passed"
+      },
+      {
+        "command": "npm run build",
+        "result": "三端产物生成",
+        "evidence": "electron-vite build ✓",
+        "status": "passed"
+      },
+      {
+        "command": "npx playwright test e2e/copy-path.spec.ts（邻域回归）",
+        "result": "4 passed",
+        "evidence": "共享组件无回归",
+        "status": "passed"
+      }
+    ],
+    "checks": [
+      {
+        "target": "QA-2 坐标不变量（row/offset/top 换算与钳制）",
+        "method": "new_test",
+        "evidence": "tests/hexViewport.test.ts：row↔offset↔top 恒等、clamp、可视区间覆盖/缓冲有界、非法输入收敛",
+        "status": "passed"
+      },
+      {
+        "target": "QA-3 跳转解析（0x/纯hex/十进制/越界/非法）",
+        "method": "new_test",
+        "evidence": "tests/hexFormat.test.ts parseOffsetInput 段 + e2e 跳转/钳制/非法三态",
+        "status": "passed"
+      },
+      {
+        "target": "QA-4 解读与 DataView 逐位一致 + 字节不足跳过",
+        "method": "new_test",
+        "evidence": "tests/hexFormat.test.ts interpretAt 段（Node DataView 对照、1/2/4 字节部分宽度）",
+        "status": "passed"
+      },
+      {
+        "target": "QA-5 同窗在途合并/失败不留半成品/LRU 驱逐",
+        "method": "new_test",
+        "evidence": "tests/hexWindowCache.test.ts（门控并发合并、失败重试重发起、LRU 驱逐序）",
+        "status": "passed"
+      },
+      {
+        "target": "QA-1 占位高度=真实总行数（不再 5000 封顶）",
+        "method": "new_test",
+        "evidence": "e2e：1MB mock 断言滚动容器高 1,441,792px 且 DOM 行 <120",
+        "status": "passed"
+      },
+      {
+        "target": "跳转定位+高亮 / Inspector 渲染",
+        "method": "new_test",
+        "evidence": "e2e：ring-accent-orange 高亮、光标标签、int8/uint8/float64 条目",
+        "status": "passed"
+      }
+    ],
+    "unverified": [
+      {
+        "item": "真实 1GB 本地文件的滚动/跳转手感（mac 相对滚动 + 窗口预取节奏）",
+        "impact": "mock 1MB 已证逻辑正确；真实 IO 手感与滚动性能未证",
+        "follow_up": "npm run dev 打开真实大文件实测（用户验收）"
+      },
+      {
+        "item": "远端设备（SSH/SMB）hex 滚动的窗口前缀丢弃延迟",
+        "impact": "readChunk 远端无区间语义（既有约束），大偏移滚动首帧等待较长",
+        "follow_up": "适配器区间语义扩展后复验"
+      }
+    ]
+  },
+  "summary": {
+    "roles_count": 5,
+    "interfaces_count": 4,
+    "process_steps": 5,
+    "verification_checks": 6,
+    "layer_roles": 3,
+    "domain_roles": 2
+  },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [],
+    "notes": "四门结构证据见 validate_gate.py --strict 输出；语义复核（新视角）：依赖方向 view→vm→infra/domain 单向无环（DC-1 满足，View 仅消费 vm）；坐标换算唯一经 hexViewport（DC-3，View 无自算 top）；解析/解读纯函数全量单测（DC-4）；颜色全走 CSS 变量、零新依赖（DC-5，package.json 无新增）。未验证项为真实 IO 手感与远端延迟，已列 unverified 并降低对应置信度。"
+  },
+  "open_questions": [
+    {
+      "问题": "行宽切换（8/16/32 B/行）暂不做",
+      "影响": "部分用户习惯 16B 之外的行宽",
+      "后续阶段": "BYTES_PER_ROW 已集中为常量，需要时加设置项"
+    },
+    {
+      "问题": "字节搜索（ASCII/hex 序列全文件）未纳入",
+      "影响": "排查场景需配合外部工具",
+      "后续阶段": "可复用 readChunk 通道 + 滚动进度模型扩展"
+    }
+  ]
+}

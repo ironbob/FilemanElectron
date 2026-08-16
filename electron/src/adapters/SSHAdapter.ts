@@ -115,6 +115,7 @@ export class SSHAdapter implements IFileSystemAdapter {
           size: entry.attrs.size,
           modifiedTime: new Date(entry.attrs.mtime * 1000).toISOString(),
           createdTime: new Date(entry.attrs.atime * 1000).toISOString(),
+          mode: entry.attrs.mode,
           extension: !entry.longname.startsWith('d')
             ? path.posix.extname(entry.filename).toLowerCase()
             : undefined
@@ -215,6 +216,59 @@ export class SSHAdapter implements IFileSystemAdapter {
   async openWriteStream(filePath: string): Promise<Writable> {
     this.ensureConnected()
     return this.sftp.createWriteStream(filePath)
+  }
+
+  async symlink(targetPath: string, linkPath: string): Promise<void> {
+    this.ensureConnected()
+    await new Promise<void>((resolve, reject) => {
+      this.sftp.symlink(targetPath, linkPath, (err: Error | null) => err ? reject(err) : resolve())
+    })
+  }
+
+  async readlink(linkPath: string): Promise<string> {
+    this.ensureConnected()
+    return new Promise<string>((resolve, reject) => {
+      this.sftp.readlink(linkPath, (err: Error | null, target: string) => err ? reject(err) : resolve(target))
+    })
+  }
+
+  async chmod(targetPath: string, mode: number): Promise<void> {
+    this.ensureConnected()
+    await new Promise<void>((resolve, reject) => {
+      this.sftp.chmod(targetPath, mode, (err: Error | null) => err ? reject(err) : resolve())
+    })
+  }
+
+  async chown(targetPath: string, uid: number, gid: number): Promise<void> {
+    this.ensureConnected()
+    await new Promise<void>((resolve, reject) => {
+      this.sftp.chown(targetPath, uid, gid, (err: Error | null) => err ? reject(err) : resolve())
+    })
+  }
+
+  /**
+   * 远端命令执行（GrepService 的远端 grep 引擎）。ssh2 client.exec 通道。
+   * 命令字符串由调用方经 shellQuote 构造；此处只负责通道与退出码语义
+   * （grep 无匹配 exit 1 不是错误）。
+   */
+  async exec(command: string): Promise<{ stdout: string; stderr: string; code: number }> {
+    this.ensureConnected()
+    return new Promise((resolve, reject) => {
+      this.client.exec(command, (err: Error | undefined, stream: any) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        let stdout = ''
+        let stderr = ''
+        stream.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf-8') })
+        stream.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf-8') })
+        stream.on('close', (code: number | null) => {
+          resolve({ stdout, stderr, code: code ?? 0 })
+        })
+        stream.on('error', reject)
+      })
+    })
   }
 
   async stat(targetPath: string): Promise<FileStats> {

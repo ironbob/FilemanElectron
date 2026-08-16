@@ -47,6 +47,16 @@ export class LocalAdapter implements IFileSystemAdapter {
 
         try {
           const stats = await fs.stat(fullPath)
+          // 符号链接：链接自身标记 + 原始目标（readdir withFileTypes 已给出）
+          const isSymlink = entry.isSymbolicLink()
+          let symlinkTarget: string | undefined
+          if (isSymlink) {
+            try {
+              symlinkTarget = await fs.readlink(fullPath)
+            } catch {
+              symlinkTarget = undefined
+            }
+          }
           files.push({
             name: entry.name,
             path: fullPath,
@@ -55,7 +65,10 @@ export class LocalAdapter implements IFileSystemAdapter {
             size: stats.size,
             modifiedTime: stats.mtime.toISOString(),
             createdTime: stats.birthtime.toISOString(),
-            extension: entry.isFile() ? path.extname(entry.name).toLowerCase() : undefined
+            mode: stats.mode,
+            extension: entry.isFile() ? path.extname(entry.name).toLowerCase() : undefined,
+            isSymlink,
+            symlinkTarget
           })
         } catch {
           // Skip files we can't access
@@ -197,5 +210,22 @@ export class LocalAdapter implements IFileSystemAdapter {
       'i'
     )
     return regex.test(name)
+  }
+  // ── Symlink / 权限（M5；能力位 canSymlink/canChmod/canChown 门控）──
+
+  async symlink(targetPath: string, linkPath: string): Promise<void> {
+    await fs.symlink(targetPath, linkPath)
+  }
+
+  async readlink(linkPath: string): Promise<string> {
+    return fs.readlink(linkPath)
+  }
+
+  async chmod(targetPath: string, mode: number): Promise<void> {
+    await fs.chmod(targetPath, mode)
+  }
+
+  async chown(targetPath: string, uid: number, gid: number): Promise<void> {
+    await fs.chown(targetPath, uid, gid)
   }
 }

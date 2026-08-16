@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from 'crypto'
+import { randomUUID } from 'crypto'
 import type { Readable } from 'stream'
 import type { IFileSystemAdapter } from '../adapters/types'
+import { hashAdapterFile } from './support/fileHashing'
 
 const log = console
 
@@ -39,8 +40,6 @@ interface VerificationTask {
   cancelled: boolean
   streams: Set<Readable>
 }
-
-const MAX_BUFFERED_BYTES = 32 * 1024 * 1024
 
 /**
  * Main-process content verifier. The renderer only receives result metadata;
@@ -132,25 +131,15 @@ export class ContentVerificationService {
   private async hashFile(task: VerificationTask, deviceId: string, filePath: string, size: number): Promise<string> {
     const adapter = this.devices.getAdapter(deviceId)
     if (!adapter || !adapter.isConnected()) throw new Error('设备未连接，无法校验内容')
-    const capabilities = adapter.getCapabilities()
-    if (capabilities.canStream && adapter.openReadStream) {
-      const stream = await adapter.openReadStream(filePath)
-      task.streams.add(stream)
-      try {
-        const hash = createHash('sha256')
-        for await (const chunk of stream) {
-          if (task.cancelled) throw new Error('Verification cancelled')
-          hash.update(chunk as Buffer)
-        }
-        return hash.digest('hex')
-      } finally {
-        task.streams.delete(stream)
-      }
-    }
-    if (size > MAX_BUFFERED_BYTES) {
-      throw new Error('该设备不支持流式读取，无法校验超过 32 MB 的文件')
-    }
-    if (task.cancelled) throw new Error('Verification cancelled')
-    return createHash('sha256').update(await adapter.readFile(filePath)).digest('hex')
+    // 哈希实现泛化至 support/fileHashing（checksum/重复查找共用），此处保留
+    // 原有取消语义：isCancelled 抛错 + task.streams 登记以便 cancel 时 destroy。
+    return hashAdapterFile(adapter, filePath, size, {
+      algo: 'sha256',
+      isCancelled: () => task.cancelled,
+      onStream: stream => {
+        task.streams.add(stream)
+        return () => task.streams.delete(stream)
+      },
+    })
   }
 }

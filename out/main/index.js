@@ -5,17 +5,18 @@ import path__default, { join } from "path";
 import fs$1 from "fs-extra";
 import Store from "electron-store";
 import { createRequire } from "module";
-import { Readable, Writable, PassThrough, pipeline, Transform } from "stream";
+import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
+import { execFileSync, exec, execFile, spawn } from "child_process";
 import * as fs from "fs";
+import fs__default from "fs";
 import { createClient } from "webdav";
-import { exec, execFile, spawn } from "child_process";
 import { promisify } from "util";
-import crypto, { randomUUID, createHash } from "crypto";
+import crypto, { createHash, randomUUID } from "crypto";
 import sharp from "sharp";
 import ffmpeg from "ffmpeg-static";
 import * as zlib from "zlib";
 import { zipSync, unzipSync, strToU8 } from "fflate";
-import { stat, open } from "fs/promises";
+import { open, stat } from "fs/promises";
 import mediaInfoFactory from "mediainfo.js";
 import __cjs_url__ from "node:url";
 import __cjs_path__ from "node:path";
@@ -23,259 +24,140 @@ import __cjs_mod__ from "node:module";
 const __filename = __cjs_url__.fileURLToPath(import.meta.url);
 const __dirname = __cjs_path__.dirname(__filename);
 const require2 = __cjs_mod__.createRequire(import.meta.url);
-var defaultConfig = {
+const defaultConfig = {
   devices: [],
   favorites: [],
   settings: {
     defaultView: "list",
     showHiddenFiles: false,
-    confirmDelete: true
+    confirmDelete: true,
+    autoRefresh: true
   }
 };
-var ConfigService = (
-  /** @class */
-  function() {
-    function ConfigService2() {
-      this.store = new Store({
-        name: "config",
-        defaults: defaultConfig
-      });
-    }
-    ConfigService2.prototype.getConfig = function() {
-      return this.store.store;
-    };
-    ConfigService2.prototype.saveConfig = function(config) {
-      if (config.devices !== void 0) {
-        this.store.set("devices", config.devices);
-      }
-      if (config.favorites !== void 0) {
-        this.store.set("favorites", config.favorites);
-      }
-      if (config.settings !== void 0) {
-        this.store.set("settings", config.settings);
-      }
-      if (config.fileMetadata !== void 0) {
-        this.store.set("fileMetadata", config.fileMetadata);
-      }
-    };
-    ConfigService2.prototype.get = function(key) {
-      return this.store.get(key);
-    };
-    ConfigService2.prototype.set = function(key, value) {
-      this.store.set(key, value);
-    };
-    return ConfigService2;
-  }()
-);
-var __assign$6 = function() {
-  __assign$6 = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign$6.apply(this, arguments);
-};
-var __awaiter$m = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
+class ConfigService {
+  store;
+  constructor() {
+    this.store = new Store({
+      name: "config",
+      defaults: defaultConfig
     });
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$m = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
+  getConfig() {
+    return this.store.store;
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
+  saveConfig(config) {
+    if (config.devices !== void 0) {
+      this.store.set("devices", config.devices);
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+    if (config.favorites !== void 0) {
+      this.store.set("favorites", config.favorites);
+    }
+    if (config.settings !== void 0) {
+      this.store.set("settings", config.settings);
+    }
+    if (config.fileMetadata !== void 0) {
+      this.store.set("fileMetadata", config.fileMetadata);
+    }
   }
-};
-var CredentialService = (
-  /** @class */
-  function() {
-    function CredentialService2() {
-      this.store = new Store({
-        name: "credentials"
-        // Note: electron-store has built-in encryption, but we add extra layer with safeStorage
-      });
+  get(key) {
+    return this.store.get(key);
+  }
+  set(key, value) {
+    this.store.set(key, value);
+  }
+}
+class CredentialService {
+  store;
+  constructor() {
+    this.store = new Store({
+      name: "credentials"
+      // Note: electron-store has built-in encryption, but we add extra layer with safeStorage
+    });
+  }
+  /**
+   * Save credentials for a device (encrypted)
+   */
+  async save(deviceId, credentials) {
+    const stored = { ...credentials };
+    if (credentials.password) {
+      stored.password = this.encryptValue(credentials.password);
     }
-    CredentialService2.prototype.save = function(deviceId, credentials) {
-      return __awaiter$m(this, void 0, void 0, function() {
-        var stored;
-        return __generator$m(this, function(_a) {
-          stored = __assign$6({}, credentials);
-          if (credentials.password) {
-            stored.password = this.encryptValue(credentials.password);
-          }
-          if (credentials.privateKey) {
-            stored.privateKey = this.encryptValue(credentials.privateKey);
-          }
-          this.store.set("credentials.".concat(deviceId), stored);
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    CredentialService2.prototype.get = function(deviceId) {
-      return __awaiter$m(this, void 0, void 0, function() {
-        var stored, credentials;
-        var _a, _b;
-        return __generator$m(this, function(_c) {
-          stored = this.store.get("credentials.".concat(deviceId));
-          if (!stored) {
-            return [2, null];
-          }
-          credentials = __assign$6({}, stored);
-          if ((_a = credentials.password) === null || _a === void 0 ? void 0 : _a.startsWith("encrypted:")) {
-            credentials.password = this.decryptValue(credentials.password);
-          }
-          if ((_b = credentials.privateKey) === null || _b === void 0 ? void 0 : _b.startsWith("encrypted:")) {
-            credentials.privateKey = this.decryptValue(credentials.privateKey);
-          }
-          return [2, credentials];
-        });
-      });
-    };
-    CredentialService2.prototype.delete = function(deviceId) {
-      return __awaiter$m(this, void 0, void 0, function() {
-        return __generator$m(this, function(_a) {
-          this.store.delete("credentials.".concat(deviceId));
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    CredentialService2.prototype.has = function(deviceId) {
-      return this.store.has("credentials.".concat(deviceId));
-    };
-    CredentialService2.prototype.listDeviceIds = function() {
-      var credentials = this.store.get("credentials");
-      return credentials ? Object.keys(credentials) : [];
-    };
-    CredentialService2.prototype.encryptValue = function(value) {
+    if (credentials.privateKey) {
+      stored.privateKey = this.encryptValue(credentials.privateKey);
+    }
+    this.store.set(`credentials.${deviceId}`, stored);
+  }
+  /**
+   * Get credentials for a device (decrypted)
+   */
+  async get(deviceId) {
+    const stored = this.store.get(`credentials.${deviceId}`);
+    if (!stored) {
+      return null;
+    }
+    const credentials = { ...stored };
+    if (credentials.password?.startsWith("encrypted:")) {
+      credentials.password = this.decryptValue(credentials.password);
+    }
+    if (credentials.privateKey?.startsWith("encrypted:")) {
+      credentials.privateKey = this.decryptValue(credentials.privateKey);
+    }
+    return credentials;
+  }
+  /**
+   * Delete credentials for a device
+   */
+  async delete(deviceId) {
+    this.store.delete(`credentials.${deviceId}`);
+  }
+  /**
+   * Check if credentials exist for a device
+   */
+  has(deviceId) {
+    return this.store.has(`credentials.${deviceId}`);
+  }
+  /**
+   * List all device IDs that have stored credentials
+   */
+  listDeviceIds() {
+    const credentials = this.store.get("credentials");
+    return credentials ? Object.keys(credentials) : [];
+  }
+  /**
+   * Encrypt a value using safeStorage
+   */
+  encryptValue(value) {
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.warn("safeStorage encryption not available, using base64 fallback");
+      return "encoded:" + Buffer.from(value).toString("base64");
+    }
+    const encrypted = safeStorage.encryptString(value);
+    return "encrypted:" + encrypted.toString("base64");
+  }
+  /**
+   * Decrypt a value using safeStorage
+   */
+  decryptValue(value) {
+    if (value.startsWith("encrypted:")) {
       if (!safeStorage.isEncryptionAvailable()) {
-        console.warn("safeStorage encryption not available, using base64 fallback");
-        return "encoded:" + Buffer.from(value).toString("base64");
+        throw new Error("Encryption was used but safeStorage is not available");
       }
-      var encrypted = safeStorage.encryptString(value);
-      return "encrypted:" + encrypted.toString("base64");
-    };
-    CredentialService2.prototype.decryptValue = function(value) {
-      if (value.startsWith("encrypted:")) {
-        if (!safeStorage.isEncryptionAvailable()) {
-          throw new Error("Encryption was used but safeStorage is not available");
-        }
-        var encrypted = Buffer.from(value.replace("encrypted:", ""), "base64");
-        return safeStorage.decryptString(encrypted);
-      }
-      if (value.startsWith("encoded:")) {
-        return Buffer.from(value.replace("encoded:", ""), "base64").toString();
-      }
-      return value;
-    };
-    CredentialService2.prototype.clearAll = function() {
-      return __awaiter$m(this, void 0, void 0, function() {
-        return __generator$m(this, function(_a) {
-          this.store.clear();
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    return CredentialService2;
-  }()
-);
-var LOCAL_CAPABILITIES = {
+      const encrypted = Buffer.from(value.replace("encrypted:", ""), "base64");
+      return safeStorage.decryptString(encrypted);
+    }
+    if (value.startsWith("encoded:")) {
+      return Buffer.from(value.replace("encoded:", ""), "base64").toString();
+    }
+    return value;
+  }
+  /**
+   * Clear all stored credentials
+   */
+  async clearAll() {
+    this.store.clear();
+  }
+}
+const LOCAL_CAPABILITIES = {
   canRead: true,
   canWrite: true,
   canDelete: true,
@@ -294,9 +176,17 @@ var LOCAL_CAPABILITIES = {
   // fs.createReadStream/WriteStream
   canCaptureScreenshot: false,
   canArchive: true,
-  canRecycle: true
+  canRecycle: true,
+  canGrepContent: true,
+  // 捆绑 ripgrep / $PATH rg
+  canSymlink: true,
+  // fs.symlink/readlink/lstat
+  canChmod: true,
+  // fs.chmod（+ 递归遍历）
+  canChown: true
+  // fs.chown
 };
-var SMB_CAPABILITIES = {
+const SMB_CAPABILITIES = {
   canRead: true,
   canWrite: true,
   canDelete: true,
@@ -317,9 +207,15 @@ var SMB_CAPABILITIES = {
   // @marsaud/smb2 createReadStream/createWriteStream
   canCaptureScreenshot: false,
   canArchive: true,
-  canRecycle: true
+  canRecycle: true,
+  canGrepContent: true,
+  // 流式逐行扫描回退（无 exec 通道）
+  canSymlink: false,
+  // SMB 协议无 symlink 语义
+  canChmod: false,
+  canChown: false
 };
-var SSH_CAPABILITIES = {
+const SSH_CAPABILITIES = {
   canRead: true,
   canWrite: true,
   canDelete: true,
@@ -340,9 +236,17 @@ var SSH_CAPABILITIES = {
   // ssh2 sftp createReadStream/WriteStream
   canCaptureScreenshot: false,
   canArchive: true,
-  canRecycle: true
+  canRecycle: true,
+  canGrepContent: true,
+  // client.exec 远端 grep
+  canSymlink: true,
+  // sftp symlink/readlink/lstat
+  canChmod: true,
+  // sftp chmod / exec chmod -R
+  canChown: true
+  // sftp chown
 };
-var WEBDAV_CAPABILITIES = {
+const WEBDAV_CAPABILITIES = {
   canRead: true,
   canWrite: true,
   canDelete: true,
@@ -360,9 +264,15 @@ var WEBDAV_CAPABILITIES = {
   canStream: true,
   canCaptureScreenshot: false,
   canArchive: true,
-  canRecycle: true
+  canRecycle: true,
+  canGrepContent: true,
+  // 流式逐行扫描回退（无 exec 通道）
+  canSymlink: false,
+  // SMB 协议无 symlink 语义
+  canChmod: false,
+  canChown: false
 };
-var ANDROID_CAPABILITIES = {
+const ANDROID_CAPABILITIES = {
   canRead: true,
   canWrite: true,
   canDelete: true,
@@ -389,10 +299,17 @@ var ANDROID_CAPABILITIES = {
   canCaptureScreenshot: true,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: true,
+  // adb shell 远端 grep (toybox)
+  canSymlink: false,
+  // adb shell ln -s 权限受限，v1 不开
+  canChmod: true,
+  // adb shell chmod（runShell）
+  canChown: false,
   // Some Android directories are read-only without root
   readonlyPaths: ["/system", "/vendor", "/product", "/data/app"]
 };
-var IOS_CAPABILITIES = {
+const IOS_CAPABILITIES = {
   canRead: true,
   canWrite: true,
   canDelete: true,
@@ -419,6 +336,11 @@ var IOS_CAPABILITIES = {
   canCaptureScreenshot: false,
   canArchive: true,
   canRecycle: true,
+  canGrepContent: false,
+  // AFC 无 exec 通道且无流式（buffer 上限 32MB）
+  canSymlink: false,
+  canChmod: false,
+  canChown: false,
   // AFC itself is the sandbox boundary. Do not mark `/` read-only here: doing
   // so makes every write/delete action unavailable in the UI even when AFC
   // grants access to a writable container. Unsupported paths are rejected by
@@ -446,5188 +368,2407 @@ function DEFAULT_REMOTE_CAPABILITIES(deviceType) {
     // 连接后由具体适配器的 capability 覆盖
     canCaptureScreenshot: deviceType === "android",
     canArchive: true,
-    canRecycle: true
+    canRecycle: true,
+    canGrepContent: deviceType !== "ios",
+    // 连接后由具体适配器覆盖
+    canSymlink: deviceType === "ssh",
+    // 连接后由具体适配器覆盖
+    canChmod: deviceType === "ssh" || deviceType === "android",
+    canChown: deviceType === "ssh"
   };
 }
-var __awaiter$l = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
+const LIST_STAT_CONCURRENCY = 32;
+class LocalAdapter {
+  type = "local";
+  deviceId = "local";
+  name;
+  constructor() {
+    this.name = os.hostname();
+  }
+  getCapabilities() {
+    return LOCAL_CAPABILITIES;
+  }
+  async connect() {
+  }
+  async disconnect() {
+  }
+  isConnected() {
+    return true;
+  }
+  async list(dirPath) {
+    const entries = await fs$1.readdir(dirPath, { withFileTypes: true });
+    const files = [];
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < entries.length) {
+        const entry = entries[nextIndex++];
+        const fullPath = path__default.join(dirPath, entry.name);
+        try {
+          const stats = await fs$1.stat(fullPath);
+          const isSymlink = entry.isSymbolicLink();
+          let symlinkTarget;
+          if (isSymlink) {
+            try {
+              symlinkTarget = await fs$1.readlink(fullPath);
+            } catch {
+              symlinkTarget = void 0;
+            }
+          }
+          files.push({
+            name: entry.name,
+            path: fullPath,
+            isDirectory: entry.isDirectory(),
+            isFile: entry.isFile(),
+            size: stats.size,
+            modifiedTime: stats.mtime.toISOString(),
+            createdTime: stats.birthtime.toISOString(),
+            mode: stats.mode,
+            extension: entry.isFile() ? path__default.extname(entry.name).toLowerCase() : void 0,
+            isSymlink,
+            symlinkTarget
+          });
+        } catch {
+        }
+      }
+    };
+    await Promise.all(Array.from(
+      { length: Math.min(LIST_STAT_CONCURRENCY, entries.length) },
+      () => worker()
+    ));
+    return files.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
     });
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
+  async mkdir(dirPath) {
+    await fs$1.ensureDir(dirPath);
+  }
+  async rmdir(dirPath, recursive = false) {
+    if (recursive) {
+      await fs$1.remove(dirPath);
+    } else {
+      await fs$1.rmdir(dirPath);
     }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$l = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
+  }
+  async readFile(filePath) {
+    return fs$1.readFile(filePath);
+  }
+  async writeFile(filePath, data) {
+    await fs$1.ensureDir(path__default.dirname(filePath));
+    await fs$1.writeFile(filePath, data);
+  }
+  async delete(targetPath) {
+    await fs$1.remove(targetPath);
+  }
+  async rename(oldPath, newPath) {
+    await fs$1.move(oldPath, newPath);
+  }
+  async copy(srcPath, dstPath) {
+    await fs$1.ensureDir(path__default.dirname(dstPath));
+    await fs$1.copy(srcPath, dstPath);
+  }
+  async openReadStream(filePath) {
+    return fs$1.createReadStream(filePath);
+  }
+  async openWriteStream(filePath) {
+    await fs$1.ensureDir(path__default.dirname(filePath));
+    return fs$1.createWriteStream(filePath);
+  }
+  async stat(targetPath) {
+    const stats = await fs$1.stat(targetPath);
+    return {
+      size: stats.size,
+      isDirectory: stats.isDirectory(),
+      isFile: stats.isFile(),
+      modifiedTime: stats.mtime.toISOString(),
+      createdTime: stats.birthtime.toISOString(),
+      mode: stats.mode
     };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+  async exists(targetPath) {
+    return fs$1.pathExists(targetPath);
   }
-};
-var LIST_STAT_CONCURRENCY = 32;
-var LocalAdapter = (
-  /** @class */
-  function() {
-    function LocalAdapter2() {
-      this.type = "local";
-      this.deviceId = "local";
-      this.name = os.hostname();
-    }
-    LocalAdapter2.prototype.getCapabilities = function() {
-      return LOCAL_CAPABILITIES;
-    };
-    LocalAdapter2.prototype.connect = function() {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    LocalAdapter2.prototype.disconnect = function() {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    LocalAdapter2.prototype.isConnected = function() {
-      return true;
-    };
-    LocalAdapter2.prototype.list = function(dirPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        var entries, files, nextIndex, worker;
-        var _this = this;
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.readdir(dirPath, { withFileTypes: true })];
-            case 1:
-              entries = _a.sent();
-              files = [];
-              nextIndex = 0;
-              worker = function() {
-                return __awaiter$l(_this, void 0, void 0, function() {
-                  var entry, fullPath, stats;
-                  return __generator$l(this, function(_b) {
-                    switch (_b.label) {
-                      case 0:
-                        if (!(nextIndex < entries.length)) return [3, 5];
-                        entry = entries[nextIndex++];
-                        fullPath = path__default.join(dirPath, entry.name);
-                        _b.label = 1;
-                      case 1:
-                        _b.trys.push([1, 3, , 4]);
-                        return [4, fs$1.stat(fullPath)];
-                      case 2:
-                        stats = _b.sent();
-                        files.push({
-                          name: entry.name,
-                          path: fullPath,
-                          isDirectory: entry.isDirectory(),
-                          isFile: entry.isFile(),
-                          size: stats.size,
-                          modifiedTime: stats.mtime.toISOString(),
-                          createdTime: stats.birthtime.toISOString(),
-                          extension: entry.isFile() ? path__default.extname(entry.name).toLowerCase() : void 0
-                        });
-                        return [3, 4];
-                      case 3:
-                        _b.sent();
-                        return [3, 4];
-                      case 4:
-                        return [3, 0];
-                      case 5:
-                        return [
-                          2
-                          /*return*/
-                        ];
-                    }
-                  });
-                });
-              };
-              return [
-                4,
-                Promise.all(Array.from({ length: Math.min(LIST_STAT_CONCURRENCY, entries.length) }, function() {
-                  return worker();
-                }))
-                // Sort: directories first, then by name
-              ];
-            case 2:
-              _a.sent();
-              return [2, files.sort(function(a, b) {
-                if (a.isDirectory !== b.isDirectory) {
-                  return a.isDirectory ? -1 : 1;
-                }
-                return a.name.localeCompare(b.name);
-              })];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.mkdir = function(dirPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.ensureDir(dirPath)];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.rmdir = function(dirPath_1) {
-      return __awaiter$l(this, arguments, void 0, function(dirPath, recursive) {
-        if (recursive === void 0) {
-          recursive = false;
-        }
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (!recursive) return [3, 2];
-              return [4, fs$1.remove(dirPath)];
-            case 1:
-              _a.sent();
-              return [3, 4];
-            case 2:
-              return [4, fs$1.rmdir(dirPath)];
-            case 3:
-              _a.sent();
-              _a.label = 4;
-            case 4:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.readFile = function(filePath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          return [2, fs$1.readFile(filePath)];
-        });
-      });
-    };
-    LocalAdapter2.prototype.writeFile = function(filePath, data) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.ensureDir(path__default.dirname(filePath))];
-            case 1:
-              _a.sent();
-              return [4, fs$1.writeFile(filePath, data)];
-            case 2:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.delete = function(targetPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.remove(targetPath)];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.rename = function(oldPath, newPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.move(oldPath, newPath)];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.copy = function(srcPath, dstPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.ensureDir(path__default.dirname(dstPath))];
-            case 1:
-              _a.sent();
-              return [4, fs$1.copy(srcPath, dstPath)];
-            case 2:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.openReadStream = function(filePath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          return [2, fs$1.createReadStream(filePath)];
-        });
-      });
-    };
-    LocalAdapter2.prototype.openWriteStream = function(filePath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.ensureDir(path__default.dirname(filePath))];
-            case 1:
-              _a.sent();
-              return [2, fs$1.createWriteStream(filePath)];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.stat = function(targetPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        var stats;
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, fs$1.stat(targetPath)];
-            case 1:
-              stats = _a.sent();
-              return [2, {
+  async search(dirPath, query) {
+    const results = [];
+    const pattern = query.pattern.toLowerCase();
+    const fileTypes = query.fileTypes || [];
+    async function searchRecursive(currentPath) {
+      try {
+        const entries = await fs$1.readdir(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path__default.join(currentPath, entry.name);
+          const nameMatches = entry.name.toLowerCase().includes(pattern) || this.matchWildcard(entry.name, pattern);
+          const ext = path__default.extname(entry.name).toLowerCase();
+          const typeMatches = fileTypes.length === 0 || fileTypes.includes(ext);
+          if (nameMatches && typeMatches) {
+            try {
+              const stats = await fs$1.stat(fullPath);
+              results.push({
+                name: entry.name,
+                path: fullPath,
+                isDirectory: entry.isDirectory(),
+                isFile: entry.isFile(),
                 size: stats.size,
-                isDirectory: stats.isDirectory(),
-                isFile: stats.isFile(),
                 modifiedTime: stats.mtime.toISOString(),
                 createdTime: stats.birthtime.toISOString(),
-                mode: stats.mode
-              }];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.exists = function(targetPath) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        return __generator$l(this, function(_a) {
-          return [2, fs$1.pathExists(targetPath)];
-        });
-      });
-    };
-    LocalAdapter2.prototype.search = function(dirPath, query) {
-      return __awaiter$l(this, void 0, void 0, function() {
-        function searchRecursive(currentPath) {
-          return __awaiter$l(this, void 0, void 0, function() {
-            var entries, _i, entries_1, entry, fullPath, nameMatches, ext, typeMatches, stats;
-            return __generator$l(this, function(_c) {
-              switch (_c.label) {
-                case 0:
-                  _c.trys.push([0, 10, , 11]);
-                  return [4, fs$1.readdir(currentPath, { withFileTypes: true })];
-                case 1:
-                  entries = _c.sent();
-                  _i = 0, entries_1 = entries;
-                  _c.label = 2;
-                case 2:
-                  if (!(_i < entries_1.length)) return [3, 9];
-                  entry = entries_1[_i];
-                  fullPath = path__default.join(currentPath, entry.name);
-                  nameMatches = entry.name.toLowerCase().includes(pattern) || this.matchWildcard(entry.name, pattern);
-                  ext = path__default.extname(entry.name).toLowerCase();
-                  typeMatches = fileTypes.length === 0 || fileTypes.includes(ext);
-                  if (!(nameMatches && typeMatches)) return [3, 6];
-                  _c.label = 3;
-                case 3:
-                  _c.trys.push([3, 5, , 6]);
-                  return [4, fs$1.stat(fullPath)];
-                case 4:
-                  stats = _c.sent();
-                  results.push({
-                    name: entry.name,
-                    path: fullPath,
-                    isDirectory: entry.isDirectory(),
-                    isFile: entry.isFile(),
-                    size: stats.size,
-                    modifiedTime: stats.mtime.toISOString(),
-                    createdTime: stats.birthtime.toISOString(),
-                    extension: entry.isFile() ? ext : void 0
-                  });
-                  return [3, 6];
-                case 5:
-                  _c.sent();
-                  return [3, 6];
-                case 6:
-                  if (!entry.isDirectory()) return [3, 8];
-                  return [4, searchRecursive(fullPath)];
-                case 7:
-                  _c.sent();
-                  _c.label = 8;
-                case 8:
-                  _i++;
-                  return [3, 2];
-                case 9:
-                  return [3, 11];
-                case 10:
-                  _c.sent();
-                  return [3, 11];
-                case 11:
-                  return [
-                    2
-                    /*return*/
-                  ];
-              }
-            });
-          });
-        }
-        var results, pattern, fileTypes;
-        return __generator$l(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              results = [];
-              pattern = query.pattern.toLowerCase();
-              fileTypes = query.fileTypes || [];
-              return [4, searchRecursive.call(this, dirPath)];
-            case 1:
-              _a.sent();
-              return [2, results];
-          }
-        });
-      });
-    };
-    LocalAdapter2.prototype.matchWildcard = function(name, pattern) {
-      var regex = new RegExp("^" + pattern.replace(/\*/g, ".*").replace(/\?/g, ".").replace(/[.+^${}()|[\]\\]/g, "\\$&") + "$", "i");
-      return regex.test(name);
-    };
-    return LocalAdapter2;
-  }()
-);
-var __awaiter$k = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$k = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var log$f = console;
-function loadOptional(id, loader) {
-  return __awaiter$k(this, void 0, void 0, function() {
-    var error_1;
-    return __generator$k(this, function(_a) {
-      switch (_a.label) {
-        case 0:
-          _a.trys.push([0, 2, , 3]);
-          return [4, loader()];
-        case 1:
-          return [2, _a.sent()];
-        case 2:
-          error_1 = _a.sent();
-          log$f.error("[OptionalDeps] 可选依赖 ".concat(id, " 加载失败："), error_1);
-          throw new Error("可选依赖 ".concat(id, " 不可用，对应设备类型已禁用（原始错误：").concat(error_1 instanceof Error ? error_1.message : String(error_1), "）。请安装该依赖后重启应用。"));
-        case 3:
-          return [
-            2
-            /*return*/
-          ];
-      }
-    });
-  });
-}
-var ToolPathResolver = (
-  /** @class */
-  function() {
-    function ToolPathResolver2() {
-    }
-    ToolPathResolver2.getAdbPath = function() {
-      var _a;
-      if (this.cachedAdb !== void 0) {
-        return (_a = this.cachedAdb) !== null && _a !== void 0 ? _a : void 0;
-      }
-      if (app === null || app === void 0 ? void 0 : app.isPackaged) {
-        for (var _i = 0, _b = this.BUNDLED_ADB_CANDIDATES; _i < _b.length; _i++) {
-          var rel = _b[_i];
-          var candidate = path.join(process.resourcesPath, rel);
-          try {
-            if (fs.existsSync(candidate)) {
-              this.cachedAdb = candidate;
-              console.log("[ToolPathResolver] adb resolved (bundled): ".concat(candidate));
-              return candidate;
+                extension: entry.isFile() ? ext : void 0
+              });
+            } catch {
             }
-          } catch (_c) {
+          }
+          if (entry.isDirectory()) {
+            await searchRecursive(fullPath);
           }
         }
-      }
-      this.cachedAdb = null;
-      console.log("[ToolPathResolver] adb not bundled; using $PATH");
-      return void 0;
-    };
-    ToolPathResolver2.getAdbExecutable = function() {
-      var _a;
-      return (_a = this.getAdbPath()) !== null && _a !== void 0 ? _a : "adb";
-    };
-    ToolPathResolver2.resetCache = function() {
-      this.cachedAdb = void 0;
-    };
-    ToolPathResolver2.cachedAdb = void 0;
-    ToolPathResolver2.BUNDLED_ADB_CANDIDATES = ["adb", "tools/adb"];
-    return ToolPathResolver2;
-  }()
-);
-var __awaiter$j = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
+      } catch {
       }
     }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$j = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
+    await searchRecursive.call(this, dirPath);
+    return results;
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+  matchWildcard(name, pattern) {
+    const regex = new RegExp(
+      "^" + pattern.replace(/\*/g, ".*").replace(/\?/g, ".").replace(/[.+^${}()|[\]\\]/g, "\\$&") + "$",
+      "i"
+    );
+    return regex.test(name);
   }
-};
-var __asyncValues$1 = function(o) {
-  if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-  var m = o[Symbol.asyncIterator], i;
-  return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
-    return this;
-  }, i);
-  function verb(n) {
-    i[n] = o[n] && function(v) {
-      return new Promise(function(resolve, reject) {
-        v = o[n](v), settle(resolve, reject, v.done, v.value);
-      });
-    };
+  // ── Symlink / 权限（M5；能力位 canSymlink/canChmod/canChown 门控）──
+  async symlink(targetPath, linkPath) {
+    await fs$1.symlink(targetPath, linkPath);
   }
-  function settle(resolve, reject, d, v) {
-    Promise.resolve(v).then(function(v2) {
-      resolve({ value: v2, done: d });
-    }, reject);
+  async readlink(linkPath) {
+    return fs$1.readlink(linkPath);
   }
-};
-var log$e = console;
-var adbkitModule = null;
-function getAdbkit() {
-  return __awaiter$j(this, void 0, void 0, function() {
-    return __generator$j(this, function(_a) {
-      switch (_a.label) {
-        case 0:
-          if (!!adbkitModule) return [3, 2];
-          return [4, loadOptional("@devicefarmer/adbkit", function() {
-            return createRequire(import.meta.url)("@devicefarmer/adbkit").default;
-          })];
-        case 1:
-          adbkitModule = _a.sent();
-          _a.label = 2;
-        case 2:
-          return [2, adbkitModule];
-      }
-    });
-  });
+  async chmod(targetPath, mode) {
+    await fs$1.chmod(targetPath, mode);
+  }
+  async chown(targetPath, uid, gid) {
+    await fs$1.chown(targetPath, uid, gid);
+  }
 }
-var EXIT_MARKER = "__FMLEXIT__";
-var AndroidAdapter = (
-  /** @class */
-  function() {
-    function AndroidAdapter2(deviceId, name, config) {
-      if (config === void 0) {
-        config = {};
-      }
-      this.type = "android";
-      this.client = null;
-      this.device = null;
-      this.connected = false;
-      this.deviceId = deviceId;
-      this.name = name;
-      this.config = config;
-    }
-    AndroidAdapter2.prototype.getCapabilities = function() {
-      return ANDROID_CAPABILITIES;
-    };
-    AndroidAdapter2.prototype.connect = function() {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var adbkit, adbPath, devices, serial_1, target, error_1;
-        var _a, _b, _c;
-        return __generator$j(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              _d.trys.push([0, 3, , 4]);
-              return [4, getAdbkit()];
-            case 1:
-              adbkit = _d.sent();
-              adbPath = ToolPathResolver.getAdbPath();
-              this.client = adbkit.createClient(adbPath ? { bin: adbPath } : {});
-              return [4, this.client.listDevices()];
-            case 2:
-              devices = _d.sent();
-              if (devices.length === 0) {
-                throw new Error("未检测到 Android 设备。请连接设备并开启 USB 调试。");
-              }
-              serial_1 = (_a = this.config.deviceId) !== null && _a !== void 0 ? _a : devices[0].id;
-              target = (_b = devices.find(function(d) {
-                return d.id === serial_1;
-              })) !== null && _b !== void 0 ? _b : devices[0];
-              if (target.type !== "device") {
-                if (target.type === "unauthorized") {
-                  throw new Error('设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。');
-                }
-                if (target.type === "offline") {
-                  throw new Error("设备离线。请重新插拔数据线后重试。");
-                }
-                throw new Error("设备当前不可用(状态:".concat(target.type, ")。"));
-              }
-              this.device = this.client.getDevice(target.id);
-              this.connected = true;
-              console.log("[AndroidAdapter] connected: serial=".concat(target.id));
-              return [3, 4];
-            case 3:
-              error_1 = _d.sent();
-              this.connected = false;
-              this.device = null;
-              this.client = null;
-              log$e.error("[AndroidAdapter] 连接失败 (serial=".concat((_c = this.config.deviceId) !== null && _c !== void 0 ? _c : "auto", "):"), error_1);
-              throw error_1;
-            case 4:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.disconnect = function() {
-      return __awaiter$j(this, void 0, void 0, function() {
-        return __generator$j(this, function(_a) {
-          this.device = null;
-          this.client = null;
-          this.connected = false;
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    AndroidAdapter2.prototype.isConnected = function() {
-      return this.connected;
-    };
-    AndroidAdapter2.prototype.dev = function() {
-      if (!this.connected || !this.device) {
-        throw new Error("Android 设备未连接");
-      }
-      return this.device;
-    };
-    AndroidAdapter2.prototype.list = function(dirPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, entries, files;
-        var _this = this;
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              dev = this.dev();
-              return [4, dev.readdir(dirPath)];
-            case 1:
-              entries = _a.sent();
-              files = entries.filter(function(e) {
-                return e.name !== "." && e.name !== "..";
-              }).map(function(e) {
-                return _this.entryToFileInfo(dirPath, e);
-              });
-              return [2, sortFiles(files)];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.stat = function(targetPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, s, mtime;
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              dev = this.dev();
-              return [4, dev.stat(targetPath)];
-            case 1:
-              s = _a.sent();
-              mtime = s.mtimeMs || 0;
-              return [2, {
-                size: Number(s.size) || 0,
-                isDirectory: s.isDirectory(),
-                isFile: !s.isDirectory(),
-                modifiedTime: new Date(mtime).toISOString(),
-                createdTime: new Date(mtime).toISOString(),
-                mode: Number(s.mode) || 0
-              }];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.mkdir = function(dirPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.runShell("mkdir -p ".concat(shellQuote(dirPath)))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.rmdir = function(dirPath, recursive) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var cmd;
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              cmd = recursive ? "rm -rf ".concat(shellQuote(dirPath)) : "rmdir ".concat(shellQuote(dirPath));
-              return [4, this.runShell(cmd)];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.delete = function(targetPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.runShell("rm -rf ".concat(shellQuote(targetPath)))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.rename = function(oldPath, newPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.runShell("mv ".concat(shellQuote(oldPath), " ").concat(shellQuote(newPath)))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.copy = function(srcPath, dstPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.runShell("cp -r ".concat(shellQuote(srcPath), " ").concat(shellQuote(dstPath)))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.exists = function(targetPath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        return __generator$j(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              _b.trys.push([0, 2, , 3]);
-              return [4, this.stat(targetPath)];
-            case 1:
-              _b.sent();
-              return [2, true];
-            case 2:
-              _b.sent();
-              return [2, false];
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.readFile = function(filePath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, transfer, chunks, _a, _b, _c, chunk, e_1_1;
-        var _d, e_1, _e, _f;
-        return __generator$j(this, function(_g) {
-          switch (_g.label) {
-            case 0:
-              dev = this.dev();
-              return [4, dev.pull(filePath)];
-            case 1:
-              transfer = _g.sent();
-              chunks = [];
-              _g.label = 2;
-            case 2:
-              _g.trys.push([2, 7, 8, 13]);
-              _a = true, _b = __asyncValues$1(transfer);
-              _g.label = 3;
-            case 3:
-              return [4, _b.next()];
-            case 4:
-              if (!(_c = _g.sent(), _d = _c.done, !_d)) return [3, 6];
-              _f = _c.value;
-              _a = false;
-              chunk = _f;
-              chunks.push(chunk);
-              _g.label = 5;
-            case 5:
-              _a = true;
-              return [3, 3];
-            case 6:
-              return [3, 13];
-            case 7:
-              e_1_1 = _g.sent();
-              e_1 = { error: e_1_1 };
-              return [3, 13];
-            case 8:
-              _g.trys.push([8, , 11, 12]);
-              if (!(!_a && !_d && (_e = _b.return))) return [3, 10];
-              return [4, _e.call(_b)];
-            case 9:
-              _g.sent();
-              _g.label = 10;
-            case 10:
-              return [3, 12];
-            case 11:
-              if (e_1) throw e_1.error;
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 12:
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 13:
-              return [2, Buffer.concat(chunks)];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.writeFile = function(filePath, data) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, parent;
-        return __generator$j(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              dev = this.dev();
-              parent = posixDirname$1(filePath);
-              if (!(parent && parent !== filePath)) return [3, 4];
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 3, , 4]);
-              return [4, this.runShell("mkdir -p ".concat(shellQuote(parent)))];
-            case 2:
-              _b.sent();
-              return [3, 4];
-            case 3:
-              _b.sent();
-              return [3, 4];
-            case 4:
-              return [4, dev.push(Readable.from([data]), filePath)];
-            case 5:
-              _b.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.search = function(dirPath, query) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, pattern, raw, results, _i, _a, line, p, name_1, isDirectory, size, mtime, s;
-        return __generator$j(this, function(_c) {
-          switch (_c.label) {
-            case 0:
-              dev = this.dev();
-              pattern = (query.pattern || "").trim();
-              if (!pattern)
-                return [
-                  2,
-                  []
-                  // find 输出每行一个路径;仅取文件名匹配(Android find 不支持复杂过滤,这里按名匹配)。
-                ];
-              return [4, this.runShell("find ".concat(shellQuote(dirPath), " -type f -iname ").concat(shellQuote("*" + pattern + "*"), " 2>/dev/null"))];
-            case 1:
-              raw = _c.sent();
-              results = [];
-              _i = 0, _a = raw.split("\n");
-              _c.label = 2;
-            case 2:
-              if (!(_i < _a.length)) return [3, 8];
-              line = _a[_i];
-              p = line.trim();
-              if (!p)
-                return [3, 7];
-              name_1 = posixBaseName$1(p);
-              isDirectory = false;
-              size = 0;
-              mtime = 0;
-              _c.label = 3;
-            case 3:
-              _c.trys.push([3, 5, , 6]);
-              return [4, dev.stat(p)];
-            case 4:
-              s = _c.sent();
-              isDirectory = s.isDirectory();
-              size = Number(s.size) || 0;
-              mtime = s.mtimeMs || 0;
-              return [3, 6];
-            case 5:
-              _c.sent();
-              return [3, 6];
-            case 6:
-              results.push({
-                name: name_1,
-                path: p,
-                isDirectory,
-                isFile: !isDirectory,
-                size,
-                modifiedTime: new Date(mtime).toISOString(),
-                extension: !isDirectory ? path.extname(name_1).toLowerCase() : void 0
-              });
-              _c.label = 7;
-            case 7:
-              _i++;
-              return [3, 2];
-            case 8:
-              return [2, results];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.openReadStream = function(filePath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev;
-        return __generator$j(this, function(_a) {
-          dev = this.dev();
-          return [2, dev.pull(filePath)];
-        });
-      });
-    };
-    AndroidAdapter2.prototype.openWriteStream = function(filePath) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, parent, pass, transfer, writable;
-        return __generator$j(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              dev = this.dev();
-              parent = posixDirname$1(filePath);
-              if (!(parent && parent !== filePath)) return [3, 4];
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 3, , 4]);
-              return [4, this.runShell("mkdir -p ".concat(shellQuote(parent)))];
-            case 2:
-              _b.sent();
-              return [3, 4];
-            case 3:
-              _b.sent();
-              return [3, 4];
-            case 4:
-              pass = new PassThrough();
-              return [4, dev.push(pass, filePath)];
-            case 5:
-              transfer = _b.sent();
-              writable = new Writable({
-                write: function(chunk, _encoding, callback) {
-                  if (pass.write(chunk)) {
-                    callback();
-                  } else {
-                    pass.once("drain", function() {
-                      return callback();
-                    });
-                  }
-                },
-                final: function(callback) {
-                  transfer.once("end", function() {
-                    return callback();
-                  });
-                  transfer.once("error", function(err) {
-                    return callback(err);
-                  });
-                  pass.end();
-                }
-              });
-              transfer.on("error", function(err) {
-                return writable.destroy(err);
-              });
-              return [2, writable];
-          }
-        });
-      });
-    };
-    AndroidAdapter2.prototype.entryToFileInfo = function(dirPath, entry) {
-      var isDirectory = entry.isDirectory();
-      var name = entry.name;
-      var mtime = entry.mtimeMs || 0;
-      return {
-        name,
-        path: joinPosix$3(dirPath, name),
-        isDirectory,
-        isFile: !isDirectory,
-        size: Number(entry.size) || 0,
-        modifiedTime: new Date(mtime).toISOString(),
-        extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
-      };
-    };
-    AndroidAdapter2.prototype.runShell = function(command) {
-      return __awaiter$j(this, void 0, void 0, function() {
-        var dev, wrapped, stream, buf, out, markerIdx, codeStr, stdout, code;
-        return __generator$j(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              dev = this.dev();
-              wrapped = "".concat(command, "; printf '\\n").concat(EXIT_MARKER, `%d' "$?"`);
-              return [4, dev.shell(wrapped)];
-            case 1:
-              stream = _a.sent();
-              return [4, getAdbkit()];
-            case 2:
-              return [4, _a.sent().util.readAll(stream)];
-            case 3:
-              buf = _a.sent();
-              out = buf.toString("utf-8");
-              markerIdx = out.lastIndexOf(EXIT_MARKER);
-              if (markerIdx === -1) {
-                return [2, out];
-              }
-              codeStr = out.slice(markerIdx + EXIT_MARKER.length).trim();
-              stdout = out.slice(0, markerIdx);
-              code = parseInt(codeStr, 10);
-              if (!Number.isNaN(code) && code !== 0) {
-                throw new Error("命令失败(code=".concat(code, "): ").concat(command, "\n").concat(stdout.trim()));
-              }
-              return [2, stdout];
-          }
-        });
-      });
-    };
-    return AndroidAdapter2;
-  }()
-);
-function joinPosix$3(dir, name) {
-  if (dir.endsWith("/"))
-    return dir + name;
-  return dir === "" ? "/".concat(name) : "".concat(dir, "/").concat(name);
-}
-function posixBaseName$1(p) {
-  var trimmed = p.replace(/\/+$/, "");
-  var idx = trimmed.lastIndexOf("/");
-  return idx === -1 ? trimmed : trimmed.slice(idx + 1);
-}
-function posixDirname$1(p) {
-  var trimmed = p.replace(/\/+$/, "");
-  var idx = trimmed.lastIndexOf("/");
-  if (idx === -1)
-    return "";
-  if (idx === 0)
-    return "/";
-  return trimmed.slice(0, idx);
+const log$n = console;
+async function loadOptional(id, loader) {
+  try {
+    return await loader();
+  } catch (error) {
+    log$n.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
+    throw new Error(
+      `可选依赖 ${id} 不可用，对应设备类型已禁用（原始错误：${error instanceof Error ? error.message : String(error)}）。请安装该依赖后重启应用。`
+    );
+  }
 }
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }
+class ToolPathResolver {
+  static TOOLS = {
+    adb: { candidates: ["adb", "tools/adb"] },
+    // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
+    // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
+    rg: { candidates: ["rg/rg", "rg", "tools/rg"], probePath: true }
+  };
+  /** undefined=未探测, null=无捆绑(回退 $PATH)。按工具名缓存。 */
+  static bundledCache = /* @__PURE__ */ new Map();
+  /** $PATH 探测结果缓存(按工具名)。 */
+  static pathCache = /* @__PURE__ */ new Map();
+  /**
+   * 解析打包内工具的绝对路径。
+   * @returns 打包且存在 → 绝对路径;否则 undefined(调用方走 $PATH)。
+   */
+  static getBundledPath(name) {
+    if (!this.TOOLS[name]) throw new Error(`ToolPathResolver: unknown tool "${name}"`);
+    if (this.bundledCache.has(name)) {
+      return this.bundledCache.get(name) ?? void 0;
+    }
+    if (app?.isPackaged) {
+      for (const rel of this.TOOLS[name].candidates) {
+        const candidate = path.join(process.resourcesPath, rel);
+        try {
+          if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+            this.bundledCache.set(name, candidate);
+            console.log(`[ToolPathResolver] ${name} resolved (bundled): ${candidate}`);
+            return candidate;
+          }
+        } catch {
+        }
+      }
+    }
+    this.bundledCache.set(name, null);
+    console.log(`[ToolPathResolver] ${name} not bundled; falling back to $PATH`);
+    return void 0;
+  }
+  /** 供 child_process spawn 使用的命令(打包内绝对路径或裸命令名)。 */
+  static getExecutable(name) {
+    return this.getBundledPath(name) ?? name;
+  }
+  // ============ 兼容既有 adb 调用面 ============
+  /** 解析 adb 可执行文件路径(打包且存在 → 绝对路径;否则 undefined 走 $PATH)。 */
+  static getAdbPath() {
+    return this.getBundledPath("adb");
+  }
+  /** 供 child_process spawn 使用的 adb 命令。 */
+  static getAdbExecutable() {
+    return this.getExecutable("adb");
+  }
+  // ============ ripgrep(grep 内容搜索引擎) ============
+  /** rg 命令(捆绑绝对路径或 $PATH 上的 'rg')。 */
+  static getRipgrepExecutable() {
+    return this.getExecutable("rg");
+  }
+  /** rg 是否可用(捆绑存在或 $PATH 上有)。无 rg 时 GrepService 回退流式扫描引擎。 */
+  static hasRipgrep() {
+    if (this.getBundledPath("rg")) return true;
+    if (this.pathCache.has("rg")) return this.pathCache.get("rg");
+    let found = false;
+    try {
+      execFileSync("which", ["rg"], { stdio: "ignore" });
+      found = true;
+    } catch {
+      found = false;
+    }
+    this.pathCache.set("rg", found);
+    if (found) console.log("[ToolPathResolver] rg resolved via $PATH");
+    return found;
+  }
+  /** 重置缓存(安装/重打包后重探测用)。 */
+  static resetCache() {
+    this.bundledCache.clear();
+    this.pathCache.clear();
+  }
+}
+const log$m = console;
+let adbkitModule = null;
+async function getAdbkit() {
+  if (!adbkitModule) {
+    adbkitModule = await loadOptional("@devicefarmer/adbkit", () => createRequire(import.meta.url)("@devicefarmer/adbkit").default);
+  }
+  return adbkitModule;
+}
+const EXIT_MARKER = "__FMLEXIT__";
+class AndroidAdapter {
+  type = "android";
+  deviceId;
+  name;
+  config;
+  client = null;
+  device = null;
+  connected = false;
+  constructor(deviceId, name, config = {}) {
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return ANDROID_CAPABILITIES;
+  }
+  async connect() {
+    try {
+      const adbkit = await getAdbkit();
+      const adbPath = ToolPathResolver.getAdbPath();
+      this.client = adbkit.createClient(adbPath ? { bin: adbPath } : {});
+      const devices = await this.client.listDevices();
+      if (devices.length === 0) {
+        throw new Error("未检测到 Android 设备。请连接设备并开启 USB 调试。");
+      }
+      const serial = this.config.deviceId ?? devices[0].id;
+      const target = devices.find((d) => d.id === serial) ?? devices[0];
+      if (target.type !== "device") {
+        if (target.type === "unauthorized") {
+          throw new Error('设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。');
+        }
+        if (target.type === "offline") {
+          throw new Error("设备离线。请重新插拔数据线后重试。");
+        }
+        throw new Error(`设备当前不可用(状态:${target.type})。`);
+      }
+      this.device = this.client.getDevice(target.id);
+      this.connected = true;
+      console.log(`[AndroidAdapter] connected: serial=${target.id}`);
+    } catch (error) {
+      this.connected = false;
+      this.device = null;
+      this.client = null;
+      log$m.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
+      throw error;
+    }
+  }
+  async disconnect() {
+    this.device = null;
+    this.client = null;
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  dev() {
+    if (!this.connected || !this.device) {
+      throw new Error("Android 设备未连接");
+    }
+    return this.device;
+  }
+  // ============ 文件系统操作 ============
+  async list(dirPath) {
+    const dev = this.dev();
+    const entries = await dev.readdir(dirPath);
+    const files = entries.filter((e) => e.name !== "." && e.name !== "..").map((e) => this.entryToFileInfo(dirPath, e));
+    return sortFiles(files);
+  }
+  async stat(targetPath) {
+    const dev = this.dev();
+    const s = await dev.stat(targetPath);
+    const mtime = s.mtimeMs || 0;
+    return {
+      size: Number(s.size) || 0,
+      isDirectory: s.isDirectory(),
+      isFile: !s.isDirectory(),
+      modifiedTime: new Date(mtime).toISOString(),
+      createdTime: new Date(mtime).toISOString(),
+      mode: Number(s.mode) || 0
+    };
+  }
+  async mkdir(dirPath) {
+    await this.runShell(`mkdir -p ${shellQuote(dirPath)}`);
+  }
+  async rmdir(dirPath, recursive) {
+    const cmd = recursive ? `rm -rf ${shellQuote(dirPath)}` : `rmdir ${shellQuote(dirPath)}`;
+    await this.runShell(cmd);
+  }
+  async chmod(targetPath, mode) {
+    await this.runShell(`chmod ${mode.toString(8).padStart(3, "0")} ${shellQuote(targetPath)}`);
+  }
+  /**
+   * 远端命令执行（GrepService 的远端 grep 引擎）。复用 runShell 的
+   * EXIT_MARKER 机制拿 stdout 与退出码（grep 无匹配 exit 1 不是错误，
+   * 由 runShell 抛错语义转换为 code 字段返回）。
+   */
+  async exec(command) {
+    try {
+      const stdout = await this.runShell(command);
+      return { stdout, stderr: "", code: 0 };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const codeMatch = message.match(/code=(\d+)/);
+      if (codeMatch) {
+        return { stdout: message.split("\n").slice(1).join("\n"), stderr: "", code: parseInt(codeMatch[1], 10) };
+      }
+      throw error;
+    }
+  }
+  async delete(targetPath) {
+    await this.runShell(`rm -rf ${shellQuote(targetPath)}`);
+  }
+  async rename(oldPath, newPath) {
+    await this.runShell(`mv ${shellQuote(oldPath)} ${shellQuote(newPath)}`);
+  }
+  async copy(srcPath, dstPath) {
+    await this.runShell(`cp -r ${shellQuote(srcPath)} ${shellQuote(dstPath)}`);
+  }
+  async exists(targetPath) {
+    try {
+      await this.stat(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  async readFile(filePath) {
+    const dev = this.dev();
+    const transfer = await dev.pull(filePath);
+    const chunks = [];
+    for await (const chunk of transfer) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+  async writeFile(filePath, data) {
+    const dev = this.dev();
+    const parent = posixDirname$1(filePath);
+    if (parent && parent !== filePath) {
+      try {
+        await this.runShell(`mkdir -p ${shellQuote(parent)}`);
+      } catch {
+      }
+    }
+    await dev.push(Readable.from([data]), filePath);
+  }
+  async search(dirPath, query) {
+    const dev = this.dev();
+    const pattern = (query.pattern || "").trim();
+    if (!pattern) return [];
+    const raw = await this.runShell(
+      `find ${shellQuote(dirPath)} -type f -iname ${shellQuote("*" + pattern + "*")} 2>/dev/null`
+    );
+    const results = [];
+    for (const line of raw.split("\n")) {
+      const p = line.trim();
+      if (!p) continue;
+      const name = posixBaseName$1(p);
+      let isDirectory = false;
+      let size = 0;
+      let mtime = 0;
+      try {
+        const s = await dev.stat(p);
+        isDirectory = s.isDirectory();
+        size = Number(s.size) || 0;
+        mtime = s.mtimeMs || 0;
+      } catch {
+      }
+      results.push({
+        name,
+        path: p,
+        isDirectory,
+        isFile: !isDirectory,
+        size,
+        modifiedTime: new Date(mtime).toISOString(),
+        extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
+      });
+    }
+    return results;
+  }
+  // ============ 流式访问(canStream=true) ============
+  async openReadStream(filePath) {
+    const dev = this.dev();
+    return dev.pull(filePath);
+  }
+  async openWriteStream(filePath) {
+    const dev = this.dev();
+    const parent = posixDirname$1(filePath);
+    if (parent && parent !== filePath) {
+      try {
+        await this.runShell(`mkdir -p ${shellQuote(parent)}`);
+      } catch {
+      }
+    }
+    const pass = new PassThrough();
+    const transfer = await dev.push(pass, filePath);
+    const writable = new Writable({
+      write(chunk, _encoding, callback) {
+        if (pass.write(chunk)) {
+          callback();
+        } else {
+          pass.once("drain", () => callback());
+        }
+      },
+      final(callback) {
+        transfer.once("end", () => callback());
+        transfer.once("error", (err) => callback(err));
+        pass.end();
+      }
+    });
+    transfer.on("error", (err) => writable.destroy(err));
+    return writable;
+  }
+  // ============ 内部工具 ============
+  entryToFileInfo(dirPath, entry) {
+    const isDirectory = entry.isDirectory();
+    const name = entry.name;
+    const mtime = entry.mtimeMs || 0;
+    return {
+      name,
+      path: joinPosix$3(dirPath, name),
+      isDirectory,
+      isFile: !isDirectory,
+      size: Number(entry.size) || 0,
+      modifiedTime: new Date(mtime).toISOString(),
+      extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
+    };
+  }
+  /**
+   * 执行 shell 命令并按 exit code 判定成败。
+   * 末尾附加 EXIT_MARKER+code;adb shell 不直接返回 exit code,故用标记解析。
+   */
+  async runShell(command) {
+    const dev = this.dev();
+    const wrapped = `${command}; printf '\\n${EXIT_MARKER}%d' "$?"`;
+    const stream = await dev.shell(wrapped);
+    const buf = await (await getAdbkit()).util.readAll(stream);
+    const out = buf.toString("utf-8");
+    const markerIdx = out.lastIndexOf(EXIT_MARKER);
+    if (markerIdx === -1) {
+      return out;
+    }
+    const codeStr = out.slice(markerIdx + EXIT_MARKER.length).trim();
+    const stdout = out.slice(0, markerIdx);
+    const code = parseInt(codeStr, 10);
+    if (!Number.isNaN(code) && code !== 0) {
+      throw new Error(`命令失败(code=${code}): ${command}
+${stdout.trim()}`);
+    }
+    return stdout;
+  }
+}
+function joinPosix$3(dir, name) {
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
+}
+function posixBaseName$1(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx === -1 ? trimmed : trimmed.slice(idx + 1);
+}
+function posixDirname$1(p) {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  if (idx === -1) return "";
+  if (idx === 0) return "/";
+  return trimmed.slice(0, idx);
+}
 function sortFiles(files) {
-  return files.sort(function(a, b) {
-    if (a.isDirectory !== b.isDirectory)
-      return a.isDirectory ? -1 : 1;
+  return files.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
 }
-var __awaiter$i = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
+const log$l = console;
+class SMBAdapter {
+  type = "smb";
+  deviceId;
+  name;
+  config;
+  connected = false;
+  client = null;
+  constructor(deviceId, name, config) {
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return SMB_CAPABILITIES;
+  }
+  async connect() {
+    if (!this.config.host || !this.config.share) {
+      throw new Error("SMB 连接需要主机地址和共享名称");
+    }
+    const SMB2 = await loadOptional("@marsaud/smb2", async () => (await import("@marsaud/smb2")).default);
+    const client = new SMB2({
+      share: `\\\\${this.config.host}\\${this.config.share}`,
+      domain: this.config.domain || "",
+      username: this.config.username || "",
+      password: this.config.password || "",
+      port: this.config.port || 445
     });
+    try {
+      await client.readdir("");
+      this.client = client;
+      this.connected = true;
+    } catch (error) {
+      client.disconnect();
+      log$l.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
+      throw error;
+    }
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
+  async disconnect() {
+    this.client?.disconnect();
+    this.client = null;
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  async list(dirPath) {
+    const client = this.getClient();
+    const parent = this.remotePath(dirPath);
+    const entries = await client.readdir(parent, { stats: true });
+    return entries.map((entry) => {
+      const isDirectory = entry.isDirectory();
+      return {
+        name: entry.name,
+        path: path.posix.join(this.displayPath(dirPath), entry.name),
+        isDirectory,
+        isFile: !isDirectory,
+        size: Number(entry.size || 0),
+        modifiedTime: entry.mtime?.toISOString() || (/* @__PURE__ */ new Date(0)).toISOString(),
+        createdTime: entry.birthtime?.toISOString() || entry.ctime?.toISOString(),
+        mode: entry.mode,
+        extension: isDirectory ? void 0 : path.posix.extname(entry.name).toLowerCase()
+      };
+    }).sort(sortDirectoriesFirst$1);
+  }
+  async mkdir(dirPath) {
+    await this.getClient().mkdir(this.remotePath(dirPath));
+  }
+  async rmdir(dirPath, recursive) {
+    if (recursive) {
+      for (const file of await this.list(dirPath)) {
+        if (file.isDirectory) await this.rmdir(file.path, true);
+        else await this.delete(file.path);
+      }
+    }
+    await this.getClient().rmdir(this.remotePath(dirPath));
+  }
+  async readFile(filePath) {
+    return this.getClient().readFile(this.remotePath(filePath));
+  }
+  async writeFile(filePath, data) {
+    await this.getClient().writeFile(this.remotePath(filePath), data);
+  }
+  async delete(targetPath) {
+    await this.getClient().unlink(this.remotePath(targetPath));
+  }
+  async rename(oldPath, newPath) {
+    await this.getClient().rename(this.remotePath(oldPath), this.remotePath(newPath), { replace: true });
+  }
+  async copy(srcPath, dstPath) {
+    await this.writeFile(dstPath, await this.readFile(srcPath));
+  }
+  async openReadStream(filePath) {
+    return this.getClient().createReadStream(this.remotePath(filePath));
+  }
+  async openWriteStream(filePath) {
+    return this.getClient().createWriteStream(this.remotePath(filePath));
+  }
+  async stat(targetPath) {
+    const stats = await this.getClient().stat(this.remotePath(targetPath));
+    const raw = stats;
+    return {
+      size: Number(raw.size || 0),
+      isDirectory: stats.isDirectory(),
+      isFile: !stats.isDirectory(),
+      modifiedTime: stats.mtime?.toISOString() || (/* @__PURE__ */ new Date(0)).toISOString(),
+      createdTime: stats.birthtime?.toISOString() || stats.ctime?.toISOString() || (/* @__PURE__ */ new Date(0)).toISOString(),
+      mode: raw.mode || 0
+    };
+  }
+  async exists(targetPath) {
+    return this.getClient().exists(this.remotePath(targetPath));
+  }
+  async search(dirPath, query) {
+    const results = [];
+    const pattern = query.pattern.toLocaleLowerCase();
+    const visit = async (currentPath) => {
+      let files;
       try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
+        files = await this.list(currentPath);
+      } catch {
+        return;
       }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
+      for (const file of files) {
+        if (file.name.toLocaleLowerCase().includes(pattern)) results.push(file);
+        if (file.isDirectory) await visit(file.path);
       }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$i = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
     };
+    await visit(dirPath);
+    return results;
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+  getClient() {
+    if (!this.connected || !this.client) throw new Error("SMB 设备尚未连接");
+    return this.client;
   }
-};
-var log$d = console;
-var SMBAdapter = (
-  /** @class */
-  function() {
-    function SMBAdapter2(deviceId, name, config) {
-      this.type = "smb";
-      this.connected = false;
-      this.client = null;
-      this.deviceId = deviceId;
-      this.name = name;
-      this.config = config;
-    }
-    SMBAdapter2.prototype.getCapabilities = function() {
-      return SMB_CAPABILITIES;
-    };
-    SMBAdapter2.prototype.connect = function() {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var SMB2, client, error_1;
-        var _this = this;
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (!this.config.host || !this.config.share) {
-                throw new Error("SMB 连接需要主机地址和共享名称");
-              }
-              return [4, loadOptional("@marsaud/smb2", function() {
-                return __awaiter$i(_this, void 0, void 0, function() {
-                  return __generator$i(this, function(_a2) {
-                    switch (_a2.label) {
-                      case 0:
-                        return [4, import("@marsaud/smb2")];
-                      case 1:
-                        return [2, _a2.sent().default];
-                    }
-                  });
-                });
-              })];
-            case 1:
-              SMB2 = _a.sent();
-              client = new SMB2({
-                share: "\\\\".concat(this.config.host, "\\").concat(this.config.share),
-                domain: this.config.domain || "",
-                username: this.config.username || "",
-                password: this.config.password || "",
-                port: this.config.port || 445
-              });
-              _a.label = 2;
-            case 2:
-              _a.trys.push([2, 4, , 5]);
-              return [4, client.readdir("")];
-            case 3:
-              _a.sent();
-              this.client = client;
-              this.connected = true;
-              return [3, 5];
-            case 4:
-              error_1 = _a.sent();
-              client.disconnect();
-              log$d.error("[SMBAdapter] 连接失败 (host=".concat(this.config.host, ", share=").concat(this.config.share, "):"), error_1);
-              throw error_1;
-            case 5:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.disconnect = function() {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var _a;
-        return __generator$i(this, function(_b) {
-          (_a = this.client) === null || _a === void 0 ? void 0 : _a.disconnect();
-          this.client = null;
-          this.connected = false;
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    SMBAdapter2.prototype.isConnected = function() {
-      return this.connected;
-    };
-    SMBAdapter2.prototype.list = function(dirPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var client, parent, entries;
-        var _this = this;
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              client = this.getClient();
-              parent = this.remotePath(dirPath);
-              return [4, client.readdir(parent, { stats: true })];
-            case 1:
-              entries = _a.sent();
-              return [2, entries.map(function(entry) {
-                var _a2, _b, _c;
-                var isDirectory = entry.isDirectory();
-                return {
-                  name: entry.name,
-                  path: path.posix.join(_this.displayPath(dirPath), entry.name),
-                  isDirectory,
-                  isFile: !isDirectory,
-                  size: Number(entry.size || 0),
-                  modifiedTime: ((_a2 = entry.mtime) === null || _a2 === void 0 ? void 0 : _a2.toISOString()) || (/* @__PURE__ */ new Date(0)).toISOString(),
-                  createdTime: ((_b = entry.birthtime) === null || _b === void 0 ? void 0 : _b.toISOString()) || ((_c = entry.ctime) === null || _c === void 0 ? void 0 : _c.toISOString()),
-                  extension: isDirectory ? void 0 : path.posix.extname(entry.name).toLowerCase()
-                };
-              }).sort(sortDirectoriesFirst$1)];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.mkdir = function(dirPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().mkdir(this.remotePath(dirPath))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.rmdir = function(dirPath, recursive) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var _i, _a, file;
-        return __generator$i(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              if (!recursive) return [3, 7];
-              _i = 0;
-              return [4, this.list(dirPath)];
-            case 1:
-              _a = _b.sent();
-              _b.label = 2;
-            case 2:
-              if (!(_i < _a.length)) return [3, 7];
-              file = _a[_i];
-              if (!file.isDirectory) return [3, 4];
-              return [4, this.rmdir(file.path, true)];
-            case 3:
-              _b.sent();
-              return [3, 6];
-            case 4:
-              return [4, this.delete(file.path)];
-            case 5:
-              _b.sent();
-              _b.label = 6;
-            case 6:
-              _i++;
-              return [3, 2];
-            case 7:
-              return [4, this.getClient().rmdir(this.remotePath(dirPath))];
-            case 8:
-              _b.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.readFile = function(filePath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          return [2, this.getClient().readFile(this.remotePath(filePath))];
-        });
-      });
-    };
-    SMBAdapter2.prototype.writeFile = function(filePath, data) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().writeFile(this.remotePath(filePath), data)];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.delete = function(targetPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().unlink(this.remotePath(targetPath))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.rename = function(oldPath, newPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().rename(this.remotePath(oldPath), this.remotePath(newPath), { replace: true })];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.copy = function(srcPath, dstPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var _a, _b;
-        return __generator$i(this, function(_c) {
-          switch (_c.label) {
-            case 0:
-              _a = this.writeFile;
-              _b = [dstPath];
-              return [4, this.readFile(srcPath)];
-            case 1:
-              return [4, _a.apply(this, _b.concat([_c.sent()]))];
-            case 2:
-              _c.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.openReadStream = function(filePath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          return [2, this.getClient().createReadStream(this.remotePath(filePath))];
-        });
-      });
-    };
-    SMBAdapter2.prototype.openWriteStream = function(filePath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          return [2, this.getClient().createWriteStream(this.remotePath(filePath))];
-        });
-      });
-    };
-    SMBAdapter2.prototype.stat = function(targetPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var stats, raw;
-        var _a, _b, _c;
-        return __generator$i(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              return [4, this.getClient().stat(this.remotePath(targetPath))];
-            case 1:
-              stats = _d.sent();
-              raw = stats;
-              return [2, {
-                size: Number(raw.size || 0),
-                isDirectory: stats.isDirectory(),
-                isFile: !stats.isDirectory(),
-                modifiedTime: ((_a = stats.mtime) === null || _a === void 0 ? void 0 : _a.toISOString()) || (/* @__PURE__ */ new Date(0)).toISOString(),
-                createdTime: ((_b = stats.birthtime) === null || _b === void 0 ? void 0 : _b.toISOString()) || ((_c = stats.ctime) === null || _c === void 0 ? void 0 : _c.toISOString()) || (/* @__PURE__ */ new Date(0)).toISOString(),
-                mode: raw.mode || 0
-              }];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.exists = function(targetPath) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        return __generator$i(this, function(_a) {
-          return [2, this.getClient().exists(this.remotePath(targetPath))];
-        });
-      });
-    };
-    SMBAdapter2.prototype.search = function(dirPath, query) {
-      return __awaiter$i(this, void 0, void 0, function() {
-        var results, pattern, visit;
-        var _this = this;
-        return __generator$i(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              results = [];
-              pattern = query.pattern.toLocaleLowerCase();
-              visit = function(currentPath) {
-                return __awaiter$i(_this, void 0, void 0, function() {
-                  var files, _i, files_1, file;
-                  return __generator$i(this, function(_b) {
-                    switch (_b.label) {
-                      case 0:
-                        _b.trys.push([0, 2, , 3]);
-                        return [4, this.list(currentPath)];
-                      case 1:
-                        files = _b.sent();
-                        return [3, 3];
-                      case 2:
-                        _b.sent();
-                        return [
-                          2
-                          /*return*/
-                        ];
-                      case 3:
-                        _i = 0, files_1 = files;
-                        _b.label = 4;
-                      case 4:
-                        if (!(_i < files_1.length)) return [3, 7];
-                        file = files_1[_i];
-                        if (file.name.toLocaleLowerCase().includes(pattern))
-                          results.push(file);
-                        if (!file.isDirectory) return [3, 6];
-                        return [4, visit(file.path)];
-                      case 5:
-                        _b.sent();
-                        _b.label = 6;
-                      case 6:
-                        _i++;
-                        return [3, 4];
-                      case 7:
-                        return [
-                          2
-                          /*return*/
-                        ];
-                    }
-                  });
-                });
-              };
-              return [4, visit(dirPath)];
-            case 1:
-              _a.sent();
-              return [2, results];
-          }
-        });
-      });
-    };
-    SMBAdapter2.prototype.getClient = function() {
-      if (!this.connected || !this.client)
-        throw new Error("SMB 设备尚未连接");
-      return this.client;
-    };
-    SMBAdapter2.prototype.remotePath = function(value) {
-      var normalized = value.replace(/\//g, "\\").replace(/^\\+/, "");
-      return normalized;
-    };
-    SMBAdapter2.prototype.displayPath = function(value) {
-      var normalized = path.posix.normalize(value || "/");
-      return normalized.startsWith("/") ? normalized : "/".concat(normalized);
-    };
-    return SMBAdapter2;
-  }()
-);
+  remotePath(value) {
+    const normalized = value.replace(/\//g, "\\").replace(/^\\+/, "");
+    return normalized;
+  }
+  displayPath(value) {
+    const normalized = path.posix.normalize(value || "/");
+    return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  }
+}
 function sortDirectoriesFirst$1(a, b) {
-  if (a.isDirectory !== b.isDirectory)
-    return a.isDirectory ? -1 : 1;
+  if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
   return a.name.localeCompare(b.name);
 }
-var __assign$5 = function() {
-  __assign$5 = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign$5.apply(this, arguments);
-};
-var __awaiter$h = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
+class SSHAdapter {
+  type = "ssh";
+  deviceId;
+  name;
+  config;
+  connected = false;
+  client = null;
+  sftp = null;
+  constructor(deviceId, name, config) {
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = { port: 22, ...config };
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$h = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
+  getCapabilities() {
+    return SSH_CAPABILITIES;
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var SSHAdapter = (
-  /** @class */
-  function() {
-    function SSHAdapter2(deviceId, name, config) {
-      this.type = "ssh";
+  async connect() {
+    try {
+      const { Client } = await import("ssh2");
+      return new Promise((resolve, reject) => {
+        this.client = new Client();
+        this.client.on("ready", () => {
+          this.client.sftp((err, sftp) => {
+            if (err) {
+              this.connected = false;
+              reject(err);
+              return;
+            }
+            this.sftp = sftp;
+            this.connected = true;
+            resolve();
+          });
+        });
+        this.client.on("error", (err) => {
+          this.connected = false;
+          reject(err);
+        });
+        const config = {
+          host: this.config.host,
+          port: this.config.port,
+          username: this.config.username
+        };
+        if (this.config.password) {
+          config.password = this.config.password;
+        } else if (this.config.privateKey) {
+          config.privateKey = this.config.privateKey;
+        }
+        this.client.connect(config);
+      });
+    } catch (error) {
       this.connected = false;
+      throw error;
+    }
+  }
+  async disconnect() {
+    if (this.client) {
+      this.client.end();
       this.client = null;
       this.sftp = null;
-      this.deviceId = deviceId;
-      this.name = name;
-      this.config = __assign$5({ port: 22 }, config);
     }
-    SSHAdapter2.prototype.getCapabilities = function() {
-      return SSH_CAPABILITIES;
-    };
-    SSHAdapter2.prototype.connect = function() {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var Client_1, error_1;
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 2, , 3]);
-              return [4, import("ssh2")];
-            case 1:
-              Client_1 = _a.sent().Client;
-              return [2, new Promise(function(resolve, reject) {
-                _this.client = new Client_1();
-                _this.client.on("ready", function() {
-                  _this.client.sftp(function(err, sftp) {
-                    if (err) {
-                      _this.connected = false;
-                      reject(err);
-                      return;
-                    }
-                    _this.sftp = sftp;
-                    _this.connected = true;
-                    resolve();
-                  });
-                });
-                _this.client.on("error", function(err) {
-                  _this.connected = false;
-                  reject(err);
-                });
-                var config = {
-                  host: _this.config.host,
-                  port: _this.config.port,
-                  username: _this.config.username
-                };
-                if (_this.config.password) {
-                  config.password = _this.config.password;
-                } else if (_this.config.privateKey) {
-                  config.privateKey = _this.config.privateKey;
-                }
-                _this.client.connect(config);
-              })];
-            case 2:
-              error_1 = _a.sent();
-              this.connected = false;
-              throw error_1;
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SSHAdapter2.prototype.disconnect = function() {
-      return __awaiter$h(this, void 0, void 0, function() {
-        return __generator$h(this, function(_a) {
-          if (this.client) {
-            this.client.end();
-            this.client = null;
-            this.sftp = null;
-          }
-          this.connected = false;
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    SSHAdapter2.prototype.isConnected = function() {
-      return this.connected;
-    };
-    SSHAdapter2.prototype.ensureConnected = function() {
-      if (!this.connected || !this.sftp) {
-        throw new Error("SSH device not connected");
-      }
-    };
-    SSHAdapter2.prototype.list = function(dirPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.readdir(dirPath, function(err, entries) {
-              if (err) {
-                reject(err);
-                return;
-              }
-              var files = entries.map(function(entry) {
-                return {
-                  name: entry.filename,
-                  path: path.posix.join(dirPath, entry.filename),
-                  isDirectory: entry.longname.startsWith("d"),
-                  isFile: !entry.longname.startsWith("d"),
-                  size: entry.attrs.size,
-                  modifiedTime: new Date(entry.attrs.mtime * 1e3).toISOString(),
-                  createdTime: new Date(entry.attrs.atime * 1e3).toISOString(),
-                  extension: !entry.longname.startsWith("d") ? path.posix.extname(entry.filename).toLowerCase() : void 0
-                };
-              });
-              resolve(files.sort(function(a, b) {
-                if (a.isDirectory !== b.isDirectory) {
-                  return a.isDirectory ? -1 : 1;
-                }
-                return a.name.localeCompare(b.name);
-              }));
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.mkdir = function(dirPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.mkdir(dirPath, function(err) {
-              if (err)
-                reject(err);
-              else
-                resolve();
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.rmdir = function(dirPath, recursive) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var files, _i, files_1, file;
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              this.ensureConnected();
-              if (!recursive) return [3, 7];
-              return [4, this.list(dirPath)];
-            case 1:
-              files = _a.sent();
-              _i = 0, files_1 = files;
-              _a.label = 2;
-            case 2:
-              if (!(_i < files_1.length)) return [3, 7];
-              file = files_1[_i];
-              if (!file.isDirectory) return [3, 4];
-              return [4, this.rmdir(file.path, true)];
-            case 3:
-              _a.sent();
-              return [3, 6];
-            case 4:
-              return [4, this.delete(file.path)];
-            case 5:
-              _a.sent();
-              _a.label = 6;
-            case 6:
-              _i++;
-              return [3, 2];
-            case 7:
-              return [2, new Promise(function(resolve, reject) {
-                _this.sftp.rmdir(dirPath, function(err) {
-                  if (err)
-                    reject(err);
-                  else
-                    resolve();
-                });
-              })];
-          }
-        });
-      });
-    };
-    SSHAdapter2.prototype.readFile = function(filePath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.readFile(filePath, function(err, data) {
-              if (err)
-                reject(err);
-              else
-                resolve(data);
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.writeFile = function(filePath, data) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.writeFile(filePath, data, function(err) {
-              if (err)
-                reject(err);
-              else
-                resolve();
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.delete = function(targetPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.unlink(targetPath, function(err) {
-              if (err)
-                reject(err);
-              else
-                resolve();
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.rename = function(oldPath, newPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.rename(oldPath, newPath, function(err) {
-              if (err)
-                reject(err);
-              else
-                resolve();
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.copy = function(srcPath, dstPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var content;
-        return __generator$h(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.readFile(srcPath)];
-            case 1:
-              content = _a.sent();
-              return [4, this.writeFile(dstPath, content)];
-            case 2:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SSHAdapter2.prototype.openReadStream = function(filePath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, this.sftp.createReadStream(filePath)];
-        });
-      });
-    };
-    SSHAdapter2.prototype.openWriteStream = function(filePath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, this.sftp.createWriteStream(filePath)];
-        });
-      });
-    };
-    SSHAdapter2.prototype.stat = function(targetPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator$h(this, function(_a) {
-          this.ensureConnected();
-          return [2, new Promise(function(resolve, reject) {
-            _this.sftp.stat(targetPath, function(err, stats) {
-              if (err) {
-                reject(err);
-                return;
-              }
-              resolve({
-                size: stats.size,
-                isDirectory: stats.isDirectory(),
-                isFile: stats.isFile(),
-                modifiedTime: new Date(stats.mtime * 1e3).toISOString(),
-                createdTime: new Date(stats.atime * 1e3).toISOString(),
-                mode: stats.mode
-              });
-            });
-          })];
-        });
-      });
-    };
-    SSHAdapter2.prototype.exists = function(targetPath) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        return __generator$h(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              _b.trys.push([0, 2, , 3]);
-              return [4, this.stat(targetPath)];
-            case 1:
-              _b.sent();
-              return [2, true];
-            case 2:
-              _b.sent();
-              return [2, false];
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    SSHAdapter2.prototype.search = function(dirPath, query) {
-      return __awaiter$h(this, void 0, void 0, function() {
-        function searchRecursive(adapter, currentPath) {
-          return __awaiter$h(this, void 0, void 0, function() {
-            var files, _i, files_2, file;
-            return __generator$h(this, function(_b) {
-              switch (_b.label) {
-                case 0:
-                  _b.trys.push([0, 6, , 7]);
-                  return [4, adapter.list(currentPath)];
-                case 1:
-                  files = _b.sent();
-                  _i = 0, files_2 = files;
-                  _b.label = 2;
-                case 2:
-                  if (!(_i < files_2.length)) return [3, 5];
-                  file = files_2[_i];
-                  if (file.name.toLowerCase().includes(pattern)) {
-                    results.push(file);
-                  }
-                  if (!file.isDirectory) return [3, 4];
-                  return [4, searchRecursive(adapter, file.path)];
-                case 3:
-                  _b.sent();
-                  _b.label = 4;
-                case 4:
-                  _i++;
-                  return [3, 2];
-                case 5:
-                  return [3, 7];
-                case 6:
-                  _b.sent();
-                  return [3, 7];
-                case 7:
-                  return [
-                    2
-                    /*return*/
-                  ];
-              }
-            });
-          });
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  ensureConnected() {
+    if (!this.connected || !this.sftp) {
+      throw new Error("SSH device not connected");
+    }
+  }
+  async list(dirPath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.readdir(dirPath, (err, entries) => {
+        if (err) {
+          reject(err);
+          return;
         }
-        var results, pattern;
-        return __generator$h(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              results = [];
-              pattern = query.pattern.toLowerCase();
-              return [4, searchRecursive(this, dirPath)];
-            case 1:
-              _a.sent();
-              return [2, results];
+        const files = entries.map((entry) => ({
+          name: entry.filename,
+          path: path.posix.join(dirPath, entry.filename),
+          isDirectory: entry.longname.startsWith("d"),
+          isFile: !entry.longname.startsWith("d"),
+          size: entry.attrs.size,
+          modifiedTime: new Date(entry.attrs.mtime * 1e3).toISOString(),
+          createdTime: new Date(entry.attrs.atime * 1e3).toISOString(),
+          mode: entry.attrs.mode,
+          extension: !entry.longname.startsWith("d") ? path.posix.extname(entry.filename).toLowerCase() : void 0
+        }));
+        resolve(files.sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) {
+            return a.isDirectory ? -1 : 1;
           }
-        });
+          return a.name.localeCompare(b.name);
+        }));
       });
-    };
-    return SSHAdapter2;
-  }()
-);
-var __awaiter$g = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
     });
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
+  async mkdir(dirPath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.mkdir(dirPath, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+  async rmdir(dirPath, recursive) {
+    this.ensureConnected();
+    if (recursive) {
+      const files = await this.list(dirPath);
+      for (const file of files) {
+        if (file.isDirectory) {
+          await this.rmdir(file.path, true);
+        } else {
+          await this.delete(file.path);
+        }
       }
     }
-    function rejected(value) {
+    return new Promise((resolve, reject) => {
+      this.sftp.rmdir(dirPath, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+  async readFile(filePath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.readFile(filePath, (err, data) => {
+        if (err) reject(err);
+        else resolve(data);
+      });
+    });
+  }
+  async writeFile(filePath, data) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.writeFile(filePath, data, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+  async delete(targetPath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.unlink(targetPath, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+  async rename(oldPath, newPath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.rename(oldPath, newPath, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+  async copy(srcPath, dstPath) {
+    const content = await this.readFile(srcPath);
+    await this.writeFile(dstPath, content);
+  }
+  async openReadStream(filePath) {
+    this.ensureConnected();
+    return this.sftp.createReadStream(filePath);
+  }
+  async openWriteStream(filePath) {
+    this.ensureConnected();
+    return this.sftp.createWriteStream(filePath);
+  }
+  async symlink(targetPath, linkPath) {
+    this.ensureConnected();
+    await new Promise((resolve, reject) => {
+      this.sftp.symlink(targetPath, linkPath, (err) => err ? reject(err) : resolve());
+    });
+  }
+  async readlink(linkPath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.readlink(linkPath, (err, target) => err ? reject(err) : resolve(target));
+    });
+  }
+  async chmod(targetPath, mode) {
+    this.ensureConnected();
+    await new Promise((resolve, reject) => {
+      this.sftp.chmod(targetPath, mode, (err) => err ? reject(err) : resolve());
+    });
+  }
+  async chown(targetPath, uid, gid) {
+    this.ensureConnected();
+    await new Promise((resolve, reject) => {
+      this.sftp.chown(targetPath, uid, gid, (err) => err ? reject(err) : resolve());
+    });
+  }
+  /**
+   * 远端命令执行（GrepService 的远端 grep 引擎）。ssh2 client.exec 通道。
+   * 命令字符串由调用方经 shellQuote 构造；此处只负责通道与退出码语义
+   * （grep 无匹配 exit 1 不是错误）。
+   */
+  async exec(command) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.client.exec(command, (err, stream) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        let stdout = "";
+        let stderr = "";
+        stream.on("data", (chunk) => {
+          stdout += chunk.toString("utf-8");
+        });
+        stream.stderr.on("data", (chunk) => {
+          stderr += chunk.toString("utf-8");
+        });
+        stream.on("close", (code) => {
+          resolve({ stdout, stderr, code: code ?? 0 });
+        });
+        stream.on("error", reject);
+      });
+    });
+  }
+  async stat(targetPath) {
+    this.ensureConnected();
+    return new Promise((resolve, reject) => {
+      this.sftp.stat(targetPath, (err, stats) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve({
+          size: stats.size,
+          isDirectory: stats.isDirectory(),
+          isFile: stats.isFile(),
+          modifiedTime: new Date(stats.mtime * 1e3).toISOString(),
+          createdTime: new Date(stats.atime * 1e3).toISOString(),
+          mode: stats.mode
+        });
+      });
+    });
+  }
+  async exists(targetPath) {
+    try {
+      await this.stat(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  async search(dirPath, query) {
+    const results = [];
+    const pattern = query.pattern.toLowerCase();
+    async function searchRecursive(adapter, currentPath) {
       try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
+        const files = await adapter.list(currentPath);
+        for (const file of files) {
+          if (file.name.toLowerCase().includes(pattern)) {
+            results.push(file);
+          }
+          if (file.isDirectory) {
+            await searchRecursive(adapter, file.path);
+          }
+        }
+      } catch {
       }
     }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+    await searchRecursive(this, dirPath);
+    return results;
+  }
+}
+class WebDAVAdapter {
+  type = "webdav";
+  deviceId;
+  name;
+  config;
+  client = null;
+  connected = false;
+  constructor(deviceId, name, config) {
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return WEBDAV_CAPABILITIES;
+  }
+  async connect() {
+    let endpoint;
+    try {
+      endpoint = new URL(this.config.url);
+    } catch {
+      throw new Error("WebDAV 地址无效：请输入以 http:// 或 https:// 开头的 URL");
     }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$g = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
+      throw new Error("WebDAV 仅支持 HTTP 或 HTTPS 地址");
+    }
+    const client = createClient(endpoint.toString(), {
+      username: this.config.username,
+      password: this.config.password
+    });
+    await client.getDirectoryContents(this.rootPath());
+    this.client = client;
+    this.connected = true;
+  }
+  async disconnect() {
+    this.client = null;
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  async list(dirPath) {
+    const entries = await this.getClient().getDirectoryContents(this.remotePath(dirPath));
+    return entries.map((entry) => this.toFileInfo(entry)).sort(sortDirectoriesFirst);
+  }
+  async mkdir(dirPath) {
+    await this.getClient().createDirectory(this.remotePath(dirPath), { recursive: true });
+  }
+  async rmdir(dirPath, recursive) {
+    const client = this.getClient();
+    const target = this.remotePath(dirPath);
+    if (recursive) {
+      for (const file of await this.list(dirPath)) {
+        if (file.isDirectory) await this.rmdir(file.path, true);
+        else await this.delete(file.path);
+      }
+    }
+    await client.deleteFile(target);
+  }
+  async readFile(filePath) {
+    const result = await this.getClient().getFileContents(this.remotePath(filePath), { format: "binary" });
+    if (typeof result === "string") return Buffer.from(result);
+    return Buffer.from(result);
+  }
+  async writeFile(filePath, data) {
+    await this.getClient().putFileContents(this.remotePath(filePath), data, { overwrite: true });
+  }
+  async delete(targetPath) {
+    await this.getClient().deleteFile(this.remotePath(targetPath));
+  }
+  async rename(oldPath, newPath) {
+    await this.getClient().moveFile(this.remotePath(oldPath), this.remotePath(newPath), { overwrite: true });
+  }
+  async copy(srcPath, dstPath) {
+    await this.getClient().copyFile(this.remotePath(srcPath), this.remotePath(dstPath), { overwrite: true });
+  }
+  async openReadStream(filePath) {
+    return this.getClient().createReadStream(this.remotePath(filePath));
+  }
+  async openWriteStream(filePath) {
+    return this.getClient().createWriteStream(this.remotePath(filePath));
+  }
+  async stat(targetPath) {
+    const entry = await this.getClient().stat(this.remotePath(targetPath));
+    return this.toFileStats(entry);
+  }
+  async exists(targetPath) {
+    return this.getClient().exists(this.remotePath(targetPath));
+  }
+  async search(dirPath, query) {
+    const matches = [];
+    const pattern = query.pattern.toLocaleLowerCase();
+    const visit = async (currentPath) => {
+      let files;
+      try {
+        files = await this.list(currentPath);
+      } catch {
+        return;
+      }
+      for (const file of files) {
+        if (file.name.toLocaleLowerCase().includes(pattern)) matches.push(file);
+        if (file.isDirectory) await visit(file.path);
+      }
+    };
+    await visit(dirPath);
+    return matches;
+  }
+  getClient() {
+    if (!this.connected || !this.client) throw new Error("WebDAV 设备尚未连接");
+    return this.client;
+  }
+  rootPath() {
+    return this.remotePath(this.config.rootPath || "/");
+  }
+  remotePath(targetPath) {
+    const normalized = path.posix.normalize(targetPath || "/");
+    return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  }
+  toFileInfo(entry) {
+    const stats = this.toFileStats(entry);
+    return {
+      name: entry.basename,
+      path: this.remotePath(entry.filename),
+      isDirectory: stats.isDirectory,
+      isFile: stats.isFile,
+      size: stats.size,
+      modifiedTime: stats.modifiedTime,
+      createdTime: stats.createdTime,
+      extension: stats.isFile ? path.posix.extname(entry.basename).toLowerCase() : void 0
     };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+  toFileStats(entry) {
+    const directory = entry.type === "directory";
+    const modified = entry.lastmod ? new Date(entry.lastmod).toISOString() : (/* @__PURE__ */ new Date(0)).toISOString();
+    return {
+      size: Number(entry.size || 0),
+      isDirectory: directory,
+      isFile: !directory,
+      modifiedTime: modified,
+      createdTime: modified,
+      mode: 0
+    };
   }
-};
-var WebDAVAdapter = (
-  /** @class */
-  function() {
-    function WebDAVAdapter2(deviceId, name, config) {
-      this.type = "webdav";
-      this.client = null;
-      this.connected = false;
-      this.deviceId = deviceId;
-      this.name = name;
-      this.config = config;
-    }
-    WebDAVAdapter2.prototype.getCapabilities = function() {
-      return WEBDAV_CAPABILITIES;
-    };
-    WebDAVAdapter2.prototype.connect = function() {
-      return __awaiter$g(this, void 0, void 0, function() {
-        var endpoint, client;
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              try {
-                endpoint = new URL(this.config.url);
-              } catch (_b) {
-                throw new Error("WebDAV 地址无效：请输入以 http:// 或 https:// 开头的 URL");
-              }
-              if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
-                throw new Error("WebDAV 仅支持 HTTP 或 HTTPS 地址");
-              }
-              client = createClient(endpoint.toString(), {
-                username: this.config.username,
-                password: this.config.password
-              });
-              return [4, client.getDirectoryContents(this.rootPath())];
-            case 1:
-              _a.sent();
-              this.client = client;
-              this.connected = true;
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.disconnect = function() {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          this.client = null;
-          this.connected = false;
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.isConnected = function() {
-      return this.connected;
-    };
-    WebDAVAdapter2.prototype.list = function(dirPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        var entries;
-        var _this = this;
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().getDirectoryContents(this.remotePath(dirPath))];
-            case 1:
-              entries = _a.sent();
-              return [2, entries.map(function(entry) {
-                return _this.toFileInfo(entry);
-              }).sort(sortDirectoriesFirst)];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.mkdir = function(dirPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().createDirectory(this.remotePath(dirPath), { recursive: true })];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.rmdir = function(dirPath, recursive) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        var client, target, _i, _a, file;
-        return __generator$g(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              client = this.getClient();
-              target = this.remotePath(dirPath);
-              if (!recursive) return [3, 7];
-              _i = 0;
-              return [4, this.list(dirPath)];
-            case 1:
-              _a = _b.sent();
-              _b.label = 2;
-            case 2:
-              if (!(_i < _a.length)) return [3, 7];
-              file = _a[_i];
-              if (!file.isDirectory) return [3, 4];
-              return [4, this.rmdir(file.path, true)];
-            case 3:
-              _b.sent();
-              return [3, 6];
-            case 4:
-              return [4, this.delete(file.path)];
-            case 5:
-              _b.sent();
-              _b.label = 6;
-            case 6:
-              _i++;
-              return [3, 2];
-            case 7:
-              return [4, client.deleteFile(target)];
-            case 8:
-              _b.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.readFile = function(filePath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        var result;
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().getFileContents(this.remotePath(filePath), { format: "binary" })];
-            case 1:
-              result = _a.sent();
-              if (typeof result === "string")
-                return [2, Buffer.from(result)];
-              return [2, Buffer.from(result)];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.writeFile = function(filePath, data) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().putFileContents(this.remotePath(filePath), data, { overwrite: true })];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.delete = function(targetPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().deleteFile(this.remotePath(targetPath))];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.rename = function(oldPath, newPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().moveFile(this.remotePath(oldPath), this.remotePath(newPath), { overwrite: true })];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.copy = function(srcPath, dstPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().copyFile(this.remotePath(srcPath), this.remotePath(dstPath), { overwrite: true })];
-            case 1:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.openReadStream = function(filePath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          return [2, this.getClient().createReadStream(this.remotePath(filePath))];
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.openWriteStream = function(filePath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          return [2, this.getClient().createWriteStream(this.remotePath(filePath))];
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.stat = function(targetPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        var entry;
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getClient().stat(this.remotePath(targetPath))];
-            case 1:
-              entry = _a.sent();
-              return [2, this.toFileStats(entry)];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.exists = function(targetPath) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        return __generator$g(this, function(_a) {
-          return [2, this.getClient().exists(this.remotePath(targetPath))];
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.search = function(dirPath, query) {
-      return __awaiter$g(this, void 0, void 0, function() {
-        var matches, pattern, visit;
-        var _this = this;
-        return __generator$g(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              matches = [];
-              pattern = query.pattern.toLocaleLowerCase();
-              visit = function(currentPath) {
-                return __awaiter$g(_this, void 0, void 0, function() {
-                  var files, _i, files_1, file;
-                  return __generator$g(this, function(_b) {
-                    switch (_b.label) {
-                      case 0:
-                        _b.trys.push([0, 2, , 3]);
-                        return [4, this.list(currentPath)];
-                      case 1:
-                        files = _b.sent();
-                        return [3, 3];
-                      case 2:
-                        _b.sent();
-                        return [
-                          2
-                          /*return*/
-                        ];
-                      case 3:
-                        _i = 0, files_1 = files;
-                        _b.label = 4;
-                      case 4:
-                        if (!(_i < files_1.length)) return [3, 7];
-                        file = files_1[_i];
-                        if (file.name.toLocaleLowerCase().includes(pattern))
-                          matches.push(file);
-                        if (!file.isDirectory) return [3, 6];
-                        return [4, visit(file.path)];
-                      case 5:
-                        _b.sent();
-                        _b.label = 6;
-                      case 6:
-                        _i++;
-                        return [3, 4];
-                      case 7:
-                        return [
-                          2
-                          /*return*/
-                        ];
-                    }
-                  });
-                });
-              };
-              return [4, visit(dirPath)];
-            case 1:
-              _a.sent();
-              return [2, matches];
-          }
-        });
-      });
-    };
-    WebDAVAdapter2.prototype.getClient = function() {
-      if (!this.connected || !this.client)
-        throw new Error("WebDAV 设备尚未连接");
-      return this.client;
-    };
-    WebDAVAdapter2.prototype.rootPath = function() {
-      return this.remotePath(this.config.rootPath || "/");
-    };
-    WebDAVAdapter2.prototype.remotePath = function(targetPath) {
-      var normalized = path.posix.normalize(targetPath || "/");
-      return normalized.startsWith("/") ? normalized : "/".concat(normalized);
-    };
-    WebDAVAdapter2.prototype.toFileInfo = function(entry) {
-      var stats = this.toFileStats(entry);
-      return {
-        name: entry.basename,
-        path: this.remotePath(entry.filename),
-        isDirectory: stats.isDirectory,
-        isFile: stats.isFile,
-        size: stats.size,
-        modifiedTime: stats.modifiedTime,
-        createdTime: stats.createdTime,
-        extension: stats.isFile ? path.posix.extname(entry.basename).toLowerCase() : void 0
-      };
-    };
-    WebDAVAdapter2.prototype.toFileStats = function(entry) {
-      var directory = entry.type === "directory";
-      var modified = entry.lastmod ? new Date(entry.lastmod).toISOString() : (/* @__PURE__ */ new Date(0)).toISOString();
-      return {
-        size: Number(entry.size || 0),
-        isDirectory: directory,
-        isFile: !directory,
-        modifiedTime: modified,
-        createdTime: modified,
-        mode: 0
-      };
-    };
-    return WebDAVAdapter2;
-  }()
-);
+}
 function sortDirectoriesFirst(a, b) {
-  if (a.isDirectory !== b.isDirectory)
-    return a.isDirectory ? -1 : 1;
+  if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
   return a.name.localeCompare(b.name);
 }
-var __awaiter$f = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$f = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var addonCache = null;
+let addonCache = null;
 function loadAddon() {
-  if (addonCache)
-    return addonCache;
-  var candidates = [];
+  if (addonCache) return addonCache;
+  const candidates = [];
   try {
     candidates.push(path.join(app.getAppPath(), "native", "iosafc"));
-  } catch (_a) {
+  } catch {
   }
-  for (var _i = 0, _b = ["..", "..", "..", "..", "../../../"]; _i < _b.length; _i++) {
-    var up = _b[_i];
+  for (const up of ["..", "..", "..", "..", "../../../"]) {
     candidates.push(path.join(__dirname, up, "native", "iosafc"));
   }
   try {
     candidates.push(path.join(process.resourcesPath, "ios-native", "iosafc.node"));
-  } catch (_c) {
+  } catch {
   }
   try {
     candidates.push(path.join(app.getAppPath(), "native", "iosafc", "build", "Release", "iosafc.node"));
-  } catch (_d) {
+  } catch {
   }
-  for (var _e = 0, candidates_1 = candidates; _e < candidates_1.length; _e++) {
-    var c = candidates_1[_e];
+  for (const c of candidates) {
     try {
       addonCache = require2(c);
       return addonCache;
-    } catch (_f) {
+    } catch {
     }
   }
-  throw new Error("iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。");
+  throw new Error(
+    "iOS 原生 addon 未构建或未打包。请在 native/iosafc 下 node-gyp build(需 libimobiledevice 开发头文件,且按 Electron ABI 编译)。详见 native/iosafc/README.md。"
+  );
 }
-var iOSAdapter = (
-  /** @class */
-  function() {
-    function iOSAdapter2(deviceId, name, config) {
-      if (config === void 0) {
-        config = {};
+class iOSAdapter {
+  type = "ios";
+  deviceId;
+  name;
+  config;
+  handle = null;
+  connected = false;
+  constructor(deviceId, name, config = {}) {
+    this.deviceId = deviceId;
+    this.name = name;
+    this.config = config;
+  }
+  getCapabilities() {
+    return IOS_CAPABILITIES;
+  }
+  /** 设备 id 形如 "ios:<udid>";libimobiledevice 需要裸 udid。 */
+  udid() {
+    const raw = this.config.deviceId ?? this.deviceId;
+    return raw.startsWith("ios:") ? raw.slice(4) : raw;
+  }
+  async connect() {
+    try {
+      const afc = loadAddon();
+      const handle = afc.connect(this.udid(), false);
+      this.handle = handle;
+      this.connected = true;
+      console.log(`[iOSAdapter] connected: udid=${this.udid()}`);
+    } catch (error) {
+      this.connected = false;
+      this.handle = null;
+      throw error;
+    }
+  }
+  async disconnect() {
+    if (this.handle !== null) {
+      try {
+        loadAddon().disconnect(this.handle);
+      } catch {
       }
-      this.type = "ios";
+    }
+    this.handle = null;
+    this.connected = false;
+  }
+  isConnected() {
+    return this.connected;
+  }
+  /** 发起配对(触发设备端"信任此电脑");供后续 IPC 调用,完成后重试 connect。 */
+  async pair() {
+    return loadAddon().pair(this.udid());
+  }
+  h() {
+    if (!this.connected || this.handle === null) throw new Error("iOS 设备未连接");
+    if (!loadAddon().isPaired(this.udid())) {
+      try {
+        loadAddon().disconnect(this.handle);
+      } catch {
+      }
       this.handle = null;
       this.connected = false;
-      this.deviceId = deviceId;
-      this.name = name;
-      this.config = config;
+      throw new Error("iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。");
     }
-    iOSAdapter2.prototype.getCapabilities = function() {
-      return IOS_CAPABILITIES;
+    return this.handle;
+  }
+  // ============ 文件系统操作 ============
+  async list(dirPath) {
+    const entries = loadAddon().list(this.h(), dirPath);
+    const files = entries.map((e) => this.toFileInfo(dirPath, e));
+    return files.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+  async stat(targetPath) {
+    const s = loadAddon().stat(this.h(), targetPath);
+    return {
+      size: s.size,
+      isDirectory: s.isDirectory,
+      isFile: !s.isDirectory,
+      modifiedTime: new Date(s.mtime).toISOString(),
+      createdTime: new Date(s.mtime).toISOString(),
+      mode: 0
     };
-    iOSAdapter2.prototype.udid = function() {
-      var _a;
-      var raw = (_a = this.config.deviceId) !== null && _a !== void 0 ? _a : this.deviceId;
-      return raw.startsWith("ios:") ? raw.slice(4) : raw;
-    };
-    iOSAdapter2.prototype.connect = function() {
-      return __awaiter$f(this, void 0, void 0, function() {
-        var afc, handle;
-        return __generator$f(this, function(_a) {
-          try {
-            afc = loadAddon();
-            handle = afc.connect(this.udid(), false);
-            this.handle = handle;
-            this.connected = true;
-            console.log("[iOSAdapter] connected: udid=".concat(this.udid()));
-          } catch (error) {
-            this.connected = false;
-            this.handle = null;
-            throw error;
-          }
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    iOSAdapter2.prototype.disconnect = function() {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          if (this.handle !== null) {
-            try {
-              loadAddon().disconnect(this.handle);
-            } catch (_b) {
-            }
-          }
-          this.handle = null;
-          this.connected = false;
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    iOSAdapter2.prototype.isConnected = function() {
-      return this.connected;
-    };
-    iOSAdapter2.prototype.pair = function() {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          return [2, loadAddon().pair(this.udid())];
-        });
-      });
-    };
-    iOSAdapter2.prototype.h = function() {
-      if (!this.connected || this.handle === null)
-        throw new Error("iOS 设备未连接");
-      if (!loadAddon().isPaired(this.udid())) {
-        try {
-          loadAddon().disconnect(this.handle);
-        } catch (_a) {
-        }
-        this.handle = null;
-        this.connected = false;
-        throw new Error("iOS 设备的“信任此电脑”配对已失效。请在设备上重新信任并配对。");
+  }
+  async mkdir(dirPath) {
+    loadAddon().mkdir(this.h(), dirPath);
+  }
+  async rmdir(dirPath, recursive) {
+    if (recursive) {
+      let entries = [];
+      try {
+        entries = loadAddon().list(this.h(), dirPath);
+      } catch {
       }
-      return this.handle;
+      for (const e of entries) {
+        const child = joinPosix$2(dirPath, e.name);
+        if (e.isDirectory) await this.rmdir(child, true);
+        else loadAddon().remove(this.h(), child);
+      }
+    }
+    loadAddon().remove(this.h(), dirPath);
+  }
+  async delete(targetPath) {
+    loadAddon().remove(this.h(), targetPath);
+  }
+  async rename(oldPath, newPath) {
+    loadAddon().rename(this.h(), oldPath, newPath);
+  }
+  async copy(srcPath, dstPath) {
+    const content = await this.readFile(srcPath);
+    await this.writeFile(dstPath, content);
+  }
+  async readFile(filePath) {
+    return loadAddon().readFile(this.h(), filePath);
+  }
+  async writeFile(filePath, data) {
+    const maxFileSize = this.getCapabilities().maxFileSize;
+    if (maxFileSize !== void 0 && data.length > maxFileSize) {
+      throw new Error(`iOS AFC 单文件上限为 ${maxFileSize} 字节，无法写入: ${filePath}`);
+    }
+    try {
+      loadAddon().writeFile(this.h(), filePath, data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`iOS AFC 无法写入 ${filePath}；该位置可能不允许写入或父目录不存在。${message}`);
+    }
+  }
+  async exists(targetPath) {
+    try {
+      await this.stat(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  async search(_dirPath, _query) {
+    throw new Error("iOS 设备不支持搜索(AFC 无通用搜索)");
+  }
+  // ============ 内部工具 ============
+  toFileInfo(dirPath, e) {
+    return {
+      name: e.name,
+      path: joinPosix$2(dirPath, e.name),
+      isDirectory: e.isDirectory,
+      isFile: !e.isDirectory,
+      size: e.size,
+      modifiedTime: new Date(e.mtime).toISOString(),
+      extension: !e.isDirectory ? path.extname(e.name).toLowerCase() : void 0
     };
-    iOSAdapter2.prototype.list = function(dirPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        var entries, files;
-        var _this = this;
-        return __generator$f(this, function(_a) {
-          entries = loadAddon().list(this.h(), dirPath);
-          files = entries.map(function(e) {
-            return _this.toFileInfo(dirPath, e);
-          });
-          return [2, files.sort(function(a, b) {
-            if (a.isDirectory !== b.isDirectory)
-              return a.isDirectory ? -1 : 1;
-            return a.name.localeCompare(b.name);
-          })];
-        });
-      });
-    };
-    iOSAdapter2.prototype.stat = function(targetPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        var s;
-        return __generator$f(this, function(_a) {
-          s = loadAddon().stat(this.h(), targetPath);
-          return [2, {
-            size: s.size,
-            isDirectory: s.isDirectory,
-            isFile: !s.isDirectory,
-            modifiedTime: new Date(s.mtime).toISOString(),
-            createdTime: new Date(s.mtime).toISOString(),
-            mode: 0
-          }];
-        });
-      });
-    };
-    iOSAdapter2.prototype.mkdir = function(dirPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          loadAddon().mkdir(this.h(), dirPath);
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    iOSAdapter2.prototype.rmdir = function(dirPath, recursive) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        var entries, _i, entries_1, e, child;
-        return __generator$f(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (!recursive) return [3, 5];
-              entries = [];
-              try {
-                entries = loadAddon().list(this.h(), dirPath);
-              } catch (_b) {
-              }
-              _i = 0, entries_1 = entries;
-              _a.label = 1;
-            case 1:
-              if (!(_i < entries_1.length)) return [3, 5];
-              e = entries_1[_i];
-              child = joinPosix$2(dirPath, e.name);
-              if (!e.isDirectory) return [3, 3];
-              return [4, this.rmdir(child, true)];
-            case 2:
-              _a.sent();
-              return [3, 4];
-            case 3:
-              loadAddon().remove(this.h(), child);
-              _a.label = 4;
-            case 4:
-              _i++;
-              return [3, 1];
-            case 5:
-              loadAddon().remove(this.h(), dirPath);
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    iOSAdapter2.prototype.delete = function(targetPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          loadAddon().remove(this.h(), targetPath);
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    iOSAdapter2.prototype.rename = function(oldPath, newPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          loadAddon().rename(this.h(), oldPath, newPath);
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    iOSAdapter2.prototype.copy = function(srcPath, dstPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        var content;
-        return __generator$f(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.readFile(srcPath)];
-            case 1:
-              content = _a.sent();
-              return [4, this.writeFile(dstPath, content)];
-            case 2:
-              _a.sent();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    iOSAdapter2.prototype.readFile = function(filePath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          return [2, loadAddon().readFile(this.h(), filePath)];
-        });
-      });
-    };
-    iOSAdapter2.prototype.writeFile = function(filePath, data) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        var maxFileSize, message;
-        return __generator$f(this, function(_a) {
-          maxFileSize = this.getCapabilities().maxFileSize;
-          if (maxFileSize !== void 0 && data.length > maxFileSize) {
-            throw new Error("iOS AFC 单文件上限为 ".concat(maxFileSize, " 字节，无法写入: ").concat(filePath));
-          }
-          try {
-            loadAddon().writeFile(this.h(), filePath, data);
-          } catch (error) {
-            message = error instanceof Error ? error.message : String(error);
-            throw new Error("iOS AFC 无法写入 ".concat(filePath, "；该位置可能不允许写入或父目录不存在。").concat(message));
-          }
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    iOSAdapter2.prototype.exists = function(targetPath) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              _b.trys.push([0, 2, , 3]);
-              return [4, this.stat(targetPath)];
-            case 1:
-              _b.sent();
-              return [2, true];
-            case 2:
-              _b.sent();
-              return [2, false];
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    iOSAdapter2.prototype.search = function(_dirPath, _query) {
-      return __awaiter$f(this, void 0, void 0, function() {
-        return __generator$f(this, function(_a) {
-          throw new Error("iOS 设备不支持搜索(AFC 无通用搜索)");
-        });
-      });
-    };
-    iOSAdapter2.prototype.toFileInfo = function(dirPath, e) {
-      return {
-        name: e.name,
-        path: joinPosix$2(dirPath, e.name),
-        isDirectory: e.isDirectory,
-        isFile: !e.isDirectory,
-        size: e.size,
-        modifiedTime: new Date(e.mtime).toISOString(),
-        extension: !e.isDirectory ? path.extname(e.name).toLowerCase() : void 0
-      };
-    };
-    return iOSAdapter2;
-  }()
-);
+  }
+}
 function joinPosix$2(dir, name) {
-  if (dir.endsWith("/"))
-    return dir + name;
-  return dir === "" ? "/".concat(name) : "".concat(dir, "/").concat(name);
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
 }
 function udidFromId(id) {
   return id.startsWith("ios:") ? id.slice(4) : id;
 }
-function pairIosDevice(deviceId_1) {
-  return __awaiter$f(this, arguments, void 0, function(deviceId, timeoutMs) {
-    var udid, addon, initiated, deadline;
-    if (timeoutMs === void 0) {
-      timeoutMs = 6e4;
-    }
-    return __generator$f(this, function(_a) {
-      switch (_a.label) {
-        case 0:
-          udid = udidFromId(deviceId);
-          try {
-            addon = loadAddon();
-          } catch (e) {
-            return [2, { success: false, error: e instanceof Error ? e.message : String(e) }];
-          }
-          try {
-            initiated = addon.pair(udid);
-            if (!initiated) {
-              return [2, { success: false, error: "发起配对失败 —— 请确认设备已解锁、已插稳" }];
-            }
-          } catch (e) {
-            return [2, { success: false, error: e instanceof Error ? e.message : String(e) }];
-          }
-          deadline = Date.now() + timeoutMs;
-          _a.label = 1;
-        case 1:
-          if (!(Date.now() < deadline)) return [3, 3];
-          return [4, new Promise(function(resolve) {
-            return setTimeout(resolve, 1500);
-          })];
-        case 2:
-          _a.sent();
-          try {
-            if (addon.isPaired(udid))
-              return [2, { success: true }];
-          } catch (_b) {
-          }
-          return [3, 1];
-        case 3:
-          return [2, { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' }];
-      }
-    });
-  });
-}
-var __assign$4 = function() {
-  __assign$4 = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign$4.apply(this, arguments);
-};
-var __awaiter$e = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
+async function pairIosDevice(deviceId, timeoutMs = 6e4) {
+  const udid = udidFromId(deviceId);
+  let addon;
+  try {
+    addon = loadAddon();
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
+  try {
+    const initiated = addon.pair(udid);
+    if (!initiated) {
+      return { success: false, error: "发起配对失败 —— 请确认设备已解锁、已插稳" };
     }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      if (addon.isPaired(udid)) return { success: true };
+    } catch {
     }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
+  }
+  return { success: false, error: '配对超时 —— 未在设备上确认"信任此电脑"' };
+}
+const execAsync = promisify(exec);
+const log$k = {
+  info: (message, ...args) => console.log(`[MobileDeviceScanner] ${message}`, ...args),
+  error: (message, ...args) => console.error(`[MobileDeviceScanner] ${message}`, ...args),
+  debug: (message, ...args) => console.log(`[MobileDeviceScanner] DEBUG: ${message}`, ...args)
 };
-var __generator$e = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
+class MobileDeviceScanner {
+  scannerInterval = null;
+  options;
+  currentDevices = /* @__PURE__ */ new Map();
+  handlers = [];
+  libimobiledeviceInstalled = null;
+  adbAvailable = null;
+  constructor(options = {}) {
+    this.options = {
+      scanInterval: 3e3,
+      autoConnectDevices: [],
+      ...options
     };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
+  /**
+   * Start periodic scanning
+   */
+  start() {
+    if (this.scannerInterval) {
+      this.stop();
+    }
+    log$k.info("Starting mobile device scanner", { interval: this.options.scanInterval });
+    this.scan();
+    this.scannerInterval = setInterval(() => {
+      this.scan();
+    }, this.options.scanInterval);
+  }
+  /**
+   * Stop scanning
+   */
+  stop() {
+    if (this.scannerInterval) {
+      clearInterval(this.scannerInterval);
+      this.scannerInterval = null;
+      log$k.info("Mobile device scanner stopped");
+    }
+  }
+  /**
+   * Perform a single scan
+   */
+  async scan() {
+    const devices = [];
+    const added = [];
+    const removed = [];
+    try {
+      if (this.adbAvailable === null) {
+        this.adbAvailable = await this.checkAdbInstalled();
+      }
+      if (this.libimobiledeviceInstalled === null) {
+        this.libimobiledeviceInstalled = await this.checkLibimobiledeviceInstalled();
+      }
+      if (this.adbAvailable) {
+        const androidDevices = await this.scanAndroid();
+        devices.push(...androidDevices);
+      } else {
+        log$k.info("ADB not available, skipping Android scan");
+      }
+      if (this.libimobiledeviceInstalled) {
+        const iosDevices = await this.scanIOS();
+        devices.push(...iosDevices);
+      } else {
+        log$k.debug("libimobiledevice not available, skipping iOS scan");
+      }
+    } catch (error) {
+      log$k.error("Mobile device scan error:", error);
+    }
+    const newIds = new Set(devices.map((d) => d.id));
+    const oldIds = new Set(this.currentDevices.keys());
+    for (const device of devices) {
+      if (!oldIds.has(device.id)) {
+        added.push(device);
+      }
+    }
+    for (const oldId of Array.from(oldIds)) {
+      if (!newIds.has(oldId)) {
+        removed.push(oldId);
+      }
+    }
+    if (added.length > 0) {
+      log$k.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
+    }
+    if (removed.length > 0) {
+      log$k.info("Devices removed:", removed);
+    }
+    const changed = devices.some((device) => {
+      const previous = this.currentDevices.get(device.id);
+      return !!previous && !sameDetectedDevice(previous, device);
+    });
+    this.currentDevices.clear();
+    for (const device of devices) {
+      this.currentDevices.set(device.id, device);
+    }
+    if (added.length > 0 || removed.length > 0 || changed) {
+      this.notifyHandlers(devices, added, removed);
+    }
+    return devices;
+  }
+  /**
+   * Register a device change handler
+   */
+  onDeviceChange(handler) {
+    this.handlers.push(handler);
+    return () => {
+      const index = this.handlers.indexOf(handler);
+      if (index > -1) {
+        this.handlers.splice(index, 1);
+      }
+    };
+  }
+  /**
+   * Get current detected devices
+   */
+  getDevices() {
+    return Array.from(this.currentDevices.values());
+  }
+  /**
+   * Get a specific device by ID
+   */
+  getDevice(id) {
+    return this.currentDevices.get(id);
+  }
+  /**
+   * Check if libimobiledevice is installed
+   */
+  async checkLibimobiledeviceInstalled() {
+    try {
+      const { stdout, stderr } = await execAsync("which idevice_id");
+      log$k.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      return !!stdout.trim();
+    } catch (error) {
+      log$k.debug("libimobiledevice check failed:", error);
+      return false;
+    }
+  }
+  /**
+   * Check if ADB is installed
+   */
+  async checkAdbInstalled() {
+    const bundled = ToolPathResolver.getAdbPath();
+    if (bundled) {
+      log$k.debug("adb resolved (bundled):", bundled);
+      return true;
+    }
+    try {
+      const { stdout, stderr } = await execAsync("which adb");
+      log$k.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
+      return !!stdout.trim();
+    } catch (error) {
+      log$k.debug("ADB check failed:", error);
+      return false;
+    }
+  }
+  /**
+   * Scan for Android devices using ADB
+   */
+  async scanAndroid() {
+    const devices = [];
+    try {
+      const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`);
+      if (stderr) {
+        log$k.debug("ADB command stderr:", stderr);
+      }
+      const lines = stdout.trim().split("\n");
+      for (const line of lines) {
+        if (!line.trim() || line.includes("List of devices")) {
           continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
+        }
+        const match = line.match(/^(\S+)\s+(.+)$/);
+        if (match) {
+          const serial = match[1];
+          const deviceInfo = match[2].trim();
+          const stateMatch = deviceInfo.match(/^(\S+)/);
+          const state = stateMatch ? stateMatch[1] : "unknown";
+          if (state === "offline") {
+            log$k.info("Device offline, skipping:", serial);
             continue;
           }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
+          if (state === "unauthorized") {
+            log$k.info("Device unauthorized (needs USB debugging authorization):", serial);
+            devices.push({
+              id: `android:${serial}`,
+              type: "android",
+              name: "Unauthorized Device",
+              model: deviceInfo
+            });
+            continue;
           }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
+          let model = "Android Device";
+          const modelMatch = deviceInfo.match(/model:([^\s]+)/);
+          if (modelMatch) {
+            model = modelMatch[1].replace(/_/g, " ");
+            log$k.debug("Extracted model name:", model);
           }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
+          let product = "";
+          const productMatch = deviceInfo.match(/product:([^\s]+)/);
+          if (productMatch) {
+            product = productMatch[1];
           }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var __spreadArray$5 = function(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-    if (ar || !(i in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-      ar[i] = from[i];
-    }
-  }
-  return to.concat(ar || Array.prototype.slice.call(from));
-};
-var execAsync = promisify(exec);
-var log$c = {
-  info: function(message) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-      args[_i - 1] = arguments[_i];
-    }
-    return console.log.apply(console, __spreadArray$5(["[MobileDeviceScanner] ".concat(message)], args, false));
-  },
-  error: function(message) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-      args[_i - 1] = arguments[_i];
-    }
-    return console.error.apply(console, __spreadArray$5(["[MobileDeviceScanner] ".concat(message)], args, false));
-  },
-  debug: function(message) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-      args[_i - 1] = arguments[_i];
-    }
-    return console.log.apply(console, __spreadArray$5(["[MobileDeviceScanner] DEBUG: ".concat(message)], args, false));
-  }
-};
-var MobileDeviceScanner = (
-  /** @class */
-  function() {
-    function MobileDeviceScanner2(options) {
-      if (options === void 0) {
-        options = {};
-      }
-      this.scannerInterval = null;
-      this.currentDevices = /* @__PURE__ */ new Map();
-      this.handlers = [];
-      this.libimobiledeviceInstalled = null;
-      this.adbAvailable = null;
-      this.options = __assign$4({ scanInterval: 3e3, autoConnectDevices: [] }, options);
-    }
-    MobileDeviceScanner2.prototype.start = function() {
-      var _this = this;
-      if (this.scannerInterval) {
-        this.stop();
-      }
-      log$c.info("Starting mobile device scanner", { interval: this.options.scanInterval });
-      this.scan();
-      this.scannerInterval = setInterval(function() {
-        _this.scan();
-      }, this.options.scanInterval);
-    };
-    MobileDeviceScanner2.prototype.stop = function() {
-      if (this.scannerInterval) {
-        clearInterval(this.scannerInterval);
-        this.scannerInterval = null;
-        log$c.info("Mobile device scanner stopped");
-      }
-    };
-    MobileDeviceScanner2.prototype.scan = function() {
-      return __awaiter$e(this, void 0, void 0, function() {
-        var devices, added, removed, _a, _b, androidDevices, iosDevices, error_1, newIds, oldIds, _i, devices_1, device, _c, _d, oldId, changed, _e, devices_2, device;
-        var _this = this;
-        return __generator$e(this, function(_f) {
-          switch (_f.label) {
-            case 0:
-              devices = [];
-              added = [];
-              removed = [];
-              _f.label = 1;
-            case 1:
-              _f.trys.push([1, 12, , 13]);
-              if (!(this.adbAvailable === null)) return [3, 3];
-              _a = this;
-              return [
-                4,
-                this.checkAdbInstalled()
-                // log.info('ADB availability check result:', this.adbAvailable)
-              ];
-            case 2:
-              _a.adbAvailable = _f.sent();
-              _f.label = 3;
-            case 3:
-              if (!(this.libimobiledeviceInstalled === null)) return [3, 5];
-              _b = this;
-              return [
-                4,
-                this.checkLibimobiledeviceInstalled()
-                // log.info('libimobiledevice availability check result:', this.libimobiledeviceInstalled)
-              ];
-            case 4:
-              _b.libimobiledeviceInstalled = _f.sent();
-              _f.label = 5;
-            case 5:
-              if (!this.adbAvailable) return [3, 7];
-              return [
-                4,
-                this.scanAndroid()
-                // log.debug('Android devices found:', androidDevices.length, androidDevices)
-              ];
-            case 6:
-              androidDevices = _f.sent();
-              devices.push.apply(devices, androidDevices);
-              return [3, 8];
-            case 7:
-              log$c.info("ADB not available, skipping Android scan");
-              _f.label = 8;
-            case 8:
-              if (!this.libimobiledeviceInstalled) return [3, 10];
-              return [
-                4,
-                this.scanIOS()
-                // log.debug('iOS devices found:', iosDevices.length, iosDevices)
-              ];
-            case 9:
-              iosDevices = _f.sent();
-              devices.push.apply(devices, iosDevices);
-              return [3, 11];
-            case 10:
-              log$c.debug("libimobiledevice not available, skipping iOS scan");
-              _f.label = 11;
-            case 11:
-              return [3, 13];
-            case 12:
-              error_1 = _f.sent();
-              log$c.error("Mobile device scan error:", error_1);
-              return [3, 13];
-            case 13:
-              newIds = new Set(devices.map(function(d) {
-                return d.id;
-              }));
-              oldIds = new Set(this.currentDevices.keys());
-              for (_i = 0, devices_1 = devices; _i < devices_1.length; _i++) {
-                device = devices_1[_i];
-                if (!oldIds.has(device.id)) {
-                  added.push(device);
-                }
-              }
-              for (_c = 0, _d = Array.from(oldIds); _c < _d.length; _c++) {
-                oldId = _d[_c];
-                if (!newIds.has(oldId)) {
-                  removed.push(oldId);
-                }
-              }
-              if (added.length > 0) {
-                log$c.info("Devices added:", added.map(function(d) {
-                  return { id: d.id, name: d.name, type: d.type };
-                }));
-              }
-              if (removed.length > 0) {
-                log$c.info("Devices removed:", removed);
-              }
-              changed = devices.some(function(device2) {
-                var previous = _this.currentDevices.get(device2.id);
-                return !!previous && !sameDetectedDevice(previous, device2);
-              });
-              this.currentDevices.clear();
-              for (_e = 0, devices_2 = devices; _e < devices_2.length; _e++) {
-                device = devices_2[_e];
-                this.currentDevices.set(device.id, device);
-              }
-              if (added.length > 0 || removed.length > 0 || changed) {
-                this.notifyHandlers(devices, added, removed);
-              }
-              return [2, devices];
-          }
-        });
-      });
-    };
-    MobileDeviceScanner2.prototype.onDeviceChange = function(handler) {
-      var _this = this;
-      this.handlers.push(handler);
-      return function() {
-        var index = _this.handlers.indexOf(handler);
-        if (index > -1) {
-          _this.handlers.splice(index, 1);
+          devices.push({
+            id: `android:${serial}`,
+            type: "android",
+            name: model,
+            model: deviceInfo
+          });
+        } else {
+          log$k.debug("Line did not match device pattern:", line);
         }
-      };
-    };
-    MobileDeviceScanner2.prototype.getDevices = function() {
-      return Array.from(this.currentDevices.values());
-    };
-    MobileDeviceScanner2.prototype.getDevice = function(id) {
-      return this.currentDevices.get(id);
-    };
-    MobileDeviceScanner2.prototype.checkLibimobiledeviceInstalled = function() {
-      return __awaiter$e(this, void 0, void 0, function() {
-        var _a, stdout, stderr, error_2;
-        return __generator$e(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              _b.trys.push([0, 2, , 3]);
-              return [4, execAsync("which idevice_id")];
-            case 1:
-              _a = _b.sent(), stdout = _a.stdout, stderr = _a.stderr;
-              log$c.debug("idevice_id path:", stdout.trim() || "not found", stderr ? "stderr: ".concat(stderr) : "");
-              return [2, !!stdout.trim()];
-            case 2:
-              error_2 = _b.sent();
-              log$c.debug("libimobiledevice check failed:", error_2);
-              return [2, false];
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    MobileDeviceScanner2.prototype.checkAdbInstalled = function() {
-      return __awaiter$e(this, void 0, void 0, function() {
-        var bundled, _a, stdout, stderr, error_3;
-        return __generator$e(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              bundled = ToolPathResolver.getAdbPath();
-              if (bundled) {
-                log$c.debug("adb resolved (bundled):", bundled);
-                return [2, true];
-              }
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 3, , 4]);
-              return [4, execAsync("which adb")];
-            case 2:
-              _a = _b.sent(), stdout = _a.stdout, stderr = _a.stderr;
-              log$c.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? "stderr: ".concat(stderr) : "");
-              return [2, !!stdout.trim()];
-            case 3:
-              error_3 = _b.sent();
-              log$c.debug("ADB check failed:", error_3);
-              return [2, false];
-            case 4:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    MobileDeviceScanner2.prototype.scanAndroid = function() {
-      return __awaiter$e(this, void 0, void 0, function() {
-        var devices, _a, stdout, stderr, lines, _i, lines_1, line, match, serial, deviceInfo, stateMatch, state, model, modelMatch, productMatch, error_4;
-        return __generator$e(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              devices = [];
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 3, , 4]);
-              return [
-                4,
-                execAsync("".concat(ToolPathResolver.getAdbExecutable(), " devices -l"))
-                // log.debug('ADB command stdout:', JSON.stringify(stdout))
-              ];
-            case 2:
-              _a = _b.sent(), stdout = _a.stdout, stderr = _a.stderr;
-              if (stderr) {
-                log$c.debug("ADB command stderr:", stderr);
-              }
-              lines = stdout.trim().split("\n");
-              for (_i = 0, lines_1 = lines; _i < lines_1.length; _i++) {
-                line = lines_1[_i];
-                if (!line.trim() || line.includes("List of devices")) {
-                  continue;
-                }
-                match = line.match(/^(\S+)\s+(.+)$/);
-                if (match) {
-                  serial = match[1];
-                  deviceInfo = match[2].trim();
-                  stateMatch = deviceInfo.match(/^(\S+)/);
-                  state = stateMatch ? stateMatch[1] : "unknown";
-                  if (state === "offline") {
-                    log$c.info("Device offline, skipping:", serial);
-                    continue;
-                  }
-                  if (state === "unauthorized") {
-                    log$c.info("Device unauthorized (needs USB debugging authorization):", serial);
-                    devices.push({
-                      id: "android:".concat(serial),
-                      type: "android",
-                      name: "Unauthorized Device",
-                      model: deviceInfo
-                    });
-                    continue;
-                  }
-                  model = "Android Device";
-                  modelMatch = deviceInfo.match(/model:([^\s]+)/);
-                  if (modelMatch) {
-                    model = modelMatch[1].replace(/_/g, " ");
-                    log$c.debug("Extracted model name:", model);
-                  }
-                  productMatch = deviceInfo.match(/product:([^\s]+)/);
-                  if (productMatch) {
-                    productMatch[1];
-                  }
-                  devices.push({
-                    id: "android:".concat(serial),
-                    type: "android",
-                    name: model,
-                    model: deviceInfo
-                  });
-                } else {
-                  log$c.debug("Line did not match device pattern:", line);
-                }
-              }
-              return [3, 4];
-            case 3:
-              error_4 = _b.sent();
-              log$c.error("Android scan error:", error_4);
-              if (error_4 instanceof Error) {
-                log$c.error("Error message:", error_4.message);
-                log$c.error("Error stack:", error_4.stack);
-              }
-              return [3, 4];
-            case 4:
-              return [2, devices];
-          }
-        });
-      });
-    };
-    MobileDeviceScanner2.prototype.scanIOS = function() {
-      return __awaiter$e(this, void 0, void 0, function() {
-        var devices, _a, stdout, stderr, udidList, _i, udidList_1, udid, deviceName, _b, nameOutput, nameStderr, nameError_1, pairingStatus, _c, pairOutput, pairStderr, pairError_1, error_5, error_6;
-        return __generator$e(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              devices = [];
-              _d.label = 1;
-            case 1:
-              _d.trys.push([1, 16, , 17]);
-              return [
-                4,
-                execAsync('idevice_id -l 2>/dev/null || echo ""')
-                // log.debug('idevice_id stdout:', JSON.stringify(stdout))
-              ];
-            case 2:
-              _a = _d.sent(), stdout = _a.stdout, stderr = _a.stderr;
-              if (stderr) {
-                log$c.debug("idevice_id stderr:", stderr);
-              }
-              udidList = stdout.trim().split("\n").filter(function(line) {
-                return line.trim();
-              });
-              _i = 0, udidList_1 = udidList;
-              _d.label = 3;
-            case 3:
-              if (!(_i < udidList_1.length)) return [3, 15];
-              udid = udidList_1[_i];
-              if (!udid.trim())
-                return [3, 14];
-              log$c.debug("Processing iOS device:", udid);
-              _d.label = 4;
-            case 4:
-              _d.trys.push([4, 13, , 14]);
-              deviceName = "iOS Device";
-              _d.label = 5;
-            case 5:
-              _d.trys.push([5, 7, , 8]);
-              log$c.debug("Getting device name for ".concat(udid, "..."));
-              return [4, execAsync("ideviceinfo -u ".concat(udid, ' -k DeviceName 2>/dev/null || echo ""'))];
-            case 6:
-              _b = _d.sent(), nameOutput = _b.stdout, nameStderr = _b.stderr;
-              log$c.debug("ideviceinfo name output:", nameOutput, nameStderr);
-              if (nameOutput.trim()) {
-                deviceName = nameOutput.trim();
-              }
-              return [3, 8];
-            case 7:
-              nameError_1 = _d.sent();
-              log$c.debug("Failed to get device name:", nameError_1);
-              return [3, 8];
-            case 8:
-              pairingStatus = "unpaired";
-              _d.label = 9;
-            case 9:
-              _d.trys.push([9, 11, , 12]);
-              log$c.debug("Checking pairing status for ".concat(udid, "..."));
-              return [4, execAsync("idevicepair validate -u ".concat(udid, ' 2>/dev/null || echo ""'))];
-            case 10:
-              _c = _d.sent(), pairOutput = _c.stdout, pairStderr = _c.stderr;
-              log$c.debug("idevicepair output:", pairOutput, pairStderr);
-              if (pairOutput.includes("SUCCESS")) {
-                pairingStatus = "paired";
-              } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
-                pairingStatus = "unpaired";
-                log$c.info("iOS device ".concat(udid, " needs pairing"));
-              }
-              return [3, 12];
-            case 11:
-              pairError_1 = _d.sent();
-              log$c.debug("Failed to check pairing status:", pairError_1);
-              pairingStatus = "unpaired";
-              return [3, 12];
-            case 12:
-              log$c.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
-              devices.push({
-                id: "ios:".concat(udid),
-                type: "ios",
-                name: deviceName,
-                pairingStatus
-              });
-              return [3, 14];
-            case 13:
-              error_5 = _d.sent();
-              log$c.error("iOS device ".concat(udid, " scan error:"), error_5);
-              return [3, 14];
-            case 14:
-              _i++;
-              return [3, 3];
-            case 15:
-              return [3, 17];
-            case 16:
-              error_6 = _d.sent();
-              log$c.error("iOS scan error:", error_6);
-              if (error_6 instanceof Error) {
-                log$c.error("Error message:", error_6.message);
-              }
-              return [3, 17];
-            case 17:
-              return [2, devices];
-          }
-        });
-      });
-    };
-    MobileDeviceScanner2.prototype.shouldAutoConnect = function(deviceId) {
-      return this.options.autoConnectDevices.includes(deviceId);
-    };
-    MobileDeviceScanner2.prototype.notifyHandlers = function(devices, added, removed) {
-      log$c.debug("Notifying ".concat(this.handlers.length, " handlers"));
-      for (var _i = 0, _a = this.handlers; _i < _a.length; _i++) {
-        var handler = _a[_i];
+      }
+    } catch (error) {
+      log$k.error("Android scan error:", error);
+      if (error instanceof Error) {
+        log$k.error("Error message:", error.message);
+        log$k.error("Error stack:", error.stack);
+      }
+    }
+    return devices;
+  }
+  /**
+   * Scan for iOS devices using libimobiledevice
+   */
+  async scanIOS() {
+    const devices = [];
+    try {
+      const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""');
+      if (stderr) {
+        log$k.debug("idevice_id stderr:", stderr);
+      }
+      const udidList = stdout.trim().split("\n").filter((line) => line.trim());
+      for (const udid of udidList) {
+        if (!udid.trim()) continue;
+        log$k.debug("Processing iOS device:", udid);
         try {
-          handler(devices, added, removed);
+          let deviceName = "iOS Device";
+          try {
+            log$k.debug(`Getting device name for ${udid}...`);
+            const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
+              `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
+            );
+            log$k.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
+            if (nameOutput.trim()) {
+              deviceName = nameOutput.trim();
+            }
+          } catch (nameError) {
+            log$k.debug("Failed to get device name:", nameError);
+          }
+          let pairingStatus = "unpaired";
+          try {
+            log$k.debug(`Checking pairing status for ${udid}...`);
+            const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
+              `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
+            );
+            log$k.debug(`idevicepair output:`, pairOutput, pairStderr);
+            if (pairOutput.includes("SUCCESS")) {
+              pairingStatus = "paired";
+            } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
+              pairingStatus = "unpaired";
+              log$k.info(`iOS device ${udid} needs pairing`);
+            }
+          } catch (pairError) {
+            log$k.debug("Failed to check pairing status:", pairError);
+            pairingStatus = "unpaired";
+          }
+          log$k.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
+          devices.push({
+            id: `ios:${udid}`,
+            type: "ios",
+            name: deviceName,
+            pairingStatus
+          });
         } catch (error) {
-          log$c.error("Device change handler error:", error);
+          log$k.error(`iOS device ${udid} scan error:`, error);
         }
       }
-    };
-    MobileDeviceScanner2.prototype.isLibimobiledeviceAvailable = function() {
-      return this.libimobiledeviceInstalled;
-    };
-    MobileDeviceScanner2.prototype.isAdbAvailable = function() {
-      return this.adbAvailable;
-    };
-    return MobileDeviceScanner2;
-  }()
-);
+    } catch (error) {
+      log$k.error("iOS scan error:", error);
+      if (error instanceof Error) {
+        log$k.error("Error message:", error.message);
+      }
+    }
+    return devices;
+  }
+  /**
+   * Check if a device should auto-connect
+   */
+  shouldAutoConnect(deviceId) {
+    return this.options.autoConnectDevices.includes(deviceId);
+  }
+  /**
+   * Notify all handlers of device changes
+   */
+  notifyHandlers(devices, added, removed) {
+    log$k.debug(`Notifying ${this.handlers.length} handlers`);
+    for (const handler of this.handlers) {
+      try {
+        handler(devices, added, removed);
+      } catch (error) {
+        log$k.error("Device change handler error:", error);
+      }
+    }
+  }
+  /**
+   * Check if libimobiledevice is available
+   */
+  isLibimobiledeviceAvailable() {
+    return this.libimobiledeviceInstalled;
+  }
+  /**
+   * Check if ADB is available
+   */
+  isAdbAvailable() {
+    return this.adbAvailable;
+  }
+}
 function sameDetectedDevice(a, b) {
   return a.id === b.id && a.type === b.type && a.name === b.name && a.model === b.model && a.pairingStatus === b.pairingStatus;
 }
-var __awaiter$d = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
+const log$j = console;
+class MobileDiscoveryService {
+  constructor(configService2) {
+    this.configService = configService2;
+    const config = this.configService.getConfig();
+    const autoConnectList = config?.settings?.autoConnectDevices || [];
+    this.autoConnectDevices = new Set(autoConnectList || []);
+    this.scanner = new MobileDeviceScanner({
+      scanInterval: 3e3,
+      autoConnectDevices: autoConnectList
     });
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
+  scanner;
+  autoConnectDevices = /* @__PURE__ */ new Set();
+  /**
+   * 订阅发现事件（total/added/removed 三段语义与 MobileDeviceScanner 一致），
+   * 返回取消订阅函数。发现结果的设备注册/自动连接编排归 DeviceManager。
+   */
+  onDeviceChange(handler) {
+    return this.scanner.onDeviceChange(handler);
+  }
+  /** Start mobile device scanning */
+  start() {
+    this.scanner.start();
+  }
+  /** Stop mobile device scanning */
+  stop() {
+    this.scanner.stop();
+  }
+  /** Perform an immediate scan */
+  async scan() {
+    return this.scanner.scan();
+  }
+  /** 指定设备是否配置了自动连接 */
+  hasAutoConnect(deviceId) {
+    return this.autoConnectDevices.has(deviceId);
+  }
+  /** Remember a mobile device for auto-connect */
+  async rememberDevice(deviceId) {
+    this.autoConnectDevices.add(deviceId);
+    await this.saveAutoConnectDevices();
+    log$j.log(`[MobileDiscovery] remembered auto-connect device: ${deviceId}`);
+  }
+  /** Forget a mobile device (remove from auto-connect) */
+  async forgetDevice(deviceId) {
+    this.autoConnectDevices.delete(deviceId);
+    await this.saveAutoConnectDevices();
+    log$j.log(`[MobileDiscovery] forgot auto-connect device: ${deviceId}`);
+  }
+  /** Get list of auto-connect device IDs */
+  getAutoConnectDevices() {
+    return Array.from(this.autoConnectDevices);
+  }
+  /** Check if libimobiledevice is installed */
+  async isLibimobiledeviceInstalled() {
+    return this.scanner.checkLibimobiledeviceInstalled();
+  }
+  /** Get all detected mobile devices */
+  getDevices() {
+    return this.scanner.getDevices();
+  }
+  /** Get a specific detected mobile device */
+  getDevice(deviceId) {
+    return this.scanner.getDevice(deviceId);
+  }
+  /** Save auto-connect devices to config */
+  async saveAutoConnectDevices() {
+    const config = this.configService.getConfig() || { devices: [], favorites: [], settings: {} };
+    config.settings = config.settings || {};
+    config.settings.autoConnectDevices = this.getAutoConnectDevices();
+    this.configService.saveConfig(config);
+  }
+}
+const log$i = console;
+class AdapterConnectionManager {
+  constructor(credentialService2, factory, hooks) {
+    this.credentialService = credentialService2;
+    this.factory = factory;
+    this.hooks = hooks;
+  }
+  adapters = /* @__PURE__ */ new Map();
+  connectionAttempts = /* @__PURE__ */ new Map();
+  /** 适配器是否已注册（连接中/已连接均算） */
+  hasAdapter(deviceId) {
+    return this.adapters.has(deviceId);
+  }
+  /** 取已注册适配器（无则抛错；需要安全探测用 tryGetAdapter） */
+  getAdapter(deviceId) {
+    const adapter = this.adapters.get(deviceId);
+    if (!adapter) {
+      throw new Error(`No adapter for device: ${deviceId}. Device may not be connected.`);
+    }
+    return adapter;
+  }
+  /** 取已注册适配器（无则 undefined），不抛错 */
+  tryGetAdapter(deviceId) {
+    return this.adapters.get(deviceId);
+  }
+  /** 直接注册适配器（local 常驻适配器等无需 connect 流程的场景） */
+  setAdapter(deviceId, adapter) {
+    this.adapters.set(deviceId, adapter);
+  }
+  /**
+   * 连接设备：凭据 → 工厂建适配器 → adapter.connect()。
+   * 状态经 hooks.onStatus 回报（connecting → connected / disconnected）。
+   */
+  async connect(device) {
+    const deviceId = device.id;
+    if (device.status === "connected" && this.adapters.has(deviceId)) {
+      return;
+    }
+    const pending = this.connectionAttempts.get(deviceId);
+    if (pending) return pending;
+    const attempt = (async () => {
+      this.hooks.onStatus(deviceId, "connecting");
       try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$d = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var log$b = console;
-var MobileDiscoveryService = (
-  /** @class */
-  function() {
-    function MobileDiscoveryService2(configService2) {
-      var _a;
-      this.configService = configService2;
-      this.autoConnectDevices = /* @__PURE__ */ new Set();
-      var config = this.configService.getConfig();
-      var autoConnectList = ((_a = config === null || config === void 0 ? void 0 : config.settings) === null || _a === void 0 ? void 0 : _a.autoConnectDevices) || [];
-      this.autoConnectDevices = new Set(autoConnectList || []);
-      this.scanner = new MobileDeviceScanner({
-        scanInterval: 3e3,
-        autoConnectDevices: autoConnectList
-      });
-    }
-    MobileDiscoveryService2.prototype.onDeviceChange = function(handler) {
-      return this.scanner.onDeviceChange(handler);
-    };
-    MobileDiscoveryService2.prototype.start = function() {
-      this.scanner.start();
-    };
-    MobileDiscoveryService2.prototype.stop = function() {
-      this.scanner.stop();
-    };
-    MobileDiscoveryService2.prototype.scan = function() {
-      return __awaiter$d(this, void 0, void 0, function() {
-        return __generator$d(this, function(_a) {
-          return [2, this.scanner.scan()];
-        });
-      });
-    };
-    MobileDiscoveryService2.prototype.hasAutoConnect = function(deviceId) {
-      return this.autoConnectDevices.has(deviceId);
-    };
-    MobileDiscoveryService2.prototype.rememberDevice = function(deviceId) {
-      return __awaiter$d(this, void 0, void 0, function() {
-        return __generator$d(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              this.autoConnectDevices.add(deviceId);
-              return [4, this.saveAutoConnectDevices()];
-            case 1:
-              _a.sent();
-              log$b.log("[MobileDiscovery] remembered auto-connect device: ".concat(deviceId));
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    MobileDiscoveryService2.prototype.forgetDevice = function(deviceId) {
-      return __awaiter$d(this, void 0, void 0, function() {
-        return __generator$d(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              this.autoConnectDevices.delete(deviceId);
-              return [4, this.saveAutoConnectDevices()];
-            case 1:
-              _a.sent();
-              log$b.log("[MobileDiscovery] forgot auto-connect device: ".concat(deviceId));
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    MobileDiscoveryService2.prototype.getAutoConnectDevices = function() {
-      return Array.from(this.autoConnectDevices);
-    };
-    MobileDiscoveryService2.prototype.isLibimobiledeviceInstalled = function() {
-      return __awaiter$d(this, void 0, void 0, function() {
-        return __generator$d(this, function(_a) {
-          return [2, this.scanner.checkLibimobiledeviceInstalled()];
-        });
-      });
-    };
-    MobileDiscoveryService2.prototype.getDevices = function() {
-      return this.scanner.getDevices();
-    };
-    MobileDiscoveryService2.prototype.getDevice = function(deviceId) {
-      return this.scanner.getDevice(deviceId);
-    };
-    MobileDiscoveryService2.prototype.saveAutoConnectDevices = function() {
-      return __awaiter$d(this, void 0, void 0, function() {
-        var config;
-        return __generator$d(this, function(_a) {
-          config = this.configService.getConfig() || { devices: [], favorites: [], settings: {} };
-          config.settings = config.settings || {};
-          config.settings.autoConnectDevices = this.getAutoConnectDevices();
-          this.configService.saveConfig(config);
-          return [
-            2
-            /*return*/
-          ];
-        });
-      });
-    };
-    return MobileDiscoveryService2;
-  }()
-);
-var __awaiter$c = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$c = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var log$a = console;
-var AdapterConnectionManager = (
-  /** @class */
-  function() {
-    function AdapterConnectionManager2(credentialService2, factory, hooks) {
-      this.credentialService = credentialService2;
-      this.factory = factory;
-      this.hooks = hooks;
-      this.adapters = /* @__PURE__ */ new Map();
-      this.connectionAttempts = /* @__PURE__ */ new Map();
-    }
-    AdapterConnectionManager2.prototype.hasAdapter = function(deviceId) {
-      return this.adapters.has(deviceId);
-    };
-    AdapterConnectionManager2.prototype.getAdapter = function(deviceId) {
-      var adapter = this.adapters.get(deviceId);
-      if (!adapter) {
-        throw new Error("No adapter for device: ".concat(deviceId, ". Device may not be connected."));
-      }
-      return adapter;
-    };
-    AdapterConnectionManager2.prototype.tryGetAdapter = function(deviceId) {
-      return this.adapters.get(deviceId);
-    };
-    AdapterConnectionManager2.prototype.setAdapter = function(deviceId, adapter) {
-      this.adapters.set(deviceId, adapter);
-    };
-    AdapterConnectionManager2.prototype.connect = function(device) {
-      return __awaiter$c(this, void 0, void 0, function() {
-        var deviceId, pending, attempt;
-        var _this = this;
-        return __generator$c(this, function(_a) {
-          deviceId = device.id;
-          if (device.status === "connected" && this.adapters.has(deviceId)) {
-            return [
-              2
-              /*return*/
-            ];
-          }
-          pending = this.connectionAttempts.get(deviceId);
-          if (pending)
-            return [2, pending];
-          attempt = function() {
-            return __awaiter$c(_this, void 0, void 0, function() {
-              var credentials, adapter, error_1, adapter;
-              return __generator$c(this, function(_b) {
-                switch (_b.label) {
-                  case 0:
-                    this.hooks.onStatus(deviceId, "connecting");
-                    _b.label = 1;
-                  case 1:
-                    _b.trys.push([1, 5, 10, 11]);
-                    return [
-                      4,
-                      this.credentialService.get(deviceId)
-                      // Create adapter
-                    ];
-                  case 2:
-                    credentials = _b.sent();
-                    return [4, this.factory(device, credentials)];
-                  case 3:
-                    adapter = _b.sent();
-                    this.adapters.set(deviceId, adapter);
-                    return [4, adapter.connect()];
-                  case 4:
-                    _b.sent();
-                    this.hooks.onStatus(deviceId, "connected");
-                    return [3, 11];
-                  case 5:
-                    error_1 = _b.sent();
-                    adapter = this.adapters.get(deviceId);
-                    _b.label = 6;
-                  case 6:
-                    _b.trys.push([6, 8, , 9]);
-                    return [4, adapter === null || adapter === void 0 ? void 0 : adapter.disconnect()];
-                  case 7:
-                    _b.sent();
-                    return [3, 9];
-                  case 8:
-                    _b.sent();
-                    return [3, 9];
-                  case 9:
-                    this.adapters.delete(deviceId);
-                    log$a.error("[AdapterConnection] 设备连接失败 (".concat(deviceId, "):"), error_1);
-                    this.hooks.onStatus(deviceId, "disconnected");
-                    throw error_1;
-                  case 10:
-                    this.connectionAttempts.delete(deviceId);
-                    return [
-                      7
-                      /*endfinally*/
-                    ];
-                  case 11:
-                    return [
-                      2
-                      /*return*/
-                    ];
-                }
-              });
-            });
-          }();
-          this.connectionAttempts.set(deviceId, attempt);
-          return [2, attempt];
-        });
-      });
-    };
-    AdapterConnectionManager2.prototype.disconnect = function(device) {
-      return __awaiter$c(this, void 0, void 0, function() {
-        var deviceId, adapter;
-        return __generator$c(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              deviceId = device.id;
-              adapter = this.adapters.get(deviceId);
-              if (!adapter) return [3, 2];
-              return [4, adapter.disconnect()];
-            case 1:
-              _a.sent();
-              this.adapters.delete(deviceId);
-              _a.label = 2;
-            case 2:
-              this.hooks.onStatus(deviceId, "disconnected");
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    return AdapterConnectionManager2;
-  }()
-);
-var __assign$3 = function() {
-  __assign$3 = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign$3.apply(this, arguments);
-};
-var __awaiter$b = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$b = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var DeviceManager = (
-  /** @class */
-  function() {
-    function DeviceManager2(configService2, credentialService2) {
-      var _this = this;
-      this.devices = /* @__PURE__ */ new Map();
-      this.handlers = [];
-      this.configService = configService2;
-      this.credentialService = credentialService2;
-      this.mobileDiscovery = new MobileDiscoveryService(configService2);
-      this.mobileDiscovery.onDeviceChange(this.handleMobileDeviceDiscovered.bind(this));
-      this.connections = new AdapterConnectionManager(credentialService2, function(device, credentials) {
-        return _this.createAdapter(device, credentials);
-      }, { onStatus: function(deviceId, status) {
-        return _this.updateDeviceStatus(deviceId, status);
-      } });
-      this.registerDevice({
-        id: "local",
-        type: "local",
-        // DHCP 环境下 hostname 常被注册成 IP（如 192.168.0.3 / xxx.local），
-        // 作为设备名既难看也无区分度，此时回退到「本机」
-        name: this.friendlyLocalDeviceName(),
-        status: "connected",
-        rootPath: "/"
-      });
-      this.connections.setAdapter("local", new LocalAdapter());
-      this.loadSavedDevices();
-    }
-    DeviceManager2.prototype.friendlyLocalDeviceName = function() {
-      var os2 = require2("os");
-      var hostname = os2.hostname().replace(/\.local$/, "");
-      var isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
-      return isIPv4 ? "本机" : hostname;
-    };
-    DeviceManager2.prototype.handleMobileDeviceDiscovered = function(devices, added, removed) {
-      console.log("[DeviceManager] handleMobileDeviceDiscovered called", {
-        totalDevices: devices.length,
-        addedCount: added.length,
-        removedCount: removed.length,
-        added: added.map(function(d) {
-          return { id: d.id, name: d.name, type: d.type };
-        }),
-        removed
-      });
-      var metadataChanged = false;
-      for (var _i = 0, devices_1 = devices; _i < devices_1.length; _i++) {
-        var detected = devices_1[_i];
-        var existing = this.devices.get(detected.id);
-        if (existing) {
-          metadataChanged = metadataChanged || existing.name !== detected.name || existing.model !== detected.model || existing.pairingStatus !== detected.pairingStatus;
-          existing.name = detected.name;
-          existing.model = detected.model;
-          existing.pairingStatus = detected.pairingStatus;
+        const credentials = await this.credentialService.get(deviceId);
+        const adapter = await this.factory(device, credentials);
+        this.adapters.set(deviceId, adapter);
+        await adapter.connect();
+        this.hooks.onStatus(deviceId, "connected");
+      } catch (error) {
+        const adapter = this.adapters.get(deviceId);
+        try {
+          await adapter?.disconnect();
+        } catch {
         }
+        this.adapters.delete(deviceId);
+        log$i.error(`[AdapterConnection] 设备连接失败 (${deviceId}):`, error);
+        this.hooks.onStatus(deviceId, "disconnected");
+        throw error;
+      } finally {
+        this.connectionAttempts.delete(deviceId);
       }
-      for (var _a = 0, added_1 = added; _a < added_1.length; _a++) {
-        var device = added_1[_a];
-        console.log("[DeviceManager] Processing new device:", device.id, device.name);
-        var shouldAutoConnect = this.mobileDiscovery.hasAutoConnect(device.id);
-        this.registerDevice({
+    })();
+    this.connectionAttempts.set(deviceId, attempt);
+    return attempt;
+  }
+  /**
+   * 断开设备：断开并注销适配器，状态回报 disconnected。
+   * 设备对象必须存在（由 DeviceManager 查好传入）。
+   */
+  async disconnect(device) {
+    const deviceId = device.id;
+    const adapter = this.adapters.get(deviceId);
+    if (adapter) {
+      await adapter.disconnect();
+      this.adapters.delete(deviceId);
+    }
+    this.hooks.onStatus(deviceId, "disconnected");
+  }
+}
+class DeviceManager {
+  devices = /* @__PURE__ */ new Map();
+  handlers = [];
+  configService;
+  credentialService;
+  mobileDiscovery;
+  connections;
+  constructor(configService2, credentialService2) {
+    this.configService = configService2;
+    this.credentialService = credentialService2;
+    this.mobileDiscovery = new MobileDiscoveryService(configService2);
+    this.mobileDiscovery.onDeviceChange(this.handleMobileDeviceDiscovered.bind(this));
+    this.connections = new AdapterConnectionManager(
+      credentialService2,
+      (device, credentials) => this.createAdapter(device, credentials),
+      { onStatus: (deviceId, status) => this.updateDeviceStatus(deviceId, status) }
+    );
+    this.registerDevice({
+      id: "local",
+      type: "local",
+      // DHCP 环境下 hostname 常被注册成 IP（如 192.168.0.3 / xxx.local），
+      // 作为设备名既难看也无区分度，此时回退到「本机」
+      name: this.friendlyLocalDeviceName(),
+      status: "connected",
+      rootPath: "/"
+    });
+    this.connections.setAdapter("local", new LocalAdapter());
+    this.loadSavedDevices();
+  }
+  /** 本机设备显示名：hostname 去掉 .local 后缀；若仍是 IP 形式则用「本机」 */
+  friendlyLocalDeviceName() {
+    const os2 = require2("os");
+    const hostname = os2.hostname().replace(/\.local$/, "");
+    const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+    return isIPv4 ? "本机" : hostname;
+  }
+  /**
+   * Handle mobile device discovery events
+   */
+  handleMobileDeviceDiscovered(devices, added, removed) {
+    console.log("[DeviceManager] handleMobileDeviceDiscovered called", {
+      totalDevices: devices.length,
+      addedCount: added.length,
+      removedCount: removed.length,
+      added: added.map((d) => ({ id: d.id, name: d.name, type: d.type })),
+      removed
+    });
+    let metadataChanged = false;
+    for (const detected of devices) {
+      const existing = this.devices.get(detected.id);
+      if (existing) {
+        metadataChanged = metadataChanged || existing.name !== detected.name || existing.model !== detected.model || existing.pairingStatus !== detected.pairingStatus;
+        existing.name = detected.name;
+        existing.model = detected.model;
+        existing.pairingStatus = detected.pairingStatus;
+      }
+    }
+    for (const device of added) {
+      console.log("[DeviceManager] Processing new device:", device.id, device.name);
+      const shouldAutoConnect = this.mobileDiscovery.hasAutoConnect(device.id);
+      this.registerDevice({
+        id: device.id,
+        type: device.type,
+        name: device.name,
+        status: shouldAutoConnect ? "connecting" : "disconnected",
+        rootPath: "/",
+        pairingStatus: device.pairingStatus,
+        model: device.model,
+        config: {
           id: device.id,
           type: device.type,
           name: device.name,
-          status: shouldAutoConnect ? "connecting" : "disconnected",
-          rootPath: "/",
-          pairingStatus: device.pairingStatus,
-          model: device.model,
-          config: {
-            id: device.id,
-            type: device.type,
-            name: device.name,
-            rootPath: "/"
-          }
-        });
-        if (shouldAutoConnect) {
-          console.log("[DeviceManager] Auto-connecting device:", device.id);
-          this.connectMobileDevice(device.id);
+          rootPath: "/"
         }
-      }
-      if (added.length > 0 || metadataChanged) {
-        console.log("[DeviceManager] Notifying handlers of mobile device updates");
-        this.notifyHandlers();
-      }
-      for (var _b = 0, removed_1 = removed; _b < removed_1.length; _b++) {
-        var deviceId = removed_1[_b];
-        console.log("[DeviceManager] Processing removed device:", deviceId);
-        var existingDevice = this.devices.get(deviceId);
-        if (existingDevice) {
-          this.disconnectDevice(deviceId).catch(function() {
-          });
-          this.devices.delete(deviceId);
-          this.notifyHandlers();
-        }
-      }
-    };
-    DeviceManager2.prototype.connectMobileDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var error_1;
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 2, , 3]);
-              return [4, this.connectDevice(deviceId)];
-            case 1:
-              _a.sent();
-              return [3, 3];
-            case 2:
-              error_1 = _a.sent();
-              console.error("Failed to auto-connect device ".concat(deviceId, ":"), error_1);
-              return [3, 3];
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
       });
-    };
-    DeviceManager2.prototype.loadSavedDevices = function() {
-      var config = this.configService.getConfig();
-      if (config === null || config === void 0 ? void 0 : config.devices) {
-        for (var _i = 0, _a = config.devices; _i < _a.length; _i++) {
-          var deviceConfig = _a[_i];
-          if (deviceConfig.type !== "local") {
-            this.registerDevice({
-              id: deviceConfig.id,
-              type: deviceConfig.type,
-              name: deviceConfig.name,
-              status: "disconnected",
-              rootPath: deviceConfig.rootPath || "/",
-              config: deviceConfig
-            });
-          }
-        }
+      if (shouldAutoConnect) {
+        console.log("[DeviceManager] Auto-connecting device:", device.id);
+        this.connectMobileDevice(device.id);
       }
-    };
-    DeviceManager2.prototype.registerDevice = function(device) {
-      this.devices.set(device.id, device);
+    }
+    if (added.length > 0 || metadataChanged) {
+      console.log("[DeviceManager] Notifying handlers of mobile device updates");
       this.notifyHandlers();
-    };
-    DeviceManager2.prototype.unregisterDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var config;
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (!this.connections.hasAdapter(deviceId)) return [3, 2];
-              return [4, this.disconnectDevice(deviceId)];
-            case 1:
-              _a.sent();
-              _a.label = 2;
-            case 2:
-              this.devices.delete(deviceId);
-              return [
-                4,
-                this.credentialService.delete(deviceId)
-                // Remove from config
-              ];
-            case 3:
-              _a.sent();
-              config = this.configService.getConfig();
-              if (config === null || config === void 0 ? void 0 : config.devices) {
-                config.devices = config.devices.filter(function(d) {
-                  return d.id !== deviceId;
-                });
-                this.configService.saveConfig(config);
-              }
-              this.notifyHandlers();
-              return [
-                2
-                /*return*/
-              ];
-          }
+    }
+    for (const deviceId of removed) {
+      console.log("[DeviceManager] Processing removed device:", deviceId);
+      const existingDevice = this.devices.get(deviceId);
+      if (existingDevice) {
+        this.disconnectDevice(deviceId).catch(() => {
         });
-      });
-    };
-    DeviceManager2.prototype.getDevice = function(deviceId) {
-      return this.devices.get(deviceId);
-    };
-    DeviceManager2.prototype.getDevices = function() {
-      return Array.from(this.devices.values());
-    };
-    DeviceManager2.prototype.getConnectedDevices = function() {
-      return this.getDevices().filter(function(d) {
-        return d.status === "connected";
-      });
-    };
-    DeviceManager2.prototype.addDevice = function(config, credentials) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var appConfig, device;
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (this.devices.has(config.id)) {
-                throw new Error("Device already exists: ".concat(config.id));
-              }
-              appConfig = this.configService.getConfig() || { devices: [], favorites: [], settings: {} };
-              if (!appConfig.devices) {
-                appConfig.devices = [];
-              }
-              appConfig.devices.push(config);
-              this.configService.saveConfig(appConfig);
-              if (!credentials) return [3, 2];
-              return [4, this.credentialService.save(config.id, credentials)];
-            case 1:
-              _a.sent();
-              _a.label = 2;
-            case 2:
-              device = {
-                id: config.id,
-                type: config.type,
-                name: config.name,
-                status: "disconnected",
-                rootPath: config.rootPath || "/",
-                config
-              };
-              this.registerDevice(device);
-              return [2, device];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.updateDevice = function(deviceId, config, credentials) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var device, appConfig, devices, index;
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              device = this.devices.get(deviceId);
-              if (!device) {
-                throw new Error("Device not found: ".concat(deviceId));
-              }
-              appConfig = this.configService.getConfig();
-              if (appConfig === null || appConfig === void 0 ? void 0 : appConfig.devices) {
-                devices = appConfig.devices;
-                index = devices.findIndex(function(d) {
-                  return d.id === deviceId;
-                });
-                if (index !== -1) {
-                  devices[index] = __assign$3(__assign$3({}, devices[index]), config);
-                  this.configService.saveConfig(appConfig);
-                }
-              }
-              if (!(credentials !== void 0)) return [3, 4];
-              if (!(Object.keys(credentials).length === 0)) return [3, 2];
-              return [4, this.credentialService.delete(deviceId)];
-            case 1:
-              _a.sent();
-              return [3, 4];
-            case 2:
-              return [4, this.credentialService.save(deviceId, credentials)];
-            case 3:
-              _a.sent();
-              _a.label = 4;
-            case 4:
-              device.config = __assign$3(__assign$3({}, device.config), config);
-              device.name = config.name || device.name;
-              device.rootPath = config.rootPath || device.rootPath;
-              this.notifyHandlers();
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.connectDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var device;
-        return __generator$b(this, function(_a) {
-          device = this.devices.get(deviceId);
-          if (!device) {
-            throw new Error("Device not found: ".concat(deviceId));
-          }
-          return [2, this.connections.connect(device)];
-        });
-      });
-    };
-    DeviceManager2.prototype.disconnectDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var device;
-        return __generator$b(this, function(_a) {
-          device = this.devices.get(deviceId);
-          if (!device)
-            return [
-              2
-              /*return*/
-            ];
-          return [2, this.connections.disconnect(device)];
-        });
-      });
-    };
-    DeviceManager2.prototype.getAdapter = function(deviceId) {
-      return this.connections.getAdapter(deviceId);
-    };
-    DeviceManager2.prototype.updateDeviceStatus = function(deviceId, status) {
-      var device = this.devices.get(deviceId);
-      if (device) {
-        device.status = status;
+        this.devices.delete(deviceId);
         this.notifyHandlers();
       }
-    };
-    DeviceManager2.prototype.pairDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var device;
-        return __generator$b(this, function(_a) {
-          device = this.devices.get(deviceId);
-          if (!device) {
-            throw new Error("Device not found: ".concat(deviceId));
-          }
-          if (device.type !== "ios") {
-            return [2, { success: false, error: "该设备类型无需/不支持配对" }];
-          }
-          return [2, pairIosDevice(deviceId)];
-        });
-      });
-    };
-    DeviceManager2.prototype.onDeviceChange = function(handler) {
-      var _this = this;
-      this.handlers.push(handler);
-      return function() {
-        var index = _this.handlers.indexOf(handler);
-        if (index > -1) {
-          _this.handlers.splice(index, 1);
+    }
+  }
+  /**
+   * Connect a mobile device
+   */
+  async connectMobileDevice(deviceId) {
+    try {
+      await this.connectDevice(deviceId);
+    } catch (error) {
+      console.error(`Failed to auto-connect device ${deviceId}:`, error);
+    }
+  }
+  /**
+   * Load devices from config file
+   */
+  loadSavedDevices() {
+    const config = this.configService.getConfig();
+    if (config?.devices) {
+      for (const deviceConfig of config.devices) {
+        if (deviceConfig.type !== "local") {
+          this.registerDevice({
+            id: deviceConfig.id,
+            type: deviceConfig.type,
+            name: deviceConfig.name,
+            status: "disconnected",
+            rootPath: deviceConfig.rootPath || "/",
+            config: deviceConfig
+          });
         }
-      };
-    };
-    DeviceManager2.prototype.createAdapter = function(device, credentials) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var config;
-        return __generator$b(this, function(_a) {
-          config = device.config || {};
-          switch (device.type) {
-            case "local":
-              return [2, new LocalAdapter()];
-            case "android":
-              return [2, new AndroidAdapter(device.id, device.name, {
-                deviceId: config.id
-              })];
-            case "smb":
-              return [2, new SMBAdapter(device.id, device.name, {
-                host: config.host || "",
-                port: config.port || 445,
-                share: config.share || "",
-                username: credentials === null || credentials === void 0 ? void 0 : credentials.username,
-                password: credentials === null || credentials === void 0 ? void 0 : credentials.password,
-                domain: (credentials === null || credentials === void 0 ? void 0 : credentials.domain) || config.domain
-              })];
-            case "ssh":
-              return [2, new SSHAdapter(device.id, device.name, {
-                host: config.host || "",
-                port: config.port || 22,
-                username: (credentials === null || credentials === void 0 ? void 0 : credentials.username) || config.username || "",
-                password: credentials === null || credentials === void 0 ? void 0 : credentials.password,
-                privateKey: credentials === null || credentials === void 0 ? void 0 : credentials.privateKey
-              })];
-            case "webdav":
-              return [2, new WebDAVAdapter(device.id, device.name, {
-                url: config.url || config.host || "",
-                username: (credentials === null || credentials === void 0 ? void 0 : credentials.username) || config.username,
-                password: credentials === null || credentials === void 0 ? void 0 : credentials.password,
-                rootPath: config.rootPath || "/"
-              })];
-            case "ios":
-              return [2, new iOSAdapter(device.id, device.name, {
-                deviceId: config.id
-              })];
-            default:
-              throw new Error("Unknown device type: ".concat(device.type));
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.notifyHandlers = function() {
-      var devices = this.getDevices();
-      console.log("[DeviceManager] notifyHandlers called, devices count:", devices.length, "handlers count:", this.handlers.length, "device ids:", devices.map(function(d) {
-        return d.id;
-      }));
-      this.handlers.forEach(function(handler) {
-        return handler(devices);
-      });
-    };
-    DeviceManager2.prototype.getReadyAdapter = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        var adapter, connectedAdapter;
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              adapter = this.connections.tryGetAdapter(deviceId);
-              if (adapter === null || adapter === void 0 ? void 0 : adapter.isConnected())
-                return [2, adapter];
-              return [4, this.connectDevice(deviceId)];
-            case 1:
-              _a.sent();
-              connectedAdapter = this.connections.tryGetAdapter(deviceId);
-              if (!(connectedAdapter === null || connectedAdapter === void 0 ? void 0 : connectedAdapter.isConnected())) {
-                throw new Error("设备连接后仍不可用: ".concat(deviceId));
-              }
-              return [2, connectedAdapter];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.listFiles = function(deviceId, path2) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().list(path2)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.getStats = function(deviceId, path2) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().stat(path2)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.exists = function(deviceId, path2) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().exists(path2)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.mkdir = function(deviceId, path2) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().mkdir(path2)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.delete = function(deviceId, path2) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().delete(path2)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.rename = function(deviceId, oldPath, newPath) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().rename(oldPath, newPath)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.readFile = function(deviceId, path2) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().readFile(path2)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.writeFile = function(deviceId, path2, data) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().writeFile(path2, data)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.copy = function(deviceId, srcPath, dstPath) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().copy(srcPath, dstPath)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.search = function(deviceId, path2, query) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.getReadyAdapter(deviceId)];
-            case 1:
-              return [2, _a.sent().search(path2, query)];
-          }
-        });
-      });
-    };
-    DeviceManager2.prototype.getCapabilities = function(deviceId) {
-      var device = this.devices.get(deviceId);
-      if (!device) {
-        throw new Error("Device not found: ".concat(deviceId));
       }
-      var adapter = this.connections.tryGetAdapter(deviceId);
-      if (adapter) {
-        return adapter.getCapabilities();
-      }
-      switch (device.type) {
-        case "local":
-          return LOCAL_CAPABILITIES;
-        default:
-          return DEFAULT_REMOTE_CAPABILITIES(device.type);
-      }
+    }
+  }
+  /**
+   * Register a device
+   */
+  registerDevice(device) {
+    this.devices.set(device.id, device);
+    this.notifyHandlers();
+  }
+  /**
+   * Unregister a device
+   */
+  async unregisterDevice(deviceId) {
+    if (this.connections.hasAdapter(deviceId)) {
+      await this.disconnectDevice(deviceId);
+    }
+    this.devices.delete(deviceId);
+    await this.credentialService.delete(deviceId);
+    const config = this.configService.getConfig();
+    if (config?.devices) {
+      config.devices = config.devices.filter((d) => d.id !== deviceId);
+      this.configService.saveConfig(config);
+    }
+    this.notifyHandlers();
+  }
+  /**
+   * Get a device by ID
+   */
+  getDevice(deviceId) {
+    return this.devices.get(deviceId);
+  }
+  /**
+   * Get all devices
+   */
+  getDevices() {
+    return Array.from(this.devices.values());
+  }
+  /**
+   * Get connected devices
+   */
+  getConnectedDevices() {
+    return this.getDevices().filter((d) => d.status === "connected");
+  }
+  /**
+   * Add a new device with credentials
+   */
+  async addDevice(config, credentials) {
+    if (this.devices.has(config.id)) {
+      throw new Error(`Device already exists: ${config.id}`);
+    }
+    const appConfig = this.configService.getConfig() || { devices: [], favorites: [], settings: {} };
+    if (!appConfig.devices) {
+      appConfig.devices = [];
+    }
+    appConfig.devices.push(config);
+    this.configService.saveConfig(appConfig);
+    if (credentials) {
+      await this.credentialService.save(config.id, credentials);
+    }
+    const device = {
+      id: config.id,
+      type: config.type,
+      name: config.name,
+      status: "disconnected",
+      rootPath: config.rootPath || "/",
+      config
     };
-    DeviceManager2.prototype.canTransferBetween = function(sourceDeviceId, targetDeviceId, operation) {
-      var sourceCaps = this.getCapabilities(sourceDeviceId);
-      var targetCaps = this.getCapabilities(targetDeviceId);
-      if (operation === "copy") {
-        return sourceCaps.canCopyFrom && targetCaps.canCopyTo;
+    this.registerDevice(device);
+    return device;
+  }
+  /**
+   * Update device configuration
+   */
+  async updateDevice(deviceId, config, credentials) {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new Error(`Device not found: ${deviceId}`);
+    }
+    const appConfig = this.configService.getConfig();
+    if (appConfig?.devices) {
+      const devices = appConfig.devices;
+      const index = devices.findIndex((d) => d.id === deviceId);
+      if (index !== -1) {
+        devices[index] = { ...devices[index], ...config };
+        this.configService.saveConfig(appConfig);
+      }
+    }
+    if (credentials !== void 0) {
+      if (Object.keys(credentials).length === 0) {
+        await this.credentialService.delete(deviceId);
       } else {
-        return sourceCaps.canMoveFrom && targetCaps.canMoveTo;
+        await this.credentialService.save(deviceId, credentials);
+      }
+    }
+    device.config = { ...device.config, ...config };
+    device.name = config.name || device.name;
+    device.rootPath = config.rootPath || device.rootPath;
+    this.notifyHandlers();
+  }
+  /**
+   * Connect to a device（连接协议与并发去重见 AdapterConnectionManager）
+   */
+  async connectDevice(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new Error(`Device not found: ${deviceId}`);
+    }
+    return this.connections.connect(device);
+  }
+  /**
+   * Disconnect from a device
+   */
+  async disconnectDevice(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (!device) return;
+    return this.connections.disconnect(device);
+  }
+  /**
+   * Get adapter for a device
+   */
+  getAdapter(deviceId) {
+    return this.connections.getAdapter(deviceId);
+  }
+  /**
+   * Update device status
+   */
+  updateDeviceStatus(deviceId, status) {
+    const device = this.devices.get(deviceId);
+    if (device) {
+      device.status = status;
+      this.notifyHandlers();
+    }
+  }
+  /**
+   * 发起配对(仅 iOS;完整生命周期:发起 → 设备端信任 → 校验)。
+   * 非 iOS 设备不支持配对。
+   */
+  async pairDevice(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new Error(`Device not found: ${deviceId}`);
+    }
+    if (device.type !== "ios") {
+      return { success: false, error: "该设备类型无需/不支持配对" };
+    }
+    return pairIosDevice(deviceId);
+  }
+  /**
+   * Register a device change handler
+   */
+  onDeviceChange(handler) {
+    this.handlers.push(handler);
+    return () => {
+      const index = this.handlers.indexOf(handler);
+      if (index > -1) {
+        this.handlers.splice(index, 1);
       }
     };
-    DeviceManager2.prototype.startMobileDeviceScan = function() {
-      this.mobileDiscovery.start();
-    };
-    DeviceManager2.prototype.stopMobileDeviceScan = function() {
-      this.mobileDiscovery.stop();
-    };
-    DeviceManager2.prototype.scanMobileDevicesNow = function() {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          return [2, this.mobileDiscovery.scan()];
+  }
+  /**
+   * Create an adapter for a device type
+   */
+  async createAdapter(device, credentials) {
+    const config = device.config || {};
+    switch (device.type) {
+      case "local":
+        return new LocalAdapter();
+      case "android":
+        return new AndroidAdapter(device.id, device.name, {
+          deviceId: config.id
         });
-      });
-    };
-    DeviceManager2.prototype.rememberMobileDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          return [2, this.mobileDiscovery.rememberDevice(deviceId)];
+      case "smb":
+        return new SMBAdapter(device.id, device.name, {
+          host: config.host || "",
+          port: config.port || 445,
+          share: config.share || "",
+          username: credentials?.username,
+          password: credentials?.password,
+          domain: credentials?.domain || config.domain
         });
-      });
-    };
-    DeviceManager2.prototype.forgetMobileDevice = function(deviceId) {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          return [2, this.mobileDiscovery.forgetDevice(deviceId)];
+      case "ssh":
+        return new SSHAdapter(device.id, device.name, {
+          host: config.host || "",
+          port: config.port || 22,
+          username: credentials?.username || config.username || "",
+          password: credentials?.password,
+          privateKey: credentials?.privateKey
         });
-      });
-    };
-    DeviceManager2.prototype.getAutoConnectDevices = function() {
-      return this.mobileDiscovery.getAutoConnectDevices();
-    };
-    DeviceManager2.prototype.isLibimobiledeviceInstalled = function() {
-      return __awaiter$b(this, void 0, void 0, function() {
-        return __generator$b(this, function(_a) {
-          return [2, this.mobileDiscovery.isLibimobiledeviceInstalled()];
+      case "webdav":
+        return new WebDAVAdapter(device.id, device.name, {
+          url: config.url || config.host || "",
+          username: credentials?.username || config.username,
+          password: credentials?.password,
+          rootPath: config.rootPath || "/"
         });
-      });
-    };
-    DeviceManager2.prototype.getDetectedMobileDevices = function() {
-      return this.mobileDiscovery.getDevices();
-    };
-    DeviceManager2.prototype.getDetectedMobileDevice = function(deviceId) {
-      return this.mobileDiscovery.getDevice(deviceId);
-    };
-    return DeviceManager2;
-  }()
-);
-var __extends = /* @__PURE__ */ function() {
-  var extendStatics = function(d, b) {
-    extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
-      d2.__proto__ = b2;
-    } || function(d2, b2) {
-      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
-    };
-    return extendStatics(d, b);
-  };
-  return function(d, b) {
-    if (typeof b !== "function" && b !== null)
-      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-    extendStatics(d, b);
-    function __() {
-      this.constructor = d;
+      case "ios":
+        return new iOSAdapter(device.id, device.name, {
+          deviceId: config.id
+        });
+      default:
+        throw new Error(`Unknown device type: ${device.type}`);
     }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-  };
-}();
-var __awaiter$a = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
+  }
+  /**
+   * Notify all handlers of device changes
+   */
+  notifyHandlers() {
+    const devices = this.getDevices();
+    console.log(
+      "[DeviceManager] notifyHandlers called, devices count:",
+      devices.length,
+      "handlers count:",
+      this.handlers.length,
+      "device ids:",
+      devices.map((d) => d.id)
+    );
+    this.handlers.forEach((handler) => handler(devices));
+  }
+  // ============ File System Operations (proxied to adapters) ============
+  /**
+   * 文件请求的最后一道边界：已持久化的标签、IPC 或侧栏事件可能在适配器
+   * 尚未注册时访问设备。此处按需连接，避免直接向调用方泄露“无 adapter”。
+   */
+  async getReadyAdapter(deviceId) {
+    const adapter = this.connections.tryGetAdapter(deviceId);
+    if (adapter?.isConnected()) return adapter;
+    await this.connectDevice(deviceId);
+    const connectedAdapter = this.connections.tryGetAdapter(deviceId);
+    if (!connectedAdapter?.isConnected()) {
+      throw new Error(`设备连接后仍不可用: ${deviceId}`);
+    }
+    return connectedAdapter;
+  }
+  async listFiles(deviceId, path2) {
+    return (await this.getReadyAdapter(deviceId)).list(path2);
+  }
+  async getStats(deviceId, path2) {
+    return (await this.getReadyAdapter(deviceId)).stat(path2);
+  }
+  async exists(deviceId, path2) {
+    return (await this.getReadyAdapter(deviceId)).exists(path2);
+  }
+  async mkdir(deviceId, path2) {
+    return (await this.getReadyAdapter(deviceId)).mkdir(path2);
+  }
+  async delete(deviceId, path2) {
+    return (await this.getReadyAdapter(deviceId)).delete(path2);
+  }
+  async rename(deviceId, oldPath, newPath) {
+    return (await this.getReadyAdapter(deviceId)).rename(oldPath, newPath);
+  }
+  async readFile(deviceId, path2) {
+    return (await this.getReadyAdapter(deviceId)).readFile(path2);
+  }
+  async writeFile(deviceId, path2, data) {
+    return (await this.getReadyAdapter(deviceId)).writeFile(path2, data);
+  }
+  async copy(deviceId, srcPath, dstPath) {
+    return (await this.getReadyAdapter(deviceId)).copy(srcPath, dstPath);
+  }
+  async search(deviceId, path2, query) {
+    return (await this.getReadyAdapter(deviceId)).search(path2, query);
+  }
+  /**
+   * Get capabilities for a device
+   */
+  getCapabilities(deviceId) {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new Error(`Device not found: ${deviceId}`);
+    }
+    const adapter = this.connections.tryGetAdapter(deviceId);
+    if (adapter) {
+      return adapter.getCapabilities();
+    }
+    switch (device.type) {
+      case "local":
+        return LOCAL_CAPABILITIES;
+      default:
+        return DEFAULT_REMOTE_CAPABILITIES(device.type);
+    }
+  }
+  /**
+   * Check if operation is possible between two devices
+   */
+  canTransferBetween(sourceDeviceId, targetDeviceId, operation) {
+    const sourceCaps = this.getCapabilities(sourceDeviceId);
+    const targetCaps = this.getCapabilities(targetDeviceId);
+    if (operation === "copy") {
+      return sourceCaps.canCopyFrom && targetCaps.canCopyTo;
+    } else {
+      return sourceCaps.canMoveFrom && targetCaps.canMoveTo;
+    }
+  }
+  // ============ Mobile Device Operations（门面：委托 MobileDiscoveryService） ============
+  /**
+   * Start mobile device scanning
+   */
+  startMobileDeviceScan() {
+    this.mobileDiscovery.start();
+  }
+  /**
+   * Stop mobile device scanning
+   */
+  stopMobileDeviceScan() {
+    this.mobileDiscovery.stop();
+  }
+  /**
+   * Perform immediate mobile device scan
+   */
+  async scanMobileDevicesNow() {
+    return this.mobileDiscovery.scan();
+  }
+  /**
+   * Remember a mobile device for auto-connect
+   */
+  async rememberMobileDevice(deviceId) {
+    return this.mobileDiscovery.rememberDevice(deviceId);
+  }
+  /**
+   * Forget a mobile device (remove from auto-connect)
+   */
+  async forgetMobileDevice(deviceId) {
+    return this.mobileDiscovery.forgetDevice(deviceId);
+  }
+  /**
+   * Get list of auto-connect device IDs
+   */
+  getAutoConnectDevices() {
+    return this.mobileDiscovery.getAutoConnectDevices();
+  }
+  /**
+   * Check if libimobiledevice is installed
+   */
+  async isLibimobiledeviceInstalled() {
+    return this.mobileDiscovery.isLibimobiledeviceInstalled();
+  }
+  /**
+   * Get all detected mobile devices
+   */
+  getDetectedMobileDevices() {
+    return this.mobileDiscovery.getDevices();
+  }
+  /**
+   * Get a specific detected mobile device
+   */
+  getDetectedMobileDevice(deviceId) {
+    return this.mobileDiscovery.getDevice(deviceId);
+  }
+}
+let CancelledError$2 = class CancelledError extends Error {
+  constructor(message = "传输已取消") {
+    super(message);
+    this.name = "CancelledError";
+  }
+};
+class StreamTransfer {
+  /**
+   * 拷贝单个文件:srcPath(源适配器) → dstPath(目标适配器)。
+   * @returns 实际传输字节数。
+   */
+  static async transferFile(source, srcPath, target, dstPath, options = {}) {
+    const canStream = !!source.getCapabilities().canStream && !!target.getCapabilities().canStream && typeof source.openReadStream === "function" && typeof target.openWriteStream === "function";
+    if (canStream) {
+      return this.streamingCopy(source, srcPath, target, dstPath, options);
+    }
+    return this.bufferCopy(source, srcPath, target, dstPath, options);
+  }
+  /** 流式拷贝:管道 source→meter→target,逐块计字节、可取消、异常删半成品。 */
+  static async streamingCopy(source, srcPath, target, dstPath, options) {
+    if (options.shouldCancel?.()) throw new CancelledError$2();
+    let bytesTransferred = 0;
+    const meter = new Transform({
+      transform(chunk, _encoding, callback) {
+        bytesTransferred += chunk.length;
+        options.onProgress?.(bytesTransferred);
+        callback(null, chunk);
+      }
     });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
+    const cancelTimer = setInterval(() => {
+      if (options.shouldCancel?.()) {
+        meter.destroy(new CancelledError$2());
       }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$a = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
+    }, 200);
+    let src = null;
+    let dst = null;
+    try {
+      src = await source.openReadStream(srcPath);
+      dst = await target.openWriteStream(dstPath);
+      await new Promise((resolve, reject) => {
+        pipeline(src, meter, dst, (err) => err ? reject(err) : resolve());
+      });
+      await this.verifyTargetSize(target, dstPath, bytesTransferred);
+      return bytesTransferred;
+    } catch (error) {
+      await this.safeDeletePartial(target, dstPath);
+      throw error;
     } finally {
-      f = t = 0;
+      clearInterval(cancelTimer);
+      src?.destroy();
+      dst?.destroy();
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
   }
-};
-var CancelledError = (
-  /** @class */
-  function(_super) {
-    __extends(CancelledError2, _super);
-    function CancelledError2(message) {
-      if (message === void 0) {
-        message = "传输已取消";
+  /** 缓冲回退:整文件读 → 写。用于不支持流式的适配器(SMB/iOS)。 */
+  static async bufferCopy(source, srcPath, target, dstPath, options) {
+    if (options.shouldCancel?.()) throw new CancelledError$2();
+    const content = await source.readFile(srcPath);
+    if (options.shouldCancel?.()) throw new CancelledError$2();
+    try {
+      await target.writeFile(dstPath, content);
+      await this.verifyTargetSize(target, dstPath, content.length);
+    } catch (error) {
+      await this.safeDeletePartial(target, dstPath);
+      throw error;
+    }
+    options.onProgress?.(content.length);
+    return content.length;
+  }
+  /** 尽力删除半成品目标;失败仅记录,不掩盖原异常。 */
+  static async safeDeletePartial(target, dstPath) {
+    try {
+      const exists = await target.exists(dstPath);
+      if (exists) {
+        await target.delete(dstPath);
+        console.warn(`[StreamTransfer] cleaned partial target: ${dstPath}`);
       }
-      var _this = _super.call(this, message) || this;
-      _this.name = "CancelledError";
-      return _this;
+    } catch (cleanupError) {
+      console.error(`[StreamTransfer] failed to clean partial target ${dstPath}:`, cleanupError);
     }
-    return CancelledError2;
-  }(Error)
-);
-var StreamTransfer = (
-  /** @class */
-  function() {
-    function StreamTransfer2() {
+  }
+  /**
+   * 复制成功的最小验证：目标必须是同等字节数的文件。移动操作依赖此不变量，
+   * 因而只有该检查通过后 FileOperationManager 才会删除源文件。
+   */
+  static async verifyTargetSize(target, dstPath, expectedBytes) {
+    const stat2 = await target.stat(dstPath);
+    if (!stat2.isFile || stat2.size !== expectedBytes) {
+      throw new Error(
+        `目标文件写入校验失败: ${dstPath}，期望 ${expectedBytes} 字节，实际 ${stat2.size} 字节`
+      );
     }
-    StreamTransfer2.transferFile = function(source_1, srcPath_1, target_1, dstPath_1) {
-      return __awaiter$a(this, arguments, void 0, function(source, srcPath, target, dstPath, options) {
-        var canStream;
-        if (options === void 0) {
-          options = {};
-        }
-        return __generator$a(this, function(_a) {
-          canStream = !!source.getCapabilities().canStream && !!target.getCapabilities().canStream && typeof source.openReadStream === "function" && typeof target.openWriteStream === "function";
-          if (canStream) {
-            return [2, this.streamingCopy(source, srcPath, target, dstPath, options)];
-          }
-          return [2, this.bufferCopy(source, srcPath, target, dstPath, options)];
-        });
-      });
-    };
-    StreamTransfer2.streamingCopy = function(source, srcPath, target, dstPath, options) {
-      return __awaiter$a(this, void 0, void 0, function() {
-        var bytesTransferred, meter, cancelTimer, src, dst, error_1;
-        var _a;
-        return __generator$a(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              if ((_a = options.shouldCancel) === null || _a === void 0 ? void 0 : _a.call(options))
-                throw new CancelledError();
-              bytesTransferred = 0;
-              meter = new Transform({
-                transform: function(chunk, _encoding, callback) {
-                  var _a2;
-                  bytesTransferred += chunk.length;
-                  (_a2 = options.onProgress) === null || _a2 === void 0 ? void 0 : _a2.call(options, bytesTransferred);
-                  callback(null, chunk);
-                }
-              });
-              cancelTimer = setInterval(function() {
-                var _a2;
-                if ((_a2 = options.shouldCancel) === null || _a2 === void 0 ? void 0 : _a2.call(options)) {
-                  meter.destroy(new CancelledError());
-                }
-              }, 200);
-              src = null;
-              dst = null;
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 6, 8, 9]);
-              return [4, source.openReadStream(srcPath)];
-            case 2:
-              src = _b.sent();
-              return [4, target.openWriteStream(dstPath)];
-            case 3:
-              dst = _b.sent();
-              return [4, new Promise(function(resolve, reject) {
-                pipeline(src, meter, dst, function(err) {
-                  return err ? reject(err) : resolve();
-                });
-              })];
-            case 4:
-              _b.sent();
-              return [4, this.verifyTargetSize(target, dstPath, bytesTransferred)];
-            case 5:
-              _b.sent();
-              return [2, bytesTransferred];
-            case 6:
-              error_1 = _b.sent();
-              return [4, this.safeDeletePartial(target, dstPath)];
-            case 7:
-              _b.sent();
-              throw error_1;
-            case 8:
-              clearInterval(cancelTimer);
-              src === null || src === void 0 ? void 0 : src.destroy();
-              dst === null || dst === void 0 ? void 0 : dst.destroy();
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 9:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    StreamTransfer2.bufferCopy = function(source, srcPath, target, dstPath, options) {
-      return __awaiter$a(this, void 0, void 0, function() {
-        var content, error_2;
-        var _a, _b, _c;
-        return __generator$a(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              if ((_a = options.shouldCancel) === null || _a === void 0 ? void 0 : _a.call(options))
-                throw new CancelledError();
-              return [4, source.readFile(srcPath)];
-            case 1:
-              content = _d.sent();
-              if ((_b = options.shouldCancel) === null || _b === void 0 ? void 0 : _b.call(options))
-                throw new CancelledError();
-              _d.label = 2;
-            case 2:
-              _d.trys.push([2, 5, , 7]);
-              return [4, target.writeFile(dstPath, content)];
-            case 3:
-              _d.sent();
-              return [4, this.verifyTargetSize(target, dstPath, content.length)];
-            case 4:
-              _d.sent();
-              return [3, 7];
-            case 5:
-              error_2 = _d.sent();
-              return [4, this.safeDeletePartial(target, dstPath)];
-            case 6:
-              _d.sent();
-              throw error_2;
-            case 7:
-              (_c = options.onProgress) === null || _c === void 0 ? void 0 : _c.call(options, content.length);
-              return [2, content.length];
-          }
-        });
-      });
-    };
-    StreamTransfer2.safeDeletePartial = function(target, dstPath) {
-      return __awaiter$a(this, void 0, void 0, function() {
-        var exists, cleanupError_1;
-        return __generator$a(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 4, , 5]);
-              return [4, target.exists(dstPath)];
-            case 1:
-              exists = _a.sent();
-              if (!exists) return [3, 3];
-              return [4, target.delete(dstPath)];
-            case 2:
-              _a.sent();
-              console.warn("[StreamTransfer] cleaned partial target: ".concat(dstPath));
-              _a.label = 3;
-            case 3:
-              return [3, 5];
-            case 4:
-              cleanupError_1 = _a.sent();
-              console.error("[StreamTransfer] failed to clean partial target ".concat(dstPath, ":"), cleanupError_1);
-              return [3, 5];
-            case 5:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    StreamTransfer2.verifyTargetSize = function(target, dstPath, expectedBytes) {
-      return __awaiter$a(this, void 0, void 0, function() {
-        var stat2;
-        return __generator$a(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, target.stat(dstPath)];
-            case 1:
-              stat2 = _a.sent();
-              if (!stat2.isFile || stat2.size !== expectedBytes) {
-                throw new Error("目标文件写入校验失败: ".concat(dstPath, "，期望 ").concat(expectedBytes, " 字节，实际 ").concat(stat2.size, " 字节"));
-              }
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    return StreamTransfer2;
-  }()
-);
-var CH = {
+  }
+}
+const CH = {
   invoke: {
     // system:
     systemGetHomeDir: "system:getHomeDir",
     // shell:
     shellOpenInTerminal: "shell:openInTerminal",
+    shellOpenWith: "shell:openWith",
+    shellDetectOpenWithApps: "shell:detectOpenWithApps",
+    // git (只读徽标):
+    gitStatus: "git:status",
+    // checksum (哈希校验):
+    checksumStart: "checksum:start",
+    checksumCancel: "checksum:cancel",
+    // dupes (重复文件查找):
+    dupesStart: "dupes:start",
+    dupesCancel: "dupes:cancel",
+    // grep (内容搜索):
+    grepStart: "grep:start",
+    grepCancel: "grep:cancel",
+    // space (空间分析):
+    spaceStart: "space:start",
+    spaceCancel: "space:cancel",
+    // watch (自动刷新):
+    watchSubscribe: "watch:subscribe",
+    watchUnsubscribe: "watch:unsubscribe",
     // config:
     configGet: "config:get",
     configSave: "config:save",
@@ -5658,6 +2799,11 @@ var CH = {
     fsImportExternal: "fs:importExternal",
     fsDirStatsStart: "fs:dirStats:start",
     fsDirStatsCancel: "fs:dirStats:cancel",
+    fsReadChunk: "fs:readChunk",
+    fsSymlink: "fs:symlink",
+    fsReadlink: "fs:readlink",
+    fsChmod: "fs:chmod",
+    fsChown: "fs:chown",
     fsMediaInfo: "fs:mediaInfo",
     // compare:
     compareVerifyStart: "compare:verify:start",
@@ -5703,1471 +2849,672 @@ var CH = {
     fileOperationAdded: "file-operation:added",
     fileOperationUpdated: "file-operation:updated",
     compareVerificationProgress: "compare:verification-progress",
-    dirStatsProgress: "fs:dirStats-progress"
+    dirStatsProgress: "fs:dirStats-progress",
+    watchChanged: "watch:changed",
+    checksumProgress: "checksum:progress",
+    dupesProgress: "dupes:progress",
+    grepProgress: "grep:progress",
+    spaceProgress: "space:progress"
   },
   send: {
     dragStartNative: "drag:startNative"
   }
 };
-var __awaiter$9 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$9 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var __spreadArray$4 = function(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-    if (ar || !(i in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-      ar[i] = from[i];
-    }
-  }
-  return to.concat(ar || Array.prototype.slice.call(from));
-};
-var log$9 = console;
+const log$h = console;
 function generateTaskId() {
-  return "task_".concat(Date.now(), "_").concat(Math.random().toString(36).substring(2, 9));
+  return `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
-var TransferTask = (
-  /** @class */
-  function() {
-    function TransferTask2(params) {
-      var _a;
-      this.id = generateTaskId();
-      this.type = params.type;
-      this.sourceDeviceId = params.sourceDeviceId;
-      this.sourcePaths = params.sourcePaths;
-      this.targetDeviceId = params.targetDeviceId;
-      this.targetPath = params.targetPath;
-      this.newName = params.newName;
-      this.conflictStrategy = (_a = params.conflictStrategy) !== null && _a !== void 0 ? _a : "skip";
-      this.renameItems = params.renameItems;
-      this.restoreItems = params.restoreItems;
-      this.status = "pending";
-      this.progress = {
-        currentFile: "",
-        currentFileIndex: 0,
-        totalFiles: params.sourcePaths.length,
-        bytesTransferred: 0,
-        totalBytes: 0,
-        speed: 0,
-        itemResults: []
-      };
-      this.createdAt = Date.now();
+class TransferTask {
+  id;
+  type;
+  sourceDeviceId;
+  sourcePaths;
+  targetDeviceId;
+  targetPath;
+  newName;
+  status;
+  progress;
+  createdAt;
+  startedAt;
+  completedAt;
+  error;
+  constructor(params) {
+    this.id = generateTaskId();
+    this.type = params.type;
+    this.sourceDeviceId = params.sourceDeviceId;
+    this.sourcePaths = params.sourcePaths;
+    this.targetDeviceId = params.targetDeviceId;
+    this.targetPath = params.targetPath;
+    this.newName = params.newName;
+    this.conflictStrategy = params.conflictStrategy ?? "skip";
+    this.renameItems = params.renameItems;
+    this.restoreItems = params.restoreItems;
+    this.status = "pending";
+    this.progress = {
+      currentFile: "",
+      currentFileIndex: 0,
+      totalFiles: params.sourcePaths.length,
+      bytesTransferred: 0,
+      totalBytes: 0,
+      speed: 0,
+      itemResults: []
+    };
+    this.createdAt = Date.now();
+  }
+  markRunning() {
+    this.status = "running";
+    this.startedAt = Date.now();
+  }
+  setTotals(bytes, files) {
+    this.progress.totalBytes = bytes;
+    this.progress.totalFiles = files;
+  }
+  addBytes(n) {
+    this.progress.bytesTransferred += n;
+  }
+  setCurrentFile(name, index) {
+    this.progress.currentFile = name;
+    this.progress.currentFileIndex = index;
+  }
+  recordItem(item) {
+    this.progress.itemResults.push(item);
+  }
+  complete() {
+    this.status = "completed";
+    this.completedAt = Date.now();
+  }
+  fail(error) {
+    this.status = "failed";
+    this.error = error;
+    this.completedAt = Date.now();
+  }
+  markCancelled() {
+    this.status = "cancelled";
+    this.completedAt = Date.now();
+  }
+}
+class FileOperationManager {
+  queue = [];
+  history = [];
+  currentTask = null;
+  isRunning = false;
+  cancelled = false;
+  adapters = /* @__PURE__ */ new Map();
+  mainWindow = null;
+  maxHistorySize = 100;
+  lastProgressNotifyAt = 0;
+  completionWaiters = /* @__PURE__ */ new Map();
+  registerAdapter(deviceId, adapter) {
+    this.adapters.set(deviceId, adapter);
+  }
+  unregisterAdapter(deviceId) {
+    this.adapters.delete(deviceId);
+  }
+  setMainWindow(window) {
+    this.mainWindow = window;
+  }
+  notifyTaskUpdate(task) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(CH.push.fileOperationUpdated, task);
     }
-    TransferTask2.prototype.markRunning = function() {
-      this.status = "running";
-      this.startedAt = Date.now();
-    };
-    TransferTask2.prototype.setTotals = function(bytes, files) {
-      this.progress.totalBytes = bytes;
-      this.progress.totalFiles = files;
-    };
-    TransferTask2.prototype.addBytes = function(n) {
-      this.progress.bytesTransferred += n;
-    };
-    TransferTask2.prototype.setCurrentFile = function(name, index) {
-      this.progress.currentFile = name;
-      this.progress.currentFileIndex = index;
-    };
-    TransferTask2.prototype.recordItem = function(item) {
-      this.progress.itemResults.push(item);
-    };
-    TransferTask2.prototype.complete = function() {
-      this.status = "completed";
-      this.completedAt = Date.now();
-    };
-    TransferTask2.prototype.fail = function(error) {
-      this.status = "failed";
-      this.error = error;
-      this.completedAt = Date.now();
-    };
-    TransferTask2.prototype.markCancelled = function() {
-      this.status = "cancelled";
-      this.completedAt = Date.now();
-    };
-    return TransferTask2;
-  }()
-);
-var FileOperationManager = (
-  /** @class */
-  function() {
-    function FileOperationManager2() {
-      this.queue = [];
-      this.history = [];
-      this.currentTask = null;
+  }
+  notifyTaskAdded(task) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(CH.push.fileOperationAdded, task);
+    }
+  }
+  /** 节流(≥100ms)推送进度,避免大文件逐块刷屏 IPC。 */
+  notifyProgress(task, force = false) {
+    const now = Date.now();
+    if (force || now - this.lastProgressNotifyAt >= 100) {
+      this.lastProgressNotifyAt = now;
+      this.notifyTaskUpdate(task);
+    }
+  }
+  async addTask(params) {
+    const task = new TransferTask(params);
+    this.queue.push(task);
+    this.notifyTaskAdded(task);
+    log$h.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
+    this.processQueue();
+    return task;
+  }
+  async processQueue() {
+    if (this.isRunning || this.queue.length === 0) return;
+    this.isRunning = true;
+    this.currentTask = this.queue.shift();
+    try {
+      await this.executeTask(this.currentTask);
+    } catch (error) {
+      log$h.error("[FileOperationManager] task execution error:", error);
+    } finally {
       this.isRunning = false;
-      this.cancelled = false;
-      this.adapters = /* @__PURE__ */ new Map();
-      this.mainWindow = null;
-      this.maxHistorySize = 100;
-      this.lastProgressNotifyAt = 0;
-      this.completionWaiters = /* @__PURE__ */ new Map();
+      const completedTask = this.currentTask;
+      this.currentTask = null;
+      if (completedTask) {
+        this.addToHistory(completedTask);
+        this.resolveCompletion(completedTask);
+      }
+      this.processQueue();
     }
-    FileOperationManager2.prototype.registerAdapter = function(deviceId, adapter) {
-      this.adapters.set(deviceId, adapter);
-    };
-    FileOperationManager2.prototype.unregisterAdapter = function(deviceId) {
-      this.adapters.delete(deviceId);
-    };
-    FileOperationManager2.prototype.setMainWindow = function(window) {
-      this.mainWindow = window;
-    };
-    FileOperationManager2.prototype.notifyTaskUpdate = function(task) {
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send(CH.push.fileOperationUpdated, task);
+  }
+  async executeTask(task) {
+    task.markRunning();
+    this.notifyTaskUpdate(task);
+    this.cancelled = false;
+    try {
+      switch (task.type) {
+        case "copy":
+          await this.executeCopy(task);
+          break;
+        case "move":
+          await this.executeMove(task);
+          break;
+        case "delete":
+          await this.executeDelete(task);
+          break;
+        case "rename":
+          await this.executeRename(task);
+          break;
+        case "mkdir":
+          await this.executeMkdir(task);
+          break;
+        case "touch":
+          await this.executeTouch(task);
+          break;
+        case "batch-rename":
+          await this.executeBatchRename(task);
+          break;
+        case "recycle":
+          await this.executeRecycle(task);
+          break;
+        case "restore":
+          await this.executeRestore(task);
+          break;
       }
-    };
-    FileOperationManager2.prototype.notifyTaskAdded = function(task) {
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send(CH.push.fileOperationAdded, task);
-      }
-    };
-    FileOperationManager2.prototype.notifyProgress = function(task, force) {
-      if (force === void 0) {
-        force = false;
-      }
-      var now = Date.now();
-      if (force || now - this.lastProgressNotifyAt >= 100) {
-        this.lastProgressNotifyAt = now;
-        this.notifyTaskUpdate(task);
-      }
-    };
-    FileOperationManager2.prototype.addTask = function(params) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var task;
-        return __generator$9(this, function(_a) {
-          task = new TransferTask(params);
-          this.queue.push(task);
-          this.notifyTaskAdded(task);
-          log$9.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
-          this.processQueue();
-          return [2, task];
-        });
-      });
-    };
-    FileOperationManager2.prototype.processQueue = function() {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var error_1, completedTask;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (this.isRunning || this.queue.length === 0)
-                return [
-                  2
-                  /*return*/
-                ];
-              this.isRunning = true;
-              this.currentTask = this.queue.shift();
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, 4, 5]);
-              return [4, this.executeTask(this.currentTask)];
-            case 2:
-              _a.sent();
-              return [3, 5];
-            case 3:
-              error_1 = _a.sent();
-              log$9.error("[FileOperationManager] task execution error:", error_1);
-              return [3, 5];
-            case 4:
-              this.isRunning = false;
-              completedTask = this.currentTask;
-              this.currentTask = null;
-              if (completedTask) {
-                this.addToHistory(completedTask);
-                this.resolveCompletion(completedTask);
-              }
-              this.processQueue();
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 5:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeTask = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var _a, error_2;
-        return __generator$9(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              task.markRunning();
-              this.notifyTaskUpdate(task);
-              this.cancelled = false;
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 21, , 22]);
-              _a = task.type;
-              switch (_a) {
-                case "copy":
-                  return [3, 2];
-                case "move":
-                  return [3, 4];
-                case "delete":
-                  return [3, 6];
-                case "rename":
-                  return [3, 8];
-                case "mkdir":
-                  return [3, 10];
-                case "touch":
-                  return [3, 12];
-                case "batch-rename":
-                  return [3, 14];
-                case "recycle":
-                  return [3, 16];
-                case "restore":
-                  return [3, 18];
-              }
-              return [3, 20];
-            case 2:
-              return [4, this.executeCopy(task)];
-            case 3:
-              _b.sent();
-              return [3, 20];
-            case 4:
-              return [4, this.executeMove(task)];
-            case 5:
-              _b.sent();
-              return [3, 20];
-            case 6:
-              return [4, this.executeDelete(task)];
-            case 7:
-              _b.sent();
-              return [3, 20];
-            case 8:
-              return [4, this.executeRename(task)];
-            case 9:
-              _b.sent();
-              return [3, 20];
-            case 10:
-              return [4, this.executeMkdir(task)];
-            case 11:
-              _b.sent();
-              return [3, 20];
-            case 12:
-              return [4, this.executeTouch(task)];
-            case 13:
-              _b.sent();
-              return [3, 20];
-            case 14:
-              return [4, this.executeBatchRename(task)];
-            case 15:
-              _b.sent();
-              return [3, 20];
-            case 16:
-              return [4, this.executeRecycle(task)];
-            case 17:
-              _b.sent();
-              return [3, 20];
-            case 18:
-              return [4, this.executeRestore(task)];
-            case 19:
-              _b.sent();
-              return [3, 20];
-            case 20:
-              if (this.cancelled) {
-                task.markCancelled();
-              } else {
-                task.complete();
-              }
-              return [3, 22];
-            case 21:
-              error_2 = _b.sent();
-              task.fail(error_2 instanceof Error ? error_2.message : String(error_2));
-              return [3, 22];
-            case 22:
-              this.notifyTaskUpdate(task);
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeCopy = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var _a, source, target, targetPath, _b, bytes, files, fileCounter, _i, _c, sourcePath, error_3;
-        return __generator$9(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              _a = this.resolveEndpoints(task), source = _a.source, target = _a.target, targetPath = _a.targetPath;
-              return [4, this.computeTotals(source, task.sourcePaths)];
-            case 1:
-              _b = _d.sent(), bytes = _b.bytes, files = _b.files;
-              task.setTotals(bytes, files);
-              fileCounter = 0;
-              _i = 0, _c = task.sourcePaths;
-              _d.label = 2;
-            case 2:
-              if (!(_i < _c.length)) return [3, 7];
-              sourcePath = _c[_i];
-              if (this.cancelled)
-                return [
-                  2
-                  /*return*/
-                ];
-              _d.label = 3;
-            case 3:
-              _d.trys.push([3, 5, , 6]);
-              return [4, this.copyPath(task, source, sourcePath, target, targetPath, function() {
-                return fileCounter++;
-              }, false)];
-            case 4:
-              _d.sent();
-              return [3, 6];
-            case 5:
-              error_3 = _d.sent();
-              if (error_3 instanceof CancelledError)
-                return [
-                  2
-                  /*return*/
-                ];
-              throw error_3;
-            case 6:
-              _i++;
-              return [3, 2];
-            case 7:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeMove = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var sourceDeviceId, targetDeviceId, source, target, targetPath, _i, _a, sourcePath, name_1, dst, item, error_4, _b, bytes, files, fileCounter, _c, _d, sourcePath, error_5;
-        var _e;
-        return __generator$9(this, function(_f) {
-          switch (_f.label) {
-            case 0:
-              sourceDeviceId = task.sourceDeviceId;
-              targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
-              source = this.adapters.get(sourceDeviceId);
-              target = this.adapters.get(targetDeviceId);
-              if (!source || !target) {
-                throw new Error("Adapter not found: ".concat(!source ? sourceDeviceId : targetDeviceId));
-              }
-              targetPath = task.targetPath || "/";
-              if (!(sourceDeviceId === targetDeviceId)) return [3, 12];
-              _i = 0, _a = task.sourcePaths;
-              _f.label = 1;
-            case 1:
-              if (!(_i < _a.length)) return [3, 11];
-              sourcePath = _a[_i];
-              if (this.cancelled)
-                return [
-                  2
-                  /*return*/
-                ];
-              name_1 = posixBaseName(sourcePath);
-              return [4, this.resolveTargetPath(target, joinPosix$1(targetPath, name_1), (_e = task.conflictStrategy) !== null && _e !== void 0 ? _e : "skip")];
-            case 2:
-              dst = _f.sent();
-              task.setCurrentFile(name_1, 0);
-              this.notifyTaskUpdate(task);
-              item = { sourcePath, targetPath: dst, status: "success" };
-              _f.label = 3;
-            case 3:
-              _f.trys.push([3, 8, , 9]);
-              return [4, target.exists(dst)];
-            case 4:
-              if (!(_f.sent() && task.conflictStrategy === "overwrite")) return [3, 6];
-              return [4, target.delete(dst)];
-            case 5:
-              _f.sent();
-              _f.label = 6;
-            case 6:
-              return [4, source.rename(sourcePath, dst)];
-            case 7:
-              _f.sent();
-              return [3, 9];
-            case 8:
-              error_4 = _f.sent();
-              item.status = "failed";
-              item.error = error_4 instanceof Error ? error_4.message : String(error_4);
-              return [3, 9];
-            case 9:
-              task.recordItem(item);
-              _f.label = 10;
-            case 10:
-              _i++;
-              return [3, 1];
-            case 11:
-              return [
-                2
-                /*return*/
-              ];
-            case 12:
-              return [4, this.computeTotals(source, task.sourcePaths)];
-            case 13:
-              _b = _f.sent(), bytes = _b.bytes, files = _b.files;
-              task.setTotals(bytes, files);
-              fileCounter = 0;
-              _c = 0, _d = task.sourcePaths;
-              _f.label = 14;
-            case 14:
-              if (!(_c < _d.length)) return [3, 19];
-              sourcePath = _d[_c];
-              if (this.cancelled)
-                return [
-                  2
-                  /*return*/
-                ];
-              _f.label = 15;
-            case 15:
-              _f.trys.push([15, 17, , 18]);
-              return [4, this.copyPath(task, source, sourcePath, target, targetPath, function() {
-                return fileCounter++;
-              }, true)];
-            case 16:
-              _f.sent();
-              return [3, 18];
-            case 17:
-              error_5 = _f.sent();
-              if (error_5 instanceof CancelledError)
-                return [
-                  2
-                  /*return*/
-                ];
-              throw error_5;
-            case 18:
-              _c++;
-              return [3, 14];
-            case 19:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.copyPath = function(task, source, sourcePath, target, targetDir, nextIndex, move) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var isDir, name, dst;
-        return __generator$9(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              isDir = false;
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 3, , 4]);
-              return [4, source.stat(sourcePath)];
-            case 2:
-              isDir = _b.sent().isDirectory;
-              return [3, 4];
-            case 3:
-              _b.sent();
-              task.recordItem({ sourcePath, status: "failed", error: "无法读取源路径属性" });
-              return [2, false];
-            case 4:
-              name = posixBaseName(sourcePath);
-              dst = joinPosix$1(targetDir, name);
-              if (isDir) {
-                return [2, this.copyTree(task, source, sourcePath, target, dst, nextIndex, move)];
-              } else {
-                return [2, this.copyFile(task, source, sourcePath, target, dst, nextIndex, move)];
-              }
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.copyTree = function(task, source, srcDir, target, dstDir, nextIndex, move) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var targetStat, error_6, entries, error_7, copiedCompletely, _i, entries_1, entry, childSrc, childDst, copied, error_8, error_9;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 6, , 7]);
-              return [4, target.exists(dstDir)];
-            case 1:
-              if (!_a.sent()) return [3, 3];
-              return [4, target.stat(dstDir)];
-            case 2:
-              targetStat = _a.sent();
-              if (!targetStat.isDirectory)
-                throw new Error("目标路径不是目录: ".concat(dstDir));
-              return [3, 5];
-            case 3:
-              return [4, target.mkdir(dstDir)];
-            case 4:
-              _a.sent();
-              _a.label = 5;
-            case 5:
-              return [3, 7];
-            case 6:
-              error_6 = _a.sent();
-              task.recordItem({ sourcePath: srcDir, targetPath: dstDir, status: "failed", error: error_6 instanceof Error ? error_6.message : String(error_6) });
-              return [2, false];
-            case 7:
-              entries = [];
-              _a.label = 8;
-            case 8:
-              _a.trys.push([8, 10, , 11]);
-              return [4, source.list(srcDir)];
-            case 9:
-              entries = _a.sent();
-              return [3, 11];
-            case 10:
-              error_7 = _a.sent();
-              task.recordItem({ sourcePath: srcDir, status: "failed", error: error_7 instanceof Error ? error_7.message : String(error_7) });
-              return [2, false];
-            case 11:
-              copiedCompletely = true;
-              _i = 0, entries_1 = entries;
-              _a.label = 12;
-            case 12:
-              if (!(_i < entries_1.length)) return [3, 20];
-              entry = entries_1[_i];
-              if (this.cancelled)
-                return [2, false];
-              childSrc = joinPosix$1(srcDir, entry.name);
-              childDst = joinPosix$1(dstDir, entry.name);
-              _a.label = 13;
-            case 13:
-              _a.trys.push([13, 18, , 19]);
-              copied = void 0;
-              if (!entry.isDirectory) return [3, 15];
-              return [4, this.copyTree(task, source, childSrc, target, childDst, nextIndex, move)];
-            case 14:
-              copied = _a.sent();
-              return [3, 17];
-            case 15:
-              return [4, this.copyFile(task, source, childSrc, target, childDst, nextIndex, move)];
-            case 16:
-              copied = _a.sent();
-              _a.label = 17;
-            case 17:
-              copiedCompletely = copiedCompletely && copied;
-              return [3, 19];
-            case 18:
-              error_8 = _a.sent();
-              if (error_8 instanceof CancelledError)
-                return [2, false];
-              copiedCompletely = false;
-              return [3, 19];
-            case 19:
-              _i++;
-              return [3, 12];
-            case 20:
-              if (!(move && copiedCompletely && !this.cancelled)) return [3, 24];
-              _a.label = 21;
-            case 21:
-              _a.trys.push([21, 23, , 24]);
-              return [4, source.delete(srcDir)];
-            case 22:
-              _a.sent();
-              return [3, 24];
-            case 23:
-              error_9 = _a.sent();
-              console.warn("[FileOperationManager] failed to remove moved source dir ".concat(srcDir, ":"), error_9);
-              return [2, false];
-            case 24:
-              return [2, copiedCompletely];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.copyFile = function(task, source, srcPath, target, dstPath, nextIndex, move) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var name, index, item, resolvedDestination, startBytes_1, startTime_1, bytes, error_10;
-        var _this = this;
-        var _a;
-        return __generator$9(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              name = posixBaseName(srcPath);
-              index = nextIndex();
-              task.setCurrentFile(name, index);
-              this.notifyProgress(task, true);
-              item = { sourcePath: srcPath, targetPath: dstPath, status: "success" };
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, 6, , 7]);
-              return [
-                4,
-                this.resolveTargetPath(target, dstPath, (_a = task.conflictStrategy) !== null && _a !== void 0 ? _a : "skip")
-                // Skip retains source data. Overwrite and rename are resolved before transfer.
-              ];
-            case 2:
-              resolvedDestination = _b.sent();
-              if (resolvedDestination === null) {
-                item.status = "skipped";
-                task.recordItem(item);
-                return [2, false];
-              }
-              item.targetPath = resolvedDestination;
-              startBytes_1 = task.progress.bytesTransferred;
-              startTime_1 = Date.now();
-              return [4, StreamTransfer.transferFile(source, srcPath, target, resolvedDestination, {
-                onProgress: function(b) {
-                  task.progress.bytesTransferred = startBytes_1 + b;
-                  _this.updateSpeed(task, startBytes_1, startTime_1);
-                  _this.notifyProgress(task);
-                },
-                shouldCancel: function() {
-                  return _this.cancelled;
-                }
-              })];
-            case 3:
-              bytes = _b.sent();
-              item.bytesProcessed = bytes;
-              task.recordItem(item);
-              if (!move) return [3, 5];
-              return [4, source.delete(srcPath)];
-            case 4:
-              _b.sent();
-              _b.label = 5;
-            case 5:
-              return [2, true];
-            case 6:
-              error_10 = _b.sent();
-              if (error_10 instanceof CancelledError) {
-                throw error_10;
-              }
-              item.status = "failed";
-              item.error = error_10 instanceof Error ? error_10.message : String(error_10);
-              task.recordItem(item);
-              return [2, false];
-            case 7:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.updateSpeed = function(task, startBytes, startTime) {
-      var elapsed = Date.now() - startTime;
-      var delta = task.progress.bytesTransferred - startBytes;
-      task.progress.speed = elapsed > 0 ? delta / elapsed * 1e3 : 0;
-    };
-    FileOperationManager2.prototype.resolveTargetPath = function(target, destination, strategy) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var extensionIndex, parent, name, stem, extension, suffix, candidate;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, target.exists(destination)];
-            case 1:
-              if (!_a.sent())
-                return [2, destination];
-              if (strategy === "skip")
-                return [2, null];
-              if (!(strategy === "overwrite")) return [3, 3];
-              return [4, target.delete(destination)];
-            case 2:
-              _a.sent();
-              return [2, destination];
-            case 3:
-              extensionIndex = posixBaseName(destination).lastIndexOf(".");
-              parent = destination.slice(0, Math.max(0, destination.length - posixBaseName(destination).length)).replace(/\/$/, "") || "/";
-              name = posixBaseName(destination);
-              stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name;
-              extension = extensionIndex > 0 ? name.slice(extensionIndex) : "";
-              suffix = 1;
-              _a.label = 4;
-            case 4:
-              if (!(suffix < 1e4)) return [3, 7];
-              candidate = joinPosix$1(parent, "".concat(stem, " ").concat(suffix).concat(extension));
-              return [4, target.exists(candidate)];
-            case 5:
-              if (!_a.sent())
-                return [2, candidate];
-              _a.label = 6;
-            case 6:
-              suffix++;
-              return [3, 4];
-            case 7:
-              throw new Error("无法为冲突文件生成可用名称: ".concat(destination));
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.computeTotals = function(source, paths) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var bytes, files, walk, _i, paths_1, p;
-        var _this = this;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              bytes = 0;
-              files = 0;
-              walk = function(p2) {
-                return __awaiter$9(_this, void 0, void 0, function() {
-                  var st, entries, _i2, entries_2, e;
-                  return __generator$9(this, function(_b) {
-                    switch (_b.label) {
-                      case 0:
-                        _b.trys.push([0, 7, , 8]);
-                        return [4, source.stat(p2)];
-                      case 1:
-                        st = _b.sent();
-                        if (st.isFile) {
-                          bytes += st.size;
-                          files++;
-                          return [
-                            2
-                            /*return*/
-                          ];
-                        }
-                        return [4, source.list(p2)];
-                      case 2:
-                        entries = _b.sent();
-                        _i2 = 0, entries_2 = entries;
-                        _b.label = 3;
-                      case 3:
-                        if (!(_i2 < entries_2.length)) return [3, 6];
-                        e = entries_2[_i2];
-                        return [4, walk(joinPosix$1(p2, e.name))];
-                      case 4:
-                        _b.sent();
-                        _b.label = 5;
-                      case 5:
-                        _i2++;
-                        return [3, 3];
-                      case 6:
-                        return [3, 8];
-                      case 7:
-                        _b.sent();
-                        return [3, 8];
-                      case 8:
-                        return [
-                          2
-                          /*return*/
-                        ];
-                    }
-                  });
-                });
-              };
-              _i = 0, paths_1 = paths;
-              _a.label = 1;
-            case 1:
-              if (!(_i < paths_1.length)) return [3, 4];
-              p = paths_1[_i];
-              return [4, walk(p)];
-            case 2:
-              _a.sent();
-              _a.label = 3;
-            case 3:
-              _i++;
-              return [3, 1];
-            case 4:
-              return [2, { bytes, files }];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.resolveEndpoints = function(task) {
-      var source = this.adapters.get(task.sourceDeviceId);
-      var targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
-      var target = this.adapters.get(targetDeviceId);
-      if (!source)
-        throw new Error("Source adapter not found: ".concat(task.sourceDeviceId));
-      if (!target)
-        throw new Error("Target adapter not found: ".concat(targetDeviceId));
-      return { source, target, targetPath: task.targetPath || "/" };
-    };
-    FileOperationManager2.prototype.executeDelete = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, i, sourcePath, item, error_11;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              i = 0;
-              _a.label = 1;
-            case 1:
-              if (!(i < task.sourcePaths.length)) return [3, 7];
-              if (this.cancelled)
-                return [
-                  2
-                  /*return*/
-                ];
-              sourcePath = task.sourcePaths[i];
-              task.setCurrentFile(posixBaseName(sourcePath), i);
-              this.notifyTaskUpdate(task);
-              item = { sourcePath, status: "success" };
-              _a.label = 2;
-            case 2:
-              _a.trys.push([2, 4, , 5]);
-              return [4, adapter.delete(sourcePath)];
-            case 3:
-              _a.sent();
-              return [3, 5];
-            case 4:
-              error_11 = _a.sent();
-              item.status = "failed";
-              item.error = error_11 instanceof Error ? error_11.message : String(error_11);
-              return [3, 5];
-            case 5:
-              task.recordItem(item);
-              _a.label = 6;
-            case 6:
-              i++;
-              return [3, 1];
-            case 7:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeRename = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, sourcePath, dir, targetPath, item, error_12;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              if (task.sourcePaths.length === 0 || !task.newName)
-                throw new Error("Invalid rename parameters");
-              sourcePath = task.sourcePaths[0];
-              dir = posixDirname(sourcePath);
-              targetPath = joinPosix$1(dir, task.newName);
-              task.setCurrentFile(task.newName, 0);
-              task.progress.totalFiles = 1;
-              this.notifyTaskUpdate(task);
-              item = { sourcePath, targetPath, status: "success" };
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, , 4]);
-              return [4, adapter.rename(sourcePath, targetPath)];
-            case 2:
-              _a.sent();
-              return [3, 4];
-            case 3:
-              error_12 = _a.sent();
-              item.status = "failed";
-              item.error = error_12 instanceof Error ? error_12.message : String(error_12);
-              task.recordItem(item);
-              throw error_12;
-            case 4:
-              task.recordItem(item);
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeBatchRename = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, items, index, item, parent_1, destination, result, error_13;
-        var _a;
-        return __generator$9(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              items = (_a = task.renameItems) !== null && _a !== void 0 ? _a : [];
-              if (items.length === 0)
-                throw new Error("批量重命名缺少预览后的名称列表。");
-              task.progress.totalFiles = items.length;
-              index = 0;
-              _b.label = 1;
-            case 1:
-              if (!(index < items.length)) return [3, 8];
-              item = items[index];
-              parent_1 = item.sourcePath.slice(0, item.sourcePath.lastIndexOf("/")) || "/";
-              destination = joinPosix$1(parent_1, item.newName);
-              task.setCurrentFile(item.newName, index);
-              result = { sourcePath: item.sourcePath, targetPath: destination, status: "success" };
-              _b.label = 2;
-            case 2:
-              _b.trys.push([2, 5, , 6]);
-              return [4, adapter.exists(destination)];
-            case 3:
-              if (_b.sent())
-                throw new Error("目标名称已存在: ".concat(item.newName));
-              return [4, adapter.rename(item.sourcePath, destination)];
-            case 4:
-              _b.sent();
-              return [3, 6];
-            case 5:
-              error_13 = _b.sent();
-              result.status = "failed";
-              result.error = error_13 instanceof Error ? error_13.message : String(error_13);
-              return [3, 6];
-            case 6:
-              task.recordItem(result);
-              this.notifyTaskUpdate(task);
-              _b.label = 7;
-            case 7:
-              index++;
-              return [3, 1];
-            case 8:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeRecycle = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, index, sourcePath, result, parent_2, trashDirectory, trashPath, error_14;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              task.progress.totalFiles = task.sourcePaths.length;
-              index = 0;
-              _a.label = 1;
-            case 1:
-              if (!(index < task.sourcePaths.length)) return [3, 12];
-              sourcePath = task.sourcePaths[index];
-              result = { sourcePath, status: "success" };
-              task.setCurrentFile(posixBaseName(sourcePath), index);
-              _a.label = 2;
-            case 2:
-              _a.trys.push([2, 9, , 10]);
-              if (!(task.sourceDeviceId === "local")) return [3, 4];
-              return [4, shell.trashItem(sourcePath)];
-            case 3:
-              _a.sent();
-              return [3, 8];
-            case 4:
-              parent_2 = posixDirname(sourcePath);
-              trashDirectory = joinPosix$1(joinPosix$1(parent_2, ".fileman-recycle-bin"), task.id);
-              return [4, adapter.mkdir(trashDirectory)];
-            case 5:
-              _a.sent();
-              return [4, this.resolveTargetPath(adapter, joinPosix$1(trashDirectory, posixBaseName(sourcePath)), "rename")];
-            case 6:
-              trashPath = _a.sent();
-              if (!trashPath)
-                throw new Error("无法准备回收站路径");
-              return [4, adapter.rename(sourcePath, trashPath)];
-            case 7:
-              _a.sent();
-              result.targetPath = trashPath;
-              _a.label = 8;
-            case 8:
-              return [3, 10];
-            case 9:
-              error_14 = _a.sent();
-              result.status = "failed";
-              result.error = error_14 instanceof Error ? error_14.message : String(error_14);
-              return [3, 10];
-            case 10:
-              task.recordItem(result);
-              this.notifyTaskUpdate(task);
-              _a.label = 11;
-            case 11:
-              index++;
-              return [3, 1];
-            case 12:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeRestore = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, items, index, item, result, error_15;
-        var _a;
-        return __generator$9(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              items = (_a = task.restoreItems) !== null && _a !== void 0 ? _a : [];
-              if (items.length === 0)
-                throw new Error("恢复操作缺少原始路径。");
-              task.progress.totalFiles = items.length;
-              index = 0;
-              _b.label = 1;
-            case 1:
-              if (!(index < items.length)) return [3, 8];
-              item = items[index];
-              result = { sourcePath: item.trashPath, targetPath: item.originalPath, status: "success" };
-              task.setCurrentFile(posixBaseName(item.originalPath), index);
-              _b.label = 2;
-            case 2:
-              _b.trys.push([2, 5, , 6]);
-              return [4, adapter.exists(item.originalPath)];
-            case 3:
-              if (_b.sent())
-                throw new Error("原始位置已有同名项目: ".concat(item.originalPath));
-              return [4, adapter.rename(item.trashPath, item.originalPath)];
-            case 4:
-              _b.sent();
-              return [3, 6];
-            case 5:
-              error_15 = _b.sent();
-              result.status = "failed";
-              result.error = error_15 instanceof Error ? error_15.message : String(error_15);
-              return [3, 6];
-            case 6:
-              task.recordItem(result);
-              this.notifyTaskUpdate(task);
-              _b.label = 7;
-            case 7:
-              index++;
-              return [3, 1];
-            case 8:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeMkdir = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, targetPath, item, error_16;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              targetPath = task.targetPath || "/";
-              task.setCurrentFile(posixBaseName(targetPath), 0);
-              task.progress.totalFiles = 1;
-              this.notifyTaskUpdate(task);
-              item = { sourcePath: "", targetPath, status: "success" };
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, , 4]);
-              return [4, adapter.mkdir(targetPath)];
-            case 2:
-              _a.sent();
-              return [3, 4];
-            case 3:
-              error_16 = _a.sent();
-              item.status = "failed";
-              item.error = error_16 instanceof Error ? error_16.message : String(error_16);
-              task.recordItem(item);
-              throw error_16;
-            case 4:
-              task.recordItem(item);
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.executeTouch = function(task) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var adapter, targetPath, item, error_17;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              adapter = this.adapters.get(task.sourceDeviceId);
-              if (!adapter)
-                throw new Error("Adapter not found: ".concat(task.sourceDeviceId));
-              targetPath = task.targetPath || "/";
-              task.setCurrentFile(posixBaseName(targetPath), 0);
-              task.progress.totalFiles = 1;
-              this.notifyTaskUpdate(task);
-              item = { sourcePath: "", targetPath, status: "success" };
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, , 4]);
-              return [4, adapter.writeFile(targetPath, Buffer.from(""))];
-            case 2:
-              _a.sent();
-              return [3, 4];
-            case 3:
-              error_17 = _a.sent();
-              item.status = "failed";
-              item.error = error_17 instanceof Error ? error_17.message : String(error_17);
-              task.recordItem(item);
-              throw error_17;
-            case 4:
-              task.recordItem(item);
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.cancelTask = function(taskId) {
-      var _a;
-      if (((_a = this.currentTask) === null || _a === void 0 ? void 0 : _a.id) === taskId) {
-        this.cancelled = true;
+      if (this.cancelled) {
+        task.markCancelled();
       } else {
-        var queuedTask = this.queue.find(function(t) {
-          return t.id === taskId;
-        });
-        this.queue = this.queue.filter(function(t) {
-          return t.id !== taskId;
-        });
-        if (queuedTask) {
-          queuedTask.markCancelled();
-          this.addToHistory(queuedTask);
-          this.notifyTaskUpdate(queuedTask);
-          this.resolveCompletion(queuedTask);
+        task.complete();
+      }
+    } catch (error) {
+      task.fail(error instanceof Error ? error.message : String(error));
+    }
+    this.notifyTaskUpdate(task);
+  }
+  // ============ 跨设备/同设备 拷贝 ============
+  async executeCopy(task) {
+    const { source, target, targetPath } = this.resolveEndpoints(task);
+    const { bytes, files } = await this.computeTotals(source, task.sourcePaths);
+    task.setTotals(bytes, files);
+    let fileCounter = 0;
+    for (const sourcePath of task.sourcePaths) {
+      if (this.cancelled) return;
+      try {
+        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter++, false);
+      } catch (error) {
+        if (error instanceof CancelledError$2) return;
+        throw error;
+      }
+    }
+  }
+  async executeMove(task) {
+    const sourceDeviceId = task.sourceDeviceId;
+    const targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
+    const source = this.adapters.get(sourceDeviceId);
+    const target = this.adapters.get(targetDeviceId);
+    if (!source || !target) {
+      throw new Error(`Adapter not found: ${!source ? sourceDeviceId : targetDeviceId}`);
+    }
+    const targetPath = task.targetPath || "/";
+    if (sourceDeviceId === targetDeviceId) {
+      for (const sourcePath of task.sourcePaths) {
+        if (this.cancelled) return;
+        const name = posixBaseName(sourcePath);
+        const dst = await this.resolveTargetPath(target, joinPosix$1(targetPath, name), task.conflictStrategy ?? "skip");
+        task.setCurrentFile(name, 0);
+        this.notifyTaskUpdate(task);
+        const item = { sourcePath, targetPath: dst, status: "success" };
+        try {
+          if (await target.exists(dst) && task.conflictStrategy === "overwrite") await target.delete(dst);
+          await source.rename(sourcePath, dst);
+        } catch (error) {
+          item.status = "failed";
+          item.error = error instanceof Error ? error.message : String(error);
+        }
+        task.recordItem(item);
+      }
+      return;
+    }
+    const { bytes, files } = await this.computeTotals(source, task.sourcePaths);
+    task.setTotals(bytes, files);
+    let fileCounter = 0;
+    for (const sourcePath of task.sourcePaths) {
+      if (this.cancelled) return;
+      try {
+        await this.copyPath(task, source, sourcePath, target, targetPath, () => fileCounter++, true);
+      } catch (error) {
+        if (error instanceof CancelledError$2) return;
+        throw error;
+      }
+    }
+  }
+  /** 拷贝一个顶层路径(文件或目录树)。move=true 时,成功的项删源。 */
+  async copyPath(task, source, sourcePath, target, targetDir, nextIndex, move) {
+    let isDir = false;
+    try {
+      isDir = (await source.stat(sourcePath)).isDirectory;
+    } catch {
+      task.recordItem({ sourcePath, status: "failed", error: "无法读取源路径属性" });
+      return false;
+    }
+    const name = posixBaseName(sourcePath);
+    const dst = joinPosix$1(targetDir, name);
+    if (isDir) {
+      return this.copyTree(task, source, sourcePath, target, dst, nextIndex, move);
+    } else {
+      return this.copyFile(task, source, sourcePath, target, dst, nextIndex, move);
+    }
+  }
+  /** 递归拷贝目录树。move 且全成功时删源目录。 */
+  async copyTree(task, source, srcDir, target, dstDir, nextIndex, move) {
+    try {
+      if (await target.exists(dstDir)) {
+        const targetStat = await target.stat(dstDir);
+        if (!targetStat.isDirectory) throw new Error(`目标路径不是目录: ${dstDir}`);
+      } else {
+        await target.mkdir(dstDir);
+      }
+    } catch (error) {
+      task.recordItem({ sourcePath: srcDir, targetPath: dstDir, status: "failed", error: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+    let entries = [];
+    try {
+      entries = await source.list(srcDir);
+    } catch (error) {
+      task.recordItem({ sourcePath: srcDir, status: "failed", error: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+    let copiedCompletely = true;
+    for (const entry of entries) {
+      if (this.cancelled) return false;
+      const childSrc = joinPosix$1(srcDir, entry.name);
+      const childDst = joinPosix$1(dstDir, entry.name);
+      try {
+        let copied;
+        if (entry.isDirectory) {
+          copied = await this.copyTree(task, source, childSrc, target, childDst, nextIndex, move);
+        } else {
+          copied = await this.copyFile(task, source, childSrc, target, childDst, nextIndex, move);
+        }
+        copiedCompletely = copiedCompletely && copied;
+      } catch (error) {
+        if (error instanceof CancelledError$2) return false;
+        copiedCompletely = false;
+      }
+    }
+    if (move && copiedCompletely && !this.cancelled) {
+      try {
+        await source.delete(srcDir);
+      } catch (error) {
+        console.warn(`[FileOperationManager] failed to remove moved source dir ${srcDir}:`, error);
+        return false;
+      }
+    }
+    return copiedCompletely;
+  }
+  /** 拷贝单个文件(流式优先,缓冲回退)。move=true 时成功/跳过后删源。 */
+  async copyFile(task, source, srcPath, target, dstPath, nextIndex, move) {
+    const name = posixBaseName(srcPath);
+    const index = nextIndex();
+    task.setCurrentFile(name, index);
+    this.notifyProgress(task, true);
+    const item = { sourcePath: srcPath, targetPath: dstPath, status: "success" };
+    try {
+      const resolvedDestination = await this.resolveTargetPath(target, dstPath, task.conflictStrategy ?? "skip");
+      if (resolvedDestination === null) {
+        item.status = "skipped";
+        task.recordItem(item);
+        return false;
+      }
+      item.targetPath = resolvedDestination;
+      const startBytes = task.progress.bytesTransferred;
+      const startTime = Date.now();
+      const bytes = await StreamTransfer.transferFile(source, srcPath, target, resolvedDestination, {
+        onProgress: (b) => {
+          task.progress.bytesTransferred = startBytes + b;
+          this.updateSpeed(task, startBytes, startTime);
+          this.notifyProgress(task);
+        },
+        shouldCancel: () => this.cancelled
+      });
+      item.bytesProcessed = bytes;
+      task.recordItem(item);
+      if (move) {
+        await source.delete(srcPath);
+      }
+      return true;
+    } catch (error) {
+      if (error instanceof CancelledError$2) {
+        throw error;
+      }
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
+      return false;
+    }
+  }
+  updateSpeed(task, startBytes, startTime) {
+    const elapsed = Date.now() - startTime;
+    const delta = task.progress.bytesTransferred - startBytes;
+    task.progress.speed = elapsed > 0 ? delta / elapsed * 1e3 : 0;
+  }
+  /** Returns null for skip, otherwise a writable conflict-free destination. */
+  async resolveTargetPath(target, destination, strategy) {
+    if (!await target.exists(destination)) return destination;
+    if (strategy === "skip") return null;
+    if (strategy === "overwrite") {
+      await target.delete(destination);
+      return destination;
+    }
+    const extensionIndex = posixBaseName(destination).lastIndexOf(".");
+    const parent = destination.slice(0, Math.max(0, destination.length - posixBaseName(destination).length)).replace(/\/$/, "") || "/";
+    const name = posixBaseName(destination);
+    const stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name;
+    const extension = extensionIndex > 0 ? name.slice(extensionIndex) : "";
+    for (let suffix = 1; suffix < 1e4; suffix++) {
+      const candidate = joinPosix$1(parent, `${stem} ${suffix}${extension}`);
+      if (!await target.exists(candidate)) return candidate;
+    }
+    throw new Error(`无法为冲突文件生成可用名称: ${destination}`);
+  }
+  /** 统计总量(含目录递归)。 */
+  async computeTotals(source, paths) {
+    let bytes = 0;
+    let files = 0;
+    const walk = async (p) => {
+      try {
+        const st = await source.stat(p);
+        if (st.isFile) {
+          bytes += st.size;
+          files++;
           return;
         }
-        var historyIndex = this.history.findIndex(function(t) {
-          return t.id === taskId;
-        });
-        if (historyIndex > -1) {
-          this.history[historyIndex].status = "cancelled";
+        const entries = await source.list(p);
+        for (const e of entries) {
+          await walk(joinPosix$1(p, e.name));
         }
+      } catch {
       }
     };
-    FileOperationManager2.prototype.retryTask = function(taskId) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var historyTask, newTask;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              historyTask = this.history.find(function(t) {
-                return t.id === taskId;
-              });
-              if (!historyTask)
-                return [2, null];
-              return [4, this.addTask({
-                type: historyTask.type,
-                sourceDeviceId: historyTask.sourceDeviceId,
-                sourcePaths: historyTask.sourcePaths,
-                targetDeviceId: historyTask.targetDeviceId,
-                targetPath: historyTask.targetPath,
-                newName: historyTask.newName
-              })];
-            case 1:
-              newTask = _a.sent();
-              this.history = this.history.filter(function(t) {
-                return t.id !== taskId;
-              });
-              return [2, newTask];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.getQueue = function() {
-      return __spreadArray$4([], this.queue, true);
-    };
-    FileOperationManager2.prototype.getHistory = function() {
-      return __spreadArray$4([], this.history, true);
-    };
-    FileOperationManager2.prototype.getCurrentTask = function() {
-      return this.currentTask;
-    };
-    FileOperationManager2.prototype.getAllTasks = function() {
-      var current = this.currentTask ? [this.currentTask] : [];
-      return __spreadArray$4(__spreadArray$4([], current, true), this.queue, true);
-    };
-    FileOperationManager2.prototype.clearHistory = function() {
-      this.history = [];
-    };
-    FileOperationManager2.prototype.addTaskAndWait = function(params) {
-      return __awaiter$9(this, void 0, void 0, function() {
-        var task;
-        return __generator$9(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              return [4, this.addTask(params)];
-            case 1:
-              task = _a.sent();
-              return [2, this.waitForCompletion(task.id)];
-          }
-        });
-      });
-    };
-    FileOperationManager2.prototype.waitForCompletion = function(taskId) {
-      var _this = this;
-      var completed = this.history.find(function(task) {
-        return task.id === taskId;
-      });
-      if (completed)
-        return Promise.resolve(completed);
-      return new Promise(function(resolve) {
-        return _this.completionWaiters.set(taskId, resolve);
-      });
-    };
-    FileOperationManager2.prototype.resolveCompletion = function(task) {
-      var resolve = this.completionWaiters.get(task.id);
-      if (resolve) {
-        this.completionWaiters.delete(task.id);
-        resolve(task);
+    for (const p of paths) {
+      await walk(p);
+    }
+    return { bytes, files };
+  }
+  resolveEndpoints(task) {
+    const source = this.adapters.get(task.sourceDeviceId);
+    const targetDeviceId = task.targetDeviceId || task.sourceDeviceId;
+    const target = this.adapters.get(targetDeviceId);
+    if (!source) throw new Error(`Source adapter not found: ${task.sourceDeviceId}`);
+    if (!target) throw new Error(`Target adapter not found: ${targetDeviceId}`);
+    return { source, target, targetPath: task.targetPath || "/" };
+  }
+  // ============ 单设备操作 ============
+  async executeDelete(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    for (let i = 0; i < task.sourcePaths.length; i++) {
+      if (this.cancelled) return;
+      const sourcePath = task.sourcePaths[i];
+      task.setCurrentFile(posixBaseName(sourcePath), i);
+      this.notifyTaskUpdate(task);
+      const item = { sourcePath, status: "success" };
+      try {
+        await adapter.delete(sourcePath);
+      } catch (error) {
+        item.status = "failed";
+        item.error = error instanceof Error ? error.message : String(error);
       }
-    };
-    FileOperationManager2.prototype.addToHistory = function(task) {
-      this.history.unshift(task);
-      if (this.history.length > this.maxHistorySize) {
-        this.history = this.history.slice(0, this.maxHistorySize);
+      task.recordItem(item);
+    }
+  }
+  async executeRename(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    if (task.sourcePaths.length === 0 || !task.newName) throw new Error("Invalid rename parameters");
+    const sourcePath = task.sourcePaths[0];
+    const dir = posixDirname(sourcePath);
+    const targetPath = joinPosix$1(dir, task.newName);
+    task.setCurrentFile(task.newName, 0);
+    task.progress.totalFiles = 1;
+    this.notifyTaskUpdate(task);
+    const item = { sourcePath, targetPath, status: "success" };
+    try {
+      await adapter.rename(sourcePath, targetPath);
+    } catch (error) {
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
+      throw error;
+    }
+    task.recordItem(item);
+  }
+  async executeBatchRename(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const items = task.renameItems ?? [];
+    if (items.length === 0) throw new Error("批量重命名缺少预览后的名称列表。");
+    task.progress.totalFiles = items.length;
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      const parent = item.sourcePath.slice(0, item.sourcePath.lastIndexOf("/")) || "/";
+      const destination = joinPosix$1(parent, item.newName);
+      task.setCurrentFile(item.newName, index);
+      const result = { sourcePath: item.sourcePath, targetPath: destination, status: "success" };
+      try {
+        if (await adapter.exists(destination)) throw new Error(`目标名称已存在: ${item.newName}`);
+        await adapter.rename(item.sourcePath, destination);
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
       }
-    };
-    return FileOperationManager2;
-  }()
-);
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
+  }
+  /** Local uses the platform trash; remote/mobile adapters use a same-parent hidden bin. */
+  async executeRecycle(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    task.progress.totalFiles = task.sourcePaths.length;
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      const sourcePath = task.sourcePaths[index];
+      const result = { sourcePath, status: "success" };
+      task.setCurrentFile(posixBaseName(sourcePath), index);
+      try {
+        if (task.sourceDeviceId === "local") {
+          await shell.trashItem(sourcePath);
+        } else {
+          const parent = posixDirname(sourcePath);
+          const trashDirectory = joinPosix$1(joinPosix$1(parent, ".fileman-recycle-bin"), task.id);
+          await adapter.mkdir(trashDirectory);
+          const trashPath = await this.resolveTargetPath(adapter, joinPosix$1(trashDirectory, posixBaseName(sourcePath)), "rename");
+          if (!trashPath) throw new Error("无法准备回收站路径");
+          await adapter.rename(sourcePath, trashPath);
+          result.targetPath = trashPath;
+        }
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
+      }
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
+  }
+  async executeRestore(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const items = task.restoreItems ?? [];
+    if (items.length === 0) throw new Error("恢复操作缺少原始路径。");
+    task.progress.totalFiles = items.length;
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      const result = { sourcePath: item.trashPath, targetPath: item.originalPath, status: "success" };
+      task.setCurrentFile(posixBaseName(item.originalPath), index);
+      try {
+        if (await adapter.exists(item.originalPath)) throw new Error(`原始位置已有同名项目: ${item.originalPath}`);
+        await adapter.rename(item.trashPath, item.originalPath);
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
+      }
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
+  }
+  async executeMkdir(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const targetPath = task.targetPath || "/";
+    task.setCurrentFile(posixBaseName(targetPath), 0);
+    task.progress.totalFiles = 1;
+    this.notifyTaskUpdate(task);
+    const item = { sourcePath: "", targetPath, status: "success" };
+    try {
+      await adapter.mkdir(targetPath);
+    } catch (error) {
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
+      throw error;
+    }
+    task.recordItem(item);
+  }
+  async executeTouch(task) {
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const targetPath = task.targetPath || "/";
+    task.setCurrentFile(posixBaseName(targetPath), 0);
+    task.progress.totalFiles = 1;
+    this.notifyTaskUpdate(task);
+    const item = { sourcePath: "", targetPath, status: "success" };
+    try {
+      await adapter.writeFile(targetPath, Buffer.from(""));
+    } catch (error) {
+      item.status = "failed";
+      item.error = error instanceof Error ? error.message : String(error);
+      task.recordItem(item);
+      throw error;
+    }
+    task.recordItem(item);
+  }
+  // ============ 队列管理 ============
+  cancelTask(taskId) {
+    if (this.currentTask?.id === taskId) {
+      this.cancelled = true;
+    } else {
+      const queuedTask = this.queue.find((t) => t.id === taskId);
+      this.queue = this.queue.filter((t) => t.id !== taskId);
+      if (queuedTask) {
+        queuedTask.markCancelled();
+        this.addToHistory(queuedTask);
+        this.notifyTaskUpdate(queuedTask);
+        this.resolveCompletion(queuedTask);
+        return;
+      }
+      const historyIndex = this.history.findIndex((t) => t.id === taskId);
+      if (historyIndex > -1) {
+        this.history[historyIndex].status = "cancelled";
+      }
+    }
+  }
+  async retryTask(taskId) {
+    const historyTask = this.history.find((t) => t.id === taskId);
+    if (!historyTask) return null;
+    const newTask = await this.addTask({
+      type: historyTask.type,
+      sourceDeviceId: historyTask.sourceDeviceId,
+      sourcePaths: historyTask.sourcePaths,
+      targetDeviceId: historyTask.targetDeviceId,
+      targetPath: historyTask.targetPath,
+      newName: historyTask.newName
+    });
+    this.history = this.history.filter((t) => t.id !== taskId);
+    return newTask;
+  }
+  getQueue() {
+    return [...this.queue];
+  }
+  getHistory() {
+    return [...this.history];
+  }
+  getCurrentTask() {
+    return this.currentTask;
+  }
+  getAllTasks() {
+    const current = this.currentTask ? [this.currentTask] : [];
+    return [...current, ...this.queue];
+  }
+  clearHistory() {
+    this.history = [];
+  }
+  /** 兼容旧 IPC：仍通过同一队列执行并等待完成，避免绕过取消、验证与清理。 */
+  async addTaskAndWait(params) {
+    const task = await this.addTask(params);
+    return this.waitForCompletion(task.id);
+  }
+  waitForCompletion(taskId) {
+    const completed = this.history.find((task) => task.id === taskId);
+    if (completed) return Promise.resolve(completed);
+    return new Promise((resolve) => this.completionWaiters.set(taskId, resolve));
+  }
+  resolveCompletion(task) {
+    const resolve = this.completionWaiters.get(task.id);
+    if (resolve) {
+      this.completionWaiters.delete(task.id);
+      resolve(task);
+    }
+  }
+  addToHistory(task) {
+    this.history.unshift(task);
+    if (this.history.length > this.maxHistorySize) {
+      this.history = this.history.slice(0, this.maxHistorySize);
+    }
+  }
+}
 function joinPosix$1(dir, name) {
-  if (dir.endsWith("/"))
-    return dir + name;
-  return dir === "" ? "/".concat(name) : "".concat(dir, "/").concat(name);
+  if (dir.endsWith("/")) return dir + name;
+  return dir === "" ? `/${name}` : `${dir}/${name}`;
 }
 function posixBaseName(p) {
-  var trimmed = p.replace(/\/+$/, "");
-  var idx = trimmed.lastIndexOf("/");
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
   return idx === -1 ? trimmed : trimmed.slice(idx + 1);
 }
 function posixDirname(p) {
-  var trimmed = p.replace(/\/+$/, "");
-  var idx = trimmed.lastIndexOf("/");
-  if (idx === -1)
-    return "";
-  if (idx === 0)
-    return "/";
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  if (idx === -1) return "";
+  if (idx === 0) return "/";
   return trimmed.slice(0, idx);
 }
-var __awaiter$8 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$8 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var __spreadArray$3 = function(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-    if (ar || !(i in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-      ar[i] = from[i];
-    }
-  }
-  return to.concat(ar || Array.prototype.slice.call(from));
-};
-var LOG_PREFIX$1 = "[ThumbnailService]";
-function log$8(message) {
-  var args = [];
-  for (var _i = 1; _i < arguments.length; _i++) {
-    args[_i - 1] = arguments[_i];
-  }
-  console.log.apply(console, __spreadArray$3(["".concat(LOG_PREFIX$1, " ").concat(message)], args, false));
+const LOG_PREFIX$1 = "[ThumbnailService]";
+function log$g(message, ...args) {
+  console.log(`${LOG_PREFIX$1} ${message}`, ...args);
 }
-function logError$1(message) {
-  var args = [];
-  for (var _i = 1; _i < arguments.length; _i++) {
-    args[_i - 1] = arguments[_i];
-  }
-  console.error.apply(console, __spreadArray$3(["".concat(LOG_PREFIX$1, " ").concat(message)], args, false));
+function logError$1(message, ...args) {
+  console.error(`${LOG_PREFIX$1} ${message}`, ...args);
 }
-function logWarn(message) {
-  var args = [];
-  for (var _i = 1; _i < arguments.length; _i++) {
-    args[_i - 1] = arguments[_i];
-  }
-  console.warn.apply(console, __spreadArray$3(["".concat(LOG_PREFIX$1, " ").concat(message)], args, false));
+function logWarn(message, ...args) {
+  console.warn(`${LOG_PREFIX$1} ${message}`, ...args);
 }
-var THUMBNAIL_SIZES = {
+const THUMBNAIL_SIZES = {
   small: { width: 64, height: 64 },
   large: { width: 256, height: 256 }
 };
-var SUPPORTED_IMAGE_FORMATS = /* @__PURE__ */ new Set([
+const SUPPORTED_IMAGE_FORMATS = /* @__PURE__ */ new Set([
   "jpg",
   "jpeg",
   "png",
@@ -7188,7 +3535,7 @@ var SUPPORTED_IMAGE_FORMATS = /* @__PURE__ */ new Set([
   "raf",
   "sr2"
 ]);
-var SUPPORTED_VIDEO_FORMATS = /* @__PURE__ */ new Set([
+const SUPPORTED_VIDEO_FORMATS = /* @__PURE__ */ new Set([
   "mp4",
   "mov",
   "avi",
@@ -7201,2109 +3548,1014 @@ var SUPPORTED_VIDEO_FORMATS = /* @__PURE__ */ new Set([
   "mts",
   "m2ts"
 ]);
-var ThumbnailService = (
-  /** @class */
-  function() {
-    function ThumbnailService2() {
-      this.maxDiskCacheSize = 500 * 1024 * 1024;
-      this.cacheDir = path__default.join(app.getPath("userData"), "thumbnails");
-      log$8("Initializing ThumbnailService");
-      log$8("Cache directory:", this.cacheDir);
-      this.ensureCacheDir();
-    }
-    ThumbnailService2.prototype.ensureCacheDir = function() {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var e_1;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 2, , 3]);
-              return [4, fs$1.ensureDir(this.cacheDir)];
-            case 1:
-              _a.sent();
-              log$8("Cache directory ensured:", this.cacheDir);
-              return [3, 3];
-            case 2:
-              e_1 = _a.sent();
-              logError$1("Failed to create cache directory:", e_1);
-              return [3, 3];
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.generateCacheKey = function(deviceId, filePath, size, mtime) {
-      var raw = "".concat(deviceId, ":").concat(filePath, ":").concat(size, ":").concat(mtime);
-      var hash = crypto.createHash("md5").update(raw).digest("hex").slice(0, 16);
-      log$8("Generated cache key:", hash, "for file:", filePath);
-      return hash;
-    };
-    ThumbnailService2.prototype.getThumbnail = function(deviceId, filePath, size, mtime, thumbnailSize, readFile) {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var ext, cacheKey, cachedThumbnail, dimensions, thumbnailBuffer, startTime, elapsed;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              ext = path__default.extname(filePath).toLowerCase().replace(".", "");
-              log$8("getThumbnail called:", {
-                deviceId,
-                filePath,
-                size,
-                mtime,
-                thumbnailSize,
-                ext
-              });
-              cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime);
-              log$8("Checking disk cache for key:", cacheKey);
-              return [4, this.getFromDiskCache(cacheKey)];
-            case 1:
-              cachedThumbnail = _a.sent();
-              if (cachedThumbnail) {
-                log$8("Cache HIT for:", filePath, "key:", cacheKey);
-                return [2, { cacheKey, thumbnailBase64: cachedThumbnail }];
-              }
-              log$8("Cache MISS for:", filePath, "key:", cacheKey);
-              if (!SUPPORTED_IMAGE_FORMATS.has(ext) && !SUPPORTED_VIDEO_FORMATS.has(ext)) {
-                logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
-                return [2, null];
-              }
-              dimensions = THUMBNAIL_SIZES[thumbnailSize];
-              log$8("Target dimensions:", dimensions);
-              thumbnailBuffer = null;
-              startTime = Date.now();
-              if (!SUPPORTED_IMAGE_FORMATS.has(ext)) return [3, 3];
-              log$8("Generating image thumbnail for:", filePath);
-              return [4, this.generateImageThumbnail(filePath, deviceId, readFile, dimensions)];
-            case 2:
-              thumbnailBuffer = _a.sent();
-              return [3, 5];
-            case 3:
-              if (!SUPPORTED_VIDEO_FORMATS.has(ext)) return [3, 5];
-              log$8("Generating video thumbnail for:", filePath);
-              return [4, this.generateVideoThumbnail(filePath, deviceId, readFile, dimensions)];
-            case 4:
-              thumbnailBuffer = _a.sent();
-              _a.label = 5;
-            case 5:
-              elapsed = Date.now() - startTime;
-              if (!thumbnailBuffer) {
-                logError$1("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
-                return [2, null];
-              }
-              log$8("Thumbnail generated successfully for:", filePath, "size:", thumbnailBuffer.length, "bytes", "elapsed:", elapsed, "ms");
-              return [4, this.saveToDiskCache(cacheKey, thumbnailBuffer)];
-            case 6:
-              _a.sent();
-              return [2, {
-                cacheKey,
-                thumbnailBase64: thumbnailBuffer.toString("base64")
-              }];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.getFromDiskCache = function(cacheKey) {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var cachePath, buffer, e_2;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              cachePath = path__default.join(this.cacheDir, "".concat(cacheKey, ".webp"));
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 6, , 7]);
-              return [4, fs$1.pathExists(cachePath)];
-            case 2:
-              if (!_a.sent()) return [3, 4];
-              return [4, fs$1.readFile(cachePath)];
-            case 3:
-              buffer = _a.sent();
-              log$8("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
-              return [2, buffer.toString("base64")];
-            case 4:
-              log$8("Disk cache miss, key:", cacheKey, "path:", cachePath);
-              _a.label = 5;
-            case 5:
-              return [3, 7];
-            case 6:
-              e_2 = _a.sent();
-              logError$1("Error reading disk cache:", cacheKey, e_2);
-              return [3, 7];
-            case 7:
-              return [2, null];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.saveToDiskCache = function(cacheKey, thumbnailBuffer) {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var cachePath, e_3;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              cachePath = path__default.join(this.cacheDir, "".concat(cacheKey, ".webp"));
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, , 4]);
-              return [4, fs$1.writeFile(cachePath, thumbnailBuffer)];
-            case 2:
-              _a.sent();
-              log$8("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
-              return [3, 4];
-            case 3:
-              e_3 = _a.sent();
-              logError$1("Failed to save to disk cache:", cacheKey, e_3);
-              return [3, 4];
-            case 4:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.generateImageThumbnail = function(filePath, deviceId, readFile, dimensions) {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var readStartTime, fileBuffer, processStartTime, result, e_4;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 3, , 4]);
-              log$8("Reading image file:", filePath, "deviceId:", deviceId);
-              readStartTime = Date.now();
-              return [4, readFile(deviceId, filePath)];
-            case 1:
-              fileBuffer = _a.sent();
-              log$8("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
-              log$8("Processing image with sharp, target dimensions:", dimensions);
-              processStartTime = Date.now();
-              return [4, sharp(fileBuffer).resize(dimensions.width, dimensions.height, {
-                fit: "cover",
-                withoutEnlargement: true
-              }).webp({ quality: 92 }).toBuffer()];
-            case 2:
-              result = _a.sent();
-              log$8("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
-              return [2, result];
-            case 3:
-              e_4 = _a.sent();
-              logError$1("Failed to generate image thumbnail:", filePath, e_4);
-              return [2, null];
-            case 4:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.generateVideoThumbnail = function(filePath, deviceId, readFile, dimensions) {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var e_5;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (!ffmpeg) {
-                logError$1("ffmpeg not available, cannot generate video thumbnail");
-                return [2, null];
-              }
-              log$8("ffmpeg path:", ffmpeg);
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 4, , 5]);
-              if (!(deviceId === "local")) return [3, 3];
-              log$8("Extracting video frame from local file:", filePath);
-              return [4, this.extractVideoFrameLocal(filePath, dimensions)];
-            case 2:
-              return [2, _a.sent()];
-            case 3:
-              logWarn("Video thumbnail for remote files not yet supported, deviceId:", deviceId);
-              return [2, null];
-            case 4:
-              e_5 = _a.sent();
-              logError$1("Failed to generate video thumbnail:", filePath, e_5);
-              return [2, null];
-            case 5:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.extractVideoFrameLocal = function(filePath, dimensions) {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var execFile2, util, execFileAsync2, tempDir, outputPath, startTime, buffer, firstError_1, startTime, buffer, secondError_1;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              execFile2 = require2("child_process").execFile;
-              util = require2("util");
-              execFileAsync2 = util.promisify(execFile2);
-              tempDir = app.getPath("temp");
-              outputPath = path__default.join(tempDir, "thumb_".concat(Date.now(), ".webp"));
-              log$8("extractVideoFrameLocal - input:", filePath);
-              log$8("extractVideoFrameLocal - output:", outputPath);
-              log$8("extractVideoFrameLocal - dimensions:", dimensions);
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 5, , 12]);
-              log$8("Attempting ffmpeg extraction at 1 second offset");
-              startTime = Date.now();
-              return [4, execFileAsync2(ffmpeg, [
-                "-i",
-                filePath,
-                "-ss",
-                "00:00:01",
-                "-vframes",
-                "1",
-                "-vf",
-                "scale=".concat(dimensions.width, ":").concat(dimensions.height, ":force_original_aspect_ratio=decrease"),
-                "-y",
-                outputPath
-              ], { timeout: 1e4 })];
-            case 2:
-              _a.sent();
-              log$8("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
-              return [4, fs$1.readFile(outputPath)];
-            case 3:
-              buffer = _a.sent();
-              log$8("Read thumbnail file, size:", buffer.length, "bytes");
-              return [4, fs$1.unlink(outputPath).catch(function() {
-              })];
-            case 4:
-              _a.sent();
-              log$8("Cleaned up temp file:", outputPath);
-              return [2, buffer];
-            case 5:
-              firstError_1 = _a.sent();
-              logWarn("ffmpeg extraction at 1s failed, trying at 0s:", firstError_1);
-              _a.label = 6;
-            case 6:
-              _a.trys.push([6, 10, , 11]);
-              log$8("Attempting ffmpeg extraction at 0 second offset");
-              startTime = Date.now();
-              return [4, execFileAsync2(ffmpeg, [
-                "-i",
-                filePath,
-                "-ss",
-                "00:00:00",
-                "-vframes",
-                "1",
-                "-vf",
-                "scale=".concat(dimensions.width, ":").concat(dimensions.height, ":force_original_aspect_ratio=decrease"),
-                "-y",
-                outputPath
-              ], { timeout: 1e4 })];
-            case 7:
-              _a.sent();
-              log$8("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
-              return [4, fs$1.readFile(outputPath)];
-            case 8:
-              buffer = _a.sent();
-              log$8("Read thumbnail file, size:", buffer.length, "bytes");
-              return [4, fs$1.unlink(outputPath).catch(function() {
-              })];
-            case 9:
-              _a.sent();
-              log$8("Cleaned up temp file:", outputPath);
-              return [2, buffer];
-            case 10:
-              secondError_1 = _a.sent();
-              logError$1("ffmpeg extraction at 0s also failed:", filePath, secondError_1);
-              return [2, null];
-            case 11:
-              return [3, 12];
-            case 12:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.clearCache = function() {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var e_6;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              log$8("Clearing disk cache at:", this.cacheDir);
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, , 4]);
-              return [4, fs$1.emptyDir(this.cacheDir)];
-            case 2:
-              _a.sent();
-              log$8("Disk cache cleared successfully");
-              return [3, 4];
-            case 3:
-              e_6 = _a.sent();
-              logError$1("Failed to clear disk cache:", e_6);
-              return [3, 4];
-            case 4:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ThumbnailService2.prototype.getCacheSize = function() {
-      return __awaiter$8(this, void 0, void 0, function() {
-        var totalSize, files, _i, files_1, file, stat2, e_7;
-        return __generator$8(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              totalSize = 0;
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 7, , 8]);
-              return [4, fs$1.readdir(this.cacheDir)];
-            case 2:
-              files = _a.sent();
-              log$8("Calculating cache size, files count:", files.length);
-              _i = 0, files_1 = files;
-              _a.label = 3;
-            case 3:
-              if (!(_i < files_1.length)) return [3, 6];
-              file = files_1[_i];
-              return [4, fs$1.stat(path__default.join(this.cacheDir, file))];
-            case 4:
-              stat2 = _a.sent();
-              totalSize += stat2.size;
-              _a.label = 5;
-            case 5:
-              _i++;
-              return [3, 3];
-            case 6:
-              log$8("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
-              return [3, 8];
-            case 7:
-              e_7 = _a.sent();
-              logError$1("Failed to calculate cache size:", e_7);
-              return [3, 8];
-            case 8:
-              return [2, totalSize];
-          }
-        });
-      });
-    };
-    return ThumbnailService2;
-  }()
-);
-var __awaiter$7 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
+class ThumbnailService {
+  cacheDir;
+  maxDiskCacheSize = 500 * 1024 * 1024;
+  constructor() {
+    this.cacheDir = path__default.join(app.getPath("userData"), "thumbnails");
+    log$g("Initializing ThumbnailService");
+    log$g("Cache directory:", this.cacheDir);
+    this.ensureCacheDir();
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$7 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
+  async ensureCacheDir() {
+    try {
+      await fs$1.ensureDir(this.cacheDir);
+      log$g("Cache directory ensured:", this.cacheDir);
     } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var __spreadArray$2 = function(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-    if (ar || !(i in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-      ar[i] = from[i];
+      logError$1("Failed to create cache directory:", e);
     }
   }
-  return to.concat(ar || Array.prototype.slice.call(from));
-};
-var execFileAsync = promisify(execFile);
-var LOG_PREFIX = "[ImageDecodeService]";
-function log$7() {
-  var args = [];
-  for (var _i = 0; _i < arguments.length; _i++) {
-    args[_i] = arguments[_i];
+  generateCacheKey(deviceId, filePath, size, mtime) {
+    const raw = `${deviceId}:${filePath}:${size}:${mtime}`;
+    const hash = crypto.createHash("md5").update(raw).digest("hex").slice(0, 16);
+    log$g("Generated cache key:", hash, "for file:", filePath);
+    return hash;
   }
-  console.log.apply(console, __spreadArray$2([LOG_PREFIX], args, false));
-}
-function logError() {
-  var args = [];
-  for (var _i = 0; _i < arguments.length; _i++) {
-    args[_i] = arguments[_i];
-  }
-  console.error.apply(console, __spreadArray$2([LOG_PREFIX], args, false));
-}
-var DEFAULT_MAX_DIM = 2560;
-var ImageDecodeService = (
-  /** @class */
-  function() {
-    function ImageDecodeService2(deviceManager2) {
-      this.deviceManager = deviceManager2;
-    }
-    ImageDecodeService2.prototype.decodeToRaster = function(deviceId_1, filePath_1) {
-      return __awaiter$7(this, arguments, void 0, function(deviceId, filePath, opts) {
-        var maxDim, outFile, temps, inputFile, buffer, ext, bytes, _i, temps_1, t;
-        var _a;
-        if (opts === void 0) {
-          opts = {};
-        }
-        return __generator$7(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              if (process.platform !== "darwin") {
-                throw new Error("Native image decode requires macOS (sips)");
-              }
-              maxDim = Math.max(64, Math.min((_a = opts.maxDim) !== null && _a !== void 0 ? _a : DEFAULT_MAX_DIM, 8192));
-              outFile = this.tempPath(".jpg");
-              temps = [outFile];
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, , 8, 13]);
-              inputFile = void 0;
-              if (!(deviceId === "local")) return [3, 2];
-              inputFile = filePath;
-              return [3, 5];
-            case 2:
-              return [4, this.deviceManager.readFile(deviceId, filePath)];
-            case 3:
-              buffer = _b.sent();
-              ext = path__default.extname(filePath) || ".bin";
-              inputFile = this.tempPath(ext);
-              temps.push(inputFile);
-              return [4, fs$1.writeFile(inputFile, buffer)];
-            case 4:
-              _b.sent();
-              _b.label = 5;
-            case 5:
-              return [4, this.runSips(inputFile, outFile, maxDim)];
-            case 6:
-              _b.sent();
-              return [4, fs$1.readFile(outFile)];
-            case 7:
-              bytes = _b.sent();
-              log$7("decoded ".concat(filePath, " → ").concat(bytes.length, " bytes jpeg (maxDim ").concat(maxDim, ")"));
-              return [2, { buffer: bytes.toString("base64"), mime: "image/jpeg" }];
-            case 8:
-              _i = 0, temps_1 = temps;
-              _b.label = 9;
-            case 9:
-              if (!(_i < temps_1.length)) return [3, 12];
-              t = temps_1[_i];
-              return [4, fs$1.remove(t).catch(function() {
-                return void 0;
-              })];
-            case 10:
-              _b.sent();
-              _b.label = 11;
-            case 11:
-              _i++;
-              return [3, 9];
-            case 12:
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 13:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ImageDecodeService2.prototype.runSips = function(input, output, maxDim) {
-      return __awaiter$7(this, void 0, void 0, function() {
-        var err_1;
-        return __generator$7(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              _a.trys.push([0, 2, , 3]);
-              return [4, execFileAsync("sips", [
-                "-s",
-                "format",
-                "jpeg",
-                "-s",
-                "formatOptions",
-                "90",
-                "-Z",
-                String(maxDim),
-                input,
-                "--out",
-                output
-              ])];
-            case 1:
-              _a.sent();
-              return [3, 3];
-            case 2:
-              err_1 = _a.sent();
-              logError("sips failed for", input, err_1);
-              throw new Error("Failed to decode image via sips: ".concat(err_1 instanceof Error ? err_1.message : String(err_1)));
-            case 3:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ImageDecodeService2.prototype.tempPath = function(ext) {
-      var unique = "".concat(Date.now(), "-").concat(Math.random().toString(36).slice(2, 10));
-      return path__default.join(os.tmpdir(), "fileman-decode-".concat(unique).concat(ext));
-    };
-    return ImageDecodeService2;
-  }()
-);
-var __assign$2 = function() {
-  __assign$2 = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign$2.apply(this, arguments);
-};
-var __awaiter$6 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
+  async getThumbnail(deviceId, filePath, size, mtime, thumbnailSize, readFile) {
+    const ext = path__default.extname(filePath).toLowerCase().replace(".", "");
+    log$g("getThumbnail called:", {
+      deviceId,
+      filePath,
+      size,
+      mtime,
+      thumbnailSize,
+      ext
     });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
+    const cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime);
+    log$g("Checking disk cache for key:", cacheKey);
+    const cachedThumbnail = await this.getFromDiskCache(cacheKey);
+    if (cachedThumbnail) {
+      log$g("Cache HIT for:", filePath, "key:", cacheKey);
+      return { cacheKey, thumbnailBase64: cachedThumbnail };
     }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
+    log$g("Cache MISS for:", filePath, "key:", cacheKey);
+    if (!SUPPORTED_IMAGE_FORMATS.has(ext) && !SUPPORTED_VIDEO_FORMATS.has(ext)) {
+      logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
+      return null;
     }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+    const dimensions = THUMBNAIL_SIZES[thumbnailSize];
+    log$g("Target dimensions:", dimensions);
+    let thumbnailBuffer = null;
+    const startTime = Date.now();
+    if (SUPPORTED_IMAGE_FORMATS.has(ext)) {
+      log$g("Generating image thumbnail for:", filePath);
+      thumbnailBuffer = await this.generateImageThumbnail(filePath, deviceId, readFile, dimensions);
+    } else if (SUPPORTED_VIDEO_FORMATS.has(ext)) {
+      log$g("Generating video thumbnail for:", filePath);
+      thumbnailBuffer = await this.generateVideoThumbnail(filePath, deviceId, readFile, dimensions);
     }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$6 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
+    const elapsed = Date.now() - startTime;
+    if (!thumbnailBuffer) {
+      logError$1("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
+      return null;
+    }
+    log$g(
+      "Thumbnail generated successfully for:",
+      filePath,
+      "size:",
+      thumbnailBuffer.length,
+      "bytes",
+      "elapsed:",
+      elapsed,
+      "ms"
+    );
+    await this.saveToDiskCache(cacheKey, thumbnailBuffer);
+    return {
+      cacheKey,
+      thumbnailBase64: thumbnailBuffer.toString("base64")
     };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
+  async getFromDiskCache(cacheKey) {
+    const cachePath = path__default.join(this.cacheDir, `${cacheKey}.webp`);
+    try {
+      if (await fs$1.pathExists(cachePath)) {
+        const buffer = await fs$1.readFile(cachePath);
+        log$g("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
+        return buffer.toString("base64");
+      } else {
+        log$g("Disk cache miss, key:", cacheKey, "path:", cachePath);
       }
-      op = body.call(thisArg, _);
     } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
+      logError$1("Error reading disk cache:", cacheKey, e);
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+    return null;
   }
-};
-var EOCD_SIG = 101010256;
-var EOCD64_SIG = 101075792;
-var EOCD64_LOC_SIG = 117853008;
-var CD_SIG = 33639248;
-var LFH_SIG = 67324752;
-var ZipService = (
-  /** @class */
-  function() {
-    function ZipService2() {
-      this._cache = /* @__PURE__ */ new Map();
+  async saveToDiskCache(cacheKey, thumbnailBuffer) {
+    const cachePath = path__default.join(this.cacheDir, `${cacheKey}.webp`);
+    try {
+      await fs$1.writeFile(cachePath, thumbnailBuffer);
+      log$g("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
+    } catch (e) {
+      logError$1("Failed to save to disk cache:", cacheKey, e);
     }
-    ZipService2.prototype._load = function(zipFilePath) {
-      var stat2 = fs.statSync(zipFilePath);
-      var cached = this._cache.get(zipFilePath);
-      if (cached && cached.mtimeMs === stat2.mtimeMs)
-        return cached;
-      console.log("[ZipService] Parsing: ".concat(zipFilePath, " (").concat(stat2.size, " bytes)"));
-      var buf = fs.readFileSync(zipFilePath);
-      var entries = this._parseCentralDirectory(buf, zipFilePath);
-      console.log("[ZipService] Found ".concat(entries.length, " entries in ").concat(zipFilePath));
-      var entry = { mtimeMs: stat2.mtimeMs, buf, entries };
-      this._cache.set(zipFilePath, entry);
-      return entry;
-    };
-    ZipService2.prototype.getEntries = function(zipFilePath) {
-      return __awaiter$6(this, void 0, void 0, function() {
-        return __generator$6(this, function(_a) {
-          return [2, this._load(zipFilePath).entries];
-        });
+  }
+  async generateImageThumbnail(filePath, deviceId, readFile, dimensions) {
+    try {
+      log$g("Reading image file:", filePath, "deviceId:", deviceId);
+      const readStartTime = Date.now();
+      const fileBuffer = await readFile(deviceId, filePath);
+      log$g("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
+      log$g("Processing image with sharp, target dimensions:", dimensions);
+      const processStartTime = Date.now();
+      const result = await sharp(fileBuffer).resize(dimensions.width, dimensions.height, {
+        fit: "cover",
+        withoutEnlargement: true
+      }).webp({ quality: 92 }).toBuffer();
+      log$g("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
+      return result;
+    } catch (e) {
+      logError$1("Failed to generate image thumbnail:", filePath, e);
+      return null;
+    }
+  }
+  async generateVideoThumbnail(filePath, deviceId, readFile, dimensions) {
+    if (!ffmpeg) {
+      logError$1("ffmpeg not available, cannot generate video thumbnail");
+      return null;
+    }
+    log$g("ffmpeg path:", ffmpeg);
+    try {
+      if (deviceId === "local") {
+        log$g("Extracting video frame from local file:", filePath);
+        return await this.extractVideoFrameLocal(filePath, dimensions);
+      }
+      logWarn("Video thumbnail for remote files not yet supported, deviceId:", deviceId);
+      return null;
+    } catch (e) {
+      logError$1("Failed to generate video thumbnail:", filePath, e);
+      return null;
+    }
+  }
+  async extractVideoFrameLocal(filePath, dimensions) {
+    const { execFile: execFile2 } = require2("child_process");
+    const util = require2("util");
+    const execFileAsync2 = util.promisify(execFile2);
+    const tempDir = app.getPath("temp");
+    const outputPath = path__default.join(tempDir, `thumb_${Date.now()}.webp`);
+    log$g("extractVideoFrameLocal - input:", filePath);
+    log$g("extractVideoFrameLocal - output:", outputPath);
+    log$g("extractVideoFrameLocal - dimensions:", dimensions);
+    try {
+      log$g("Attempting ffmpeg extraction at 1 second offset");
+      const startTime = Date.now();
+      await execFileAsync2(ffmpeg, [
+        "-i",
+        filePath,
+        "-ss",
+        "00:00:01",
+        "-vframes",
+        "1",
+        "-vf",
+        `scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease`,
+        "-y",
+        outputPath
+      ], { timeout: 1e4 });
+      log$g("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
+      const buffer = await fs$1.readFile(outputPath);
+      log$g("Read thumbnail file, size:", buffer.length, "bytes");
+      await fs$1.unlink(outputPath).catch(() => {
       });
-    };
-    ZipService2.prototype.listDirectory = function(zipFilePath, internalPath) {
-      return __awaiter$6(this, void 0, void 0, function() {
-        var prefix, all, children, _i, all_1, entry, entryPath, rel, slash, key, name_1, key, name_2, key;
-        return __generator$6(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              prefix = normalizeDirPath(internalPath);
-              return [
-                4,
-                this.getEntries(zipFilePath)
-                // Use a Map keyed by child name to avoid duplicate implicit directories
-              ];
-            case 1:
-              all = _a.sent();
-              children = /* @__PURE__ */ new Map();
-              for (_i = 0, all_1 = all; _i < all_1.length; _i++) {
-                entry = all_1[_i];
-                entryPath = entry.path + (entry.isDirectory ? "/" : "");
-                if (!entryPath.startsWith(prefix))
-                  continue;
-                rel = entryPath.slice(prefix.length);
-                if (!rel)
-                  continue;
-                slash = rel.indexOf("/");
-                if (slash === -1) {
-                  key = rel;
-                  if (!children.has(key))
-                    children.set(key, entry);
-                } else if (slash === rel.length - 1) {
-                  name_1 = rel.slice(0, slash);
-                  key = name_1 + "/";
-                  if (!children.has(key)) {
-                    children.set(key, __assign$2(__assign$2({}, entry), { name: name_1, path: prefix.slice(0, -1) ? "".concat(prefix.slice(0, -1), "/").concat(name_1) : name_1, isDirectory: true }));
-                  }
-                } else {
-                  name_2 = rel.slice(0, slash);
-                  key = name_2 + "/";
-                  if (!children.has(key)) {
-                    children.set(key, {
-                      name: name_2,
-                      path: prefix.slice(0, -1) ? "".concat(prefix.slice(0, -1), "/").concat(name_2) : name_2,
-                      isDirectory: true,
-                      size: 0,
-                      compressedSize: 0,
-                      modifiedTime: entry.modifiedTime,
-                      localHeaderOffset: 0,
-                      compressionMethod: 0
-                    });
-                  }
-                }
-              }
-              return [2, Array.from(children.values()).sort(function(a, b) {
-                if (a.isDirectory !== b.isDirectory)
-                  return a.isDirectory ? -1 : 1;
-                return a.name.localeCompare(b.name, void 0, { numeric: true, sensitivity: "base" });
-              })];
-          }
+      log$g("Cleaned up temp file:", outputPath);
+      return buffer;
+    } catch (firstError) {
+      logWarn("ffmpeg extraction at 1s failed, trying at 0s:", firstError);
+      try {
+        log$g("Attempting ffmpeg extraction at 0 second offset");
+        const startTime = Date.now();
+        await execFileAsync2(ffmpeg, [
+          "-i",
+          filePath,
+          "-ss",
+          "00:00:00",
+          "-vframes",
+          "1",
+          "-vf",
+          `scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease`,
+          "-y",
+          outputPath
+        ], { timeout: 1e4 });
+        log$g("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
+        const buffer = await fs$1.readFile(outputPath);
+        log$g("Read thumbnail file, size:", buffer.length, "bytes");
+        await fs$1.unlink(outputPath).catch(() => {
         });
-      });
-    };
-    ZipService2.prototype.readEntry = function(zipFilePath, entryPath) {
-      return __awaiter$6(this, void 0, void 0, function() {
-        var _a, buf, entries, entry;
-        return __generator$6(this, function(_b) {
-          _a = this._load(zipFilePath), buf = _a.buf, entries = _a.entries;
-          entry = entries.find(function(e) {
-            return e.path === entryPath || e.path === entryPath.replace(/\/$/, "");
+        log$g("Cleaned up temp file:", outputPath);
+        return buffer;
+      } catch (secondError) {
+        logError$1("ffmpeg extraction at 0s also failed:", filePath, secondError);
+        return null;
+      }
+    }
+  }
+  async clearCache() {
+    log$g("Clearing disk cache at:", this.cacheDir);
+    try {
+      await fs$1.emptyDir(this.cacheDir);
+      log$g("Disk cache cleared successfully");
+    } catch (e) {
+      logError$1("Failed to clear disk cache:", e);
+    }
+  }
+  async getCacheSize() {
+    let totalSize = 0;
+    try {
+      const files = await fs$1.readdir(this.cacheDir);
+      log$g("Calculating cache size, files count:", files.length);
+      for (const file of files) {
+        const stat2 = await fs$1.stat(path__default.join(this.cacheDir, file));
+        totalSize += stat2.size;
+      }
+      log$g("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
+    } catch (e) {
+      logError$1("Failed to calculate cache size:", e);
+    }
+    return totalSize;
+  }
+}
+const execFileAsync = promisify(execFile);
+const LOG_PREFIX = "[ImageDecodeService]";
+function log$f(...args) {
+  console.log(LOG_PREFIX, ...args);
+}
+function logError(...args) {
+  console.error(LOG_PREFIX, ...args);
+}
+const DEFAULT_MAX_DIM = 2560;
+class ImageDecodeService {
+  constructor(deviceManager2) {
+    this.deviceManager = deviceManager2;
+  }
+  async decodeToRaster(deviceId, filePath, opts = {}) {
+    if (process.platform !== "darwin") {
+      throw new Error("Native image decode requires macOS (sips)");
+    }
+    const maxDim = Math.max(64, Math.min(opts.maxDim ?? DEFAULT_MAX_DIM, 8192));
+    const outFile = this.tempPath(".jpg");
+    const temps = [outFile];
+    try {
+      let inputFile;
+      if (deviceId === "local") {
+        inputFile = filePath;
+      } else {
+        const buffer = await this.deviceManager.readFile(deviceId, filePath);
+        const ext = path__default.extname(filePath) || ".bin";
+        inputFile = this.tempPath(ext);
+        temps.push(inputFile);
+        await fs$1.writeFile(inputFile, buffer);
+      }
+      await this.runSips(inputFile, outFile, maxDim);
+      const bytes = await fs$1.readFile(outFile);
+      log$f(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
+      return { buffer: bytes.toString("base64"), mime: "image/jpeg" };
+    } finally {
+      for (const t of temps) {
+        await fs$1.remove(t).catch(() => void 0);
+      }
+    }
+  }
+  /**
+   * -s format jpeg:       emit JPEG
+   * -s formatOptions 90:  quality 90
+   * -Z <maxDim>:          constrain longest side, preserve aspect, no upscale
+   */
+  async runSips(input, output, maxDim) {
+    try {
+      await execFileAsync("sips", [
+        "-s",
+        "format",
+        "jpeg",
+        "-s",
+        "formatOptions",
+        "90",
+        "-Z",
+        String(maxDim),
+        input,
+        "--out",
+        output
+      ]);
+    } catch (err) {
+      logError("sips failed for", input, err);
+      throw new Error(`Failed to decode image via sips: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  tempPath(ext) {
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return path__default.join(os.tmpdir(), `fileman-decode-${unique}${ext}`);
+  }
+}
+const EOCD_SIG = 101010256;
+const EOCD64_SIG = 101075792;
+const EOCD64_LOC_SIG = 117853008;
+const CD_SIG = 33639248;
+const LFH_SIG = 67324752;
+class ZipService {
+  _cache = /* @__PURE__ */ new Map();
+  // ── Public API ─────────────────────────────────────────────────────────────
+  /** Load the ZIP file into memory and parse its central directory (cached by mtime). */
+  _load(zipFilePath) {
+    const stat2 = fs.statSync(zipFilePath);
+    const cached = this._cache.get(zipFilePath);
+    if (cached && cached.mtimeMs === stat2.mtimeMs) return cached;
+    console.log(`[ZipService] Parsing: ${zipFilePath} (${stat2.size} bytes)`);
+    const buf = fs.readFileSync(zipFilePath);
+    const entries = this._parseCentralDirectory(buf, zipFilePath);
+    console.log(`[ZipService] Found ${entries.length} entries in ${zipFilePath}`);
+    const entry = { mtimeMs: stat2.mtimeMs, buf, entries };
+    this._cache.set(zipFilePath, entry);
+    return entry;
+  }
+  /** Return all central-directory entries for a ZIP file (cached by mtime). */
+  async getEntries(zipFilePath) {
+    return this._load(zipFilePath).entries;
+  }
+  /**
+   * Return immediate children of `internalPath` inside the ZIP (directory listing).
+   * internalPath='' returns the root level.
+   */
+  async listDirectory(zipFilePath, internalPath) {
+    const prefix = normalizeDirPath(internalPath);
+    const all = await this.getEntries(zipFilePath);
+    const children = /* @__PURE__ */ new Map();
+    for (const entry of all) {
+      const entryPath = entry.path + (entry.isDirectory ? "/" : "");
+      if (!entryPath.startsWith(prefix)) continue;
+      const rel = entryPath.slice(prefix.length);
+      if (!rel) continue;
+      const slash = rel.indexOf("/");
+      if (slash === -1) {
+        const key = rel;
+        if (!children.has(key)) children.set(key, entry);
+      } else if (slash === rel.length - 1) {
+        const name = rel.slice(0, slash);
+        const key = name + "/";
+        if (!children.has(key)) {
+          children.set(key, {
+            ...entry,
+            name,
+            path: prefix.slice(0, -1) ? `${prefix.slice(0, -1)}/${name}` : name,
+            isDirectory: true
           });
-          if (!entry)
-            throw new Error("ZIP entry not found: ".concat(entryPath));
-          return [2, this._readEntryData(buf, entry)];
-        });
-      });
-    };
-    ZipService2.prototype._parseCentralDirectory = function(buf, label) {
-      var fileSize = buf.length;
-      if (fileSize < 22)
-        throw new Error("File too small to be a valid ZIP");
-      var scanStart = Math.max(0, fileSize - 65557);
-      var eocdOff = -1;
-      for (var i = fileSize - 22; i >= scanStart; i--) {
-        if (buf.readUInt32LE(i) === EOCD_SIG) {
-          eocdOff = i;
-          break;
         }
-      }
-      if (eocdOff < 0)
-        throw new Error("EOCD not found in ".concat(label));
-      var cdOffset;
-      var cdSize;
-      var locOff = eocdOff - 20;
-      if (locOff >= 0 && buf.readUInt32LE(locOff) === EOCD64_LOC_SIG) {
-        var eocd64Abs = Number(buf.readBigUInt64LE(locOff + 8));
-        if (buf.readUInt32LE(eocd64Abs) !== EOCD64_SIG)
-          throw new Error("ZIP64 EOCD signature mismatch");
-        cdSize = Number(buf.readBigUInt64LE(eocd64Abs + 40));
-        cdOffset = Number(buf.readBigUInt64LE(eocd64Abs + 48));
       } else {
-        cdSize = buf.readUInt32LE(eocdOff + 12);
-        cdOffset = buf.readUInt32LE(eocdOff + 16);
-      }
-      console.log("[ZipService] CD at offset=".concat(cdOffset, " size=").concat(cdSize));
-      var entries = [];
-      var pos = cdOffset;
-      var cdEnd = cdOffset + cdSize;
-      while (pos + 46 <= cdEnd && pos + 46 <= fileSize) {
-        if (buf.readUInt32LE(pos) !== CD_SIG) {
-          console.warn("[ZipService] CD_SIG mismatch at pos=".concat(pos, ", got 0x").concat(buf.readUInt32LE(pos).toString(16)));
-          break;
+        const name = rel.slice(0, slash);
+        const key = name + "/";
+        if (!children.has(key)) {
+          children.set(key, {
+            name,
+            path: prefix.slice(0, -1) ? `${prefix.slice(0, -1)}/${name}` : name,
+            isDirectory: true,
+            size: 0,
+            compressedSize: 0,
+            modifiedTime: entry.modifiedTime,
+            localHeaderOffset: 0,
+            compressionMethod: 0
+          });
         }
-        var compressionMethod = buf.readUInt16LE(pos + 10);
-        var lastModTime = buf.readUInt16LE(pos + 12);
-        var lastModDate = buf.readUInt16LE(pos + 14);
-        var compressedSize = buf.readUInt32LE(pos + 20);
-        var uncompressedSize = buf.readUInt32LE(pos + 24);
-        var fileNameLen = buf.readUInt16LE(pos + 28);
-        var extraLen = buf.readUInt16LE(pos + 30);
-        var commentLen = buf.readUInt16LE(pos + 32);
-        var localHeaderOffset = buf.readUInt32LE(pos + 42);
-        var rawName = buf.slice(pos + 46, pos + 46 + fileNameLen).toString("utf8");
-        if (compressedSize === 4294967295 || uncompressedSize === 4294967295 || localHeaderOffset === 4294967295) {
-          var extra = buf.slice(pos + 46 + fileNameLen, pos + 46 + fileNameLen + extraLen);
-          var ep = 0;
-          while (ep + 4 <= extra.length) {
-            var tag = extra.readUInt16LE(ep);
-            var sz = extra.readUInt16LE(ep + 2);
-            if (tag === 1) {
-              var off64 = ep + 4;
-              if (uncompressedSize === 4294967295 && off64 + 8 <= extra.length) {
-                uncompressedSize = Number(extra.readBigUInt64LE(off64));
-                off64 += 8;
-              }
-              if (compressedSize === 4294967295 && off64 + 8 <= extra.length) {
-                compressedSize = Number(extra.readBigUInt64LE(off64));
-                off64 += 8;
-              }
-              if (localHeaderOffset === 4294967295 && off64 + 8 <= extra.length) {
-                localHeaderOffset = Number(extra.readBigUInt64LE(off64));
-              }
-              break;
+      }
+    }
+    return Array.from(children.values()).sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name, void 0, { numeric: true, sensitivity: "base" });
+    });
+  }
+  /** Read and decompress a single entry, returning its raw bytes. */
+  async readEntry(zipFilePath, entryPath) {
+    const { buf, entries } = this._load(zipFilePath);
+    const entry = entries.find((e) => e.path === entryPath || e.path === entryPath.replace(/\/$/, ""));
+    if (!entry) throw new Error(`ZIP entry not found: ${entryPath}`);
+    return this._readEntryData(buf, entry);
+  }
+  // ── Central Directory Parser ───────────────────────────────────────────────
+  _parseCentralDirectory(buf, label) {
+    const fileSize = buf.length;
+    if (fileSize < 22) throw new Error("File too small to be a valid ZIP");
+    const scanStart = Math.max(0, fileSize - 65557);
+    let eocdOff = -1;
+    for (let i = fileSize - 22; i >= scanStart; i--) {
+      if (buf.readUInt32LE(i) === EOCD_SIG) {
+        eocdOff = i;
+        break;
+      }
+    }
+    if (eocdOff < 0) throw new Error(`EOCD not found in ${label}`);
+    let cdOffset;
+    let cdSize;
+    const locOff = eocdOff - 20;
+    if (locOff >= 0 && buf.readUInt32LE(locOff) === EOCD64_LOC_SIG) {
+      const eocd64Abs = Number(buf.readBigUInt64LE(locOff + 8));
+      if (buf.readUInt32LE(eocd64Abs) !== EOCD64_SIG) throw new Error("ZIP64 EOCD signature mismatch");
+      cdSize = Number(buf.readBigUInt64LE(eocd64Abs + 40));
+      cdOffset = Number(buf.readBigUInt64LE(eocd64Abs + 48));
+    } else {
+      cdSize = buf.readUInt32LE(eocdOff + 12);
+      cdOffset = buf.readUInt32LE(eocdOff + 16);
+    }
+    console.log(`[ZipService] CD at offset=${cdOffset} size=${cdSize}`);
+    const entries = [];
+    let pos = cdOffset;
+    const cdEnd = cdOffset + cdSize;
+    while (pos + 46 <= cdEnd && pos + 46 <= fileSize) {
+      if (buf.readUInt32LE(pos) !== CD_SIG) {
+        console.warn(`[ZipService] CD_SIG mismatch at pos=${pos}, got 0x${buf.readUInt32LE(pos).toString(16)}`);
+        break;
+      }
+      const compressionMethod = buf.readUInt16LE(pos + 10);
+      const lastModTime = buf.readUInt16LE(pos + 12);
+      const lastModDate = buf.readUInt16LE(pos + 14);
+      let compressedSize = buf.readUInt32LE(pos + 20);
+      let uncompressedSize = buf.readUInt32LE(pos + 24);
+      const fileNameLen = buf.readUInt16LE(pos + 28);
+      const extraLen = buf.readUInt16LE(pos + 30);
+      const commentLen = buf.readUInt16LE(pos + 32);
+      let localHeaderOffset = buf.readUInt32LE(pos + 42);
+      const rawName = buf.slice(pos + 46, pos + 46 + fileNameLen).toString("utf8");
+      if (compressedSize === 4294967295 || uncompressedSize === 4294967295 || localHeaderOffset === 4294967295) {
+        const extra = buf.slice(pos + 46 + fileNameLen, pos + 46 + fileNameLen + extraLen);
+        let ep = 0;
+        while (ep + 4 <= extra.length) {
+          const tag = extra.readUInt16LE(ep);
+          const sz = extra.readUInt16LE(ep + 2);
+          if (tag === 1) {
+            let off64 = ep + 4;
+            if (uncompressedSize === 4294967295 && off64 + 8 <= extra.length) {
+              uncompressedSize = Number(extra.readBigUInt64LE(off64));
+              off64 += 8;
             }
-            ep += 4 + sz;
+            if (compressedSize === 4294967295 && off64 + 8 <= extra.length) {
+              compressedSize = Number(extra.readBigUInt64LE(off64));
+              off64 += 8;
+            }
+            if (localHeaderOffset === 4294967295 && off64 + 8 <= extra.length) {
+              localHeaderOffset = Number(extra.readBigUInt64LE(off64));
+            }
+            break;
           }
+          ep += 4 + sz;
         }
-        var isDir = rawName.endsWith("/");
-        var path2 = isDir ? rawName.slice(0, -1) : rawName;
-        var name_3 = path2.split("/").pop() || path2;
-        entries.push({
-          name: name_3,
-          path: path2,
-          isDirectory: isDir,
-          size: uncompressedSize,
-          compressedSize,
-          modifiedTime: dosDateToIso(lastModDate, lastModTime),
-          localHeaderOffset,
-          compressionMethod
-        });
-        pos += 46 + fileNameLen + extraLen + commentLen;
       }
-      return entries;
-    };
-    ZipService2.prototype._readEntryData = function(buf, entry) {
-      if (entry.isDirectory)
-        return Buffer.alloc(0);
-      var lfhOff = entry.localHeaderOffset;
-      if (buf.readUInt32LE(lfhOff) !== LFH_SIG)
-        throw new Error("Local file header signature mismatch");
-      var lfhFileNameLen = buf.readUInt16LE(lfhOff + 26);
-      var lfhExtraLen = buf.readUInt16LE(lfhOff + 28);
-      var dataOffset = lfhOff + 30 + lfhFileNameLen + lfhExtraLen;
-      var compressed = buf.slice(dataOffset, dataOffset + entry.compressedSize);
-      if (entry.compressionMethod === 0) {
-        return Buffer.from(compressed);
-      } else if (entry.compressionMethod === 8) {
-        return zlib.inflateRawSync(compressed);
-      } else {
-        throw new Error("Unsupported compression method: ".concat(entry.compressionMethod));
-      }
-    };
-    return ZipService2;
-  }()
-);
+      const isDir = rawName.endsWith("/");
+      const path2 = isDir ? rawName.slice(0, -1) : rawName;
+      const name = path2.split("/").pop() || path2;
+      entries.push({
+        name,
+        path: path2,
+        isDirectory: isDir,
+        size: uncompressedSize,
+        compressedSize,
+        modifiedTime: dosDateToIso(lastModDate, lastModTime),
+        localHeaderOffset,
+        compressionMethod
+      });
+      pos += 46 + fileNameLen + extraLen + commentLen;
+    }
+    return entries;
+  }
+  // ── On-demand entry extraction ─────────────────────────────────────────────
+  _readEntryData(buf, entry) {
+    if (entry.isDirectory) return Buffer.alloc(0);
+    const lfhOff = entry.localHeaderOffset;
+    if (buf.readUInt32LE(lfhOff) !== LFH_SIG) throw new Error("Local file header signature mismatch");
+    const lfhFileNameLen = buf.readUInt16LE(lfhOff + 26);
+    const lfhExtraLen = buf.readUInt16LE(lfhOff + 28);
+    const dataOffset = lfhOff + 30 + lfhFileNameLen + lfhExtraLen;
+    const compressed = buf.slice(dataOffset, dataOffset + entry.compressedSize);
+    if (entry.compressionMethod === 0) {
+      return Buffer.from(compressed);
+    } else if (entry.compressionMethod === 8) {
+      return zlib.inflateRawSync(compressed);
+    } else {
+      throw new Error(`Unsupported compression method: ${entry.compressionMethod}`);
+    }
+  }
+}
 function normalizeDirPath(internalPath) {
-  var clean = internalPath.replace(/^\/+/, "").replace(/\/+$/, "");
+  const clean = internalPath.replace(/^\/+/, "").replace(/\/+$/, "");
   return clean ? clean + "/" : "";
 }
 function dosDateToIso(date, time) {
-  var year = (date >> 9 & 127) + 1980;
-  var month = date >> 5 & 15;
-  var day = date & 31;
-  var hours = time >> 11 & 31;
-  var minutes = time >> 5 & 63;
-  var seconds = (time & 31) * 2;
+  const year = (date >> 9 & 127) + 1980;
+  const month = date >> 5 & 15;
+  const day = date & 31;
+  const hours = time >> 11 & 31;
+  const minutes = time >> 5 & 63;
+  const seconds = (time & 31) * 2;
   return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
 }
-var __assign$1 = function() {
-  __assign$1 = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign$1.apply(this, arguments);
+const log$e = {
+  info: (message, ...args) => console.log(`[VolumeScanner] ${message}`, ...args),
+  error: (message, ...args) => console.error(`[VolumeScanner] ${message}`, ...args),
+  debug: (message, ...args) => console.log(`[VolumeScanner] DEBUG: ${message}`, ...args)
 };
-var __awaiter$5 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$5 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
+class VolumeScanner {
+  scannerInterval = null;
+  options;
+  currentVolumes = /* @__PURE__ */ new Map();
+  handlers = [];
+  constructor(options = {}) {
+    this.options = {
+      scanInterval: 4e3,
+      volumesDir: "/Volumes",
+      ...options
     };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
+  /**
+   * 启动周期性扫描
+   */
+  start() {
+    if (this.scannerInterval) {
+      this.stop();
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
-var __spreadArray$1 = function(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-    if (ar || !(i in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-      ar[i] = from[i];
-    }
-  }
-  return to.concat(ar || Array.prototype.slice.call(from));
-};
-var log$6 = {
-  info: function(message) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-      args[_i - 1] = arguments[_i];
-    }
-    return console.log.apply(console, __spreadArray$1(["[VolumeScanner] ".concat(message)], args, false));
-  },
-  error: function(message) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-      args[_i - 1] = arguments[_i];
-    }
-    return console.error.apply(console, __spreadArray$1(["[VolumeScanner] ".concat(message)], args, false));
-  },
-  debug: function(message) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-      args[_i - 1] = arguments[_i];
-    }
-    return console.log.apply(console, __spreadArray$1(["[VolumeScanner] DEBUG: ".concat(message)], args, false));
-  }
-};
-var VolumeScanner = (
-  /** @class */
-  function() {
-    function VolumeScanner2(options) {
-      if (options === void 0) {
-        options = {};
-      }
-      this.scannerInterval = null;
-      this.currentVolumes = /* @__PURE__ */ new Map();
-      this.handlers = [];
-      this.options = __assign$1({ scanInterval: 4e3, volumesDir: "/Volumes" }, options);
-    }
-    VolumeScanner2.prototype.start = function() {
-      var _this = this;
-      if (this.scannerInterval) {
-        this.stop();
-      }
-      log$6.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
+    log$e.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
+    this.scan();
+    this.scannerInterval = setInterval(() => {
       this.scan();
-      this.scannerInterval = setInterval(function() {
-        _this.scan();
-      }, this.options.scanInterval);
-    };
-    VolumeScanner2.prototype.stop = function() {
-      if (this.scannerInterval) {
-        clearInterval(this.scannerInterval);
-        this.scannerInterval = null;
-        log$6.info("Volume scanner stopped");
-      }
-    };
-    VolumeScanner2.prototype.scan = function() {
-      return __awaiter$5(this, void 0, void 0, function() {
-        var volumes, added, removed, detected, error_1, newIds, oldIds, _i, volumes_1, volume, _a, _b, oldId, _c, volumes_2, volume;
-        return __generator$5(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              volumes = [];
-              added = [];
-              removed = [];
-              _d.label = 1;
-            case 1:
-              _d.trys.push([1, 3, , 4]);
-              return [4, this.detectVolumes()];
-            case 2:
-              detected = _d.sent();
-              volumes.push.apply(volumes, detected);
-              return [3, 4];
-            case 3:
-              error_1 = _d.sent();
-              log$6.error("Volume scan error:", error_1);
-              return [3, 4];
-            case 4:
-              newIds = new Set(volumes.map(function(v) {
-                return v.id;
-              }));
-              oldIds = new Set(this.currentVolumes.keys());
-              for (_i = 0, volumes_1 = volumes; _i < volumes_1.length; _i++) {
-                volume = volumes_1[_i];
-                if (!oldIds.has(volume.id)) {
-                  added.push(volume);
-                }
-              }
-              for (_a = 0, _b = Array.from(oldIds); _a < _b.length; _a++) {
-                oldId = _b[_a];
-                if (!newIds.has(oldId)) {
-                  removed.push(oldId);
-                }
-              }
-              if (added.length > 0) {
-                log$6.info("Volumes added:", added.map(function(v) {
-                  return { id: v.id, name: v.name };
-                }));
-              }
-              if (removed.length > 0) {
-                log$6.info("Volumes removed:", removed);
-              }
-              this.currentVolumes.clear();
-              for (_c = 0, volumes_2 = volumes; _c < volumes_2.length; _c++) {
-                volume = volumes_2[_c];
-                this.currentVolumes.set(volume.id, volume);
-              }
-              if (added.length > 0 || removed.length > 0) {
-                this.notifyHandlers(volumes, added, removed);
-              }
-              return [2, volumes];
-          }
-        });
-      });
-    };
-    VolumeScanner2.prototype.detectVolumes = function() {
-      return __awaiter$5(this, void 0, void 0, function() {
-        var volumes, entries, error_2, _i, entries_1, entry, mountPath;
-        return __generator$5(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              volumes = [];
-              _a.label = 1;
-            case 1:
-              _a.trys.push([1, 3, , 4]);
-              return [4, fs$1.readdir(this.options.volumesDir, { withFileTypes: true })];
-            case 2:
-              entries = _a.sent();
-              return [3, 4];
-            case 3:
-              error_2 = _a.sent();
-              log$6.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error_2);
-              return [2, []];
-            case 4:
-              for (_i = 0, entries_1 = entries; _i < entries_1.length; _i++) {
-                entry = entries_1[_i];
-                if (entry.name.startsWith("."))
-                  continue;
-                if (!entry.isDirectory())
-                  continue;
-                mountPath = path__default.join(this.options.volumesDir, entry.name);
-                volumes.push({
-                  id: mountPath,
-                  name: entry.name,
-                  mountPath,
-                  isRemovable: true
-                });
-              }
-              return [2, volumes];
-          }
-        });
-      });
-    };
-    VolumeScanner2.prototype.onVolumeChange = function(handler) {
-      var _this = this;
-      this.handlers.push(handler);
-      return function() {
-        var index = _this.handlers.indexOf(handler);
-        if (index > -1) {
-          _this.handlers.splice(index, 1);
-        }
-      };
-    };
-    VolumeScanner2.prototype.getVolumes = function() {
-      return Array.from(this.currentVolumes.values());
-    };
-    VolumeScanner2.prototype.notifyHandlers = function(volumes, added, removed) {
-      for (var _i = 0, _a = this.handlers; _i < _a.length; _i++) {
-        var handler = _a[_i];
-        try {
-          handler(volumes, added, removed);
-        } catch (error) {
-          log$6.error("Volume change handler error:", error);
-        }
-      }
-    };
-    return VolumeScanner2;
-  }()
-);
-var HostShellService = (
-  /** @class */
-  function() {
-    function HostShellService2() {
+    }, this.options.scanInterval);
+  }
+  /**
+   * 停止扫描
+   */
+  stop() {
+    if (this.scannerInterval) {
+      clearInterval(this.scannerInterval);
+      this.scannerInterval = null;
+      log$e.info("Volume scanner stopped");
     }
-    HostShellService2.prototype.openInTerminal = function(dirPath) {
-      return new Promise(function(resolve, reject) {
-        if (process.platform !== "darwin") {
-          reject(new Error('HostShellService.openInTerminal: platform "'.concat(process.platform, '" not supported (macOS only for now)')));
+  }
+  /**
+   * 执行单次扫描
+   */
+  async scan() {
+    const volumes = [];
+    const added = [];
+    const removed = [];
+    try {
+      const detected = await this.detectVolumes();
+      volumes.push(...detected);
+    } catch (error) {
+      log$e.error("Volume scan error:", error);
+    }
+    const newIds = new Set(volumes.map((v) => v.id));
+    const oldIds = new Set(this.currentVolumes.keys());
+    for (const volume of volumes) {
+      if (!oldIds.has(volume.id)) {
+        added.push(volume);
+      }
+    }
+    for (const oldId of Array.from(oldIds)) {
+      if (!newIds.has(oldId)) {
+        removed.push(oldId);
+      }
+    }
+    if (added.length > 0) {
+      log$e.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
+    }
+    if (removed.length > 0) {
+      log$e.info("Volumes removed:", removed);
+    }
+    this.currentVolumes.clear();
+    for (const volume of volumes) {
+      this.currentVolumes.set(volume.id, volume);
+    }
+    if (added.length > 0 || removed.length > 0) {
+      this.notifyHandlers(volumes, added, removed);
+    }
+    return volumes;
+  }
+  /**
+   * 平台检测策略（可替换点）：枚举 /Volumes 下的可见挂载点。
+   * - 跳过隐藏项（以 '.' 开头，如 .timemachine）
+   * - 仅保留目录
+   */
+  async detectVolumes() {
+    const volumes = [];
+    let entries;
+    try {
+      entries = await fs$1.readdir(this.options.volumesDir, { withFileTypes: true });
+    } catch (error) {
+      log$e.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
+      return [];
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      if (!entry.isDirectory()) continue;
+      const mountPath = path__default.join(this.options.volumesDir, entry.name);
+      volumes.push({
+        id: mountPath,
+        name: entry.name,
+        mountPath,
+        isRemovable: true
+      });
+    }
+    return volumes;
+  }
+  /**
+   * 注册卷变化 handler，返回注销函数
+   */
+  onVolumeChange(handler) {
+    this.handlers.push(handler);
+    return () => {
+      const index = this.handlers.indexOf(handler);
+      if (index > -1) {
+        this.handlers.splice(index, 1);
+      }
+    };
+  }
+  /**
+   * 获取当前已检测到的卷（快照）
+   */
+  getVolumes() {
+    return Array.from(this.currentVolumes.values());
+  }
+  notifyHandlers(volumes, added, removed) {
+    for (const handler of this.handlers) {
+      try {
+        handler(volumes, added, removed);
+      } catch (error) {
+        log$e.error("Volume change handler error:", error);
+      }
+    }
+  }
+}
+const DEV_APP_CANDIDATES = [
+  { bundle: "Visual Studio Code.app", name: "VS Code" },
+  { bundle: "VSCodium.app", name: "VSCodium" },
+  { bundle: "Cursor.app", name: "Cursor" },
+  { bundle: "Sublime Text.app", name: "Sublime Text" },
+  { bundle: "iTerm.app", name: "iTerm2" },
+  { bundle: "Zed.app", name: "Zed" },
+  { bundle: "JetBrains Toolbox.app", name: "JetBrains Toolbox" },
+  { bundle: "Xcode.app", name: "Xcode" }
+];
+class HostShellService {
+  detectedAppsCache = null;
+  /**
+   * 在系统终端中打开目录（macOS：新开 Terminal 窗口并 cd 进 dirPath）。
+   *
+   * 路径需双层转义：
+   *   1. shell 层 —— 用单引号包裹并把路径中的 `'` 转成 `'\''`（标准 POSIX 做法）；
+   *   2. AppleScript 层 —— 把上面的 shell 命令串里的 `\` 与 `"` 转义，
+   *      因为它是 osascript `-e` 的 do script 字符串内容。
+   * 用 execFile（不经 shell）传参，避免再叠加一层 shell 引号地狱。
+   *
+   * @param dirPath 要打开的本地目录绝对路径
+   * @throws 平台不支持或 osascript 调用失败时 reject（controller 转为 IPC 错误）
+   */
+  openInTerminal(dirPath) {
+    return new Promise((resolve, reject) => {
+      if (process.platform !== "darwin") {
+        reject(new Error(
+          `HostShellService.openInTerminal: platform "${process.platform}" not supported (macOS only for now)`
+        ));
+        return;
+      }
+      const normalized = path__default.resolve(dirPath);
+      console.log(`[HostShellService] Open in Terminal requested: "${normalized}"`);
+      const shellWord = `'${normalized.replace(/'/g, `'\\''`)}'`;
+      const shellCmd = `cd ${shellWord}`;
+      const appleString = shellCmd.replace(/\\/g, `\\\\`).replace(/"/g, `\\"`);
+      const script = `tell application "Terminal"
+activate
+do script "${appleString}"
+end tell`;
+      execFile("osascript", ["-e", script], (err, _stdout, stderr) => {
+        if (err) {
+          console.error(`[HostShellService] Failed to open Terminal at "${normalized}":`, err.message);
+          reject(new Error(`Failed to open Terminal at "${normalized}": ${err.message}`));
           return;
         }
-        var normalized = path__default.resolve(dirPath);
-        console.log('[HostShellService] Open in Terminal requested: "'.concat(normalized, '"'));
-        var shellWord = "'".concat(normalized.replace(/'/g, "'\\''"), "'");
-        var shellCmd = "cd ".concat(shellWord);
-        var appleString = shellCmd.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        var script = 'tell application "Terminal"\nactivate\ndo script "'.concat(appleString, '"\nend tell');
-        execFile("osascript", ["-e", script], function(err, _stdout, stderr) {
-          if (err) {
-            console.error('[HostShellService] Failed to open Terminal at "'.concat(normalized, '":'), err.message);
-            reject(new Error('Failed to open Terminal at "'.concat(normalized, '": ').concat(err.message)));
-            return;
-          }
-          if (stderr && stderr.trim()) {
-            console.warn('[HostShellService] osascript stderr for "'.concat(normalized, '": ').concat(stderr.trim()));
-          }
-          console.log('[HostShellService] Opened Terminal at "'.concat(normalized, '"'));
-          resolve();
-        });
+        if (stderr && stderr.trim()) {
+          console.warn(`[HostShellService] osascript stderr for "${normalized}": ${stderr.trim()}`);
+        }
+        console.log(`[HostShellService] Opened Terminal at "${normalized}"`);
+        resolve();
       });
-    };
-    return HostShellService2;
-  }()
-);
-var __spreadArray = function(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-    if (ar || !(i in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-      ar[i] = from[i];
-    }
-  }
-  return to.concat(ar || Array.prototype.slice.call(from));
-};
-var log$5 = console;
-var FileMetadataService = (
-  /** @class */
-  function() {
-    function FileMetadataService2(configService2) {
-      this.configService = configService2;
-    }
-    FileMetadataService2.prototype.get = function(deviceId, filePath) {
-      var _a;
-      return (_a = this.all().find(function(item) {
-        return item.deviceId === deviceId && item.path === filePath;
-      })) !== null && _a !== void 0 ? _a : { deviceId, path: filePath, tags: [], updatedAt: 0 };
-    };
-    FileMetadataService2.prototype.setTags = function(deviceId, filePath, tags) {
-      var normalized = __spreadArray([], new Set(tags.map(function(tag) {
-        return tag.trim();
-      }).filter(Boolean)), true).slice(0, 12);
-      var metadata = this.all().filter(function(item) {
-        return item.deviceId !== deviceId || item.path !== filePath;
-      });
-      var value = { deviceId, path: filePath, tags: normalized, updatedAt: Date.now() };
-      metadata.push(value);
-      this.save(metadata);
-      log$5.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
-      return value;
-    };
-    FileMetadataService2.prototype.findByTags = function(tags) {
-      var required = tags.map(function(tag) {
-        return tag.trim();
-      }).filter(Boolean);
-      return this.all().filter(function(item) {
-        return required.every(function(tag) {
-          return item.tags.includes(tag);
-        });
-      });
-    };
-    FileMetadataService2.prototype.all = function() {
-      var config = this.configService.getConfig();
-      return Array.isArray(config.fileMetadata) ? config.fileMetadata : [];
-    };
-    FileMetadataService2.prototype.save = function(fileMetadata) {
-      this.configService.saveConfig({ fileMetadata });
-    };
-    return FileMetadataService2;
-  }()
-);
-var __awaiter$4 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
     });
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$4 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
+  /**
+   * 用指定应用打开本地文件/目录（macOS：`open -a <app> <target>`）。
+   * execFile 传参数组，不经 shell——沿用本服务的「无引号地狱」原则。
+   */
+  openWith(appPath, targetPath) {
+    return new Promise((resolve, reject) => {
+      const normalized = path__default.resolve(targetPath);
+      execFile("open", ["-a", path__default.resolve(appPath), normalized], (err, _stdout, stderr) => {
+        if (err) {
+          console.error("[HostShellService] openWith failed:", err.message);
+          reject(new Error(`Failed to open "${normalized}" with "${appPath}": ${err.message}`));
+          return;
+        }
+        if (stderr && stderr.trim()) {
+          console.warn("[HostShellService] open stderr:", stderr.trim());
+        }
+        console.log(`[HostShellService] Opened "${normalized}" with ${appPath}`);
+        resolve();
+      });
+    });
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
+  /**
+   * 探测本机已安装的开发者应用（/Applications 与 ~/Applications）。
+   * 结果 memoize（应用安装是罕见事件；重探经重启或后续显式刷新）。
+   */
+  detectDevApps() {
+    if (this.detectedAppsCache) return this.detectedAppsCache;
+    const roots = ["/Applications", path__default.join(os.homedir(), "Applications")];
+    const found = [];
+    for (const candidate of DEV_APP_CANDIDATES) {
+      for (const root of roots) {
+        const bundlePath = path__default.join(root, candidate.bundle);
+        try {
+          if (fs__default.existsSync(bundlePath)) {
+            found.push({ id: candidate.bundle, name: candidate.name, bundlePath });
             break;
           }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
+        } catch {
+        }
       }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+    this.detectedAppsCache = found;
+    console.log(`[HostShellService] detected dev apps: ${found.map((app2) => app2.name).join(", ") || "(none)"}`);
+    return found;
   }
-};
-var log$4 = console;
+}
+const log$d = console;
+class FileMetadataService {
+  constructor(configService2) {
+    this.configService = configService2;
+  }
+  get(deviceId, filePath) {
+    return this.all().find((item) => item.deviceId === deviceId && item.path === filePath) ?? { deviceId, path: filePath, tags: [], updatedAt: 0 };
+  }
+  setTags(deviceId, filePath, tags) {
+    const normalized = [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))].slice(0, 12);
+    const metadata = this.all().filter((item) => item.deviceId !== deviceId || item.path !== filePath);
+    const value = { deviceId, path: filePath, tags: normalized, updatedAt: Date.now() };
+    metadata.push(value);
+    this.save(metadata);
+    log$d.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
+    return value;
+  }
+  findByTags(tags) {
+    const required = tags.map((tag) => tag.trim()).filter(Boolean);
+    return this.all().filter((item) => required.every((tag) => item.tags.includes(tag)));
+  }
+  all() {
+    const config = this.configService.getConfig();
+    return Array.isArray(config.fileMetadata) ? config.fileMetadata : [];
+  }
+  save(fileMetadata) {
+    this.configService.saveConfig({ fileMetadata });
+  }
+}
+const log$c = console;
 function joinPath(parent, name) {
-  return "".concat(parent.replace(/\/+$/, "") || "/", "/").concat(name).replace(/\/\/+/g, "/");
+  return `${parent.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
 }
 function basename(filePath) {
   return filePath.replace(/\/+$/, "").split("/").pop() || "archive";
 }
-var ArchiveService = (
-  /** @class */
-  function() {
-    function ArchiveService2(deviceManager2) {
-      this.deviceManager = deviceManager2;
-    }
-    ArchiveService2.prototype.createZip = function(deviceId, sourcePaths, targetDirectory, archiveName) {
-      return __awaiter$4(this, void 0, void 0, function() {
-        var entries, _i, sourcePaths_1, sourcePath, safeName, targetPath;
-        return __generator$4(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              entries = {};
-              _i = 0, sourcePaths_1 = sourcePaths;
-              _a.label = 1;
-            case 1:
-              if (!(_i < sourcePaths_1.length)) return [3, 4];
-              sourcePath = sourcePaths_1[_i];
-              return [4, this.collect(deviceId, sourcePath, basename(sourcePath), entries)];
-            case 2:
-              _a.sent();
-              _a.label = 3;
-            case 3:
-              _i++;
-              return [3, 1];
-            case 4:
-              safeName = archiveName.toLowerCase().endsWith(".zip") ? archiveName : "".concat(archiveName, ".zip");
-              targetPath = joinPath(targetDirectory, safeName);
-              return [4, this.deviceManager.writeFile(deviceId, targetPath, Buffer.from(zipSync(entries, { level: 6 })))];
-            case 5:
-              _a.sent();
-              log$4.info("[ArchiveService] archive created", { deviceId, targetPath, entryCount: Object.keys(entries).length });
-              return [2, { path: targetPath }];
-          }
-        });
-      });
-    };
-    ArchiveService2.prototype.extractZip = function(deviceId, archivePath, targetDirectory) {
-      return __awaiter$4(this, void 0, void 0, function() {
-        var entries, _a, count, _i, _b, _c, entryPath, data, outputPath;
-        return __generator$4(this, function(_d) {
-          switch (_d.label) {
-            case 0:
-              _a = unzipSync;
-              return [4, this.deviceManager.readFile(deviceId, archivePath)];
-            case 1:
-              entries = _a.apply(void 0, [_d.sent()]);
-              count = 0;
-              _i = 0, _b = Object.entries(entries);
-              _d.label = 2;
-            case 2:
-              if (!(_i < _b.length)) return [3, 6];
-              _c = _b[_i], entryPath = _c[0], data = _c[1];
-              if (entryPath.includes("..") || entryPath.startsWith("/"))
-                throw new Error("不安全的 ZIP 条目: ".concat(entryPath));
-              outputPath = joinPath(targetDirectory, entryPath);
-              return [4, this.ensureParentDirectories(deviceId, outputPath)];
-            case 3:
-              _d.sent();
-              return [4, this.deviceManager.writeFile(deviceId, outputPath, Buffer.from(data))];
-            case 4:
-              _d.sent();
-              count++;
-              _d.label = 5;
-            case 5:
-              _i++;
-              return [3, 2];
-            case 6:
-              log$4.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
-              return [2, { count }];
-          }
-        });
-      });
-    };
-    ArchiveService2.prototype.collect = function(deviceId, sourcePath, relativePath, entries) {
-      return __awaiter$4(this, void 0, void 0, function() {
-        var stat2, _a, _b, children, _i, children_1, child;
-        return __generator$4(this, function(_c) {
-          switch (_c.label) {
-            case 0:
-              return [4, this.deviceManager.getStats(deviceId, sourcePath)];
-            case 1:
-              stat2 = _c.sent();
-              if (!stat2.isFile) return [3, 3];
-              _a = entries;
-              _b = relativePath;
-              return [4, this.deviceManager.readFile(deviceId, sourcePath)];
-            case 2:
-              _a[_b] = _c.sent();
-              return [
-                2
-                /*return*/
-              ];
-            case 3:
-              return [4, this.deviceManager.listFiles(deviceId, sourcePath)];
-            case 4:
-              children = _c.sent();
-              _i = 0, children_1 = children;
-              _c.label = 5;
-            case 5:
-              if (!(_i < children_1.length)) return [3, 8];
-              child = children_1[_i];
-              return [4, this.collect(deviceId, child.path, "".concat(relativePath, "/").concat(child.name), entries)];
-            case 6:
-              _c.sent();
-              _c.label = 7;
-            case 7:
-              _i++;
-              return [3, 5];
-            case 8:
-              if (children.length === 0)
-                entries["".concat(relativePath, "/.keep")] = strToU8("");
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ArchiveService2.prototype.ensureParentDirectories = function(deviceId, outputPath) {
-      return __awaiter$4(this, void 0, void 0, function() {
-        var parts, current, _i, _a, part;
-        return __generator$4(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              parts = outputPath.split("/").filter(Boolean);
-              current = "";
-              _i = 0, _a = parts.slice(0, -1);
-              _b.label = 1;
-            case 1:
-              if (!(_i < _a.length)) return [3, 5];
-              part = _a[_i];
-              current = joinPath(current || "/", part);
-              return [4, this.deviceManager.exists(deviceId, current)];
-            case 2:
-              if (!!_b.sent()) return [3, 4];
-              return [4, this.deviceManager.mkdir(deviceId, current)];
-            case 3:
-              _b.sent();
-              _b.label = 4;
-            case 4:
-              _i++;
-              return [3, 1];
-            case 5:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    return ArchiveService2;
-  }()
-);
-var __awaiter$3 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
+class ArchiveService {
+  constructor(deviceManager2) {
+    this.deviceManager = deviceManager2;
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
+  async createZip(deviceId, sourcePaths, targetDirectory, archiveName) {
+    const entries = {};
+    for (const sourcePath of sourcePaths) {
+      await this.collect(deviceId, sourcePath, basename(sourcePath), entries);
     }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$3 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
+    const safeName = archiveName.toLowerCase().endsWith(".zip") ? archiveName : `${archiveName}.zip`;
+    const targetPath = joinPath(targetDirectory, safeName);
+    await this.deviceManager.writeFile(deviceId, targetPath, Buffer.from(zipSync(entries, { level: 6 })));
+    log$c.info("[ArchiveService] archive created", { deviceId, targetPath, entryCount: Object.keys(entries).length });
+    return { path: targetPath };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
+  async extractZip(deviceId, archivePath, targetDirectory) {
+    const entries = unzipSync(await this.deviceManager.readFile(deviceId, archivePath));
+    let count = 0;
+    for (const [entryPath, data] of Object.entries(entries)) {
+      if (entryPath.includes("..") || entryPath.startsWith("/")) throw new Error(`不安全的 ZIP 条目: ${entryPath}`);
+      const outputPath = joinPath(targetDirectory, entryPath);
+      await this.ensureParentDirectories(deviceId, outputPath);
+      await this.deviceManager.writeFile(deviceId, outputPath, Buffer.from(data));
+      count++;
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+    log$c.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
+    return { count };
   }
-};
-var log$3 = console;
+  async collect(deviceId, sourcePath, relativePath, entries) {
+    const stat2 = await this.deviceManager.getStats(deviceId, sourcePath);
+    if (stat2.isFile) {
+      entries[relativePath] = await this.deviceManager.readFile(deviceId, sourcePath);
+      return;
+    }
+    const children = await this.deviceManager.listFiles(deviceId, sourcePath);
+    for (const child of children) await this.collect(deviceId, child.path, `${relativePath}/${child.name}`, entries);
+    if (children.length === 0) entries[`${relativePath}/.keep`] = strToU8("");
+  }
+  async ensureParentDirectories(deviceId, outputPath) {
+    const parts = outputPath.split("/").filter(Boolean);
+    let current = "";
+    for (const part of parts.slice(0, -1)) {
+      current = joinPath(current || "/", part);
+      if (!await this.deviceManager.exists(deviceId, current)) await this.deviceManager.mkdir(deviceId, current);
+    }
+  }
+}
+const log$b = console;
 function posixJoin(directory, name) {
-  return "".concat(directory.replace(/\/+$/, "") || "/", "/").concat(name).replace(/\/\/+/g, "/");
+  return `${directory.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
 }
 function screenshotName() {
-  return "Screenshot-".concat((/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19), ".png");
+  return `Screenshot-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19)}.png`;
 }
-var MobileScreenshotService = (
-  /** @class */
-  function() {
-    function MobileScreenshotService2(deviceManager2) {
-      this.deviceManager = deviceManager2;
+class MobileScreenshotService {
+  constructor(deviceManager2) {
+    this.deviceManager = deviceManager2;
+  }
+  async captureToDirectory(deviceId, targetDirectory) {
+    const device = this.deviceManager.getDevice(deviceId);
+    if (!device || device.type !== "android") {
+      throw new Error("只有已连接的 Android 设备支持截屏。");
     }
-    MobileScreenshotService2.prototype.captureToDirectory = function(deviceId, targetDirectory) {
-      return __awaiter$3(this, void 0, void 0, function() {
-        var device, serial, png, targetPath;
-        return __generator$3(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              device = this.deviceManager.getDevice(deviceId);
-              if (!device || device.type !== "android") {
-                throw new Error("只有已连接的 Android 设备支持截屏。");
-              }
-              serial = deviceId.replace(/^android:/, "");
-              log$3.info("[MobileScreenshotService] capture started", { deviceId, targetDirectory });
-              return [4, this.capture(serial)];
-            case 1:
-              png = _a.sent();
-              targetPath = posixJoin(targetDirectory, screenshotName());
-              return [4, this.deviceManager.writeFile(deviceId, targetPath, png)];
-            case 2:
-              _a.sent();
-              log$3.info("[MobileScreenshotService] capture saved", { deviceId, targetPath, bytes: png.length });
-              return [2, { path: targetPath }];
-          }
-        });
+    const serial = deviceId.replace(/^android:/, "");
+    log$b.info("[MobileScreenshotService] capture started", { deviceId, targetDirectory });
+    const png = await this.capture(serial);
+    const targetPath = posixJoin(targetDirectory, screenshotName());
+    await this.deviceManager.writeFile(deviceId, targetPath, png);
+    log$b.info("[MobileScreenshotService] capture saved", { deviceId, targetPath, bytes: png.length });
+    return { path: targetPath };
+  }
+  capture(serial) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(ToolPathResolver.getAdbExecutable(), ["-s", serial, "exec-out", "screencap", "-p"], {
+        stdio: ["ignore", "pipe", "pipe"]
       });
-    };
-    MobileScreenshotService2.prototype.capture = function(serial) {
-      return new Promise(function(resolve, reject) {
-        var child = spawn(ToolPathResolver.getAdbExecutable(), ["-s", serial, "exec-out", "screencap", "-p"], {
-          stdio: ["ignore", "pipe", "pipe"]
-        });
-        var chunks = [];
-        var errors = [];
-        child.stdout.on("data", function(chunk) {
-          return chunks.push(Buffer.from(chunk));
-        });
-        child.stderr.on("data", function(chunk) {
-          return errors.push(Buffer.from(chunk));
-        });
-        child.once("error", function(error) {
-          return reject(new Error("无法启动 adb 截屏: ".concat(error.message)));
-        });
-        child.once("close", function(code) {
-          if (code !== 0) {
-            reject(new Error("Android 截屏失败(code=".concat(code, "): ").concat(Buffer.concat(errors).toString("utf8").trim())));
-            return;
-          }
-          var png = Buffer.concat(chunks);
-          if (png.length < 8 || png.subarray(1, 4).toString("ascii") !== "PNG") {
-            reject(new Error("Android 截屏没有返回有效 PNG 数据。"));
-            return;
-          }
-          resolve(png);
-        });
+      const chunks = [];
+      const errors = [];
+      child.stdout.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      child.stderr.on("data", (chunk) => errors.push(Buffer.from(chunk)));
+      child.once("error", (error) => reject(new Error(`无法启动 adb 截屏: ${error.message}`)));
+      child.once("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`Android 截屏失败(code=${code}): ${Buffer.concat(errors).toString("utf8").trim()}`));
+          return;
+        }
+        const png = Buffer.concat(chunks);
+        if (png.length < 8 || png.subarray(1, 4).toString("ascii") !== "PNG") {
+          reject(new Error("Android 截屏没有返回有效 PNG 数据。"));
+          return;
+        }
+        resolve(png);
       });
-    };
-    return MobileScreenshotService2;
-  }()
-);
-var __awaiter$2 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
     });
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
+}
+const MAX_BUFFERED_BYTES = 32 * 1024 * 1024;
+async function hashAdapterFile(adapter, filePath, size, options = {}) {
+  const algo = options.algo ?? "sha256";
+  const capabilities = adapter.getCapabilities();
+  if (capabilities.canStream && adapter.openReadStream) {
+    const stream = await adapter.openReadStream(filePath);
+    const unregister = options.onStream?.(stream);
+    try {
+      const hash = createHash(algo);
+      for await (const chunk of stream) {
+        if (options.isCancelled?.()) throw new Error("cancelled by request");
+        hash.update(chunk);
+        options.onBytes?.(chunk.length);
       }
+      return hash.digest("hex");
+    } finally {
+      unregister?.();
     }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$2 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
+  if (size > MAX_BUFFERED_BYTES) {
+    throw new Error("该设备不支持流式读取，无法处理超过 32 MB 的文件");
+  }
+  if (options.isCancelled?.()) throw new Error("cancelled by request");
+  const data = await adapter.readFile(filePath);
+  options.onBytes?.(data.length);
+  return createHash(algo).update(data).digest("hex");
+}
+async function hashAdapterFileRange(adapter, filePath, size, length, options = {}) {
+  const algo = options.algo ?? "sha256";
+  const capabilities = adapter.getCapabilities();
+  if (capabilities.canStream && adapter.openReadStream) {
+    const stream = await adapter.openReadStream(filePath);
+    const unregister = options.onStream?.(stream);
+    try {
+      const hash = createHash(algo);
+      let remaining = length;
+      for await (const chunk of stream) {
+        if (options.isCancelled?.()) throw new Error("cancelled by request");
+        const buf = chunk;
+        if (buf.length >= remaining) {
+          if (remaining > 0) hash.update(buf.subarray(0, remaining));
+          return hash.digest("hex");
+        }
+        hash.update(buf);
+        remaining -= buf.length;
+      }
+      return hash.digest("hex");
+    } finally {
+      unregister?.();
+      stream.destroy();
+    }
+  }
+  if (size > MAX_BUFFERED_BYTES) {
+    throw new Error("该设备不支持流式读取，无法处理超过 32 MB 的文件");
+  }
+  if (options.isCancelled?.()) throw new Error("cancelled by request");
+  const data = await adapter.readFile(filePath);
+  return createHash(algo).update(data.subarray(0, length)).digest("hex");
+}
+const log$a = console;
+class ContentVerificationService {
+  constructor(devices) {
+    this.devices = devices;
+  }
+  tasks = /* @__PURE__ */ new Map();
+  sessionTasks = /* @__PURE__ */ new Map();
+  start(request, emit) {
+    const runningId = this.sessionTasks.get(request.sessionId);
+    if (runningId) this.cancel(runningId);
+    const task = {
+      taskId: randomUUID(),
+      sessionId: request.sessionId,
+      cancelled: false,
+      streams: /* @__PURE__ */ new Set()
+    };
+    this.tasks.set(task.taskId, task);
+    this.sessionTasks.set(request.sessionId, task.taskId);
+    log$a.info("[ContentVerification] task started", { taskId: task.taskId, sessionId: task.sessionId, pairCount: request.pairs.length });
+    void this.run(task, request.pairs, emit);
+    return { taskId: task.taskId, total: request.pairs.length };
+  }
+  cancel(taskId) {
+    const task = this.tasks.get(taskId);
+    if (!task) return false;
+    task.cancelled = true;
+    log$a.info("[ContentVerification] task cancellation requested", { taskId });
+    task.streams.forEach((stream) => stream.destroy(new Error("Verification cancelled")));
+    return true;
+  }
+  async run(task, pairs, emit) {
+    let completed = 0;
+    try {
+      for (const pair of pairs) {
+        if (task.cancelled) {
+          emit(this.event(task, pair.relativePath, "cancelled", completed, pairs.length));
           continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
+        }
+        emit(this.event(task, pair.relativePath, "verifying", completed, pairs.length));
+        try {
+          if (pair.leftSize !== pair.rightSize) {
+            completed++;
+            emit(this.event(task, pair.relativePath, "content-different", completed, pairs.length, "文件大小不同"));
             continue;
           }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
+          const [leftHash, rightHash] = await Promise.all([
+            this.hashFile(task, pair.leftDeviceId, pair.leftPath, pair.leftSize),
+            this.hashFile(task, pair.rightDeviceId, pair.rightPath, pair.rightSize)
+          ]);
+          if (task.cancelled) {
+            emit(this.event(task, pair.relativePath, "cancelled", completed, pairs.length));
+            continue;
           }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
+          completed++;
+          emit(this.event(task, pair.relativePath, leftHash === rightHash ? "content-equal" : "content-different", completed, pairs.length));
+        } catch (error) {
+          if (task.cancelled) {
+            emit(this.event(task, pair.relativePath, "cancelled", completed, pairs.length));
+            continue;
           }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
+          completed++;
+          const message = error instanceof Error ? error.message : "内容校验失败";
+          log$a.warn("[ContentVerification] pair failed", { relativePath: pair.relativePath, message });
+          emit(this.event(task, pair.relativePath, "failed", completed, pairs.length, message));
+        }
       }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
     } finally {
-      f = t = 0;
+      this.tasks.delete(task.taskId);
+      if (this.sessionTasks.get(task.sessionId) === task.taskId) this.sessionTasks.delete(task.sessionId);
+      log$a.info("[ContentVerification] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed, total: pairs.length });
     }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
   }
-};
-var __asyncValues = function(o) {
-  if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-  var m = o[Symbol.asyncIterator], i;
-  return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
-    return this;
-  }, i);
-  function verb(n) {
-    i[n] = o[n] && function(v) {
-      return new Promise(function(resolve, reject) {
-        v = o[n](v), settle(resolve, reject, v.done, v.value);
-      });
-    };
+  event(task, relativePath, status, completed, total, message) {
+    return { sessionId: task.sessionId, taskId: task.taskId, relativePath, status, completed, total, message };
   }
-  function settle(resolve, reject, d, v) {
-    Promise.resolve(v).then(function(v2) {
-      resolve({ value: v2, done: d });
-    }, reject);
+  async hashFile(task, deviceId, filePath, size) {
+    const adapter = this.devices.getAdapter(deviceId);
+    if (!adapter || !adapter.isConnected()) throw new Error("设备未连接，无法校验内容");
+    return hashAdapterFile(adapter, filePath, size, {
+      algo: "sha256",
+      isCancelled: () => task.cancelled,
+      onStream: (stream) => {
+        task.streams.add(stream);
+        return () => task.streams.delete(stream);
+      }
+    });
   }
-};
-var log$2 = console;
-var MAX_BUFFERED_BYTES = 32 * 1024 * 1024;
-var ContentVerificationService = (
-  /** @class */
-  function() {
-    function ContentVerificationService2(devices) {
-      this.devices = devices;
-      this.tasks = /* @__PURE__ */ new Map();
-      this.sessionTasks = /* @__PURE__ */ new Map();
-    }
-    ContentVerificationService2.prototype.start = function(request, emit) {
-      var runningId = this.sessionTasks.get(request.sessionId);
-      if (runningId)
-        this.cancel(runningId);
-      var task = {
-        taskId: randomUUID(),
-        sessionId: request.sessionId,
-        cancelled: false,
-        streams: /* @__PURE__ */ new Set()
-      };
-      this.tasks.set(task.taskId, task);
-      this.sessionTasks.set(request.sessionId, task.taskId);
-      log$2.info("[ContentVerification] task started", { taskId: task.taskId, sessionId: task.sessionId, pairCount: request.pairs.length });
-      void this.run(task, request.pairs, emit);
-      return { taskId: task.taskId, total: request.pairs.length };
-    };
-    ContentVerificationService2.prototype.cancel = function(taskId) {
-      var task = this.tasks.get(taskId);
-      if (!task)
-        return false;
-      task.cancelled = true;
-      log$2.info("[ContentVerification] task cancellation requested", { taskId });
-      task.streams.forEach(function(stream) {
-        return stream.destroy(new Error("Verification cancelled"));
-      });
-      return true;
-    };
-    ContentVerificationService2.prototype.run = function(task, pairs, emit) {
-      return __awaiter$2(this, void 0, void 0, function() {
-        var completed, _i, pairs_1, pair, _a, leftHash, rightHash, error_1, message;
-        return __generator$2(this, function(_b) {
-          switch (_b.label) {
-            case 0:
-              completed = 0;
-              _b.label = 1;
-            case 1:
-              _b.trys.push([1, , 8, 9]);
-              _i = 0, pairs_1 = pairs;
-              _b.label = 2;
-            case 2:
-              if (!(_i < pairs_1.length)) return [3, 7];
-              pair = pairs_1[_i];
-              if (task.cancelled) {
-                emit(this.event(task, pair.relativePath, "cancelled", completed, pairs.length));
-                return [3, 6];
-              }
-              emit(this.event(task, pair.relativePath, "verifying", completed, pairs.length));
-              _b.label = 3;
-            case 3:
-              _b.trys.push([3, 5, , 6]);
-              if (pair.leftSize !== pair.rightSize) {
-                completed++;
-                emit(this.event(task, pair.relativePath, "content-different", completed, pairs.length, "文件大小不同"));
-                return [3, 6];
-              }
-              return [4, Promise.all([
-                this.hashFile(task, pair.leftDeviceId, pair.leftPath, pair.leftSize),
-                this.hashFile(task, pair.rightDeviceId, pair.rightPath, pair.rightSize)
-              ])];
-            case 4:
-              _a = _b.sent(), leftHash = _a[0], rightHash = _a[1];
-              if (task.cancelled) {
-                emit(this.event(task, pair.relativePath, "cancelled", completed, pairs.length));
-                return [3, 6];
-              }
-              completed++;
-              emit(this.event(task, pair.relativePath, leftHash === rightHash ? "content-equal" : "content-different", completed, pairs.length));
-              return [3, 6];
-            case 5:
-              error_1 = _b.sent();
-              if (task.cancelled) {
-                emit(this.event(task, pair.relativePath, "cancelled", completed, pairs.length));
-                return [3, 6];
-              }
-              completed++;
-              message = error_1 instanceof Error ? error_1.message : "内容校验失败";
-              log$2.warn("[ContentVerification] pair failed", { relativePath: pair.relativePath, message });
-              emit(this.event(task, pair.relativePath, "failed", completed, pairs.length, message));
-              return [3, 6];
-            case 6:
-              _i++;
-              return [3, 2];
-            case 7:
-              return [3, 9];
-            case 8:
-              this.tasks.delete(task.taskId);
-              if (this.sessionTasks.get(task.sessionId) === task.taskId)
-                this.sessionTasks.delete(task.sessionId);
-              log$2.info("[ContentVerification] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed, total: pairs.length });
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 9:
-              return [
-                2
-                /*return*/
-              ];
-          }
-        });
-      });
-    };
-    ContentVerificationService2.prototype.event = function(task, relativePath, status, completed, total, message) {
-      return { sessionId: task.sessionId, taskId: task.taskId, relativePath, status, completed, total, message };
-    };
-    ContentVerificationService2.prototype.hashFile = function(task, deviceId, filePath, size) {
-      return __awaiter$2(this, void 0, void 0, function() {
-        var adapter, capabilities, stream, hash, _a, stream_1, stream_1_1, chunk, e_1_1, _b, _c;
-        var _d, e_1, _e, _f;
-        return __generator$2(this, function(_g) {
-          switch (_g.label) {
-            case 0:
-              adapter = this.devices.getAdapter(deviceId);
-              if (!adapter || !adapter.isConnected())
-                throw new Error("设备未连接，无法校验内容");
-              capabilities = adapter.getCapabilities();
-              if (!(capabilities.canStream && adapter.openReadStream)) return [3, 16];
-              return [4, adapter.openReadStream(filePath)];
-            case 1:
-              stream = _g.sent();
-              task.streams.add(stream);
-              _g.label = 2;
-            case 2:
-              _g.trys.push([2, , 15, 16]);
-              hash = createHash("sha256");
-              _g.label = 3;
-            case 3:
-              _g.trys.push([3, 8, 9, 14]);
-              _a = true, stream_1 = __asyncValues(stream);
-              _g.label = 4;
-            case 4:
-              return [4, stream_1.next()];
-            case 5:
-              if (!(stream_1_1 = _g.sent(), _d = stream_1_1.done, !_d)) return [3, 7];
-              _f = stream_1_1.value;
-              _a = false;
-              chunk = _f;
-              if (task.cancelled)
-                throw new Error("Verification cancelled");
-              hash.update(chunk);
-              _g.label = 6;
-            case 6:
-              _a = true;
-              return [3, 4];
-            case 7:
-              return [3, 14];
-            case 8:
-              e_1_1 = _g.sent();
-              e_1 = { error: e_1_1 };
-              return [3, 14];
-            case 9:
-              _g.trys.push([9, , 12, 13]);
-              if (!(!_a && !_d && (_e = stream_1.return))) return [3, 11];
-              return [4, _e.call(stream_1)];
-            case 10:
-              _g.sent();
-              _g.label = 11;
-            case 11:
-              return [3, 13];
-            case 12:
-              if (e_1) throw e_1.error;
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 13:
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 14:
-              return [2, hash.digest("hex")];
-            case 15:
-              task.streams.delete(stream);
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 16:
-              if (size > MAX_BUFFERED_BYTES) {
-                throw new Error("该设备不支持流式读取，无法校验超过 32 MB 的文件");
-              }
-              if (task.cancelled)
-                throw new Error("Verification cancelled");
-              _c = (_b = createHash("sha256")).update;
-              return [4, adapter.readFile(filePath)];
-            case 17:
-              return [2, _c.apply(_b, [_g.sent()]).digest("hex")];
-          }
-        });
-      });
-    };
-    return ContentVerificationService2;
-  }()
-);
+}
 (function(to, from, pack) {
   if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
     if (ar || !(i in from)) {
@@ -9329,513 +4581,1209 @@ function parseZipVirtualPath(p) {
 function normalizeInnerPath(innerPath) {
   return innerPath.replace(/\/+$/, "");
 }
-var __assign = function() {
-  __assign = Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-      s = arguments[i];
-      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-        t[p] = s[p];
-    }
-    return t;
-  };
-  return __assign.apply(this, arguments);
-};
-var __awaiter$1 = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
+const log$9 = console;
+const PROGRESS_EMIT_INTERVAL_MS$3 = 100;
+const MAX_CONSECUTIVE_ERRORS$1 = 20;
+class DirectoryStatsService {
+  constructor(devices, zip) {
+    this.devices = devices;
+    this.zip = zip;
   }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator$1 = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
+  tasks = /* @__PURE__ */ new Map();
+  sessionTasks = /* @__PURE__ */ new Map();
+  start(request, emit) {
+    const runningId = this.sessionTasks.get(request.sessionId);
+    if (runningId) this.cancel(runningId);
+    const task = { taskId: randomUUID(), sessionId: request.sessionId, cancelled: false };
+    this.tasks.set(task.taskId, task);
+    this.sessionTasks.set(request.sessionId, task.taskId);
+    log$9.info("[DirectoryStats] task started", { taskId: task.taskId, sessionId: task.sessionId, pathCount: request.paths.length });
+    void this.run(task, request, emit);
+    return { taskId: task.taskId };
   }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
+  cancel(taskId) {
+    const task = this.tasks.get(taskId);
+    if (!task) return false;
+    task.cancelled = true;
+    log$9.info("[DirectoryStats] task cancellation requested", { taskId });
+    return true;
   }
-};
-var log$1 = console;
-var PROGRESS_EMIT_INTERVAL_MS = 100;
-var MAX_CONSECUTIVE_ERRORS = 20;
-var DirectoryStatsService = (
-  /** @class */
-  function() {
-    function DirectoryStatsService2(devices, zip) {
-      this.devices = devices;
-      this.zip = zip;
-      this.tasks = /* @__PURE__ */ new Map();
-      this.sessionTasks = /* @__PURE__ */ new Map();
-    }
-    DirectoryStatsService2.prototype.start = function(request, emit) {
-      var runningId = this.sessionTasks.get(request.sessionId);
-      if (runningId)
-        this.cancel(runningId);
-      var task = { taskId: randomUUID(), sessionId: request.sessionId, cancelled: false };
-      this.tasks.set(task.taskId, task);
-      this.sessionTasks.set(request.sessionId, task.taskId);
-      log$1.info("[DirectoryStats] task started", { taskId: task.taskId, sessionId: task.sessionId, pathCount: request.paths.length });
-      void this.run(task, request, emit);
-      return { taskId: task.taskId };
+  async run(task, request, emit) {
+    const totals = { fileCount: 0, directoryCount: 0, totalBytes: 0 };
+    let lastEmitAt = 0;
+    let currentPath;
+    const maybeEmit = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS$3) return;
+      lastEmitAt = now;
+      emit({ sessionId: task.sessionId, taskId: task.taskId, status: "scanning", ...totals, currentPath });
     };
-    DirectoryStatsService2.prototype.cancel = function(taskId) {
-      var task = this.tasks.get(taskId);
-      if (!task)
-        return false;
-      task.cancelled = true;
-      log$1.info("[DirectoryStats] task cancellation requested", { taskId });
-      return true;
-    };
-    DirectoryStatsService2.prototype.run = function(task, request, emit) {
-      return __awaiter$1(this, void 0, void 0, function() {
-        var totals, lastEmitAt, currentPath, maybeEmit, queue, _i, _a, p, _b, zipFilePath, innerPath, entries, prefix, _c, entries_1, entry, adapter, consecutiveErrors, p, st, children, _d, children_1, child, error_1, error_2, message;
-        return __generator$1(this, function(_e) {
-          switch (_e.label) {
-            case 0:
-              totals = { fileCount: 0, directoryCount: 0, totalBytes: 0 };
-              lastEmitAt = 0;
-              maybeEmit = function(force) {
-                if (force === void 0) {
-                  force = false;
-                }
-                var now = Date.now();
-                if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS)
-                  return;
-                lastEmitAt = now;
-                emit(__assign(__assign({ sessionId: task.sessionId, taskId: task.taskId, status: "scanning" }, totals), { currentPath }));
-              };
-              _e.label = 1;
-            case 1:
-              _e.trys.push([1, 17, 18, 19]);
-              queue = [];
-              _i = 0, _a = request.paths;
-              _e.label = 2;
-            case 2:
-              if (!(_i < _a.length)) return [3, 6];
-              p = _a[_i];
-              if (task.cancelled)
-                return [3, 6];
-              if (!isZipVirtualPath(p)) return [3, 4];
-              _b = parseZipVirtualPath(p), zipFilePath = _b.zipFilePath, innerPath = _b.innerPath;
-              currentPath = p;
-              return [4, this.zip.getEntries(zipFilePath)];
-            case 3:
-              entries = _e.sent();
-              if (task.cancelled)
-                return [3, 6];
-              prefix = innerPath ? innerPath + "/" : "";
-              for (_c = 0, entries_1 = entries; _c < entries_1.length; _c++) {
-                entry = entries_1[_c];
-                if (prefix && !entry.path.startsWith(prefix))
-                  continue;
-                if (entry.isDirectory)
-                  totals.directoryCount++;
-                else {
-                  totals.fileCount++;
-                  totals.totalBytes += entry.size;
-                }
-              }
-              maybeEmit(true);
-              return [3, 5];
-            case 4:
-              queue.push(p);
-              _e.label = 5;
-            case 5:
-              _i++;
-              return [3, 2];
-            case 6:
-              if (!(!task.cancelled && queue.length > 0)) return [3, 16];
-              return [4, this.devices.getReadyAdapter(request.deviceId)];
-            case 7:
-              adapter = _e.sent();
-              consecutiveErrors = 0;
-              _e.label = 8;
-            case 8:
-              if (!(queue.length > 0)) return [3, 16];
-              if (task.cancelled)
-                return [3, 16];
-              p = queue.shift();
-              currentPath = p;
-              _e.label = 9;
-            case 9:
-              _e.trys.push([9, 14, , 15]);
-              return [4, adapter.stat(p)];
-            case 10:
-              st = _e.sent();
-              if (!st.isFile) return [3, 11];
+    try {
+      const queue = [];
+      for (const p of request.paths) {
+        if (task.cancelled) break;
+        if (isZipVirtualPath(p)) {
+          const { zipFilePath, innerPath } = parseZipVirtualPath(p);
+          currentPath = p;
+          const entries = await this.zip.getEntries(zipFilePath);
+          if (task.cancelled) break;
+          const prefix = innerPath ? innerPath + "/" : "";
+          for (const entry of entries) {
+            if (prefix && !entry.path.startsWith(prefix)) continue;
+            if (entry.isDirectory) totals.directoryCount++;
+            else {
+              totals.fileCount++;
+              totals.totalBytes += entry.size;
+            }
+          }
+          maybeEmit(true);
+        } else {
+          queue.push(p);
+        }
+      }
+      if (!task.cancelled && queue.length > 0) {
+        const adapter = await this.devices.getReadyAdapter(request.deviceId);
+        let consecutiveErrors = 0;
+        while (queue.length > 0) {
+          if (task.cancelled) break;
+          const p = queue.shift();
+          currentPath = p;
+          try {
+            const st = await adapter.stat(p);
+            if (st.isFile) {
               totals.fileCount++;
               totals.totalBytes += st.size;
-              return [3, 13];
-            case 11:
+            } else {
               totals.directoryCount++;
-              return [4, adapter.list(p)];
-            case 12:
-              children = _e.sent();
-              for (_d = 0, children_1 = children; _d < children_1.length; _d++) {
-                child = children_1[_d];
-                queue.push(joinPosix(p, child.name));
-              }
-              _e.label = 13;
-            case 13:
-              consecutiveErrors = 0;
-              maybeEmit();
-              return [3, 15];
-            case 14:
-              error_1 = _e.sent();
-              consecutiveErrors++;
-              log$1.warn("[DirectoryStats] entry skipped", { path: p, message: error_1 instanceof Error ? error_1.message : String(error_1) });
-              if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                throw new Error("连续 ".concat(consecutiveErrors, " 个条目访问失败，设备可能已断开"));
-              }
-              return [3, 15];
-            case 15:
-              return [3, 8];
-            case 16:
-              lastEmitAt = 0;
-              emit(__assign({ sessionId: task.sessionId, taskId: task.taskId, status: task.cancelled ? "cancelled" : "completed" }, totals));
-              return [3, 19];
-            case 17:
-              error_2 = _e.sent();
-              message = error_2 instanceof Error ? error_2.message : String(error_2);
-              log$1.warn("[DirectoryStats] task failed", { taskId: task.taskId, message });
-              emit(__assign(__assign({ sessionId: task.sessionId, taskId: task.taskId, status: task.cancelled ? "cancelled" : "failed" }, totals), { message }));
-              return [3, 19];
-            case 18:
-              this.tasks.delete(task.taskId);
-              if (this.sessionTasks.get(task.sessionId) === task.taskId)
-                this.sessionTasks.delete(task.sessionId);
-              log$1.info("[DirectoryStats] task finished", __assign({ taskId: task.taskId, cancelled: task.cancelled }, totals));
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 19:
-              return [
-                2
-                /*return*/
-              ];
+              const children = await adapter.list(p);
+              for (const child of children) queue.push(joinPosix(p, child.name));
+            }
+            consecutiveErrors = 0;
+            maybeEmit();
+          } catch (error) {
+            consecutiveErrors++;
+            log$9.warn("[DirectoryStats] entry skipped", { path: p, message: error instanceof Error ? error.message : String(error) });
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS$1) {
+              throw new Error(`连续 ${consecutiveErrors} 个条目访问失败，设备可能已断开`);
+            }
           }
-        });
-      });
-    };
-    return DirectoryStatsService2;
-  }()
-);
+        }
+      }
+      lastEmitAt = 0;
+      emit({ sessionId: task.sessionId, taskId: task.taskId, status: task.cancelled ? "cancelled" : "completed", ...totals });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log$9.warn("[DirectoryStats] task failed", { taskId: task.taskId, message });
+      emit({ sessionId: task.sessionId, taskId: task.taskId, status: task.cancelled ? "cancelled" : "failed", ...totals, message });
+    } finally {
+      this.tasks.delete(task.taskId);
+      if (this.sessionTasks.get(task.sessionId) === task.taskId) this.sessionTasks.delete(task.sessionId);
+      log$9.info("[DirectoryStats] task finished", { taskId: task.taskId, cancelled: task.cancelled, ...totals });
+    }
+  }
+}
 function joinPosix(dir, name) {
-  if (dir === "" || dir === "/")
-    return "/" + name;
+  if (dir === "" || dir === "/") return "/" + name;
   return dir.endsWith("/") ? dir + name : dir + "/" + name;
 }
-var __awaiter = function(thisArg, _arguments, P, generator) {
-  function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve) {
-      resolve(value);
-    });
-  }
-  return new (P || (P = Promise))(function(resolve, reject) {
-    function fulfilled(value) {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function rejected(value) {
-      try {
-        step(generator["throw"](value));
-      } catch (e) {
-        reject(e);
-      }
-    }
-    function step(result) {
-      result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-    }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
-var __generator = function(thisArg, body) {
-  var _ = { label: 0, sent: function() {
-    if (t[0] & 1) throw t[1];
-    return t[1];
-  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
-    return this;
-  }), g;
-  function verb(n) {
-    return function(v) {
-      return step([n, v]);
-    };
-  }
-  function step(op) {
-    if (f) throw new TypeError("Generator is already executing.");
-    while (g && (g = 0, op[0] && (_ = 0)), _) try {
-      if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-      if (y = 0, t) op = [op[0] & 2, t.value];
-      switch (op[0]) {
-        case 0:
-        case 1:
-          t = op;
-          break;
-        case 4:
-          _.label++;
-          return { value: op[1], done: false };
-        case 5:
-          _.label++;
-          y = op[1];
-          op = [0];
-          continue;
-        case 7:
-          op = _.ops.pop();
-          _.trys.pop();
-          continue;
-        default:
-          if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) {
-            _ = 0;
-            continue;
-          }
-          if (op[0] === 3 && (!t || op[1] > t[0] && op[1] < t[3])) {
-            _.label = op[1];
-            break;
-          }
-          if (op[0] === 6 && _.label < t[1]) {
-            _.label = t[1];
-            t = op;
-            break;
-          }
-          if (t && _.label < t[2]) {
-            _.label = t[2];
-            _.ops.push(op);
-            break;
-          }
-          if (t[2]) _.ops.pop();
-          _.trys.pop();
-          continue;
-      }
-      op = body.call(thisArg, _);
-    } catch (e) {
-      op = [6, e];
-      y = 0;
-    } finally {
-      f = t = 0;
-    }
-    if (op[0] & 5) throw op[1];
-    return { value: op[0] ? op[1] : void 0, done: true };
-  }
-};
 function num(value) {
-  if (value == null)
-    return void 0;
-  var n = typeof value === "number" ? value : Number(value);
+  if (value == null) return void 0;
+  const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : void 0;
 }
-var MediaInfoService = (
-  /** @class */
-  function() {
-    function MediaInfoService2() {
-      this.instance = null;
-      this.initPromise = null;
+class MediaInfoService {
+  instance = null;
+  initPromise = null;
+  async getInstance() {
+    if (this.instance) return this.instance;
+    if (!this.initPromise) {
+      this.initPromise = mediaInfoFactory({ format: "object" }).then((instance) => {
+        this.instance = instance;
+        return instance;
+      });
     }
-    MediaInfoService2.prototype.getInstance = function() {
-      return __awaiter(this, void 0, void 0, function() {
-        var _this = this;
-        return __generator(this, function(_a) {
-          if (this.instance)
-            return [2, this.instance];
-          if (!this.initPromise) {
-            this.initPromise = mediaInfoFactory({ format: "object" }).then(function(instance) {
-              _this.instance = instance;
-              return instance;
+    return this.initPromise;
+  }
+  async analyze(deviceId, filePath) {
+    if (deviceId !== "local") return null;
+    const fh = await open(filePath, "r");
+    try {
+      const { size } = await stat(filePath);
+      const mi = await this.getInstance();
+      const result = await mi.analyzeData(
+        size,
+        (chunkSize, offset) => this.readChunk(fh, offset, chunkSize)
+      );
+      return this.summarize(result);
+    } finally {
+      await fh.close();
+    }
+  }
+  async readChunk(fh, offset, chunkSize) {
+    const buffer = Buffer.alloc(Math.max(0, chunkSize));
+    const { bytesRead } = await fh.read(buffer, 0, buffer.length, offset);
+    return new Uint8Array(buffer.subarray(0, bytesRead));
+  }
+  summarize(result) {
+    const tracks = result?.media?.track;
+    if (!tracks || tracks.length === 0) return null;
+    const general = tracks.find((t) => t["@type"] === "General");
+    const video = tracks.find((t) => t["@type"] === "Video");
+    const audio = tracks.find((t) => t["@type"] === "Audio");
+    if (!general && !video && !audio) return null;
+    const summary = {};
+    if (general) {
+      summary.format = typeof general.Format === "string" ? general.Format : void 0;
+      summary.durationSeconds = num(general.Duration);
+      summary.overallBitrate = num(general.OverallBitRate);
+    }
+    if (video) {
+      summary.video = {
+        codec: typeof video.Format === "string" ? video.Format : void 0,
+        width: num(video.Width),
+        height: num(video.Height),
+        frameRate: num(video.FrameRate),
+        bitrate: num(video.BitRate) ?? num(video.BitRate_Nominal),
+        bitDepth: num(video.BitDepth)
+      };
+    }
+    if (audio) {
+      summary.audio = {
+        codec: typeof audio.Format === "string" ? audio.Format : void 0,
+        sampleRate: num(audio.SamplingRate),
+        channels: num(audio.Channels),
+        bitrate: num(audio.BitRate) ?? num(audio.BitRate_Nominal)
+      };
+    }
+    return summary;
+  }
+}
+const log$8 = console;
+const MAX_REMOTE_CONSECUTIVE_FAILURES = 10;
+class WatchService {
+  constructor(devices, options) {
+    this.devices = devices;
+    this.options = {
+      remotePollIntervalMs: 3500,
+      localCoalesceMs: 300,
+      ...options
+    };
+  }
+  localWatches = /* @__PURE__ */ new Map();
+  remoteWatches = /* @__PURE__ */ new Map();
+  refCounts = /* @__PURE__ */ new Map();
+  pollTimer = null;
+  options;
+  static key(deviceId, dirPath) {
+    return `${deviceId}\0${dirPath}`;
+  }
+  subscribe(deviceId, dirPath) {
+    const key = WatchService.key(deviceId, dirPath);
+    const count = this.refCounts.get(key) ?? 0;
+    this.refCounts.set(key, count + 1);
+    if (count > 0) return { ok: true };
+    const adapter = this.devices.getAdapter(deviceId);
+    if (adapter?.type === "local") {
+      this.startLocalWatch(deviceId, dirPath);
+    } else {
+      this.startRemoteWatch(deviceId, dirPath);
+    }
+    return { ok: true };
+  }
+  unsubscribe(deviceId, dirPath) {
+    const key = WatchService.key(deviceId, dirPath);
+    const count = this.refCounts.get(key) ?? 0;
+    if (count === 0) return;
+    if (count > 1) {
+      this.refCounts.set(key, count - 1);
+      return;
+    }
+    this.refCounts.delete(key);
+    const local = this.localWatches.get(key);
+    if (local) {
+      if (local.coalesceTimer) clearTimeout(local.coalesceTimer);
+      local.watcher.close();
+      this.localWatches.delete(key);
+      log$8.info("[WatchService] local watch closed", { deviceId, dirPath });
+    }
+    if (this.remoteWatches.delete(key)) {
+      log$8.info("[WatchService] remote watch removed", { deviceId, dirPath });
+    }
+    if (this.remoteWatches.size === 0 && this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+      log$8.info("[WatchService] remote poll loop stopped (no subscriptions)");
+    }
+  }
+  // ============ 本地引擎 ============
+  startLocalWatch(deviceId, dirPath) {
+    try {
+      const watcher = fs__default.watch(dirPath, () => this.scheduleLocalEmit(deviceId, dirPath));
+      const entry = { deviceId, dirPath, watcher, coalesceTimer: null };
+      watcher.on("error", (error) => {
+        log$8.warn("[WatchService] local watch error, dropping subscription", { dirPath, message: error instanceof Error ? error.message : String(error) });
+        if (entry.coalesceTimer) clearTimeout(entry.coalesceTimer);
+        try {
+          watcher.close();
+        } catch {
+        }
+        if (this.localWatches.get(WatchService.key(deviceId, dirPath)) === entry) {
+          this.localWatches.delete(WatchService.key(deviceId, dirPath));
+          this.refCounts.delete(WatchService.key(deviceId, dirPath));
+        }
+      });
+      this.localWatches.set(WatchService.key(deviceId, dirPath), entry);
+      log$8.info("[WatchService] local watch started", { deviceId, dirPath });
+    } catch (error) {
+      log$8.warn("[WatchService] local watch failed to start", { dirPath, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  /** 事件风暴合并：窗口内首个事件起 300ms 后统一推送一次。 */
+  scheduleLocalEmit(deviceId, dirPath) {
+    const entry = this.localWatches.get(WatchService.key(deviceId, dirPath));
+    if (!entry || entry.coalesceTimer) return;
+    entry.coalesceTimer = setTimeout(() => {
+      entry.coalesceTimer = null;
+      this.options.emit({ deviceId, dirPath });
+    }, this.options.localCoalesceMs);
+  }
+  // ============ 远程引擎（轮询快照 diff） ============
+  startRemoteWatch(deviceId, dirPath) {
+    this.remoteWatches.set(WatchService.key(deviceId, dirPath), {
+      deviceId,
+      dirPath,
+      baseline: null,
+      inFlight: false,
+      consecutiveFailures: 0
+    });
+    if (!this.pollTimer) {
+      this.pollTimer = setInterval(() => void this.pollRemoteOnce(), this.options.remotePollIntervalMs);
+      log$8.info("[WatchService] remote poll loop started", { intervalMs: this.options.remotePollIntervalMs });
+    }
+  }
+  async pollRemoteOnce() {
+    if (this.options.shouldSkipRemotePoll?.()) return;
+    for (const entry of Array.from(this.remoteWatches.values())) {
+      if (entry.inFlight) continue;
+      entry.inFlight = true;
+      try {
+        const adapter = this.devices.getAdapter(entry.deviceId);
+        if (!adapter || !adapter.isConnected()) {
+          continue;
+        }
+        const children = await adapter.list(entry.dirPath);
+        const snapshot = new Map(children.map((child) => [
+          child.name,
+          `${child.isDirectory ? 1 : 0}:${child.size}:${child.modifiedTime}`
+        ]));
+        const baseline = entry.baseline;
+        entry.baseline = snapshot;
+        entry.consecutiveFailures = 0;
+        if (baseline === null) continue;
+        if (snapshotsDiffer(baseline, snapshot)) {
+          this.options.emit({ deviceId: entry.deviceId, dirPath: entry.dirPath });
+        }
+      } catch (error) {
+        entry.consecutiveFailures++;
+        log$8.warn("[WatchService] remote poll failed", {
+          deviceId: entry.deviceId,
+          dirPath: entry.dirPath,
+          consecutiveFailures: entry.consecutiveFailures,
+          message: error instanceof Error ? error.message : String(error)
+        });
+        if (entry.consecutiveFailures >= MAX_REMOTE_CONSECUTIVE_FAILURES) {
+          this.remoteWatches.delete(WatchService.key(entry.deviceId, entry.dirPath));
+          this.refCounts.delete(WatchService.key(entry.deviceId, entry.dirPath));
+          log$8.warn("[WatchService] remote watch dropped after repeated failures", { deviceId: entry.deviceId, dirPath: entry.dirPath });
+        }
+      } finally {
+        entry.inFlight = false;
+      }
+    }
+  }
+}
+function snapshotsDiffer(a, b) {
+  if (a.size !== b.size) return true;
+  for (const [name, signature] of Array.from(a)) {
+    if (b.get(name) !== signature) return true;
+  }
+  return false;
+}
+function parseGitStatusHeader(header) {
+  const body = header.startsWith("## ") ? header.slice(3) : header;
+  const detached = body.startsWith("HEAD (no branch)");
+  if (detached) return {};
+  const bracket = body.match(/\[([^\]]*)\]\s*$/);
+  let ahead;
+  let behind;
+  if (bracket) {
+    const aheadMatch = bracket[1].match(/ahead (\d+)/);
+    const behindMatch = bracket[1].match(/behind (\d+)/);
+    if (aheadMatch) ahead = parseInt(aheadMatch[1], 10);
+    if (behindMatch) behind = parseInt(behindMatch[1], 10);
+  }
+  const withoutBracket = bracket ? body.slice(0, bracket.index).trimEnd() : body;
+  const dotIdx = withoutBracket.indexOf("...");
+  const branch = (dotIdx >= 0 ? withoutBracket.slice(0, dotIdx) : withoutBracket).trim();
+  const result = {};
+  if (branch) result.branch = branch;
+  if (ahead !== void 0) result.ahead = ahead;
+  if (behind !== void 0) result.behind = behind;
+  return result;
+}
+function parseGitStatusZ(output) {
+  const records = output.split("\0").filter((record) => record.length > 0);
+  const result = { entries: [] };
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    if (record.startsWith("## ")) {
+      Object.assign(result, parseGitStatusHeader(record));
+      continue;
+    }
+    if (record.length < 4) continue;
+    const x = record[0];
+    const y = record[1];
+    const relPath = record.slice(3);
+    const entry = { relPath, x, y };
+    if ((x === "R" || y === "R") && i + 1 < records.length) {
+      entry.renamedFrom = records[i + 1];
+      i++;
+    }
+    result.entries.push(entry);
+  }
+  return result;
+}
+function toDirectoryStatus(parsed, repoRoot) {
+  return {
+    isRepo: true,
+    repoRoot,
+    branch: parsed.branch,
+    ahead: parsed.ahead,
+    behind: parsed.behind,
+    entries: parsed.entries.map((entry) => ({
+      path: joinRepoPath(repoRoot, entry.relPath),
+      x: entry.x,
+      y: entry.y,
+      renamedFrom: entry.renamedFrom
+    }))
+  };
+}
+const EMPTY_STATUS = { isRepo: false, entries: [] };
+function notARepoStatus() {
+  return EMPTY_STATUS;
+}
+function joinRepoPath(repoRoot, relPath) {
+  if (relPath.startsWith("/")) return relPath;
+  return repoRoot.endsWith("/") ? repoRoot + relPath : repoRoot + "/" + relPath;
+}
+const log$7 = console;
+const GIT_TIMEOUT_MS = 5e3;
+const NOT_REPO_TTL_MS = 3e4;
+const MAX_BUFFER = 16 * 1024 * 1024;
+function execGit(args, cwd) {
+  return new Promise((resolve, reject) => {
+    execFile("git", args, { cwd, timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
+      if (err) {
+        reject(Object.assign(err, { stdout: String(stdout ?? ""), stderr: String(stderr ?? "") }));
+        return;
+      }
+      resolve({ stdout: String(stdout), stderr: String(stderr), code: 0 });
+    });
+  });
+}
+class GitStatusService {
+  /** 非仓库负缓存：dirPath → 过期时间戳。 */
+  notRepoUntil = /* @__PURE__ */ new Map();
+  async getStatus(dirPath) {
+    const cachedUntil = this.notRepoUntil.get(dirPath);
+    if (cachedUntil !== void 0 && Date.now() < cachedUntil) {
+      return notARepoStatus();
+    }
+    let repoRoot;
+    try {
+      const rev = await execGit(["rev-parse", "--show-toplevel"], dirPath);
+      repoRoot = rev.stdout.trim();
+      if (!repoRoot.startsWith("/")) return this.rememberNotRepo(dirPath);
+    } catch (error) {
+      log$7.info("[GitStatus] not a repo (or git unavailable)", { dirPath, message: error instanceof Error ? error.message.split("\n")[0] : String(error) });
+      return this.rememberNotRepo(dirPath);
+    }
+    try {
+      const status = await execGit(["status", "--porcelain=v1", "-z", "--branch"], dirPath);
+      return toDirectoryStatus(parseGitStatusZ(status.stdout), repoRoot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.split("\n")[0] : String(error);
+      log$7.warn("[GitStatus] status failed", { dirPath, message });
+      return { isRepo: true, repoRoot, entries: [] };
+    }
+  }
+  rememberNotRepo(dirPath) {
+    this.notRepoUntil.set(dirPath, Date.now() + NOT_REPO_TTL_MS);
+    if (this.notRepoUntil.size > 200) {
+      const now = Date.now();
+      for (const [key, until] of Array.from(this.notRepoUntil)) {
+        if (until < now) this.notRepoUntil.delete(key);
+      }
+    }
+    return notARepoStatus();
+  }
+}
+const log$6 = console;
+class TaskHandle {
+  constructor(taskId, sessionId, state) {
+    this.taskId = taskId;
+    this.sessionId = sessionId;
+    this.state = state;
+  }
+  cancelled = false;
+  cancelHooks = [];
+  /** 取消已请求后注册的钩子立即执行（杀子进程等不得等待下一轮循环）。 */
+  onCancel(fn) {
+    if (this.cancelled) {
+      try {
+        fn();
+      } catch (error) {
+        log$6.warn("[SessionTaskRegistry] cancel hook threw", { taskId: this.taskId, message: error instanceof Error ? error.message : String(error) });
+      }
+      return;
+    }
+    this.cancelHooks.push(fn);
+  }
+  /** 执行并清空取消钩子（幂等：cancel 与 finish 各调一次只生效一次）。 */
+  runCancelHooks() {
+    const hooks = this.cancelHooks;
+    this.cancelHooks = [];
+    for (const fn of hooks) {
+      try {
+        fn();
+      } catch (error) {
+        log$6.warn("[SessionTaskRegistry] cancel hook threw", { taskId: this.taskId, message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+}
+class SessionTaskRegistry {
+  tasks = /* @__PURE__ */ new Map();
+  sessionTasks = /* @__PURE__ */ new Map();
+  /**
+   * 登记新任务；同一 sessionId 的在途任务先取消（快速重开查询场景）。
+   * @returns 任务句柄（taskId / sessionId / cancelled / state / onCancel）
+   */
+  create(sessionId, state) {
+    const runningId = this.sessionTasks.get(sessionId);
+    if (runningId) this.cancel(runningId);
+    const handle = new TaskHandle(randomUUID(), sessionId, state);
+    this.tasks.set(handle.taskId, handle);
+    this.sessionTasks.set(sessionId, handle.taskId);
+    return handle;
+  }
+  get(taskId) {
+    return this.tasks.get(taskId);
+  }
+  /** 请求协作式取消：置标志并同步执行取消钩子（杀子进程/销毁流）。 */
+  cancel(taskId) {
+    const task = this.tasks.get(taskId);
+    if (!task || task.cancelled) return false;
+    task.cancelled = true;
+    task.runCancelHooks();
+    log$6.info("[SessionTaskRegistry] cancellation requested", { taskId });
+    return true;
+  }
+  /** 任务收尾（无论 completed/cancelled/failed）：执行残留钩子并注销登记。 */
+  finish(handle) {
+    handle.runCancelHooks();
+    this.tasks.delete(handle.taskId);
+    if (this.sessionTasks.get(handle.sessionId) === handle.taskId) {
+      this.sessionTasks.delete(handle.sessionId);
+    }
+  }
+}
+const log$5 = console;
+class ChecksumService {
+  constructor(devices) {
+    this.devices = devices;
+  }
+  registry = new SessionTaskRegistry();
+  start(request, emit) {
+    const task = this.registry.create(request.sessionId, { streams: /* @__PURE__ */ new Set() });
+    log$5.info("[Checksum] task started", { taskId: task.taskId, sessionId: request.sessionId, items: request.items.length, algo: request.algo });
+    void this.run(task, request, emit);
+    return { taskId: task.taskId };
+  }
+  cancel(taskId) {
+    return this.registry.cancel(taskId);
+  }
+  async run(task, request, emit) {
+    const totalBytes = request.items.reduce((sum, item) => sum + item.size, 0);
+    const results = [];
+    let bytesBase = 0;
+    let lastEmitAt = 0;
+    let message;
+    try {
+      for (let index = 0; index < request.items.length; index++) {
+        const item = request.items[index];
+        if (task.cancelled) break;
+        bytesBase = request.items.slice(0, index).reduce((sum, it) => sum + it.size, 0);
+        let itemBytes = 0;
+        try {
+          const adapter = await this.devices.getReadyAdapter(item.deviceId);
+          const hex = await hashAdapterFile(adapter, item.path, item.size, {
+            algo: request.algo,
+            isCancelled: () => task.cancelled,
+            onBytes: (bytes) => {
+              itemBytes = bytes;
+              emit({
+                sessionId: task.sessionId,
+                taskId: task.taskId,
+                status: "hashing",
+                index,
+                total: request.items.length,
+                bytesProcessed: bytesBase + itemBytes,
+                totalBytes
+              });
+            },
+            onStream: (stream) => {
+              task.state.streams.add(stream);
+              return () => task.state.streams.delete(stream);
+            }
+          });
+          results.push({ hex });
+        } catch (error) {
+          if (task.cancelled) break;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          results.push({ hex: null, error: errorMessage });
+          log$5.warn("[Checksum] item failed", { path: item.path, message: errorMessage });
+        }
+      }
+      let match;
+      if (results.length === 2 && results[0].hex && results[1].hex) {
+        match = results[0].hex === results[1].hex;
+      }
+      lastEmitAt = 0;
+      emit({
+        sessionId: task.sessionId,
+        taskId: task.taskId,
+        status: task.cancelled ? "cancelled" : "completed",
+        index: results.length,
+        total: request.items.length,
+        bytesProcessed: task.cancelled ? bytesBase : totalBytes,
+        totalBytes,
+        results,
+        match
+      });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+      log$5.warn("[Checksum] task failed", { taskId: task.taskId, message });
+      lastEmitAt = 0;
+      emit({
+        sessionId: task.sessionId,
+        taskId: task.taskId,
+        status: "failed",
+        index: results.length,
+        total: request.items.length,
+        bytesProcessed: bytesBase,
+        totalBytes,
+        results,
+        message
+      });
+    } finally {
+      this.registry.finish(task);
+      log$5.info("[Checksum] task finished", { taskId: task.taskId, cancelled: task.cancelled, completed: results.length });
+    }
+  }
+}
+const log$4 = console;
+const MAX_CONSECUTIVE_ERRORS = 20;
+class DirectoryWalker {
+  constructor(devices) {
+    this.devices = devices;
+  }
+  async walk(deviceId, rootPath, isCancelled, cb) {
+    const adapter = await this.devices.getReadyAdapter(deviceId);
+    const result = { fileCount: 0, directoryCount: 0, totalBytes: 0 };
+    const queue = [{ path: rootPath, relPath: "" }];
+    let consecutiveErrors = 0;
+    while (queue.length > 0) {
+      if (isCancelled()) return result;
+      const { path: dirPath, relPath } = queue.shift();
+      let children;
+      try {
+        children = await adapter.list(dirPath);
+      } catch (error) {
+        consecutiveErrors++;
+        log$4.warn("[DirectoryWalker] directory skipped", { path: dirPath, message: error instanceof Error ? error.message : String(error) });
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          throw new Error(`连续 ${consecutiveErrors} 个目录访问失败，设备可能已断开`);
+        }
+        continue;
+      }
+      consecutiveErrors = 0;
+      for (const child of children) {
+        if (isCancelled()) return result;
+        const childRel = relPath ? `${relPath}/${child.name}` : child.name;
+        if (child.isDirectory) {
+          result.directoryCount++;
+          await cb.onDirectory?.(child, childRel);
+          const isSymlinkDir = child.isSymlink === true;
+          if (!isSymlinkDir && cb.shouldDescend?.(child, childRel) !== false) {
+            queue.push({ path: child.path, relPath: childRel });
+          }
+        } else {
+          if (cb.fileFilter && !cb.fileFilter(child, childRel)) continue;
+          result.fileCount++;
+          result.totalBytes += child.size;
+          await cb.onFile?.(child, childRel);
+        }
+      }
+    }
+    return result;
+  }
+}
+const log$3 = console;
+const PROGRESS_EMIT_INTERVAL_MS$2 = 100;
+const PARTIAL_HASH_BYTES = 4096;
+const MAX_GROUPS_IN_EVENT = 5e3;
+class DuplicateFinderService {
+  constructor(devices) {
+    this.devices = devices;
+  }
+  registry = new SessionTaskRegistry();
+  start(request, emit) {
+    const task = this.registry.create(request.sessionId, { cancelled: false, sessionId: request.sessionId });
+    log$3.info("[Dupes] task started", { taskId: task.taskId, sessionId: request.sessionId, rootPath: request.rootPath });
+    void this.run(task, request, emit);
+    return { taskId: task.taskId };
+  }
+  cancel(taskId) {
+    return this.registry.cancel(taskId);
+  }
+  async run(task, request, emit) {
+    const minSize = request.minSize ?? 1;
+    let lastEmitAt = 0;
+    let currentPath;
+    let fileCount = 0;
+    let candidateCount = 0;
+    let groupCount = 0;
+    let groups = [];
+    let truncated = false;
+    const maybeEmit = (status, force = false) => {
+      const now = Date.now();
+      if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS$2) return;
+      lastEmitAt = now;
+      emit({ sessionId: task.sessionId, taskId: task.taskId, status, fileCount, candidateCount, groupCount, currentPath });
+    };
+    try {
+      const adapter = await this.devices.getReadyAdapter(request.deviceId);
+      const walker = new DirectoryWalker(this.devices);
+      const bySize = /* @__PURE__ */ new Map();
+      await walker.walk(request.deviceId, request.rootPath, () => task.cancelled, {
+        fileFilter: (file) => file.size >= minSize,
+        onFile: (file) => {
+          fileCount++;
+          currentPath = file.path;
+          const bucket = bySize.get(file.size);
+          if (bucket) bucket.push({ path: file.path, size: file.size, modifiedTime: file.modifiedTime });
+          else bySize.set(file.size, [{ path: file.path, size: file.size, modifiedTime: file.modifiedTime }]);
+          maybeEmit("scanning");
+        }
+      });
+      if (task.cancelled) throw new CancelledError$1();
+      const sizeGroups = Array.from(bySize.values()).filter((bucket) => bucket.length > 1);
+      candidateCount = sizeGroups.reduce((sum, bucket) => sum + bucket.length, 0);
+      log$3.info("[Dupes] phase1 done", { fileCount, candidateCount, sizeGroups: sizeGroups.length });
+      const byPartial = /* @__PURE__ */ new Map();
+      for (const bucket of sizeGroups) {
+        for (const candidate of bucket) {
+          if (task.cancelled) throw new CancelledError$1();
+          currentPath = candidate.path;
+          try {
+            const partial = await hashAdapterFileRange(adapter, candidate.path, candidate.size, PARTIAL_HASH_BYTES, {
+              isCancelled: () => task.cancelled
             });
+            const key = `${candidate.size}:${partial}`;
+            const partialBucket = byPartial.get(key);
+            if (partialBucket) partialBucket.push(candidate);
+            else byPartial.set(key, [candidate]);
+          } catch (error) {
+            log$3.warn("[Dupes] partial hash failed, skipping", { path: candidate.path, message: error instanceof Error ? error.message : String(error) });
           }
-          return [2, this.initPromise];
-        });
-      });
-    };
-    MediaInfoService2.prototype.analyze = function(deviceId, filePath) {
-      return __awaiter(this, void 0, void 0, function() {
-        var fh, size, mi, result;
-        var _this = this;
-        return __generator(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              if (deviceId !== "local")
-                return [2, null];
-              return [4, open(filePath, "r")];
-            case 1:
-              fh = _a.sent();
-              _a.label = 2;
-            case 2:
-              _a.trys.push([2, , 6, 8]);
-              return [4, stat(filePath)];
-            case 3:
-              size = _a.sent().size;
-              return [4, this.getInstance()];
-            case 4:
-              mi = _a.sent();
-              return [4, mi.analyzeData(size, function(chunkSize, offset) {
-                return _this.readChunk(fh, offset, chunkSize);
-              })];
-            case 5:
-              result = _a.sent();
-              return [2, this.summarize(result)];
-            case 6:
-              return [4, fh.close()];
-            case 7:
-              _a.sent();
-              return [
-                7
-                /*endfinally*/
-              ];
-            case 8:
-              return [
-                2
-                /*return*/
-              ];
+          maybeEmit("partial-hashing");
+        }
+      }
+      const partialGroups = Array.from(byPartial.values()).filter((bucket) => bucket.length > 1);
+      candidateCount = partialGroups.reduce((sum, bucket) => sum + bucket.length, 0);
+      log$3.info("[Dupes] phase2 done", { candidateCount, partialGroups: partialGroups.length });
+      const byFull = /* @__PURE__ */ new Map();
+      for (const bucket of partialGroups) {
+        for (const candidate of bucket) {
+          if (task.cancelled) throw new CancelledError$1();
+          currentPath = candidate.path;
+          try {
+            const hex = await hashAdapterFile(adapter, candidate.path, candidate.size, {
+              isCancelled: () => task.cancelled
+            });
+            const fullBucket = byFull.get(hex);
+            if (fullBucket) fullBucket.push(candidate);
+            else byFull.set(hex, [candidate]);
+          } catch (error) {
+            log$3.warn("[Dupes] full hash failed, skipping", { path: candidate.path, message: error instanceof Error ? error.message : String(error) });
           }
-        });
+          maybeEmit("full-hashing");
+        }
+      }
+      groups = Array.from(byFull.entries()).filter(([, files]) => files.length > 1).map(([hash, files]) => ({
+        hash,
+        size: files[0].size,
+        files: files.map((f) => ({ path: f.path, size: f.size, modifiedTime: f.modifiedTime }))
+      })).sort((a, b) => b.files.length * b.size - a.files.length * a.size);
+      groupCount = groups.length;
+      truncated = groups.length > MAX_GROUPS_IN_EVENT;
+      if (truncated) groups = groups.slice(0, MAX_GROUPS_IN_EVENT);
+      lastEmitAt = 0;
+      emit({
+        sessionId: task.sessionId,
+        taskId: task.taskId,
+        status: "completed",
+        fileCount,
+        candidateCount,
+        groupCount,
+        currentPath,
+        groups,
+        truncated
       });
+    } catch (error) {
+      const cancelled = task.cancelled || error instanceof CancelledError$1;
+      const message = error instanceof Error ? error.message : String(error);
+      log$3.warn("[Dupes] task ended", { taskId: task.taskId, cancelled, message });
+      lastEmitAt = 0;
+      emit({
+        sessionId: task.sessionId,
+        taskId: task.taskId,
+        status: cancelled ? "cancelled" : "failed",
+        fileCount,
+        candidateCount,
+        groupCount,
+        currentPath,
+        message: cancelled ? void 0 : message
+      });
+    } finally {
+      this.registry.finish(task);
+      log$3.info("[Dupes] task finished", { taskId: task.taskId, cancelled: task.cancelled, fileCount, groupCount });
+    }
+  }
+}
+let CancelledError$1 = class CancelledError2 extends Error {
+  constructor() {
+    super("cancelled by request");
+  }
+};
+const LINE_TEXT_MAX_CHARS = 400;
+function parseGrepLine(line, rootPath) {
+  if (!line) return null;
+  const match = line.match(/^(.*?):(\d+)(?::(\d+))?:/);
+  if (!match) return null;
+  const [, path2, lineStr, colStr] = match;
+  if (!path2) return null;
+  const lineTextRaw = line.slice(match[0].length);
+  return {
+    path: normalizeResultPath(path2, rootPath),
+    line: parseInt(lineStr, 10),
+    column: colStr ? parseInt(colStr, 10) : void 0,
+    lineText: truncateLine(lineTextRaw)
+  };
+}
+function normalizeResultPath(path2, rootPath) {
+  if (path2.startsWith("/")) return path2;
+  const rel = path2.startsWith("./") ? path2.slice(2) : path2;
+  const base = rootPath.endsWith("/") ? rootPath : rootPath + "/";
+  return base + rel;
+}
+function truncateLine(text) {
+  return text.length > LINE_TEXT_MAX_CHARS ? text.slice(0, LINE_TEXT_MAX_CHARS) + "…" : text;
+}
+function globsToRgArgs(includeGlob, excludeGlob) {
+  const args = [];
+  for (const glob of splitGlobs(includeGlob)) args.push("-g", glob);
+  for (const glob of splitGlobs(excludeGlob)) args.push("-g", `!${glob}`);
+  return args;
+}
+function splitGlobs(globs) {
+  if (!globs) return [];
+  return globs.split(/[\s,]+/).filter(Boolean);
+}
+function globsToGrepArgs(includeGlob, excludeGlob) {
+  const include = [];
+  for (const glob of splitGlobs(includeGlob)) include.push(`--include=${glob}`);
+  const exclude = [];
+  for (const glob of splitGlobs(excludeGlob)) exclude.push(`--exclude=${glob}`);
+  return { include, exclude };
+}
+function rgFlags(isRegex, caseSensitive) {
+  const flags = ["-n", "--no-heading", "--color", "never", "--column"];
+  if (!isRegex) flags.push("-F");
+  if (!caseSensitive) flags.push("-i");
+  return flags;
+}
+function grepFlags(isRegex, caseSensitive) {
+  const flags = ["-n", "--color=never"];
+  if (!isRegex) flags.push("-F");
+  if (!caseSensitive) flags.push("-i");
+  return flags;
+}
+function looksBinary(chunk) {
+  return chunk.includes(0);
+}
+function createLineMatcher(pattern, isRegex, caseSensitive) {
+  if (isRegex) {
+    const regex = new RegExp(pattern, caseSensitive ? "" : "i");
+    return (line) => {
+      const m = regex.exec(line);
+      return m ? m.index : -1;
     };
-    MediaInfoService2.prototype.readChunk = function(fh, offset, chunkSize) {
-      return __awaiter(this, void 0, void 0, function() {
-        var buffer, bytesRead;
-        return __generator(this, function(_a) {
-          switch (_a.label) {
-            case 0:
-              buffer = Buffer.alloc(Math.max(0, chunkSize));
-              return [4, fh.read(buffer, 0, buffer.length, offset)];
-            case 1:
-              bytesRead = _a.sent().bytesRead;
-              return [2, new Uint8Array(buffer.subarray(0, bytesRead))];
+  }
+  const needle = caseSensitive ? pattern : pattern.toLowerCase();
+  return (line) => {
+    const hay = caseSensitive ? line : line.toLowerCase();
+    return hay.indexOf(needle);
+  };
+}
+function matchGlob(name, glob) {
+  const regex = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*\/?/g, " ").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/ /g, ".*");
+  return new RegExp(`^${regex}$`).test(name);
+}
+const log$2 = console;
+const PROGRESS_EMIT_INTERVAL_MS$1 = 100;
+const BATCH_FLUSH_MATCHES = 200;
+const STREAM_ENGINE_MAX_FILE_BYTES = 5 * 1024 * 1024;
+const DEFAULT_MAX_RESULTS = 1e4;
+class GrepService {
+  constructor(devices) {
+    this.devices = devices;
+  }
+  registry = new SessionTaskRegistry();
+  start(request, emit) {
+    const task = this.registry.create(request.sessionId, { child: null });
+    log$2.info("[Grep] task started", {
+      taskId: task.taskId,
+      sessionId: request.sessionId,
+      deviceId: request.deviceId,
+      rootPath: request.rootPath,
+      pattern: request.pattern
+    });
+    void this.run(task, request, emit);
+    return { taskId: task.taskId };
+  }
+  cancel(taskId) {
+    return this.registry.cancel(taskId);
+  }
+  async run(task, request, emit) {
+    const maxResults = request.maxResults ?? DEFAULT_MAX_RESULTS;
+    const adapter = await this.devices.getReadyAdapter(request.deviceId);
+    const capabilities = adapter.getCapabilities();
+    if (!capabilities.canGrepContent) {
+      emit(this.terminal(task, request, "failed", [], `设备 ${request.deviceId} 不支持内容搜索`));
+      this.registry.finish(task);
+      return;
+    }
+    let matchCount = 0;
+    let truncated = false;
+    let lastEmitAt = 0;
+    let batch = [];
+    let currentPath;
+    const flush = (force = false) => {
+      const now = Date.now();
+      const timed = now - lastEmitAt >= PROGRESS_EMIT_INTERVAL_MS$1;
+      if (batch.length === 0) return;
+      if (!force && !timed && batch.length < BATCH_FLUSH_MATCHES) return;
+      lastEmitAt = now;
+      emit({ sessionId: task.sessionId, taskId: task.taskId, status: "searching", matchCount, currentPath, matches: batch });
+      batch = [];
+    };
+    const pushMatch = (match) => {
+      if (matchCount >= maxResults) {
+        truncated = true;
+        return false;
+      }
+      matchCount++;
+      batch.push(match);
+      flush();
+      return true;
+    };
+    try {
+      const engine = this.pickEngine(adapter);
+      log$2.info("[Grep] engine selected", { taskId: task.taskId, engine });
+      if (engine === "ripgrep") {
+        await this.runRipgrep(task, request, pushMatch, () => {
+          currentPath = void 0;
+          flush(true);
+        });
+      } else if (engine === "remote-exec") {
+        await this.runRemoteGrep(adapter, request, pushMatch, () => {
+          flush(true);
+        });
+      } else {
+        await this.runStreamScan(task, adapter, request, (current) => {
+          currentPath = current;
+        }, pushMatch, () => {
+          flush(true);
+        });
+      }
+      flush(true);
+      emit(this.terminal(task, request, task.cancelled ? "cancelled" : "completed", [], void 0, truncated, matchCount));
+    } catch (error) {
+      const cancelled = task.cancelled;
+      const message = error instanceof Error ? error.message : String(error);
+      flush(true);
+      log$2.warn("[Grep] task ended", { taskId: task.taskId, cancelled, message });
+      emit(this.terminal(task, request, cancelled ? "cancelled" : "failed", [], cancelled ? void 0 : message, truncated, matchCount));
+    } finally {
+      this.registry.finish(task);
+      log$2.info("[Grep] task finished", { taskId: task.taskId, cancelled: task.cancelled, matchCount, truncated });
+    }
+  }
+  terminal(task, request, status, matches, message, truncated, matchCount = 0) {
+    return {
+      sessionId: task.sessionId,
+      taskId: task.taskId,
+      status,
+      matchCount,
+      currentPath: request.rootPath,
+      matches,
+      truncated,
+      message
+    };
+  }
+  pickEngine(adapter) {
+    if (adapter.type === "local") {
+      return ToolPathResolver.hasRipgrep() ? "ripgrep" : "stream";
+    }
+    if (typeof adapter.exec === "function") return "remote-exec";
+    return "stream";
+  }
+  // ============ 引擎 1：ripgrep 子进程 ============
+  runRipgrep(task, request, pushMatch, finalize) {
+    return new Promise((resolve, reject) => {
+      const rg = ToolPathResolver.getRipgrepExecutable();
+      const args = [
+        ...rgFlags(request.isRegex, request.caseSensitive),
+        ...globsToRgArgs(request.includeGlob, request.excludeGlob),
+        "--",
+        request.pattern,
+        request.rootPath
+      ];
+      const child = spawn(rg, args);
+      task.state.child = child;
+      task.onCancel(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+        }
+      });
+      let buffer = "";
+      child.stdout.on("data", (chunk) => {
+        if (task.cancelled) return;
+        buffer += chunk.toString("utf-8");
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const match = parseGrepLine(line, request.rootPath);
+          if (match) {
+            if (!pushMatch(match)) {
+              child.kill("SIGKILL");
+              return;
+            }
           }
-        });
+        }
       });
+      child.stderr.on("data", (chunk) => {
+        const text = chunk.toString("utf-8").trim();
+        if (text && !task.cancelled) log$2.warn("[Grep] rg stderr", { text: text.slice(0, 200) });
+      });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        task.state.child = null;
+        if (task.cancelled) {
+          resolve();
+          return;
+        }
+        if (code === 2) reject(new Error(`ripgrep 退出码 2（参数或权限错误）`));
+        else resolve();
+        finalize();
+      });
+    });
+  }
+  // ============ 引擎 2：远端 grep（SSH exec / adb shell） ============
+  async runRemoteGrep(adapter, request, pushMatch, finalize) {
+    const { include, exclude } = globsToGrepArgs(request.includeGlob, request.excludeGlob);
+    const flags = grepFlags(request.isRegex, request.caseSensitive);
+    const command = [
+      `cd ${shellQuote(request.rootPath)} &&`,
+      `grep ${flags.join(" ")} ${include.join(" ")} ${exclude.join(" ")}`.replace(/\s+/g, " ").trim(),
+      `-e ${shellQuote(request.pattern)}`,
+      "-r ."
+    ].filter(Boolean).join(" ");
+    const { stdout, code } = await adapter.exec(command);
+    if (code !== 0 && code !== 1) {
+      throw new Error(`远端 grep 退出码 ${code}`);
+    }
+    for (const line of stdout.split("\n")) {
+      const match = parseGrepLine(line, request.rootPath);
+      if (match && !pushMatch(match)) break;
+    }
+    finalize();
+  }
+  // ============ 引擎 3：流式逐行扫描（SMB/WebDAV/本地无 rg） ============
+  async runStreamScan(task, adapter, request, setCurrentPath, pushMatch, finalize) {
+    const matcher = createLineMatcher(request.pattern, request.isRegex, request.caseSensitive);
+    const includeGlobs = (request.includeGlob ?? "").split(/[\s,]+/).filter(Boolean);
+    const excludeGlobs = (request.excludeGlob ?? "").split(/[\s,]+/).filter(Boolean);
+    const walker = new DirectoryWalker(this.devices);
+    await walker.walk(request.deviceId, request.rootPath, () => task.cancelled, {
+      fileFilter: (file) => {
+        if (file.size > STREAM_ENGINE_MAX_FILE_BYTES) return false;
+        if (includeGlobs.length > 0 && !includeGlobs.some((glob) => matchGlob(file.name, glob))) return false;
+        if (excludeGlobs.some((glob) => matchGlob(file.name, glob))) return false;
+        return true;
+      },
+      onFile: async (file) => {
+        if (task.cancelled) return;
+        setCurrentPath(file.path);
+        if (!adapter.openReadStream) return;
+        const stream = await adapter.openReadStream(file.path);
+        try {
+          let pending = "";
+          let firstChunk = true;
+          let lineNo = 0;
+          for await (const chunkRaw of stream) {
+            if (task.cancelled) {
+              stream.destroy();
+              return;
+            }
+            const chunk = chunkRaw;
+            if (firstChunk) {
+              firstChunk = false;
+              if (looksBinary(chunk)) return;
+            }
+            pending += chunk.toString("utf-8");
+            const lines = pending.split("\n");
+            pending = lines.pop() ?? "";
+            for (const line of lines) {
+              lineNo++;
+              const index = matcher(line);
+              if (index >= 0) {
+                if (!pushMatch({ path: file.path, line: lineNo, lineText: truncateLine(line), matchStart: index, matchEnd: index + request.pattern.length })) {
+                  stream.destroy();
+                  return;
+                }
+              }
+            }
+          }
+          if (pending) {
+            lineNo++;
+            const index = matcher(pending);
+            if (index >= 0) {
+              pushMatch({ path: file.path, line: lineNo, lineText: truncateLine(pending), matchStart: index, matchEnd: index + request.pattern.length });
+            }
+          }
+        } finally {
+          stream.destroy();
+        }
+      }
+    });
+    finalize();
+  }
+}
+const log$1 = console;
+const PROGRESS_EMIT_INTERVAL_MS = 100;
+class SpaceAnalyzerService {
+  constructor(devices) {
+    this.devices = devices;
+  }
+  registry = new SessionTaskRegistry();
+  start(request, emit) {
+    const task = this.registry.create(request.sessionId, { cancelled: false });
+    log$1.info("[Space] task started", { taskId: task.taskId, rootPath: request.rootPath });
+    void this.run(task, request, emit);
+    return { taskId: task.taskId };
+  }
+  cancel(taskId) {
+    return this.registry.cancel(taskId);
+  }
+  async run(task, request, emit) {
+    const walker = new DirectoryWalker(this.devices);
+    const totals = { fileCount: 0, directoryCount: 0, totalBytes: 0 };
+    const entries = [];
+    let lastEmitAt = 0;
+    let currentPath;
+    const maybeEmit = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastEmitAt < PROGRESS_EMIT_INTERVAL_MS) return;
+      lastEmitAt = now;
+      emit({ sessionId: task.sessionId, taskId: task.taskId, status: "scanning", ...totals, currentPath });
     };
-    MediaInfoService2.prototype.summarize = function(result) {
-      var _a, _b, _c;
-      var tracks = (_a = result === null || result === void 0 ? void 0 : result.media) === null || _a === void 0 ? void 0 : _a.track;
-      if (!tracks || tracks.length === 0)
-        return null;
-      var general = tracks.find(function(t) {
-        return t["@type"] === "General";
-      });
-      var video = tracks.find(function(t) {
-        return t["@type"] === "Video";
-      });
-      var audio = tracks.find(function(t) {
-        return t["@type"] === "Audio";
-      });
-      if (!general && !video && !audio)
-        return null;
-      var summary = {};
-      if (general) {
-        summary.format = typeof general.Format === "string" ? general.Format : void 0;
-        summary.durationSeconds = num(general.Duration);
-        summary.overallBitrate = num(general.OverallBitRate);
+    try {
+      const adapter = await this.devices.getReadyAdapter(request.deviceId);
+      const children = await adapter.list(request.rootPath);
+      if (task.cancelled) throw new CancelledError3();
+      for (const child of children) {
+        if (task.cancelled) throw new CancelledError3();
+        currentPath = child.path;
+        if (child.isDirectory) {
+          const result = await walker.walk(request.deviceId, child.path, () => task.cancelled, {
+            onDirectory: () => {
+              currentPath = child.path;
+            }
+          });
+          totals.fileCount += result.fileCount;
+          totals.directoryCount += result.directoryCount + 1;
+          totals.totalBytes += result.totalBytes;
+          entries.push({
+            name: child.name,
+            path: child.path,
+            size: result.totalBytes,
+            fileCount: result.fileCount,
+            directoryCount: result.directoryCount
+          });
+        } else {
+          totals.fileCount++;
+          totals.totalBytes += child.size;
+          entries.push({ name: child.name, path: child.path, size: child.size, fileCount: 1, directoryCount: 0 });
+        }
+        maybeEmit();
       }
-      if (video) {
-        summary.video = {
-          codec: typeof video.Format === "string" ? video.Format : void 0,
-          width: num(video.Width),
-          height: num(video.Height),
-          frameRate: num(video.FrameRate),
-          bitrate: (_b = num(video.BitRate)) !== null && _b !== void 0 ? _b : num(video.BitRate_Nominal),
-          bitDepth: num(video.BitDepth)
-        };
-      }
-      if (audio) {
-        summary.audio = {
-          codec: typeof audio.Format === "string" ? audio.Format : void 0,
-          sampleRate: num(audio.SamplingRate),
-          channels: num(audio.Channels),
-          bitrate: (_c = num(audio.BitRate)) !== null && _c !== void 0 ? _c : num(audio.BitRate_Nominal)
-        };
-      }
-      return summary;
-    };
-    return MediaInfoService2;
-  }()
-);
+      lastEmitAt = 0;
+      emit({
+        sessionId: task.sessionId,
+        taskId: task.taskId,
+        status: task.cancelled ? "cancelled" : "completed",
+        ...totals,
+        currentPath,
+        entries: [...entries].sort((a, b) => b.size - a.size)
+      });
+    } catch (error) {
+      const cancelled = task.cancelled || error instanceof CancelledError3;
+      const message = error instanceof Error ? error.message : String(error);
+      log$1.warn("[Space] task ended", { taskId: task.taskId, cancelled, message });
+      lastEmitAt = 0;
+      emit({
+        sessionId: task.sessionId,
+        taskId: task.taskId,
+        status: cancelled ? "cancelled" : "failed",
+        ...totals,
+        currentPath,
+        message: cancelled ? void 0 : message
+      });
+    } finally {
+      this.registry.finish(task);
+      log$1.info("[Space] task finished", { taskId: task.taskId, cancelled: task.cancelled, ...totals });
+    }
+  }
+}
+class CancelledError3 extends Error {
+  constructor() {
+    super("cancelled by request");
+  }
+}
 const isDev = !app.isPackaged;
 const log = console;
 let mainWindow = null;
@@ -9854,6 +5802,19 @@ const mobileScreenshotService = new MobileScreenshotService(deviceManager);
 const contentVerificationService = new ContentVerificationService(deviceManager);
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService);
 const mediaInfoService = new MediaInfoService();
+const gitStatusService = new GitStatusService();
+const checksumService = new ChecksumService(deviceManager);
+const duplicateFinderService = new DuplicateFinderService(deviceManager);
+const grepService = new GrepService(deviceManager);
+const spaceAnalyzerService = new SpaceAnalyzerService(deviceManager);
+const watchService = new WatchService(deviceManager, {
+  emit: (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(CH.push.watchChanged, event);
+    }
+  },
+  shouldSkipRemotePoll: () => mainWindow !== null && !mainWindow.isFocused()
+});
 const localAdapter = deviceManager.getAdapter("local");
 if (localAdapter) {
   fileOperationManager.registerAdapter("local", localAdapter);
@@ -9897,6 +5858,149 @@ ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
 });
 ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath) => {
   return hostShellService.openInTerminal(dirPath);
+});
+ipcMain.handle(CH.invoke.shellOpenWith, async (_, appPath, targetPath) => {
+  return hostShellService.openWith(appPath, targetPath);
+});
+ipcMain.handle(CH.invoke.shellDetectOpenWithApps, () => {
+  return hostShellService.detectDevApps();
+});
+ipcMain.handle(CH.invoke.watchSubscribe, (_, deviceId, dirPath) => {
+  return watchService.subscribe(deviceId, dirPath);
+});
+ipcMain.handle(CH.invoke.watchUnsubscribe, (_, deviceId, dirPath) => {
+  watchService.unsubscribe(deviceId, dirPath);
+});
+ipcMain.handle(CH.invoke.gitStatus, (_, deviceId, dirPath) => {
+  if (deviceId !== "local") {
+    return { isRepo: false, entries: [] };
+  }
+  return gitStatusService.getStatus(dirPath);
+});
+ipcMain.handle(CH.invoke.checksumStart, (event, request) => {
+  return checksumService.start(request, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.checksumProgress, progress);
+  });
+});
+ipcMain.handle(CH.invoke.checksumCancel, (_, taskId) => {
+  return checksumService.cancel(taskId);
+});
+ipcMain.handle(CH.invoke.dupesStart, (event, request) => {
+  return duplicateFinderService.start(request, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.dupesProgress, progress);
+  });
+});
+ipcMain.handle(CH.invoke.dupesCancel, (_, taskId) => {
+  return duplicateFinderService.cancel(taskId);
+});
+ipcMain.handle(CH.invoke.grepStart, (event, request) => {
+  return grepService.start(request, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.grepProgress, progress);
+  });
+});
+ipcMain.handle(CH.invoke.grepCancel, (_, taskId) => {
+  return grepService.cancel(taskId);
+});
+ipcMain.handle(CH.invoke.fsSymlink, async (_, deviceId, targetPath, linkPath) => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  if (!adapter.getCapabilities().canSymlink || !adapter.symlink) {
+    throw new Error("该设备不支持创建符号链接");
+  }
+  return adapter.symlink(targetPath, linkPath);
+});
+ipcMain.handle(CH.invoke.fsReadlink, async (_, deviceId, linkPath) => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  if (!adapter.getCapabilities().canSymlink || !adapter.readlink) {
+    throw new Error("该设备不支持读取符号链接");
+  }
+  return adapter.readlink(linkPath);
+});
+ipcMain.handle(CH.invoke.fsChmod, async (_, deviceId, targetPath, mode, recursive) => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  if (!adapter.getCapabilities().canChmod || !adapter.chmod) {
+    throw new Error("该设备不支持修改权限");
+  }
+  if (!recursive) return adapter.chmod(targetPath, mode);
+  await adapter.chmod(targetPath, mode);
+  const stat2 = await adapter.stat(targetPath);
+  if (!stat2.isDirectory) return;
+  const walker = new DirectoryWalker(deviceManager);
+  await walker.walk(deviceId, targetPath, () => false, {
+    onFile: async (file) => {
+      await adapter.chmod(file.path, mode);
+    },
+    onDirectory: async (dir) => {
+      await adapter.chmod(dir.path, mode);
+    }
+  });
+});
+ipcMain.handle(CH.invoke.fsChown, async (_, deviceId, targetPath, uid, gid) => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  if (!adapter.getCapabilities().canChown || !adapter.chown) {
+    throw new Error("该设备不支持修改属主");
+  }
+  return adapter.chown(targetPath, uid, gid);
+});
+ipcMain.handle(CH.invoke.spaceStart, (event, request) => {
+  return spaceAnalyzerService.start(request, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.spaceProgress, progress);
+  });
+});
+ipcMain.handle(CH.invoke.spaceCancel, (_, taskId) => {
+  return spaceAnalyzerService.cancel(taskId);
+});
+ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId, path2, offset, length) => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  const st = await adapter.stat(path2);
+  const fileSize = st.size;
+  const start = Math.max(0, Math.min(Math.floor(offset), fileSize));
+  const end = Math.min(start + Math.max(1, Math.floor(length)), fileSize);
+  if (end <= start) return { base64: "", bytesRead: 0, fileSize };
+  if (adapter.type === "local") {
+    const stream = fs$1.createReadStream(path2, { start, end: end - 1 });
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    const buffer = Buffer.concat(chunks);
+    return { base64: buffer.toString("base64"), bytesRead: buffer.length, fileSize };
+  }
+  const capabilities = adapter.getCapabilities();
+  if (capabilities.canStream && adapter.openReadStream) {
+    const stream = await adapter.openReadStream(path2);
+    const chunks = [];
+    let received = 0;
+    let skipped = 0;
+    for await (const chunkRaw of stream) {
+      const chunk = chunkRaw;
+      if (skipped < start) {
+        const need = start - skipped;
+        if (chunk.length <= need) {
+          skipped += chunk.length;
+          continue;
+        }
+        const tail = chunk.subarray(need);
+        skipped = start;
+        const take = Math.min(tail.length, end - start - received);
+        chunks.push(tail.subarray(0, take));
+        received += take;
+      } else if (received < end - start) {
+        const take = Math.min(chunk.length, end - start - received);
+        chunks.push(chunk.subarray(0, take));
+        received += take;
+      }
+      if (received >= end - start) {
+        stream.destroy();
+        break;
+      }
+    }
+    const buffer = Buffer.concat(chunks);
+    return { base64: buffer.toString("base64"), bytesRead: buffer.length, fileSize };
+  }
+  if (fileSize > 32 * 1024 * 1024) {
+    throw new Error("该设备不支持流式读取，无法分块读取超过 32 MB 的文件");
+  }
+  const full = await adapter.readFile(path2);
+  const slice = full.subarray(start, end);
+  return { base64: slice.toString("base64"), bytesRead: slice.length, fileSize };
 });
 ipcMain.handle(CH.invoke.configGet, () => configService.getConfig());
 ipcMain.handle(CH.invoke.configSave, (_, config) => configService.saveConfig(config));
@@ -10082,12 +6186,25 @@ const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLvkAAAAABJRU5ErkJggg=="
 );
 ipcMain.on(CH.send.dragStartNative, (event, sourcePaths) => {
-  if (!Array.isArray(sourcePaths)) return;
+  if (!Array.isArray(sourcePaths)) {
+    console.warn("[DnD][main] dragStartNative rejected: payload is not an array", { sourcePaths });
+    return;
+  }
   const files = sourcePaths.filter(
     (sourcePath) => typeof sourcePath === "string" && path__default.isAbsolute(sourcePath) && fs$1.existsSync(sourcePath)
   );
+  console.info("[DnD][main] dragStartNative", {
+    received: sourcePaths.length,
+    accepted: files.length,
+    rejected: sourcePaths.filter((p) => !files.includes(p))
+  });
   if (files.length === 0) return;
-  event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON });
+  try {
+    event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON });
+    console.info("[DnD][main] startDrag invoked", { fileCount: files.length });
+  } catch (error) {
+    console.error("[DnD][main] startDrag failed", { files, error });
+  }
 });
 ipcMain.handle(CH.invoke.fileOperationCreate, async (_, params) => {
   return fileOperationManager.addTask(params);

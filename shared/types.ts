@@ -69,6 +69,14 @@ export interface DeviceCapabilities {
   readonly canCaptureScreenshot: boolean
   readonly canArchive: boolean
   readonly canRecycle: boolean
+  /** 支持内容搜索（grep）：exec 通道或流式回退可用。 */
+  readonly canGrepContent: boolean
+  /** 支持符号链接（创建/读取目标/lstat）。 */
+  readonly canSymlink: boolean
+  /** 支持 chmod（可含递归）。 */
+  readonly canChmod: boolean
+  /** 支持 chown（uid/gid）。 */
+  readonly canChown: boolean
   readonly maxFileSize?: number      // Maximum file size in bytes (undefined = unlimited)
   readonly readonlyPaths?: string[]  // Paths that are read-only
   readonly hiddenPaths?: string[]    // Paths that should be hidden
@@ -84,7 +92,24 @@ export interface FileInfo {
   size: number
   modifiedTime: string
   createdTime?: string
+  /** Unix mode bits when the backing filesystem exposes them. */
+  mode?: number
   extension?: string
+  /** 符号链接标记（链接自身，非目标）。 */
+  isSymlink?: boolean
+  /** 链接目标原始字符串（可能是相对路径）。 */
+  symlinkTarget?: string
+}
+
+/**
+ * 独立「简介」窗口在主、渲染进程之间传递的只读打开快照。
+ * 窗口上下文仅存于主进程，并按创建它的 webContents 返回；不会出现在 URL 中。
+ */
+export interface FileInfoWindowContext {
+  deviceId: string
+  deviceType: DeviceConfig['type']
+  deviceName: string
+  files: FileInfo[]
 }
 
 export interface FileStats {
@@ -246,4 +271,197 @@ export interface DetectedVolume {
   name: string
   mountPath: string
   isRemovable: boolean
+}
+
+// ============ Directory Watch (自动刷新) ============
+
+/** 目录内容变化推送（watch:changed）。renderer 端做 diff 守卫后再决定刷新。 */
+export interface WatchChangeEvent {
+  deviceId: string
+  dirPath: string
+}
+
+// ============ Open-With (宿主开发者应用) ============
+
+/** 探测到的「打开方式」开发者应用（HostShellService.detectDevApps 产物）。 */
+export interface OpenWithApp {
+  id: string          // 稳定标识（bundle 目录名）
+  name: string        // 展示名
+  bundlePath: string  // .app 包绝对路径
+}
+
+// ============ Git Status (只读徽标, 仅本地) ============
+
+/** 单条 git status 记录（porcelain v1 XY + 仓库根相对路径已转绝对路径）。 */
+export interface GitStatusEntry {
+  /** 绝对路径（repoRoot + 仓库根相对路径）。 */
+  path: string
+  /** 暂存区状态字母（X）。 */
+  x: string
+  /** 工作区状态字母（Y）。 */
+  y: string
+  /** 重命名来源（R 状态时为仓库根相对原路径）。 */
+  renamedFrom?: string
+}
+
+/** 一个本地目录的 git 状态快照（只读）。 */
+export interface GitDirectoryStatus {
+  isRepo: boolean
+  /** 仓库根绝对路径（isRepo 时必有，renderer 据此判定前缀归属）。 */
+  repoRoot?: string
+  branch?: string
+  ahead?: number
+  behind?: number
+  entries: GitStatusEntry[]
+}
+
+// ============ Checksum (哈希校验) ============
+
+export type ChecksumAlgo = 'md5' | 'sha1' | 'sha256'
+
+export interface ChecksumItem {
+  deviceId: string
+  path: string
+  name: string
+  size: number
+}
+
+export interface ChecksumRequest {
+  /** 渲染端生成；同 session 重开自动取消旧任务（弹窗快速重开）。 */
+  sessionId: string
+  algo: ChecksumAlgo
+  /** 1 项 = 单文件哈希；2 项 = 逐字节对比（跨设备亦可）。 */
+  items: ChecksumItem[]
+}
+
+export interface ChecksumProgress {
+  sessionId: string
+  taskId: string
+  status: 'hashing' | 'completed' | 'cancelled' | 'failed'
+  /** 当前正在哈希的项序号（0 基）。 */
+  index: number
+  total: number
+  bytesProcessed: number
+  totalBytes: number
+  /** completed 时按 items 顺序给出的哈希结果。 */
+  results?: Array<{ hex: string | null; error?: string }>
+  /** 两项对比结论（completed 且两项都有 hex 时给出）。 */
+  match?: boolean
+  message?: string
+}
+
+// ============ Duplicate Finder (重复文件查找) ============
+
+export interface DuplicateScanRequest {
+  sessionId: string
+  deviceId: string
+  rootPath: string
+  /** 小于该字节数的文件直接跳过（默认 1 = 只跳过空文件）。 */
+  minSize?: number
+}
+
+export interface DuplicateGroupFile {
+  path: string
+  size: number
+  modifiedTime: string
+}
+
+export interface DuplicateGroup {
+  /** 分组键（全量哈希 hex）。 */
+  hash: string
+  size: number
+  files: DuplicateGroupFile[]
+}
+
+export interface DuplicateScanProgress {
+  sessionId: string
+  taskId: string
+  status: 'scanning' | 'partial-hashing' | 'full-hashing' | 'completed' | 'cancelled' | 'failed'
+  fileCount: number
+  /** 尚在候选（同尺寸组内）的文件数。 */
+  candidateCount: number
+  groupCount: number
+  currentPath?: string
+  /** 仅 completed 终态事件携带（≤5000 组 + truncated 标志）。 */
+  groups?: DuplicateGroup[]
+  truncated?: boolean
+  message?: string
+}
+
+// ============ Grep (内容搜索) ============
+
+export interface GrepRequest {
+  sessionId: string
+  deviceId: string
+  rootPath: string
+  pattern: string
+  isRegex?: boolean
+  caseSensitive?: boolean
+  /** 仅搜索匹配这些 glob 的文件（如 "*.ts"）。 */
+  includeGlob?: string
+  /** 排除匹配这些 glob 的文件（如 "*.log"）。 */
+  excludeGlob?: string
+  /** 结果上限（默认 10000，超出置 truncated）。 */
+  maxResults?: number
+}
+
+export interface GrepMatch {
+  /** 绝对路径（远程为该设备的路径形态）。 */
+  path: string
+  line: number
+  column?: number
+  /** 命中行文本（截断至 ~400 字符）。 */
+  lineText: string
+  matchStart?: number
+  matchEnd?: number
+}
+
+export interface GrepProgress {
+  sessionId: string
+  taskId: string
+  status: 'searching' | 'completed' | 'cancelled' | 'failed'
+  matchCount: number
+  currentPath?: string
+  /** 批量命中的增量集合（流式分批推送）。 */
+  matches: GrepMatch[]
+  truncated?: boolean
+  message?: string
+}
+
+// ============ Space Analysis (目录空间分析 treemap) ============
+
+export interface SpaceEntry {
+  name: string
+  path: string
+  size: number
+  fileCount: number
+  directoryCount: number
+}
+
+export interface SpaceAnalysisRequest {
+  sessionId: string
+  deviceId: string
+  rootPath: string
+}
+
+export interface SpaceAnalysisProgress {
+  sessionId: string
+  taskId: string
+  status: 'scanning' | 'completed' | 'cancelled' | 'failed'
+  fileCount: number
+  directoryCount: number
+  totalBytes: number
+  currentPath?: string
+  /** 仅 completed 终态事件携带（顶层条目 + 总量）。 */
+  entries?: SpaceEntry[]
+  message?: string
+}
+
+// ============ Read Chunk (hex 预览等分块读取) ============
+
+export interface ReadChunkResult {
+  /** 本块 base64（实际读取字节数 = base64 解码长度）。 */
+  base64: string
+  bytesRead: number
+  fileSize: number
 }

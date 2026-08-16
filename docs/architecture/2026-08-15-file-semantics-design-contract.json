@@ -1,0 +1,91 @@
+{
+  "feature": "file-semantics",
+  "title": "文件语义增强（符号链接 + 权限编辑, M5）",
+  "stack": "Electron29+Vue3",
+  "analyzed_at": "2026-08-15",
+  "existing_alignment": {
+    "recognized_style": "adapter 可选方法 + 能力位（openReadStream/exec 先例，6 常量 + DEFAULT_REMOTE 同步）；IPC 四处同步；弹窗本地 reactive（RenameDialog 形态）；纯函数 utils 单测。",
+    "new_code_follows": "chmod 递归复用 M1 DirectoryWalker（含防环）；徽标为行内联元素（不改行结构）；能力未知按支持处理的门控宽松策略与 find-duplicates 一致。"
+  },
+  "interaction_confirmation": {
+    "profile_selected": "standard（随总体规划批准）",
+    "proposal_revision": 1,
+    "candidate_confirmed": "ALT-1（可选 adapter 方法 + main 编排递归）",
+    "source": "规划批准记录（2026-08-15）",
+    "quoted_evidence": "总体规划批准"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      { "id": "QA-1", "name": "防环", "priority": "P0", "scenario": "遍历不跟随链接目录" },
+      { "id": "QA-2", "name": "掩码边界", "priority": "P0", "scenario": "编辑器只管 9 位" },
+      { "id": "QA-3", "name": "能力门控", "priority": "P0", "scenario": "入口按能力隐藏" }
+    ],
+    "candidates": [
+      { "id": "ALT-1", "summary": "可选 adapter 方法 + main 编排递归", "selected": true },
+      { "id": "ALT-2", "summary": "main 直调 fs（远程无路径，否决）", "selected": false },
+      { "id": "ALT-3", "summary": "shell chmod -R（不可控且 Android 无 exec，否决）", "selected": false }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "跨设备统一（含 Android）、失败逐项可控、复用 M1 防环遍历。",
+    "top_down_check": "R1-R6 全映射（R1→Walker；R2→isSymlink 字段；R3→能力位；R4→main 编排；R5→掩码单测；R6→弹窗校验）",
+    "bottom_up_check": "permissions 纯函数往返单测；徽标/弹窗/编辑器 e2e 覆盖",
+    "risk_spikes": [],
+    "review": "自评通过"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Pinia",
+    "current_patterns": "属性弹窗 InfoRow 网格；弹窗本地 reactive；菜单 items 数组",
+    "target_patterns": "同左；chmod 编辑器为 FileInfoDialog 内嵌 section（增量）",
+    "state_management": "弹窗局部",
+    "view_model_policy": "无新 store",
+    "mvvm_suitability": "不引入",
+    "migration_impact": "无",
+    "impact_scope": ["src/components/FileList.vue", "src/components/FilePane.vue", "src/components/dialogs/FileInfoDialog.vue"],
+    "migration_confirmation": "无迁移",
+    "decision_reason": "复用既有弹窗与菜单形态"
+  },
+  "roles": [
+    { "id": "ROLE-L12", "role_kind": "layer", "layer": "infrastructure(adapters)", "domain_role": "语义方法", "responsibility": "symlink/readlink/chmod/chown 四可选方法", "hidden_secret": "fs-extra promises / sftp 回调包装 / runShell 八进制串", "change_triggers": "新设备类型", "data_owned": "无", "depends_on": ["capabilities"], "industry_basis": "ISP 可选方法", "design_principles": ["能力门控"], "code_units": ["electron/src/adapters/LocalAdapter.ts", "electron/src/adapters/SSHAdapter.ts", "electron/src/adapters/AndroidAdapter.ts"] },
+    { "id": "ROLE-L13", "role_kind": "layer", "layer": "infrastructure(main)", "domain_role": "语义 handlers", "responsibility": "能力校验 + 递归 chmod 编排", "hidden_secret": "Walker 双回调 chmod；失败首个抛出", "change_triggers": "递归策略", "data_owned": "无", "depends_on": ["DirectoryWalker"], "industry_basis": "编排器", "design_principles": ["SRP"], "code_units": ["electron/main.ts symlink/chmod handlers"] },
+    { "id": "ROLE-D08", "role_kind": "domain", "layer": "domain", "domain_role": "权限序列化", "responsibility": "mode↔rwx↔octal", "hidden_secret": "9 位掩码边界", "change_triggers": "位语义扩展", "data_owned": "无", "depends_on": [], "industry_basis": "POSIX 权限", "design_principles": ["往返可测"], "code_units": ["src/utils/permissions.ts"] },
+    { "id": "ROLE-V09", "role_kind": "layer", "layer": "view", "domain_role": "语义 UI", "responsibility": "链接徽标/目标行/chmod 编辑器/创建弹窗", "hidden_secret": "rwx 格与八进制联动；能力未知按支持", "change_triggers": "交互调整", "data_owned": "弹窗局部", "depends_on": ["ROLE-D08", "ROLE-L12", "ROLE-L13"], "industry_basis": "Finder 属性窗形态", "design_principles": ["增量修改"], "code_units": ["src/components/FileList.vue（徽标段）", "src/components/dialogs/FileInfoDialog.vue（编辑器段）", "src/components/dialogs/SymlinkDialog.vue"] }
+  ],
+  "interfaces": [
+    { "id": "IFC-1", "provider": "fs:symlink / fs:readlink handlers", "consumers": ["SymlinkDialog", "FileInfoDialog"], "input": "(deviceId, targetPath, linkPath) / (deviceId, linkPath)", "output": "void / string", "preconditions": "canSymlink", "postconditions": "链接创建于 linkPath", "invariants": "目标字符串原样（不解析）", "errors": "能力缺失/IO 错误抛 IPC 异常", "data_ownership": "无状态", "transaction": "无", "concurrency": "无" },
+    { "id": "IFC-2", "provider": "fs:chmod handler", "consumers": ["FileInfoDialog chmod 编辑器"], "input": "(deviceId, path, mode, recursive)", "output": "void", "preconditions": "canChmod", "postconditions": "recursive 时全树（含目录）应用", "invariants": "不跟随链接目录；已应用项不回滚", "errors": "首错抛出", "data_ownership": "无", "transaction": "无", "concurrency": "顺序遍历" },
+    { "id": "IFC-3", "provider": "fs:chown handler", "consumers": ["（UI 暂无，通道就绪）"], "input": "(deviceId, path, uid, gid)", "output": "void", "preconditions": "canChown", "postconditions": "属主变更", "invariants": "无", "errors": "抛 IPC 异常", "data_ownership": "无", "transaction": "无", "concurrency": "无" },
+    { "id": "IFC-4", "provider": "permissions 纯函数", "consumers": ["chmod 编辑器", "测试"], "input": "mode / rwx / octal 文本", "output": "对偶形态", "preconditions": "无", "postconditions": "无副作用", "invariants": "非法输入 null；toOctalPermissions 掩 0o777", "errors": "无", "data_ownership": "无", "transaction": "无", "concurrency": "无" }
+  ],
+  "design_contract_checks": [
+    { "id": "DC-1", "item": "canSymlink/canChmod/canChown 同步 6 常量 + DEFAULT_REMOTE", "principle": "编译期安全网", "role_scope": ["ROLE-L12"] },
+    { "id": "DC-2", "item": "递归 chmod 编排在 main（Walker 复用防环）", "principle": "DRY + 防环", "role_scope": ["ROLE-L13"] },
+    { "id": "DC-3", "item": "徽标为行内联元素不改行结构", "principle": "RISK-04", "role_scope": ["ROLE-V09"] }
+  ],
+  "business_process": [
+    { "step": 1, "name": "链接可见", "roles": ["ROLE-V09"], "code_refs": ["src/components/FileList.vue 徽标段", "FileInfoDialog 目标行"], "doc_ref": "二", "exception": "目标不可读显示占位" },
+    { "step": 2, "name": "chmod 编辑", "roles": ["ROLE-V09", "ROLE-D08", "ROLE-L13"], "code_refs": ["FileInfoDialog 编辑器段", "electron/main.ts fsChmod"], "doc_ref": "二", "exception": "八进制校验/应用错误就地显示" },
+    { "step": 3, "name": "创建链接", "roles": ["ROLE-V09", "ROLE-L12"], "code_refs": ["SymlinkDialog.vue", "electron/main.ts fsSymlink"], "doc_ref": "二", "exception": "重名/权限错误就地显示" }
+  ],
+  "logging_standard": "adapter 既有 [XxxAdapter] 前缀；handler 层错误经 IPC 异常上抛（renderer 就地呈现），不额外打日志。",
+  "verification": {
+    "commands": [
+      { "cmd": "npm run typecheck", "status": "pass", "evidence": "0 error" },
+      { "cmd": "npx tsc -p tsconfig.node.json", "status": "pass", "evidence": "16 = 基线" },
+      { "cmd": "npm run test:permissions", "status": "pass", "evidence": "往返全过" },
+      { "cmd": "npx playwright test e2e/symlink-chmod.spec.ts", "status": "pass", "evidence": "4 passed" }
+    ],
+    "checks": [
+      { "target": "QA-2 掩码边界", "method": "new_test", "evidence": "permissionsRoundtrip.test.ts setuid 掩码" },
+      { "target": "IFC-2 递归标志", "method": "new_test", "evidence": "symlink-chmod.spec.ts 参数断言" }
+    ],
+    "unverified": [
+      { "item": "真实 SSH/Android 设备上的 chmod/symlink", "follow_up": "设备联调" }
+    ]
+  },
+  "summary": "M5 交付符号链接全链路（列表徽标/属性目标/创建弹窗/遍历防环）与 chmod 编辑器（rwx 格 + 八进制 + 递归，能力门控本地/SSH/Android）。",
+  "gate": { "architecture": "go", "logging": "go", "coverage": "go", "verification": "go", "verdict": "go", "issues": [], "notes": "" },
+  "open_questions": [
+    "SSH 列表 isSymlink 标记（longname 'l' 前缀）未实现"
+  ]
+}

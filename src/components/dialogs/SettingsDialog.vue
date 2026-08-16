@@ -68,6 +68,19 @@
                 {{ showHiddenFiles ? 'On' : 'Off' }}
               </button>
             </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-text-primary">Show permissions</div>
+                <div class="text-xs text-text-tertiary mt-0.5">Show Unix permissions in list view</div>
+              </div>
+              <button
+                class="px-3 py-1.5 rounded text-sm transition-colors"
+                :class="showPermissions ? 'bg-accent-blue text-white' : 'bg-bg-hover text-text-secondary hover:text-text-primary'"
+                @click="toggleShowPermissions"
+              >
+                {{ showPermissions ? 'On' : 'Off' }}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -126,9 +139,14 @@ const thumbnailStore = useThumbnailStore()
 const settingsStore = useSettingsStore()
 
 const showHiddenFiles = computed(() => settingsStore.settings.showHiddenFiles)
+const showPermissions = computed(() => settingsStore.settings.showPermissions)
 
 function toggleShowHiddenFiles() {
   void settingsStore.toggleShowHiddenFiles()
+}
+
+function toggleShowPermissions() {
+  void settingsStore.toggleShowPermissions()
 }
 
 const theme = ref<'light' | 'dark' | 'system'>('dark')
