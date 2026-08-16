@@ -71,19 +71,6 @@
         <div v-if="resolution.width && resolution.height" class="text-xs text-text-secondary px-1">
           {{ resolution.width }} x {{ resolution.height }}
         </div>
-
-        <div class="w-px h-4 bg-border mx-1"></div>
-
-        <!-- Open in Full Viewer -->
-        <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
-          @click="openInFullPreview"
-          title="Open in Full Viewer"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-        </button>
       </div>
 
       <!-- Video Element -->
@@ -223,10 +210,6 @@ const log = (message: string, ...args: any[]) => {
 const props = defineProps<{
   file: FileInfo
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  openInFull: []
 }>()
 
 // State
@@ -577,10 +560,6 @@ function handleKeydown(e: KeyboardEvent) {
       toggleMute()
       break
   }
-}
-
-function openInFullPreview() {
-  emit('openInFull')
 }
 
 // Watch for file changes

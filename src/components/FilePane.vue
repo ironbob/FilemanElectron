@@ -386,7 +386,6 @@ import FileInfoDialog from './dialogs/FileInfoDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import ChecksumDialog from './dialogs/ChecksumDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
-import { isImageFile } from '@/utils/fileTypes'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
 import { hideDropHint } from '@/utils/dropHint'
 import { useDragSessionStore } from '@/stores/dragSession'
@@ -911,7 +910,6 @@ async function confirmCreateDialog() {
       ? await fileOpsStore.createTouchTask(deviceId, targetPath)
       : await fileOpsStore.createMkdirTask(deviceId, targetPath)
     trackDirectoryRefresh(task)
-    fileOpsStore.showPanel()
     closeCreateDialog()
   } catch (error) {
     createDialog.error = error instanceof Error ? error.message : 'Could not create the item.'
@@ -928,13 +926,7 @@ function handlePreview(file: FileInfo) {
       return
     }
     const deviceId = pane.value?.deviceId || 'local'
-    // Images (outside ZIPs) open the folder-aware image browser instead of the
-    // single-file preview tab. The sibling list comes from the pane's loaded
-    // files so prev/next can walk the folder.
-    if (isImageFile(file.extension || '') && !isZipVirtualPath(file.path)) {
-      previewStore.openImageBrowser(file, deviceId, loadedFiles.value)
-      return
-    }
+    // 双击统一开预览 tab（按 path+deviceId 去重激活）
     previewStore.openPreview(file, deviceId)
   }
 }
@@ -1031,7 +1023,6 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
           targetPath,
           fileCount: op.files.length
         })
-        fileOpsStore.showPanel()
         trackDirectoryRefresh(task)
       } catch (error) {
         log.error('[DnD][FilePane] Failed to queue drop transfer', {
@@ -1095,7 +1086,6 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
             targetPath
           )
         }
-        fileOpsStore.showPanel()
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
       } else {
         console.warn('[FilePane] Paste skipped: clipboard is empty')
@@ -1105,7 +1095,6 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
     case 'delete':
       if (confirm(`Delete ${op.files.length} item(s)?`)) {
         await fileOpsStore.createRecycleTask(deviceId, op.files)
-        fileOpsStore.showPanel()
         tabsStore.setSelectedFiles(props.paneId, [])
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
       }
@@ -1158,7 +1147,6 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         if (op.newName) {
           const filePath = op.files[0]
           await fileOpsStore.createRenameTask(deviceId, filePath, op.newName)
-          fileOpsStore.showPanel()
           tabsStore.setSelectedFiles(props.paneId, [])
           tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
         } else {
@@ -1215,7 +1203,6 @@ async function confirmTargetOperation(value: { deviceId: string; targetPath: str
   else await fileOpsStore.createMoveTask(deviceId, targetDialog.files, value.deviceId, value.targetPath, value.conflictStrategy)
   targetDialog.visible = false
   log.info('[FilePane] target operation queued', { mode: targetDialog.mode, targetDeviceId: value.deviceId, targetPath: value.targetPath })
-  fileOpsStore.showPanel()
   if (targetDialog.mode === 'move') tabsStore.setSelectedFiles(props.paneId, [])
 }
 
@@ -1230,7 +1217,6 @@ async function confirmBatchRename(items: BatchRenameItem[]) {
   const deviceId = pane.value?.deviceId || 'local'
   await fileOpsStore.createBatchRenameTask(deviceId, items)
   batchRenameDialog.visible = false
-  fileOpsStore.showPanel()
   tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
 }
 
@@ -1247,7 +1233,6 @@ async function captureScreenshot() {
 
 async function undoRecycle() {
   await fileOpsStore.undoLastRecycle()
-  fileOpsStore.showPanel()
   if (pane.value) tabsStore.navigatePane(props.paneId, pane.value.path)
 }
 
@@ -1255,7 +1240,6 @@ async function doRename(newName: string) {
   if (renameDialog.filePath) {
     const deviceId = pane.value?.deviceId || 'local'
     await fileOpsStore.createRenameTask(deviceId, renameDialog.filePath, newName)
-    fileOpsStore.showPanel()
     renameDialog.visible = false
     tabsStore.setSelectedFiles(props.paneId, [])
     tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
@@ -1325,10 +1309,12 @@ function handleDrop() {
   }
 }
 
-.recent-locations-menu {
-  /* Do not use bg-bg-secondary here: Finder's toolbar skin intentionally makes
-     that utility translucent for button groups, which makes a popup unreadable. */
-  background: var(--finder-canvas, var(--bg-secondary));
+.recent-locations-menu,
+.search-history-menu {
+  /* 浮层必须与底层列表完全隔离；工具栏控件可以半透明，菜单不可以。 */
+  background-color: var(--finder-canvas, var(--bg-secondary)) !important;
+  color: var(--finder-label, var(--text-primary));
+  opacity: 1;
   isolation: isolate;
 }
 </style>

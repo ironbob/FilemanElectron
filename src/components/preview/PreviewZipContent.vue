@@ -81,12 +81,6 @@
             <span class="text-sm font-medium text-text-primary">{{ file.name }}</span>
             <span class="text-xs text-text-tertiary">{{ formatSize(file.size) }}</span>
           </div>
-          <button
-            class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors"
-            @click="emit('open-in-full')"
-          >
-            Open in Full Viewer
-          </button>
         </div>
       </div>
     </div>
@@ -101,14 +95,10 @@ import ZipTreeNode from './ZipTreeNode.vue'
 
 const log = (msg: string, ...args: unknown[]) => console.log(`[PreviewZipContent] ${msg}`, ...args)
 
-// Props / Emits
+// Props
 const props = defineProps<{
   file: FileInfo
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  'open-in-full': []
 }>()
 
 // Types

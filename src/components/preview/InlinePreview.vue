@@ -5,16 +5,6 @@
       <span class="text-xs font-medium text-text-primary truncate">{{ file?.name || 'Preview' }}</span>
       <div class="flex items-center gap-1">
         <button
-          v-if="file && !file.isDirectory"
-          class="p-1 rounded hover:bg-bg-hover text-text-secondary transition-colors"
-          title="Open in full preview"
-          @click="openInFullPreview"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4m4 0h4m4-4v4m0 4v4m-4 0h4m-4 0H4m4-4v4" />
-          </svg>
-        </button>
-        <button
           class="p-1 rounded hover:bg-bg-hover text-text-secondary transition-colors"
           title="Close preview"
           @click="close"
@@ -95,12 +85,6 @@
         </svg>
         <p class="text-xs text-center mb-2">File too large for preview</p>
         <p class="text-xs text-text-secondary">{{ formatSize(file.size) }}</p>
-        <button
-          class="mt-2 px-2 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80"
-          @click="openInFullPreview"
-        >
-          Open in viewer
-        </button>
       </div>
 
       <!-- Text Preview -->
@@ -123,12 +107,6 @@
         </svg>
         <p class="text-sm font-medium text-text-primary mt-2">{{ file.name }}</p>
         <p class="text-xs mt-1">PDF Document</p>
-        <button
-          class="mt-3 px-3 py-1.5 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors"
-          @click="openInFullPreview"
-        >
-          Open in viewer
-        </button>
       </div>
 
       <!-- Unknown Preview -->
@@ -150,7 +128,6 @@ import { getPreviewType, getMimeType } from '@/types/preview'
 import { formatSize } from '@/utils/media'
 import { formatPermissions } from '@/utils/permissions'
 import InlineMediaInfo from './InlineMediaInfo.vue'
-import { usePreviewStore } from '@/stores/preview'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[InlinePreview] ${message}`, ...args)
@@ -166,8 +143,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
-
-const previewStore = usePreviewStore()
 
 const loading = ref(false)
 const textContent = ref('')
@@ -273,10 +248,6 @@ function formatDate(iso?: string): string {
 function parentPath(path: string): string {
   const idx = path.lastIndexOf('/')
   return idx <= 0 ? '/' : path.slice(0, idx)
-}
-
-function openInFullPreview() {
-  if (props.file) previewStore.openPreview(props.file, props.deviceId)
 }
 
 function close() {

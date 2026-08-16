@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, shallowRef } from 'vue'
 import type { FileInfo, Tab } from '@/types'
 import { useTabsStore } from './tabs'
-import type { ImageBrowserSession, QuickLookSession } from '@/types/preview'
+import type { QuickLookSession, PreviewType } from '@/types/preview'
 import { getPreviewType } from '@/types/preview'
 
 const log = (message: string, ...args: any[]) => {
@@ -22,57 +22,8 @@ export const usePreviewStore = defineStore('preview', () => {
   const inlinePreviewFile = ref<FileInfo | null>(null)
   const inlinePreviewDeviceId = ref<string>('local')
 
-  // ── Image browser session ─────────────────────────────────────────────────
-  // Folder-aware, decoupled from the per-file tab system. Per-image load state
-  // (blobUrl/loading/error/EXIF/transforms) lives in the useImageBrowser
-  // composable; this only holds the stable browsing identity so prev/next just
-  // swap the index — no tab pile-up. Reassign .value (shallow) to notify.
-  const imageBrowser = shallowRef<ImageBrowserSession | null>(null)
-  const imageBrowserOpen = ref(false)
-  const imageBrowserCurrent = computed<FileInfo | null>(
-    () => (imageBrowser.value && imageBrowser.value.images[imageBrowser.value.index]) || null
-  )
-
-  function openImageBrowser(file: FileInfo, deviceId: string, images: FileInfo[]) {
-    const imageFiles = images.filter(f => !f.isDirectory && getPreviewType(f) === 'image')
-    const list = imageFiles.length > 0 ? imageFiles : [file]
-    const idx = Math.max(0, list.findIndex(f => f.path === file.path))
-    imageBrowser.value = { deviceId, images: list, index: idx }
-    imageBrowserOpen.value = true
-    log('Opened image browser:', list.length, 'images, index', idx)
-  }
-
-  function nextImage() {
-    const s = imageBrowser.value
-    if (s && s.index < s.images.length - 1) {
-      imageBrowser.value = { ...s, index: s.index + 1 }
-    }
-  }
-
-  function prevImage() {
-    const s = imageBrowser.value
-    if (s && s.index > 0) {
-      imageBrowser.value = { ...s, index: s.index - 1 }
-    }
-  }
-
-  function goToImage(index: number) {
-    const s = imageBrowser.value
-    if (!s) return
-    const clamped = Math.max(0, Math.min(index, s.images.length - 1))
-    imageBrowser.value = { ...s, index: clamped }
-  }
-
-  function closeImageBrowser() {
-    // Blob cleanup is owned by useImageBrowser (current blobUrl + preload
-    // cache); it revokes them on unmount when imageBrowserOpen flips to false.
-    imageBrowser.value = null
-    imageBrowserOpen.value = false
-    log('Closed image browser')
-  }
-
   // ── Quick Look session（空格键瞬态预览） ─────────────────────────────────────
-  // 仿 imageBrowser 模式：与 preview tab 系统解耦，↑↓ 只换 index，
+  // 与 preview tab 系统解耦，↑↓ 只换 index，
   // 内容加载/清理由各 Preview*Content 自行管理。
   const quickLook = shallowRef<QuickLookSession | null>(null)
   const quickLookOpen = ref(false)
@@ -105,9 +56,11 @@ export const usePreviewStore = defineStore('preview', () => {
 
   /**
    * 在主 tab 栏打开（或激活已有的）文件预览 tab。
-   * 按 path + deviceId 去重；重复打开只切换激活。
+   * 按 path + deviceId 去重；重复打开只切换激活。显式 forceType（如
+   * 「以十六进制查看」）会就地更新已有 tab 的强制类型——用户此刻点名
+   * 要 hex，不能复用旧的文本预览。
    */
-  function openPreview(file: FileInfo, deviceId: string): Tab {
+  function openPreview(file: FileInfo, deviceId: string, initialLine?: number, forceType?: PreviewType): Tab {
     const tabsStore = useTabsStore()
 
     const existing = tabsStore.tabs.find(
@@ -115,6 +68,10 @@ export const usePreviewStore = defineStore('preview', () => {
     )
     if (existing) {
       log('Preview already open, activating tab:', existing.id)
+      if (forceType && existing.preview) {
+        existing.preview.forceType = forceType
+        existing.preview.type = forceType
+      }
       tabsStore.setActiveTab(existing.id)
       return existing
     }
@@ -128,7 +85,9 @@ export const usePreviewStore = defineStore('preview', () => {
         id: generateId(),
         file,
         deviceId,
-        type: getPreviewType(file)
+        type: forceType ?? getPreviewType(file),
+        initialLine,
+        forceType
       }
     }
     tabsStore.tabs.push(tab)
@@ -153,31 +112,12 @@ export const usePreviewStore = defineStore('preview', () => {
     inlinePreviewFile.value = null
   }
 
-  // Open inline preview in full panel
-  function openInlineInFullPreview() {
-    if (inlinePreviewFile.value) {
-      log('Opening inline preview in full panel:', inlinePreviewFile.value.name)
-      openPreview(inlinePreviewFile.value, inlinePreviewDeviceId.value)
-    } else {
-      log('No inline preview to open')
-    }
-  }
-
   return {
     inlinePreviewFile,
     inlinePreviewDeviceId,
     openPreview,
     setInlinePreview,
     clearInlinePreview,
-    openInlineInFullPreview,
-    imageBrowser,
-    imageBrowserOpen,
-    imageBrowserCurrent,
-    openImageBrowser,
-    nextImage,
-    prevImage,
-    goToImage,
-    closeImageBrowser,
     quickLook,
     quickLookOpen,
     quickLookFile,

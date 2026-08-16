@@ -133,12 +133,6 @@
               {{ imageDimensions.width }} x {{ imageDimensions.height }}
             </span>
           </div>
-          <button
-            class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors"
-            @click="openInFullPreview"
-          >
-            Open in Full Viewer
-          </button>
         </div>
       </div>
     </div>
@@ -158,10 +152,6 @@ const log = (message: string, ...args: any[]) => {
 const props = defineProps<{
   file: FileInfo
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  openInFull: []
 }>()
 
 // Loading state
@@ -391,10 +381,6 @@ function endDrag() {
   if (container) {
     ;(container as HTMLElement).style.cursor = ''
   }
-}
-
-function openInFullPreview() {
-  emit('openInFull')
 }
 
 // Watch for file changes

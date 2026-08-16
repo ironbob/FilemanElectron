@@ -1,41 +1,43 @@
 <template>
   <!-- 类型分派单一事实源：PreviewView / QuickLookOverlay 共用。
-       各 Preview*Content 自行加载内容（仅依赖 file + deviceId）。 -->
-  <PreviewTextContent
-    v-if="type === 'text'"
+       各 Preview*Content 自行加载内容（仅依赖 file + deviceId）。
+       类型优先级：forceType（显式入口，如右键「以十六进制查看」）>
+       initialLine（grep 命中跳入 → 强制 text）> 扩展名推断。 -->
+  <PreviewHexContent
+    v-if="type === 'hex'"
     :file="file"
     :device-id="deviceId"
-    @open-in-full="() => {}"
+  />
+  <PreviewTextContent
+    v-else-if="type === 'text'"
+    :file="file"
+    :device-id="deviceId"
+    :initial-line="initialLine"
   />
   <PreviewImageContent
     v-else-if="type === 'image'"
     :file="file"
     :device-id="deviceId"
-    @open-in-full="$emit('openInFull')"
   />
   <PreviewVideoContent
     v-else-if="type === 'video'"
     :file="file"
     :device-id="deviceId"
-    @open-in-full="() => {}"
   />
   <PreviewAudioContent
     v-else-if="type === 'audio'"
     :file="file"
     :device-id="deviceId"
-    @open-in-full="() => {}"
   />
   <PreviewPdfContent
     v-else-if="type === 'pdf'"
     :file="file"
     :device-id="deviceId"
-    @open-in-full="() => {}"
   />
   <PreviewZipContent
     v-else-if="type === 'zip'"
     :file="file"
     :device-id="deviceId"
-    @open-in-full="() => {}"
   />
   <!-- Unknown file type -->
   <div
@@ -53,23 +55,29 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FileInfo } from '@/types'
-import { getPreviewType } from '@/types/preview'
+import { getPreviewType, type PreviewType } from '@/types/preview'
 import PreviewTextContent from './PreviewTextContent.vue'
 import PreviewImageContent from './PreviewImageContent.vue'
 import PreviewVideoContent from './PreviewVideoContent.vue'
 import PreviewAudioContent from './PreviewAudioContent.vue'
 import PreviewPdfContent from './PreviewPdfContent.vue'
 import PreviewZipContent from './PreviewZipContent.vue'
+import PreviewHexContent from './PreviewHexContent.vue'
 
 const props = defineProps<{
   file: FileInfo
   deviceId: string
+  /** 初始定位行号（grep 命中跳入；仅 text 内容消费）。 */
+  initialLine?: number
+  /** 强制内容类型（显式入口；覆盖扩展名推断与 initialLine）。 */
+  forceType?: PreviewType
 }>()
 
-defineEmits<{
-  /** 目前仅 image 内容会发出（转 folder-aware 图片浏览器），语义由宿主定义 */
-  openInFull: []
-}>()
-
-const type = computed(() => getPreviewType(props.file))
+// 优先级：forceType > initialLine（grep 命中按文本渲染——grep 已证明内容
+// 可读；且 `.ts` 这类扩展名在通用分类器里是 MPEG-TS 视频，是源码误判）> 推断。
+const type = computed<PreviewType>(() => {
+  if (props.forceType) return props.forceType
+  if (props.initialLine) return 'text'
+  return getPreviewType(props.file)
+})
 </script>

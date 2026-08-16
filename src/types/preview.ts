@@ -1,7 +1,7 @@
 import type { FileInfo } from './index'
 import { isImageFile } from '@/utils/fileTypes'
 
-export type PreviewType = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'zip' | 'unknown'
+export type PreviewType = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'zip' | 'hex' | 'unknown'
 
 // Text preview types
 export type TextRenderMode = 'source' | 'rendered'
@@ -20,18 +20,10 @@ export interface PreviewTab {
   file: FileInfo
   deviceId: string
   type: PreviewType
-}
-
-/**
- * Folder-aware image browser session. The per-image load state (blobUrl,
- * loading, error, EXIF, transforms) lives in the useImageBrowser composable,
- * NOT here — this object only holds the stable browsing identity so it can be
- * swapped cheaply on each prev/next without piling up preview tabs.
- */
-export interface ImageBrowserSession {
-  deviceId: string
-  images: FileInfo[]
-  index: number
+  /** 初始定位行号（grep 命中跳入预览用；1 基）。 */
+  initialLine?: number
+  /** 强制内容类型（右键「以十六进制查看」等显式入口用，覆盖扩展名推断）。 */
+  forceType?: PreviewType
 }
 
 /**
@@ -77,11 +69,15 @@ export function getPreviewType(file: FileInfo): PreviewType {
 
   const zipExts = new Set(['zip', 'jar', 'war', 'ear', 'apk', 'ipa', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'epub', 'cbz'])
 
+  // 显式 opt-in 的二进制扩展名 → hex 视图（unknown 兜底不变，避免误重分类）
+  const hexExts = new Set(['bin', 'iso', 'img', 'dylib', 'so', 'exe', 'dll', 'dat', 'o', 'a', 'class', 'wasm'])
+
   if (isImageFile(ext)) return 'image'
   if (videoExts.has(ext)) return 'video'
   if (audioExts.has(ext)) return 'audio'
   if (ext === 'pdf') return 'pdf'
   if (zipExts.has(ext)) return 'zip'
+  if (hexExts.has(ext)) return 'hex'
   if (textExts.has(ext)) return 'text'
 
   return 'unknown'

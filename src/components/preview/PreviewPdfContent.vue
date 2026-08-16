@@ -93,12 +93,6 @@
             <span class="text-sm font-medium text-text-primary">{{ file.name }}</span>
             <span class="text-xs text-text-tertiary">{{ formatSize(file.size) }}</span>
           </div>
-          <button
-            class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors"
-            @click="openInFullPreview"
-          >
-            Open in Full Viewer
-          </button>
         </div>
       </div>
     </div>
@@ -129,10 +123,6 @@ const logError = (message: string, error: unknown, extra?: Record<string, unknow
 const props = defineProps<{
   file: FileInfo
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  openInFull: []
 }>()
 
 // Set worker source via Vite URL transform for better compatibility
@@ -361,10 +351,6 @@ function handleWheel(event: WheelEvent) {
   if (next < 0.25 || next > 4) return
   scale.value = next
   renderAllPages()
-}
-
-function openInFullPreview() {
-  emit('openInFull')
 }
 
 watch(() => props.file, (newFile, oldFile) => {

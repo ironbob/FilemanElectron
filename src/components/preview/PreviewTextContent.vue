@@ -74,6 +74,36 @@
             >Source</button>
           </div>
 
+          <!-- JSON 工具：格式化 / 路径查询 / 复制 TS interfaces -->
+          <template v-if="fileCategory === 'json' && jsonStatus === 'valid'">
+            <button
+              v-if="viewMode === 'source'"
+              class="px-2 py-1 text-xs rounded text-text-secondary hover:bg-bg-hover border border-border"
+              title="格式化（美化压缩的 JSON）"
+              @click="formatJsonSource"
+            >格式化</button>
+            <button
+              class="px-2 py-1 text-xs rounded text-text-secondary hover:bg-bg-hover border border-border"
+              title="复制 TypeScript interface 定义"
+              @click="copyTsInterfaces"
+            >复制 TS</button>
+            <div v-if="viewMode === 'tree'" class="flex items-center gap-1">
+              <input
+                v-model="jsonPathInput"
+                type="text"
+                class="w-36 px-2 py-1 text-[11px] font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
+                placeholder="$.items[0].id"
+                spellcheck="false"
+                @keydown.enter="applyJsonPath"
+              >
+              <button
+                class="px-1.5 py-1 text-[11px] rounded text-text-secondary hover:bg-bg-hover border border-border"
+                title="执行路径查询"
+                @click="applyJsonPath"
+              >→</button>
+            </div>
+          </template>
+
           <!-- CSV: Table ↔ Source -->
           <div v-else-if="fileCategory === 'csv'" class="flex rounded border border-border overflow-hidden mr-1">
             <button
@@ -162,6 +192,18 @@
       </div>
 
       <!-- ── CSV Table ── -->
+      <!-- JSON 路径查询结果 -->
+      <div
+        v-if="viewMode === 'tree' && jsonPathResult !== null"
+        class="mx-4 my-2 rounded border border-border bg-bg-primary flex-shrink-0"
+      >
+        <div class="flex items-center justify-between px-3 py-1.5 border-b border-border">
+          <span class="text-[11px] font-mono text-text-secondary">{{ jsonPathInput }}</span>
+          <button class="text-[11px] text-text-tertiary hover:text-text-primary" @click="jsonPathResult = null">✕</button>
+        </div>
+        <pre class="px-3 py-2 text-[11px] font-mono text-text-primary overflow-auto max-h-48">{{ jsonPathResult }}</pre>
+      </div>
+
       <div v-else-if="viewMode === 'table'" class="flex-1 overflow-auto relative">
         <table class="w-full text-xs border-collapse">
           <thead class="sticky top-0 z-10 bg-bg-tertiary">
@@ -169,13 +211,15 @@
               <th
                 v-for="(header, ci) in csvHeaders"
                 :key="ci"
-                class="px-3 py-2 text-left font-semibold text-text-secondary border-b border-r border-border last:border-r-0 whitespace-nowrap"
-              >{{ header || `Col ${ci + 1}` }}</th>
+                class="px-3 py-2 text-left font-semibold text-text-secondary border-b border-r border-border last:border-r-0 whitespace-nowrap cursor-pointer select-none hover:text-text-primary"
+                :title="`按此列排序${csvSortColumn === ci ? '（再点切换方向/取消）' : ''}`"
+                @click="sortCsvBy(ci)"
+              >{{ header || `Col ${ci + 1}` }}{{ csvSortIndicator(ci) }}</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="(row, ri) in csvRows"
+              v-for="(row, ri) in sortedCsvRows"
               :key="ri"
               class="border-b border-border/40 hover:bg-bg-hover/50 transition-colors"
               :class="ri % 2 !== 0 ? 'bg-bg-primary/20' : ''"
@@ -242,12 +286,6 @@
               Save
               <span class="text-[10px] opacity-70">⌘S</span>
             </button>
-            <button
-              class="px-3 py-1 text-xs bg-bg-hover text-text-primary rounded hover:bg-bg-secondary transition-colors"
-              @click="emit('open-in-full')"
-            >
-              Open in Full Viewer
-            </button>
           </div>
         </div>
       </div>
@@ -290,6 +328,9 @@ import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import type { FileInfo } from '@/types'
 import { useLogAnalysis } from '@/components/preview/composables/useLogAnalysis'
 import LogAnalysisToolbar from '@/components/preview/logview/LogAnalysisToolbar.vue'
+import { queryJson } from '@/utils/jsonQuery'
+import { jsonToInterfaces } from '@/utils/jsonToTs'
+import { copyToClipboard } from '@/utils/clipboard'
 import SchemeEditorDialog from '@/components/preview/logview/SchemeEditorDialog.vue'
 import '@alenaksu/json-viewer'
 import { Marked } from 'marked'
@@ -390,10 +431,8 @@ const CSV_ROW_LIMIT = 2000
 const props = defineProps<{
   file: FileInfo
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  'open-in-full': []
+  /** 初始定位行号（grep 命中跳入；仅首次创建编辑器时消费一次）。 */
+  initialLine?: number
 }>()
 
 // ── JSON Tree View Component Ref ──────────────────────────────────────────────
@@ -433,6 +472,39 @@ const csvHeaders = ref<string[]>([])
 const csvRows = ref<string[][]>([])
 const totalCsvRows = ref(0)
 const csvTruncated = ref(false)
+// CSV 列排序（数值感知：全数字列按数值比较，否则 localeCompare）
+const csvSortColumn = ref<number | null>(null)
+const csvSortDirection = ref<1 | -1>(1)
+
+function sortCsvBy(column: number): void {
+  if (csvSortColumn.value === column) {
+    if (csvSortDirection.value === 1) csvSortDirection.value = -1
+    else { csvSortColumn.value = null; csvSortDirection.value = 1 }
+  } else {
+    csvSortColumn.value = column
+    csvSortDirection.value = 1
+  }
+}
+
+const sortedCsvRows = computed(() => {
+  const column = csvSortColumn.value
+  if (column === null) return csvRows.value
+  const direction = csvSortDirection.value
+  const numeric = csvRows.value.every(row => row[column] === undefined || row[column] === '' || !Number.isNaN(Number(row[column])))
+  return [...csvRows.value].sort((a, b) => {
+    const av = a[column] ?? ''
+    const bv = b[column] ?? ''
+    const result = numeric
+      ? (Number(av || 0) - Number(bv || 0))
+      : av.localeCompare(bv, undefined, { numeric: true })
+    return result * direction
+  })
+})
+
+function csvSortIndicator(column: number): string {
+  if (csvSortColumn.value !== column) return ''
+  return csvSortDirection.value === 1 ? ' ↑' : ' ↓'
+}
 
 // JSON validation state
 const jsonStatus = ref<'valid' | 'invalid' | null>(null)
@@ -689,7 +761,27 @@ async function processMarkdown(raw: string): Promise<void> {
 }
 
 /** RFC 4180-compliant CSV parser — handles quoted fields with embedded commas/newlines */
-function parseCsvText(text: string): string[][] {
+/** 分隔符自动检测：首行引号外各候选出现次数最多者胜（, ; \t |）。 */
+function detectCsvDelimiter(text: string): string {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? ''
+  const candidates = [',', ';', '\t', '|']
+  let best = ','
+  let bestCount = -1
+  let inQuotes = false
+  const counts = new Map<string, number>()
+  for (const ch of firstLine) {
+    if (ch === '"') inQuotes = !inQuotes
+    else if (!inQuotes && (candidates as string[]).includes(ch)) {
+      counts.set(ch, (counts.get(ch) ?? 0) + 1)
+    }
+  }
+  for (const [delimiter, count] of counts) {
+    if (count > bestCount) { best = delimiter; bestCount = count }
+  }
+  return best
+}
+
+function parseCsvText(text: string, delimiter = ','): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
@@ -703,7 +795,7 @@ function parseCsvText(text: string): string[][] {
       else { field += ch }
     } else {
       if (ch === '"') { inQuotes = true }
-      else if (ch === ',') { row.push(field); field = '' }
+      else if (ch === delimiter) { row.push(field); field = '' }
       else if (ch === '\r' && text[i + 1] === '\n') {
         row.push(field); rows.push(row); row = []; field = ''; i += 2; continue
       } else if (ch === '\n' || ch === '\r') {
@@ -716,8 +808,38 @@ function parseCsvText(text: string): string[][] {
   return rows
 }
 
+// ── JSON 增强：格式化 / 路径查询 / 复制 TS interfaces ──
+const jsonPathInput = ref('')
+const jsonPathResult = ref<string | null>(null)
+
+function formatJsonSource(): void {
+  const editor = editorInstance.value
+  if (!editor || logAnalysis.isViewTransformed.value) return
+  try {
+    const parsed = JSON.parse(editor.getValue())
+    editor.setValue(JSON.stringify(parsed, null, 2))
+  } catch {
+    // jsonStatus 已标红；此处静默（格式化仅对合法 JSON 有意义）
+  }
+}
+
+async function copyTsInterfaces(): Promise<void> {
+  if (parsedJsonData.value === null) return
+  const text = jsonToInterfaces(parsedJsonData.value)
+  if (!text) return
+  await copyToClipboard(text)
+}
+
+function applyJsonPath(): void {
+  if (parsedJsonData.value === null) return
+  const result = queryJson(parsedJsonData.value, jsonPathInput.value)
+  jsonPathResult.value = result.ok
+    ? JSON.stringify(result.value, null, 2)
+    : `✗ ${result.error ?? '查询失败'}`
+}
+
 function processCsv(raw: string): void {
-  const rows = parseCsvText(raw)
+  const rows = parseCsvText(raw, detectCsvDelimiter(raw))
   if (rows.length === 0) { csvHeaders.value = []; csvRows.value = []; return }
   csvHeaders.value = rows[0]
   const data = rows.slice(1).filter(r => r.length > 0)
@@ -765,6 +887,16 @@ function createEditor(content: string) {
     cursorStyle: 'line',
     cursorBlinking: 'blink',
   })
+
+  // grep 命中跳入：一次性定位到 initialLine（reveal + 选中整行 + 聚焦）
+  if (props.initialLine && props.initialLine > 0) {
+    const lineNumber = props.initialLine
+    const lineCount = editorInstance.value.getModel()?.getLineCount() ?? 0
+    const target = Math.min(lineNumber, Math.max(lineCount, 1))
+    editorInstance.value.revealLineInCenter(target)
+    editorInstance.value.setSelection({ startLineNumber: target, startColumn: 1, endLineNumber: target, endColumn: 1 })
+    editorInstance.value.focus()
+  }
 
   // Listen for content changes to detect modifications
   const model = editorInstance.value.getModel()

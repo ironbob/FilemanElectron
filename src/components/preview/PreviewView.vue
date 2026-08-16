@@ -43,22 +43,20 @@
       <PreviewContentRouter
         :file="session.file"
         :device-id="session.deviceId"
-        @open-in-full="openImageFullscreen"
+        :initial-line="session.initialLine"
+        :force-type="session.forceType"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { usePreviewStore } from '@/stores/preview'
 import type { PreviewTab } from '@/types/preview'
 import PreviewContentRouter from './PreviewContentRouter.vue'
 
 const props = defineProps<{
   session: PreviewTab
 }>()
-
-const previewStore = usePreviewStore()
 
 /** 仅本地设备可在 Finder 中定位；远程设备文件在本机无实体。 */
 const canRevealInFinder = props.session.deviceId === 'local'
@@ -69,10 +67,5 @@ function copyFilePath() {
 
 function revealInFinder() {
   window.fileman.showInFolder(props.session.file.path)
-}
-
-/** 图片内容放大 → folder-aware 图片浏览器（与会话内单图一致的行为）。 */
-function openImageFullscreen() {
-  previewStore.openImageBrowser(props.session.file, props.session.deviceId, [props.session.file])
 }
 </script>

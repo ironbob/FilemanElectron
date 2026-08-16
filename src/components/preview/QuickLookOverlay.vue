@@ -59,7 +59,6 @@
           <PreviewContentRouter
             :file="currentFile"
             :device-id="deviceId"
-            @open-in-full="openInImageBrowser"
           />
         </div>
       </div>
@@ -136,15 +135,6 @@ function step(delta: number) {
   if (paneId && path) {
     tabsStore.setSelectedFiles(paneId, [path])
   }
-}
-
-/** image 内容的 open-in-full：转 folder-aware 图片浏览器（与全屏预览语义一致） */
-function openInImageBrowser() {
-  const file = currentFile.value
-  if (!file || !session.value) return
-  const images = session.value.files
-  previewStore.closeQuickLook()
-  previewStore.openImageBrowser(file, session.value.deviceId, images)
 }
 </script>
 

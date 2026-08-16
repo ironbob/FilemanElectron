@@ -53,18 +53,6 @@
         <span class="uppercase">{{ file.extension?.replace('.', '') || 'Audio' }}</span>
       </div>
     </div>
-
-    <!-- Footer -->
-    <div class="flex-shrink-0 px-4 py-2 bg-bg-tertiary border-t border-border">
-      <div class="flex items-center justify-end">
-        <button
-          class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors"
-          @click="openInFullPreview"
-        >
-          Open in Full Viewer
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -80,10 +68,6 @@ const log = (message: string, ...args: any[]) => {
 const props = defineProps<{
   file: FileInfo
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  openInFull: []
 }>()
 
 const loading = ref(true)
@@ -190,10 +174,6 @@ function handleTimeUpdate() {
 
 function handleAudioEnded() {
   log('Audio playback ended')
-}
-
-function openInFullPreview() {
-  emit('openInFull')
 }
 
 watch(() => props.file, (newFile, oldFile) => {
