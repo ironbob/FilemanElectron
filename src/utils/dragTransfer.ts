@@ -212,7 +212,7 @@ export function isSelfOrDescendant(sourceFiles: string[], targetDir: string): bo
   return sourceFiles.some(source => targetDir === source || targetDir.startsWith(`${source}/`))
 }
 
-/** 建传输任务并打开任务面板（行级放置与面板背景放置共用）。 */
+/** 建传输任务（行级放置与面板背景放置共用）。任务面板由用户手动展开。 */
 export async function queueTransfer(
   fileOpsStore: FileOperationsStore,
   source: DragTransferSource,
@@ -222,6 +222,5 @@ export async function queueTransfer(
   const task = action === 'move'
     ? await fileOpsStore.createMoveTask(source.deviceId, source.files, target.deviceId, target.path)
     : await fileOpsStore.createCopyTask(source.deviceId, source.files, target.deviceId, target.path)
-  fileOpsStore.showPanel()
   return task
 }
