@@ -27,6 +27,7 @@
     "test:crop-geometry": "esbuild tests/cropGeometry.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/cropGeometry.test.cjs --log-level=warning && node node_modules/.tmp/cropGeometry.test.cjs",
     "test:batch-rename-pattern": "esbuild tests/batchRenamePattern.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/batchRenamePattern.test.cjs --log-level=warning && node node_modules/.tmp/batchRenamePattern.test.cjs",
     "test:image-edit-naming": "esbuild tests/imageEditNaming.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/imageEditNaming.test.cjs --log-level=warning && node node_modules/.tmp/imageEditNaming.test.cjs",
+    "test:annotation-shapes": "esbuild tests/annotationShapes.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/annotationShapes.test.cjs --log-level=warning && node node_modules/.tmp/annotationShapes.test.cjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",

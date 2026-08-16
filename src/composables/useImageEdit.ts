@@ -1,6 +1,7 @@
-import { ref, computed, watch, onUnmounted, type Ref } from 'vue'
+import { ref, shallowRef, computed, watch, onUnmounted, type Ref } from 'vue'
 import type { FileInfo } from '@/types'
 import type {
+  EditAnnotate,
   EditCompressParams,
   EditEstimateResult,
   EditOps,
@@ -10,10 +11,11 @@ import type {
 import { isEditableImageExt } from '@shared/fileKinds'
 import { usePreviewStore } from '@/stores/preview'
 import type { Rect } from '@/utils/cropGeometry'
+import { ANNO_COLORS, ANNO_WIDTHS, type AnnoShape, type AnnoTool } from '@/utils/annotationShapes'
 
 const log = console
 
-export type ImageEditMode = 'idle' | 'crop'
+export type ImageEditMode = 'idle' | 'crop' | 'annotate'
 
 /** PreviewView 创建后经 PreviewContentRouter 下传给图片内容的编辑控制器。 */
 export type ImageEditController = ReturnType<typeof useImageEdit>
@@ -31,8 +33,9 @@ export interface UseImageEditOptions {
 /**
  * 图片编辑会话 ViewModel（feature-scoped，对齐 useHexViewer 先例）。
  *
- * 职责：编辑模式状态机、裁剪矩形（源像素空间）持有、压缩参数预估（300ms
- * 节流）、apply 编排与错误呈现、批量压缩任务订阅/取消。
+ * 职责：编辑模式状态机（裁剪/标注）、裁剪矩形与标注形状持有、压缩参数预估
+ * （300ms 节流）、apply 编排与错误呈现、批量压缩任务订阅/取消、底部工具条
+ * 开合状态（纯手动，任何模式/换图/保存事件都不自动改变）。
  * View（Toolbar/Overlay/Dialogs）只渲染与转发意图。
  */
 export function useImageEdit(options: UseImageEditOptions) {
@@ -43,14 +46,21 @@ export function useImageEdit(options: UseImageEditOptions) {
   const aspect = ref<number | null>(null)
   /** 裁剪矩形（显示 natural 空间，源像素坐标；apply 时附 referenceWidth） */
   const cropRect = ref<Rect | null>(null)
-  /** 待保存对话框确认的 ops（裁剪 Apply 或压缩入口置入） */
+  /** 待保存对话框确认的 ops（裁剪 Apply / 标注 Apply / 压缩入口置入） */
   const saveDialogVisible = ref(false)
   const pendingCrop = ref<Rect | null>(null)
+  const pendingAnnotate = shallowRef<EditAnnotate | null>(null)
   const pendingCompress = ref(false)
   const estimate = ref<EditEstimateResult | null>(null)
   const estimating = ref(false)
   const applying = ref(false)
   const error = ref('')
+
+  /** 底部工具条开合：默认收起，仅由用户点击右下角按钮切换（严格无自动行为）。 */
+  const toolbarExpanded = ref(false)
+  function toggleToolbar() {
+    toolbarExpanded.value = !toolbarExpanded.value
+  }
 
   const editable = computed(() => {
     const f = file.value
@@ -115,10 +125,54 @@ export function useImageEdit(options: UseImageEditOptions) {
     openSaveDialog()
   }
 
+  // ── 标注 ────────────────────────────────────────────────────────────────────
+  const annoTool = ref<AnnoTool>('arrow')
+  const annoColor = ref<string>(ANNO_COLORS[0])
+  const annoWidth = ref<number>(ANNO_WIDTHS[1])
+  /** 标注形状（显示 natural 空间）；深结构不可变替换以便 overlay 重绘 */
+  const shapes = shallowRef<AnnoShape[]>([])
+  let shapeSeq = 1
+
+  function startAnnotate() {
+    if (!editable.value) return
+    mode.value = 'annotate'
+    error.value = ''
+  }
+
+  function exitAnnotate() {
+    mode.value = 'idle'
+  }
+
+  function addShape(shape: Omit<AnnoShape, 'id'> & { id?: number }): void {
+    const withId = { ...shape, id: shape.id ?? shapeSeq++ } as AnnoShape
+    shapes.value = [...shapes.value, withId]
+  }
+
+  function replaceShape(id: number, shape: Omit<AnnoShape, 'id'>): void {
+    shapes.value = shapes.value.map(s => (s.id === id ? ({ ...shape, id } as AnnoShape) : s))
+  }
+
+  function undoAnno() {
+    shapes.value = shapes.value.slice(0, -1)
+  }
+
+  function clearAnno() {
+    shapes.value = []
+  }
+
+  /** 标注应用：宿主从 overlay 导出 base64 后调用，进入保存对话框。 */
+  function requestAnnotateApply(overlay: EditAnnotate | null) {
+    if (!overlay || !file.value) return
+    pendingAnnotate.value = overlay
+    pendingCompress.value = false
+    openSaveDialog()
+  }
+
   // ── 压缩 ────────────────────────────────────────────────────────────────────
   function requestCompress() {
     if (!editable.value) return
     pendingCrop.value = null
+    pendingAnnotate.value = null
     pendingCompress.value = true
     openSaveDialog()
   }
@@ -132,6 +186,7 @@ export function useImageEdit(options: UseImageEditOptions) {
   function closeSaveDialog() {
     saveDialogVisible.value = false
     pendingCrop.value = null
+    pendingAnnotate.value = null
     pendingCompress.value = false
     if (mode.value === 'crop') exitCrop()
   }
@@ -163,14 +218,22 @@ export function useImageEdit(options: UseImageEditOptions) {
       }
       ops.crop = { ...pendingCrop.value, referenceWidth: naturalWidthCache.value }
     }
+    if (pendingAnnotate.value) {
+      ops.annotate = pendingAnnotate.value
+    }
     if (params) ops.compress = params
 
     applying.value = true
     error.value = ''
     try {
       const result = await window.fileman.imageEdit.apply(f.path, ops, save)
-      log.info('[useImageEdit] saved', { path: f.path, written: result.writtenPath, bytes: result.bytes, mode: save.mode })
+      log.info('[useImageEdit] saved', { path: f.path, written: result.writtenPath, bytes: result.bytes, mode: save.mode, annotate: !!ops.annotate })
       previewStore.applyEditResult(sessionId, f.path, result)
+      // 标注已烘焙：清空形状并退出标注模式（工具条开合不受影响）
+      if (ops.annotate) {
+        clearAnno()
+        exitAnnotate()
+      }
       closeSaveDialog()
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
@@ -218,9 +281,14 @@ export function useImageEdit(options: UseImageEditOptions) {
   }) ?? null
   onUnmounted(() => stopProgress?.())
 
-  // 步进换图：退出编辑模式、清错误（预估随保存对话框重新触发）
+  // 步进换图：退出编辑模式、清标注形状与错误（预估随保存对话框重新触发）；
+  // 注意：不动 toolbarExpanded（严格手动开合，不随换图折叠）
   watch(file, () => {
-    if (mode.value !== 'idle') exitCrop()
+    if (mode.value === 'crop') exitCrop()
+    if (mode.value === 'annotate') {
+      exitAnnotate()
+      clearAnno()
+    }
     error.value = ''
     estimate.value = null
   })
@@ -232,22 +300,36 @@ export function useImageEdit(options: UseImageEditOptions) {
     cropRect,
     editable,
     hasCollection,
+    toolbarExpanded,
     saveDialogVisible,
     pendingCrop,
+    pendingAnnotate,
     pendingCompress,
     estimate,
     estimating,
     applying,
     error,
+    shapes,
+    annoTool,
+    annoColor,
+    annoWidth,
     batchProgress,
     batchRunning,
     batchDialogVisible,
     renameDialogVisible,
     // intents
+    toggleToolbar,
     startCrop,
     exitCrop,
     setCropRect,
     requestCropApply,
+    startAnnotate,
+    exitAnnotate,
+    addShape,
+    replaceShape,
+    undoAnno,
+    clearAnno,
+    requestAnnotateApply,
     requestCompress,
     closeSaveDialog,
     refreshEstimate,

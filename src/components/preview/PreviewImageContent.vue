@@ -19,22 +19,30 @@
 
     <!-- Image Content -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
-      <!-- 编辑工具条（左上；仅 local 可编辑图片显示；hover 显现） -->
+      <!-- 底部编辑工具条（右下角按钮开合，状态纯手动） -->
       <ImageEditToolbar
         v-if="edit"
-        class="absolute top-2 left-2"
+        :edit="edit"
         :editable="edit.editable.value"
         :collection="edit.hasCollection.value"
         :mode="edit.mode.value"
         :running="edit.batchRunning.value"
+        :expanded="edit.toolbarExpanded.value"
+        :anno-tool="edit.annoTool.value"
+        :anno-color="edit.annoColor.value"
+        :anno-width="edit.annoWidth.value"
+        :shape-count="edit.shapes.value.length"
+        @toggle="edit.toggleToolbar()"
         @crop="enterCropMode"
+        @annotate="toggleAnnotateMode"
+        @anno-apply="applyAnnotate"
         @compress="edit.requestCompress()"
         @batch-compress="edit.openBatchCompress()"
         @batch-rename="edit.openRename()"
       />
 
-      <!-- Toolbar -->
-      <div v-if="edit?.mode.value !== 'crop'" class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1">
+      <!-- Toolbar（裁剪/标注模式下隐藏——变换与编辑几何互斥） -->
+      <div v-if="edit?.mode.value !== 'crop' && edit?.mode.value !== 'annotate'" class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1">
         <!-- Zoom Controls -->
         <button
           class="finder-icon-button"
@@ -130,6 +138,14 @@
           @cancel="edit.exitCrop()"
           @apply="edit.requestCropApply()"
         />
+
+        <!-- 标注浮层（同实测 rect 坐标机制；进入标注复位视图） -->
+        <ImageAnnotateOverlay
+          v-if="edit && edit.mode.value === 'annotate'"
+          ref="annotateOverlayRef"
+          :edit="edit"
+          :layout="cropLayout"
+        />
       </div>
 
       <!-- File Info -->
@@ -175,6 +191,7 @@ import type { ImageEditController } from '@/composables/useImageEdit'
 import IconfontIcon from './IconfontIcon.vue'
 import ImageEditToolbar from './ImageEditToolbar.vue'
 import ImageCropOverlay from './ImageCropOverlay.vue'
+import ImageAnnotateOverlay from './ImageAnnotateOverlay.vue'
 import SaveImageDialog from '../dialogs/SaveImageDialog.vue'
 
 const log = (message: string, ...args: any[]) => {
@@ -364,6 +381,31 @@ function enterCropMode() {
   resetView()
   layoutTick.value++
   props.edit?.startCrop()
+}
+
+// ── 标注接线 ─────────────────────────────────────────────────────────────────
+const annotateOverlayRef = ref<InstanceType<typeof ImageAnnotateOverlay> | null>(null)
+
+/** 标注模式进入/退出切换（复位视图同裁剪限制）。 */
+function toggleAnnotateMode() {
+  if (!props.edit) return
+  if (props.edit.mode.value === 'annotate') {
+    props.edit.exitAnnotate()
+    return
+  }
+  resetView()
+  layoutTick.value++
+  props.edit.startAnnotate()
+}
+
+/** 保存标注：从浮层导出 natural 空间 overlay → VM 进入保存对话框。 */
+function applyAnnotate() {
+  const overlayBase64 = annotateOverlayRef.value?.exportOverlay() ?? null
+  if (!overlayBase64 || !props.edit || imageDimensions.value.width === 0) return
+  props.edit.requestAnnotateApply({
+    overlayBase64,
+    referenceWidth: imageDimensions.value.width
+  })
 }
 
 // 视口/缩放变化重算布局（ResizeObserver 兜底窗口拖拽）

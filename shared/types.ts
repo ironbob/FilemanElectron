@@ -466,6 +466,20 @@ export interface ReadChunkResult {
   fileSize: number
 }
 
+// ============ Hex Save（hex 编辑保存：编辑日志净效果片段） ============
+// 传输量 ∝ 编辑量（非文件大小）；main 端按序流式生成临时文件后原子
+// rename 覆盖源文件（P0 仅本机设备）。
+
+/** 保存片段：base = 复制源文件区间；edit = 写入编辑字节（base64）。 */
+export type HexSavePiece =
+  | { kind: 'base'; start: number; length: number }
+  | { kind: 'edit'; base64: string }
+
+export interface SaveHexFileResult {
+  /** 新文件总字节数（= 保存时逻辑文档大小）。 */
+  bytesWritten: number
+}
+
 // ============ Image Edit（图片预览编辑：裁剪/压缩/批量） ============
 // 值对象组（ROLE-D01）+ 批量进度事件（ROLE-D02）。
 // 仅 local 设备；处理在主进程 ImageEditService（sharp，SIPS 格式先经
@@ -504,9 +518,18 @@ export interface EditSaveSpec {
   format?: 'jpeg' | 'webp'
 }
 
+/** 标注层（透明 PNG，与原图等比）；坐标空间宽 = referenceWidth（与 EditCrop 同机制）。 */
+export interface EditAnnotate {
+  /** base64 PNG（无 data: 前缀），高度按图像纵横比生成 */
+  overlayBase64: string
+  referenceWidth: number
+}
+
 export interface EditOps {
   crop?: EditCrop
   compress?: EditCompressParams
+  /** 标注烘焙；与 crop 互斥（UI 保证不同时发送，service 端防御） */
+  annotate?: EditAnnotate
 }
 
 export interface EditEstimateResult {

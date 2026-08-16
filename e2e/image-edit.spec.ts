@@ -7,6 +7,14 @@ import { expect, test } from '@playwright/test'
 // 4. 集合会话（目录右键预览所有图片）→ 批量入口 + 批量改名对话框（预览/冲突禁提交）
 // 注：sharp/sips 真实管道由真机 CDP 手动验证（见架构文档验证证据）。
 
+
+/** 编辑工具条默认收起：先点右下角按钮展开 */
+async function expandEditToolbar(page: import('@playwright/test').Page) {
+  const btn = page.getByRole('button', { name: 'Expand edit toolbar' })
+  if (await btn.isVisible().catch(() => false)) await btn.click()
+  await page.waitForTimeout(200)
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const operations: any[] = []
@@ -22,8 +30,7 @@ test.beforeEach(async ({ page }) => {
         return [{ name: 'docs', path: '/docs', isDirectory: true, isFile: false, size: 0, modifiedTime: '2026-08-16T10:00:00Z', extension: '' }]
       },
       search: async () => [imageFile('a.png'), imageFile('b.png')],
-      readFile: async () =>
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      readFile: async () => 'iVBORw0KGgoAAAANSUhEUgAAAMgAAAB4CAIAAAA48Cq8AAABTElEQVR4nO3SUQkAIBTAQIO9/hjLEg5BDi7APrb2DFy3nhfwJWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFgljkTAWCWORMBYJY5EwFokDDtc23OlfnesAAAAASUVORK5CYII=',
       getStats: async (_deviceId: string, path: string) => ({
         size: 100, isDirectory: path === '/docs', isFile: path !== '/docs',
         modifiedTime: '', createdTime: '', mode: 0
@@ -74,7 +81,7 @@ test('double-click image opens preview tab with edit toolbar', async ({ page }) 
   await page.waitForSelector('[data-file-path="/docs/a.png"]')
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
-  await expect(page.getByRole('toolbar', { name: '图片编辑' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Expand edit toolbar' })).toBeVisible()
 })
 
 test('crop mode enters with overlay and Esc exits', async ({ page }) => {
@@ -82,6 +89,7 @@ test('crop mode enters with overlay and Esc exits', async ({ page }) => {
   await page.waitForSelector('[data-file-path="/docs/a.png"]')
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
+  await expandEditToolbar(page)
   await page.getByRole('toolbar', { name: '图片编辑' }).getByTitle('裁剪').click()
   await expect(page.getByText('在图片上拖拽选择裁剪区域')).toBeVisible()
   await page.keyboard.press('Escape')
@@ -93,6 +101,7 @@ test('compress opens save dialog and confirm calls imageEdit.apply', async ({ pa
   await page.waitForSelector('[data-file-path="/docs/a.png"]')
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
+  await expandEditToolbar(page)
   await page.getByRole('toolbar', { name: '图片编辑' }).getByTitle('压缩').click()
   await expect(page.getByText('保存图片')).toBeVisible()
   await page.getByRole('button', { name: '保存' }).click()
@@ -111,6 +120,7 @@ test('collection session shows batch entries and rename dialog validates conflic
   await page.getByText('图片', { exact: true }).hover()
   await page.getByText('预览所有图片').click()
   await page.waitForTimeout(800)
+  await expandEditToolbar(page)
   await expect(page.getByRole('toolbar', { name: '图片编辑' })).toBeVisible()
   await expect(page.getByText('批量压缩')).toBeVisible()
   await expect(page.getByText('批量改名')).toBeVisible()
@@ -132,6 +142,7 @@ test('batch compress dialog starts batch task', async ({ page }) => {
   await page.getByText('图片', { exact: true }).hover()
   await page.getByText('预览所有图片').click()
   await page.waitForTimeout(800)
+  await expandEditToolbar(page)
   await page.getByRole('toolbar', { name: '图片编辑' }).getByText('批量压缩').click()
   await expect(page.getByRole('heading', { name: '批量压缩' })).toBeVisible()
   await page.getByRole('button', { name: '压缩 2 张' }).click()
@@ -141,4 +152,47 @@ test('batch compress dialog starts batch task', async ({ page }) => {
   const batchCall = ops.find((o: any) => o.kind === 'imageEdit.batchStart')
   expect(batchCall).toBeTruthy()
   expect(batchCall.request.items).toHaveLength(2)
+})
+
+test('edit toolbar collapsed by default and toggles manually via bottom-right button', async ({ page }) => {
+  await page.locator('[data-file-path="/docs"]').dblclick()
+  await page.waitForSelector('[data-file-path="/docs/a.png"]')
+  await page.locator('[data-file-path="/docs/a.png"]').dblclick()
+  await page.waitForTimeout(600)
+  const toggle = page.getByRole('button', { name: 'Expand edit toolbar' })
+  await expect(toggle).toBeVisible()
+  // 默认收起：底部工具条不存在
+  await expect(page.getByRole('toolbar', { name: '图片编辑' })).toHaveCount(0)
+  // 点击展开
+  await toggle.click()
+  await expect(page.getByRole('toolbar', { name: '图片编辑' })).toBeVisible()
+  await expect(page.getByTitle('裁剪')).toBeVisible()
+  // 再点收起
+  await page.getByRole('button', { name: 'Collapse edit toolbar' }).click()
+  await expect(page.getByRole('toolbar', { name: '图片编辑' })).toHaveCount(0)
+})
+
+test('annotate mode draws a rect and save calls apply with annotate op', async ({ page }) => {
+  await page.locator('[data-file-path="/docs"]').dblclick()
+  await page.waitForSelector('[data-file-path="/docs/a.png"]')
+  await page.locator('[data-file-path="/docs/a.png"]').dblclick()
+  await page.waitForTimeout(600)
+  await page.getByRole('button', { name: 'Expand edit toolbar' }).click()
+  await page.getByTitle('标注').click()
+  // 默认工具 = 箭头；切矩形
+  await page.getByTitle('矩形').click()
+  const container = await page.locator('.image-container').boundingBox()
+  if (container) {
+    await page.mouse.move(container.x + container.width / 2 - 50, container.y + container.height / 2 - 30)
+    await page.mouse.down()
+    await page.mouse.move(container.x + container.width / 2 + 50, container.y + container.height / 2 + 30, { steps: 5 })
+    await page.mouse.up()
+  }
+  await page.getByRole('button', { name: '保存标注' }).click()
+  await expect(page.getByText('保存图片')).toBeVisible()
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+  await page.waitForTimeout(400)
+  const ops = await page.evaluate(() => (window as any).__ops)
+  const applyCall = ops.filter((o: any) => o.kind === 'imageEdit.apply').pop()
+  expect(applyCall?.ops?.annotate?.overlayBase64?.length).toBeGreaterThan(100)
 })

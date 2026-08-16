@@ -66,7 +66,7 @@ export class ImageEditService {
   async apply(filePath: string, ops: EditOps, save: EditSaveSpec): Promise<EditApplyResult> {
     const t0 = Date.now()
     log.info('[ImageEdit] apply start', { filePath, crop: !!ops.crop, compress: !!ops.compress, mode: save.mode })
-    if (!ops.crop && !ops.compress) throw new Error('编辑操作为空')
+    if (!ops.crop && !ops.compress && !ops.annotate) throw new Error('编辑操作为空')
 
     const { pipeline, format: inputFormat } = await this.buildPipeline(filePath, ops)
     const outFormat = this.resolveOutFormat(save, ops, inputFormat)
@@ -171,6 +171,29 @@ export class ImageEditService {
 
     let pipeline = sharp(input, { limitInputPixels: 263409300 }) // 约 16k x 16k 上限
     const meta = await pipeline.metadata()
+
+    if (ops.crop && ops.annotate) {
+      throw new Error('crop 与 annotate 互斥，请分别保存')
+    }
+
+    // 标注烘焙：overlay（referenceWidth 空间）等比缩放到解码后的图像尺寸后合成
+    if (ops.annotate && meta.width && meta.height) {
+      const overlayInput = Buffer.from(ops.annotate.overlayBase64, 'base64')
+      const overlayMeta = await sharp(overlayInput).metadata()
+      const targetW = meta.width
+      const targetH = meta.height
+      // referenceWidth → 解码宽度等比（overlay 与原图等比，纵横比一致；fit:fill 精确对齐像素）
+      const resized = await sharp(overlayInput)
+        .resize(targetW, targetH, { fit: 'fill' })
+        .png()
+        .toBuffer()
+      pipeline = pipeline.composite([{ input: resized, left: 0, top: 0 }])
+      log.info('[ImageEdit] annotate composite', {
+        filePath,
+        overlay: `${overlayMeta.width}x${overlayMeta.height}`,
+        target: `${targetW}x${targetH}`
+      })
+    }
 
     if (ops.crop && meta.width) {
       const crop = ops.crop
