@@ -22,6 +22,12 @@ export interface ImageLayout {
   fitMode: CropFitMode
   /** 用户缩放倍数（fitMode 下通常为 1；actual/放大态有效） */
   scale?: number
+  /**
+   * 实测显示矩形（相对容器，来自 getBoundingClientRect）。
+   * 提供时优先于 fitMode 推导——宿主对 img 施加 transform（平移/缩放）时，
+   * 实测值是唯一可靠事实源。
+   */
+  displayedRect?: Rect
 }
 
 export interface Rect {
@@ -33,6 +39,7 @@ export interface Rect {
 
 /** 计算图像在容器内的可见窗口（显示坐标，可能溢出容器为负起点）。 */
 export function displayedImageRect(layout: ImageLayout): Rect {
+  if (layout.displayedRect) return layout.displayedRect
   const scale = layout.scale ?? 1
   const drawW = layout.naturalWidth * scale
   const drawH = layout.naturalHeight * scale

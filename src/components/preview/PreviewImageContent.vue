@@ -19,8 +19,22 @@
 
     <!-- Image Content -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
+      <!-- 编辑工具条（左上；仅 local 可编辑图片显示；hover 显现） -->
+      <ImageEditToolbar
+        v-if="edit"
+        class="absolute top-2 left-2"
+        :editable="edit.editable.value"
+        :collection="edit.hasCollection.value"
+        :mode="edit.mode.value"
+        :running="edit.batchRunning.value"
+        @crop="enterCropMode"
+        @compress="edit.requestCompress()"
+        @batch-compress="edit.openBatchCompress()"
+        @batch-rename="edit.openRename()"
+      />
+
       <!-- Toolbar -->
-      <div class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1">
+      <div v-if="edit?.mode.value !== 'crop'" class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1">
         <!-- Zoom Controls -->
         <button
           class="finder-icon-button"
@@ -88,7 +102,8 @@
 
       <!-- Image Container -->
       <div
-        class="flex-1 overflow-hidden flex items-center justify-center p-4 image-container cursor-grab"
+        ref="imageContainerRef"
+        class="flex-1 overflow-hidden flex items-center justify-center p-4 image-container cursor-grab relative"
         @wheel="handleWheel"
         @mousedown="startDrag"
         @mousemove="handleDrag"
@@ -106,6 +121,15 @@
           @error="handleImageError"
           draggable="false"
         />
+
+        <!-- 裁剪浮层（几何映射用实测 img rect，进入裁剪自动复位视图/旋转） -->
+        <ImageCropOverlay
+          v-if="edit && edit.mode.value === 'crop'"
+          v-model="cropDisplayRect"
+          :layout="cropLayout"
+          @cancel="edit.exitCrop()"
+          @apply="edit.requestCropApply()"
+        />
       </div>
 
       <!-- File Info -->
@@ -118,9 +142,25 @@
               {{ imageDimensions.width }} x {{ imageDimensions.height }}
             </span>
           </div>
+          <span v-if="edit?.error.value" class="text-xs text-red-400 truncate max-w-[40%]" :title="edit.error.value">{{ edit.error.value }}</span>
         </div>
       </div>
     </div>
+
+    <!-- 保存对话框（覆盖/另存 + 格式质量 + 预估体积） -->
+    <SaveImageDialog
+      v-if="edit && edit.saveDialogVisible.value"
+      :file-name="file.name"
+      :source-bytes="file.size"
+      :estimate="edit.estimate.value"
+      :estimating="edit.estimating.value"
+      :applying="edit.applying.value"
+      :error="edit.error.value"
+      :compress-default="edit.pendingCompress.value"
+      @close="edit.closeSaveDialog()"
+      @params-change="edit.refreshEstimate"
+      @confirm="edit.confirmSave"
+    />
   </div>
 </template>
 
@@ -130,7 +170,12 @@ import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import type { ImageFitMode } from '@/types/preview'
 import { needsNativeDecode } from '@/utils/fileTypes'
+import { displayedToSourceRect, type ImageLayout, type Rect } from '@/utils/cropGeometry'
+import type { ImageEditController } from '@/composables/useImageEdit'
 import IconfontIcon from './IconfontIcon.vue'
+import ImageEditToolbar from './ImageEditToolbar.vue'
+import ImageCropOverlay from './ImageCropOverlay.vue'
+import SaveImageDialog from '../dialogs/SaveImageDialog.vue'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewImageContent] ${message}`, ...args)
@@ -139,6 +184,8 @@ const log = (message: string, ...args: any[]) => {
 const props = defineProps<{
   file: FileInfo
   deviceId: string
+  /** 编辑控制器（PreviewView 创建，经 Router 下传；QuickLook 无） */
+  edit?: ImageEditController
 }>()
 
 // Loading state
@@ -147,6 +194,7 @@ const hasError = ref(false)
 const errorMessage = ref('')
 const imageSrc = ref('')
 const imageRef = ref<HTMLImageElement | null>(null)
+const imageContainerRef = ref<HTMLElement | null>(null)
 const imageDimensions = ref({ width: 0, height: 0 })
 
 // Image manipulation state
@@ -265,6 +313,8 @@ function handleImageLoad(e: Event) {
     width: img.naturalWidth,
     height: img.naturalHeight
   }
+  props.edit?.setNaturalSize(img.naturalWidth)
+  layoutTick.value++
   log('Image loaded, dimensions:', imageDimensions.value)
 }
 
@@ -273,6 +323,60 @@ function handleImageError(e: Event) {
   hasError.value = true
   errorMessage.value = 'Failed to display image'
 }
+
+// ── 裁剪接线（几何事实源 = 实测 img rect，规避 transform/object-fit 数学） ─────
+// 裁剪显示矩形（overlay v-model）；提交给 VM 的始终是源像素矩形。
+const cropDisplayRect = ref<Rect | null>(null)
+const layoutTick = ref(0)
+
+const cropLayout = computed<ImageLayout>(() => {
+  layoutTick.value // 依赖：加载/缩放/视口变化时 bump
+  const container = imageContainerRef.value
+  const img = imageRef.value
+  const dims = imageDimensions.value
+  if (!container || !img || dims.width === 0) {
+    return { containerWidth: 1, containerHeight: 1, naturalWidth: dims.width || 1, naturalHeight: dims.height || 1, fitMode: fitMode.value }
+  }
+  const cRect = container.getBoundingClientRect()
+  const iRect = img.getBoundingClientRect()
+  return {
+    containerWidth: cRect.width,
+    containerHeight: cRect.height,
+    naturalWidth: dims.width,
+    naturalHeight: dims.height,
+    fitMode: fitMode.value,
+    displayedRect: {
+      x: iRect.left - cRect.left,
+      y: iRect.top - cRect.top,
+      width: iRect.width,
+      height: iRect.height
+    }
+  }
+})
+
+watch(cropDisplayRect, rect => {
+  if (!rect || !props.edit) return
+  props.edit.setCropRect(displayedToSourceRect(rect, cropLayout.value))
+})
+
+function enterCropMode() {
+  // 裁剪前复位视图：旋转/缩放态下的裁剪几何不支持（已知限制）
+  resetView()
+  layoutTick.value++
+  props.edit?.startCrop()
+}
+
+// 视口/缩放变化重算布局（ResizeObserver 兜底窗口拖拽）
+let resizeObserver: ResizeObserver | null = null
+watch(imageContainerRef, el => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (el) {
+    resizeObserver = new ResizeObserver(() => { layoutTick.value++ })
+    resizeObserver.observe(el)
+  }
+})
+onUnmounted(() => resizeObserver?.disconnect())
 
 // Zoom controls
 function zoomIn() {
@@ -385,7 +489,8 @@ function endDrag() {
 
 // Watch for file changes
 watch(() => props.file, (newFile, oldFile) => {
-  if (newFile && newFile.path !== oldFile?.path) {
+  // 覆盖保存后 path 不变但 size 变化 → 同样重载（IFC-7 后置条件）
+  if (newFile && (newFile.path !== oldFile?.path || newFile.size !== oldFile?.size)) {
     loadImage()
   }
 }, { immediate: true })

@@ -46,7 +46,11 @@ export function buildRenameItems(files: RenameInput[], rule: RenameRule): BuildR
   }
 
   const seq = rule.sequence ?? { start: 1, step: 1, pad: 0 }
-  const seen = new Map<string, string>() // newName -> sourcePath（首个占有者）
+  const seen = new Map<string, string>() // 改名输出 newName -> sourcePath（首个占有者）
+  const originals = new Map<string, string>() // 原名 -> sourcePath（未改名项也参与撞名判定）
+  for (const f of files) {
+    if (!originals.has(f.name)) originals.set(f.name, f.path)
+  }
   const conflicts = new Set<string>()
   const items: RenamePreviewItem[] = []
 
@@ -71,9 +75,14 @@ export function buildRenameItems(files: RenameInput[], rule: RenameRule): BuildR
       items.push({ sourcePath: file.path, newName })
       return
     }
-    const holder = seen.get(newName)
-    if (holder !== undefined) {
-      conflicts.add(holder)
+    // 撞名判定：与其他改名输出冲突，或与某个未改名的既有文件冲突
+    const outputHolder = seen.get(newName)
+    const originalHolder = originals.get(newName)
+    if (outputHolder !== undefined && outputHolder !== file.path) {
+      conflicts.add(outputHolder)
+      conflicts.add(file.path)
+    } else if (originalHolder !== undefined && originalHolder !== file.path) {
+      conflicts.add(originalHolder)
       conflicts.add(file.path)
     } else {
       seen.set(newName, file.path)

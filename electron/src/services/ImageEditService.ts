@@ -14,7 +14,7 @@ import type {
 } from '@shared/types'
 import { SessionTaskRegistry, type TaskHandle } from './support/SessionTaskRegistry'
 import { resolveOutputPath } from './support/imageEditNaming'
-import { SIPS_IMAGE_EXTS, SHARP_IMAGE_EXTS, isEditableImageExt } from '@shared/fileKinds'
+import { SIPS_IMAGE_EXTS, isEditableImageExt } from '@shared/fileKinds'
 import type { DecodedImage, ImageDecodeService } from './ImageDecodeService'
 
 const log = console
@@ -160,7 +160,7 @@ export class ImageEditService {
 
     let input: Buffer
     let format = ext
-    if (SIPS_INPUT_EXTS.has(ext)) {
+    if (SIPS_IMAGE_EXTS.has(ext)) {
       const decoded: DecodedImage = await this.decoder.decodeToRaster('local', filePath, { maxDim: EDIT_DECODE_MAX_DIM })
       input = Buffer.from(decoded.buffer, 'base64')
       format = 'jpeg' // sips 输出 JPEG 光栅

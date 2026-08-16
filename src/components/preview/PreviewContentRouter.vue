@@ -18,6 +18,7 @@
     v-else-if="type === 'image'"
     :file="file"
     :device-id="deviceId"
+    :edit="edit"
   />
   <PreviewVideoContent
     v-else-if="type === 'video'"
@@ -75,6 +76,7 @@ import PreviewPdfContent from './PreviewPdfContent.vue'
 import PreviewZipContent from './PreviewZipContent.vue'
 import PreviewHexContent from './PreviewHexContent.vue'
 import { usePreviewStore } from '@/stores/preview'
+import type { ImageEditController } from '@/composables/useImageEdit'
 
 const props = defineProps<{
   file: FileInfo
@@ -83,6 +85,8 @@ const props = defineProps<{
   initialLine?: number
   /** 强制内容类型（显式入口；覆盖扩展名推断与 initialLine）。 */
   forceType?: PreviewType
+  /** 图片编辑控制器（PreviewView 创建；仅图片内容消费，QuickLook 不传）。 */
+  edit?: ImageEditController
 }>()
 
 // 优先级：forceType > initialLine（grep 命中按文本渲染——grep 已证明内容

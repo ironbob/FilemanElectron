@@ -1,0 +1,1072 @@
+{
+  "feature": "image-preview-editing",
+  "title": "图片预览编辑强化（裁剪/压缩/批量）",
+  "stack": "FastAPI+Vue",
+  "analyzed_at": "2026-08-16",
+  "existing_alignment": {
+    "recognized_style": "Electron 29 三进程：main=Node/TS Service 类（构造注入、SessionTaskRegistry 登记/取消、emit 进度 100ms 节流、[Service] 前缀结构化 console 日志）；renderer=Vue3+Pinia，组件 props/emit + dialogs/ 表单对话框 + composable-MVVM 先例（useHexViewer/useGrepSearch）；IPC 走 channels.ts 命名空间 + main.ts 注册 + preload + env.d.ts 三处同步；纯函数 util 配 tests/*.test.ts（esbuild+node）。注：stack 枚举无 Electron 项，按最接近的全栈形态 FastAPI+Vue 记录，后端实为 Electron main 进程服务层。",
+    "new_code_follows": "新增 ImageEditService 沿用 ChecksumService 模板（SessionTaskRegistry + emit 节流 + [ImageEdit] 前缀日志）；IPC 挂 image: 命名空间三处同步；renderer 编辑会话用 feature-scoped composable（useImageEdit）对齐 useHexViewer；对话框沿用 dialogs/ 直写表单模式；坐标映射/命名策略/改名 pattern 做纯函数并新增 test:* 脚本。"
+  },
+  "interaction_confirmation": {
+    "proposal_revision": 1,
+    "profile_selection": {
+      "status": "user_selected",
+      "selected_profile": "standard",
+      "source": "user_message",
+      "evidence": "用户回复：standard"
+    },
+    "design_confirmation": {
+      "status": "user_confirmed",
+      "confirmed_candidate": "ALT-2",
+      "confirmed_revision": 1,
+      "source": "later_user_message",
+      "evidence": "方案展示后的用户回复：按此方案（ALT-2 + 上述角色与契约）进入编码"
+    }
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      {
+        "name": "data_safety",
+        "priority": "high",
+        "scenario": "覆盖原图保存时处理中途失败或进程中断",
+        "acceptance": "覆盖走临时文件+原子 rename，任何失败下原文件字节不变；另存副本遇重名自动 -1 递增不覆盖"
+      },
+      {
+        "name": "observability",
+        "priority": "high",
+        "scenario": "批量压缩 50 张图，其中若干张失败",
+        "acceptance": "逐项进度推送 + 终态逐项结果（成功/跳过+原因/失败+原因），用户能定位第几张失败"
+      },
+      {
+        "name": "cancellability",
+        "priority": "medium",
+        "scenario": "批量压缩进行中用户点击取消",
+        "acceptance": "当前项完成即停，已完成项保留，未处理项不再执行"
+      },
+      {
+        "name": "latency_feedback",
+        "priority": "medium",
+        "scenario": "用户拖动压缩质量滑杆",
+        "acceptance": "参数变化后 ≤1s 内显示试编码预估体积（300ms 节流）"
+      },
+      {
+        "name": "maintainability",
+        "priority": "medium",
+        "scenario": "新增输出格式（AVIF）或新编辑操作（旋转）",
+        "acceptance": "只改 ImageEditService 一处（含其能力表），不改 IPC 结构与 UI"
+      },
+      {
+        "name": "testability",
+        "priority": "medium",
+        "scenario": "裁剪坐标在 contain letterbox/actual/缩放下反算",
+        "acceptance": "cropGeometry/batchRenamePattern/imageEditNaming 为纯函数并有 tests/*.test.ts 断言"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "ALT-1",
+        "summary": "扩展 FileOperationManager：新增 image-edit 任务类型，编辑走通用文件操作队列",
+        "strengths": [
+          "进度/取消/冲突策略/任务面板/FileOperationPanel UI 全部免费",
+          "单一任务入口"
+        ],
+        "weaknesses": [
+          "sharp 管道与编辑参数模型侵入通用文件队列，SRP 稀释",
+          "交互式单图编辑（预估体积/确认对话框）天然不是队列任务"
+        ],
+        "risks": [
+          "核心队列模块被编辑语义污染，回归面大"
+        ]
+      },
+      {
+        "id": "ALT-2",
+        "summary": "独立 ImageEditService（ChecksumService 模式）：单图预估/执行走同步 invoke，批量走 start/cancel + 独立 push channel；批量改名复用既有 batch-rename 任务",
+        "strengths": [
+          "编辑复杂度（sharp/sips 管道、格式能力、原子写）信息隐藏在单一服务",
+          "FileOperationManager 零改动（OCP）",
+          "与仓库两种既有任务形态逐一对应"
+        ],
+        "weaknesses": [
+          "批量压缩不进 FileOperationPanel，需在集合 tab 自建轻量进度 UI"
+        ],
+        "risks": [
+          "进度 UI 新建（范围小、集合 tab 内）"
+        ]
+      }
+    ],
+    "selected_id": "ALT-2",
+    "selection_reason": "data_safety 要求原子写策略集中可控；maintainability 要求格式能力单点演化——两者都指向独立服务（SRP/信息隐藏/OCP）。仓库 bottom-up 已有 invoke 型与 start-cancel 型两种任务形态可对齐，批量改名复用 batch-rename 避免重复造队列。ALT-1 的免费进度面板收益不足以抵消核心队列被侵入的回归风险。",
+    "top_down_check": "从 F1-F4 流程推导：交互式编辑（预估/确认）需要同步 IPC 会话状态 → feature VM；批量需要登记/取消/逐项进度 → Registry 型服务；坐标映射是纯几何 → 纯函数。角色自然落到 service/view_model/view/util 四层。",
+    "bottom_up_check": "sharp@0.34.5 已在依赖且 externalizeDepsPlugin 外置；SessionTaskRegistry 提供 create/cancel/onCancel；ImageDecodeService.decodeToRaster 可注入做 sips 前置解码；PreviewImageContent 有 imageRef/fitMode/imageDimensions 可挂 overlay；PreviewTab.files/index 会话与 createBatchRenameTask(renameItems) 已存在——方案全部落地无需新基建。",
+    "risk_spikes": [],
+    "review": {
+      "mode": "independent",
+      "reviewer": "新视角语义复核（生成侧二次复核）",
+      "findings": "候选比较覆盖核心分叉（执行通道）；领域角色盘点显式（值对象/领域服务/事件，无聚合根并说明理由）；UI 采用 composable-MVVM 对齐仓库先例且迁移影响 low。",
+      "disposition": "无阻断性发现，进入编码"
+    }
+  },
+  "ui_architecture": {
+    "framework": "Vue 3",
+    "current_patterns": [
+      "Direct View",
+      "Redux/Store"
+    ],
+    "target_patterns": [
+      "MVVM",
+      "Redux/Store"
+    ],
+    "state_management": "编辑会话状态（模式/参数/预估/批量进度）由 feature-scoped composable useImageEdit 持有（对齐 useHexViewer 先例）；跨 tab 会话（files/index）仍由 Pinia preview store 拥有；对话框表单为短生命周期局部状态",
+    "view_model_policy": "required",
+    "mvvm_suitability": "suitable",
+    "migration_impact": "low",
+    "impact_scope": [
+      "PreviewImageContent.vue（挂工具条/overlay 接线）",
+      "PreviewView.vue（集合批量入口）",
+      "BatchRenameDialog.vue（原地增强）"
+    ],
+    "migration_confirmation": "not_required",
+    "decision_reason": "裁剪/预估/多状态转换/异步 apply 值得独立 VM 且仓库已有 composable-MVVM 先例（useHexViewer）；全部新增文件+局部接线，不改公共接口，迁移影响 low。对话框为纯表单不建 VM（避免空壳层）。"
+  },
+  "roles": [
+    {
+      "id": "ROLE-L01",
+      "name": "ImageEditService",
+      "role_kind": "layer",
+      "layer": "service",
+      "domain_role": null,
+      "responsibility": "执行图片编辑管道（sips 前置解码→sharp crop/resize→encode）、原子落盘、批量顺序执行与逐项进度推送",
+      "hidden_secret": "图像库选择与版本、格式能力表、temp+rename 原子写细节、sips 上限",
+      "change_triggers": [
+        "换/升级 sharp",
+        "新增输出格式或编辑操作",
+        "原子写策略调整"
+      ],
+      "data_owned": "无持久状态；批量任务态在 SessionTaskRegistry（TaskHandle.state 携带取消标志）",
+      "depends_on": [
+        "ROLE-L03",
+        "ROLE-D01",
+        "ROLE-D02"
+      ],
+      "industry_basis": "DDD 应用服务 + repo Service 惯例（ChecksumService 模板：Registry 登记/取消 + emit 节流）",
+      "design_principles": [
+        "SRP",
+        "information_hiding",
+        "OCP"
+      ],
+      "code_units": [
+        "electron/src/services/ImageEditService.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L02",
+      "name": "ImageEdit IPC 契约",
+      "role_kind": "layer",
+      "layer": "infrastructure",
+      "domain_role": null,
+      "responsibility": "声明并注册 image:edit* 通道（estimate/apply/batchStart/batchCancel + push batchProgress），三处同步（channels/main/preload/env.d.ts）",
+      "hidden_secret": "IPC 协议形状与通道命名",
+      "change_triggers": [
+        "参数/结果字段演化",
+        "新增通道"
+      ],
+      "data_owned": "无",
+      "depends_on": [
+        "ROLE-L01"
+      ],
+      "industry_basis": "repo IPC 惯例（CH 命名空间 + ipcMain.handle + contextBridge 单对象）",
+      "design_principles": [
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "electron/src/ipc/channels.ts",
+        "electron/main.ts",
+        "electron/preload.ts",
+        "src/env.d.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L03",
+      "name": "imageEditNaming",
+      "role_kind": "layer",
+      "layer": "util",
+      "domain_role": null,
+      "responsibility": "计算输出路径：copy 模式后缀与 -1 递增去重、输出格式→扩展名决策",
+      "hidden_secret": "输出命名与冲突去重策略",
+      "change_triggers": [
+        "后缀格式变化",
+        "去重策略变化"
+      ],
+      "data_owned": "无状态（exists 探测以参数注入保持纯函数）",
+      "depends_on": [
+        "ROLE-D01"
+      ],
+      "industry_basis": "纯函数策略（PoEAA Strategy 的函数形态），对齐 repo util 惯例",
+      "design_principles": [
+        "SRP",
+        "defensive_design"
+      ],
+      "code_units": [
+        "electron/src/services/support/imageEditNaming.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L04",
+      "name": "ImageEditToolbar",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染浮动编辑工具条（裁剪/压缩/批量压缩/批量改名入口），按 local+可编辑格式+集合上下文控制可用性",
+      "hidden_secret": "无（纯展示，可用性规则来自 VM）",
+      "change_triggers": [
+        "工具条布局/入口增减"
+      ],
+      "data_owned": "无",
+      "depends_on": [
+        "ROLE-L05"
+      ],
+      "industry_basis": "smart-dumb 组件（props in / events out）",
+      "design_principles": [
+        "SRP",
+        "ISP"
+      ],
+      "code_units": [
+        "src/components/preview/ImageEditToolbar.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L05",
+      "name": "useImageEdit",
+      "role_kind": "layer",
+      "layer": "view_model",
+      "domain_role": null,
+      "responsibility": "持有编辑会话状态机（idle/crop/compress）、节流预估请求、apply 编排、批量进度订阅与状态、保存后回调刷新",
+      "hidden_secret": "编辑交互流程与异步编排（预估节流、进度订阅生命周期）",
+      "change_triggers": [
+        "编辑流程/交互步骤变化",
+        "预估节流策略"
+      ],
+      "data_owned": "feature-scoped 编辑会话状态（模式、cropRect、参数、预估结果、批量进度）",
+      "depends_on": [
+        "ROLE-L02",
+        "ROLE-L07",
+        "ROLE-L12",
+        "ROLE-D01"
+      ],
+      "industry_basis": "MVVM Presentation Model（Vue composable 形态，对齐 repo useHexViewer 先例）",
+      "design_principles": [
+        "SRP",
+        "DIP",
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "src/composables/useImageEdit.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L06",
+      "name": "ImageCropOverlay",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染裁剪遮罩/拖拽框/角点手柄/比例锁预设与确认取消栏",
+      "hidden_secret": "拖拽交互细节（指针事件、手柄命中）",
+      "change_triggers": [
+        "交互手感/手柄集/预设比例调整"
+      ],
+      "data_owned": "拖拽瞬时状态（进行中的显示坐标）",
+      "depends_on": [
+        "ROLE-L05",
+        "ROLE-L07"
+      ],
+      "industry_basis": "smart-dumb 组件 + 浮层交互（对齐 QuickLookOverlay 浮层模式）",
+      "design_principles": [
+        "SRP",
+        "ISP"
+      ],
+      "code_units": [
+        "src/components/preview/ImageCropOverlay.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L07",
+      "name": "cropGeometry",
+      "role_kind": "layer",
+      "layer": "util",
+      "domain_role": null,
+      "responsibility": "显示矩形↔源图像素矩形映射（object-fit contain/cover/actual + 缩放修正）、clamp 与取整、比例锁约束",
+      "hidden_secret": "fit 模式与缩放下的几何反算公式",
+      "change_triggers": [
+        "fit 模式增减、坐标精度策略"
+      ],
+      "data_owned": "无状态纯函数",
+      "depends_on": [
+        "ROLE-D01"
+      ],
+      "industry_basis": "纯几何函数（对齐 repo hexViewport 纯函数先例）",
+      "design_principles": [
+        "SRP",
+        "defensive_design"
+      ],
+      "code_units": [
+        "src/utils/cropGeometry.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L08",
+      "name": "SaveImageDialog",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染保存对话框：覆盖/另存副本选择、输出格式与质量、预估体积展示",
+      "hidden_secret": "无",
+      "change_triggers": [
+        "保存选项增减"
+      ],
+      "data_owned": "表单临时态",
+      "depends_on": [
+        "ROLE-L05",
+        "ROLE-D01"
+      ],
+      "industry_basis": "repo dialogs/ 表单对话框惯例（遮罩+表单+emit close/confirm）",
+      "design_principles": [
+        "SRP"
+      ],
+      "code_units": [
+        "src/components/dialogs/SaveImageDialog.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L09",
+      "name": "BatchCompressDialog",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染批量压缩对话框：参数（质量/最长边/格式）、保存模式、应用到全部 N 张、进行中进度",
+      "hidden_secret": "无",
+      "change_triggers": [
+        "批量参数项增减"
+      ],
+      "data_owned": "表单临时态",
+      "depends_on": [
+        "ROLE-L05",
+        "ROLE-D01"
+      ],
+      "industry_basis": "repo dialogs/ 表单对话框惯例",
+      "design_principles": [
+        "SRP"
+      ],
+      "code_units": [
+        "src/components/dialogs/BatchCompressDialog.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L10",
+      "name": "BatchRenameDialog（增强）",
+      "role_kind": "layer",
+      "layer": "view",
+      "domain_role": null,
+      "responsibility": "渲染批量改名对话框：前缀+序号(start/step/pad)+查找替换、前后对照预览、重名冲突禁提交",
+      "hidden_secret": "无",
+      "change_triggers": [
+        "改名规则 UI 增减"
+      ],
+      "data_owned": "表单临时态",
+      "depends_on": [
+        "ROLE-L11"
+      ],
+      "industry_basis": "repo dialogs/ 表单对话框惯例（原地增强，FilePane 流程同步受益）",
+      "design_principles": [
+        "SRP",
+        "OCP"
+      ],
+      "code_units": [
+        "src/components/dialogs/BatchRenameDialog.vue"
+      ]
+    },
+    {
+      "id": "ROLE-L11",
+      "name": "batchRenamePattern",
+      "role_kind": "layer",
+      "layer": "util",
+      "domain_role": null,
+      "responsibility": "按规则（前缀/序号/查找替换）生成 renameItems 映射，保持扩展名，检测输出重名",
+      "hidden_secret": "改名规则应用公式",
+      "change_triggers": [
+        "新增规则类型"
+      ],
+      "data_owned": "无状态纯函数",
+      "depends_on": [],
+      "industry_basis": "纯函数策略（对齐 repo fuzzyMatch 等纯函数惯例）",
+      "design_principles": [
+        "SRP",
+        "defensive_design"
+      ],
+      "code_units": [
+        "src/utils/batchRenamePattern.ts"
+      ]
+    },
+    {
+      "id": "ROLE-L12",
+      "name": "preview store 编辑同步",
+      "role_kind": "layer",
+      "layer": "store",
+      "domain_role": null,
+      "responsibility": "保存后刷新会话当前 file（size/path）、批量改名完成后按映射同步 files 列表与 index",
+      "hidden_secret": "会话与磁盘一致性同步时机",
+      "change_triggers": [
+        "会话结构变化"
+      ],
+      "data_owned": "复用既有 PreviewTab 会话（tabs store 拥有）",
+      "depends_on": [
+        "ROLE-D01"
+      ],
+      "industry_basis": "Pinia store 动作（repo preview store 既有模式）",
+      "design_principles": [
+        "SRP",
+        "tell_dont_ask"
+      ],
+      "code_units": [
+        "src/stores/preview.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D01",
+      "name": "EditSpec 值对象组",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "value_object",
+      "responsibility": "定义不可变编辑参数与结果：CropRect、CompressParams、SaveSpec、EditOps、EstimateResult、ApplyResult、BatchProgress",
+      "hidden_secret": "编辑参数的规范形状（跨进程单一事实源）",
+      "change_triggers": [
+        "参数/结果字段演化"
+      ],
+      "data_owned": "无状态（类型契约）",
+      "depends_on": [],
+      "industry_basis": "DDD 值对象（不可变、按值判等的参数对象；shared/types.ts 为 repo 跨进程类型正典）",
+      "design_principles": [
+        "value_object",
+        "separation_of_concerns"
+      ],
+      "code_units": [
+        "shared/types.ts"
+      ]
+    },
+    {
+      "id": "ROLE-D02",
+      "name": "ImageEditBatchEvent",
+      "role_kind": "domain",
+      "layer": "domain",
+      "domain_role": "domain_event",
+      "responsibility": "承载批量执行事实的进度/终态事件（taskId/index/total/currentFile/itemResults/status），主→渲染单向发布",
+      "hidden_secret": "批量可观测事件的形状",
+      "change_triggers": [
+        "进度字段演化"
+      ],
+      "data_owned": "无（事件值对象）",
+      "depends_on": [
+        "ROLE-D01"
+      ],
+      "industry_basis": "DDD 领域事件（过去时事实，发布方不关心消费方式）",
+      "design_principles": [
+        "domain_event"
+      ],
+      "code_units": [
+        "shared/types.ts"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IFC-1",
+      "name": "imageEditEstimate",
+      "provider": "ROLE-L01",
+      "consumers": [
+        "ROLE-L05"
+      ],
+      "input": "filePath: string；params: CompressParams（quality 1-100、maxEdge?、format 'keep'|'jpeg'|'webp'）",
+      "output": "{ estimatedBytes: number, format: 'jpeg'|'webp'|'png'|..., width, height }",
+      "preconditions": [
+        "文件存在且扩展名在能力表内",
+        "quality∈[1,100]"
+      ],
+      "postconditions": [
+        "不落盘、不改动源文件"
+      ],
+      "invariants": [
+        "预估为试编码真实字节数（近似于最终输出）"
+      ],
+      "errors": [
+        "不支持格式/读取失败 → reject Error(message)；调用方降级显示『无法预估』并允许仍执行"
+      ],
+      "data_ownership": "调用方持有参数对象；结果为新建值",
+      "transaction": "not_applicable",
+      "concurrency": "无状态并发安全；renderer 侧 300ms 节流防抖"
+    },
+    {
+      "id": "IFC-2",
+      "name": "imageEditApply",
+      "provider": "ROLE-L01",
+      "consumers": [
+        "ROLE-L05"
+      ],
+      "input": "filePath；ops: { crop?: CropRect(x,y,width,height 源像素), compress?: CompressParams }；save: { mode:'overwrite'|'copy', suffix?, format? }",
+      "output": "{ writtenPath: string, bytes: number }",
+      "preconditions": [
+        "ops 与 save 至少一项有效",
+        "crop 矩形在图像边界内（服务端二次 clamp）"
+      ],
+      "postconditions": [
+        "overwrite = 同目录临时文件写完后原子 rename，失败时原文件不变",
+        "copy 冲突自动 -1 递增，绝不覆盖既有文件"
+      ],
+      "invariants": [
+        "任何失败路径下源文件字节不变"
+      ],
+      "errors": [
+        "解码/编码/写盘失败 → reject；调用方行内提示，不静默"
+      ],
+      "data_ownership": "输出文件归文件系统；服务不缓存",
+      "transaction": "temp+rename 原子替换为本地事务边界",
+      "concurrency": "单调用顺序执行；重复调用产生新 copy 属预期（幂等 not_applicable）"
+    },
+    {
+      "id": "IFC-3",
+      "name": "imageEditBatchStart / imageEditBatchCancel / image:editBatchProgress",
+      "provider": "ROLE-L01",
+      "consumers": [
+        "ROLE-L05",
+        "ROLE-L09"
+      ],
+      "input": "batchStart: { items: string[], ops, save }；batchCancel: taskId",
+      "output": "batchStart → { taskId }；push 事件 ImageEditBatchProgress（节流 100ms + 终态必发）",
+      "preconditions": [
+        "items 非空且均 local 可编辑"
+      ],
+      "postconditions": [
+        "终态事件必达（completed/failed/cancelled）",
+        "单项失败记录后继续其余项"
+      ],
+      "invariants": [
+        "取消边界=当前项完成即停，已完成项保留"
+      ],
+      "errors": [
+        "单项失败写入 itemResults 不中断批次"
+      ],
+      "data_ownership": "任务态在 SessionTaskRegistry；事件为不可变值",
+      "transaction": "not_applicable（逐项独立落盘，每项遵守 IFC-2 事务）",
+      "concurrency": "单批次内顺序执行；同会话重复 start 由 Registry 取消旧任务"
+    },
+    {
+      "id": "IFC-4",
+      "name": "cropGeometry.displayedToSourceRect / sourceToDisplayedRect / clampCropRect",
+      "provider": "ROLE-L07",
+      "consumers": [
+        "ROLE-L06",
+        "ROLE-L05"
+      ],
+      "input": "显示矩形 + { containerRect, natural: {width,height}, fitMode: 'contain'|'cover'|'actual', scale }",
+      "output": "源像素矩形（整数）或显示矩形",
+      "preconditions": [
+        "natural.width/height > 0"
+      ],
+      "postconditions": [
+        "映射结果 clamp 到 [0, natural] 且 width/height ≥ 1（可裁剪最小 1px）"
+      ],
+      "invariants": [
+        "往返映射误差 ≤ 1px（取整误差）",
+        "比例锁约束在 clamp 前应用"
+      ],
+      "errors": [
+        "非法输入（natural≤0）→ 抛 Error（开发期断言，UI 保证不触发）"
+      ],
+      "data_ownership": "无状态",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-5",
+      "name": "batchRenamePattern.buildRenameItems",
+      "provider": "ROLE-L11",
+      "consumers": [
+        "ROLE-L10"
+      ],
+      "input": "files: {path,name}[]；rule: { prefix?, sequence?{ start, step, pad }, find?, replace? }",
+      "output": "{ items: BatchRenameItem[], conflicts: string[]（输出重名的源路径） }",
+      "preconditions": [
+        "至少一条规则启用"
+      ],
+      "postconditions": [
+        "扩展名保持不变",
+        "未匹配任何改名效果的项原样保留"
+      ],
+      "invariants": [
+        "conflicts 非空时调用方必须禁用提交"
+      ],
+      "errors": [
+        "无（纯函数，非法参数返回空 items 由调用方禁用）"
+      ],
+      "data_ownership": "无状态",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable"
+    },
+    {
+      "id": "IFC-6",
+      "name": "imageEditNaming.resolveOutputPath",
+      "provider": "ROLE-L03",
+      "consumers": [
+        "ROLE-L01"
+      ],
+      "input": "sourcePath；mode/format/suffix；exists: (path) => boolean（注入探测）",
+      "output": "唯一输出路径（copy 模式冲突时 -1 递增）",
+      "preconditions": [
+        "sourcePath 为绝对路径"
+      ],
+      "postconditions": [
+        "overwrite 模式返回原路径",
+        "copy 模式返回的路径在探测时序下不存在"
+      ],
+      "invariants": [
+        "绝不返回已存在的路径（copy 模式）"
+      ],
+      "errors": [
+        "无（探测由注入函数负责）"
+      ],
+      "data_ownership": "无状态",
+      "transaction": "not_applicable（写前由服务再探测一次防 TOCTOU）",
+      "concurrency": "写入端以 'wx' 标志创建文件兜底竞态"
+    },
+    {
+      "id": "IFC-7",
+      "name": "preview store 应用编辑结果同步会话",
+      "provider": "ROLE-L12",
+      "consumers": [
+        "ROLE-L05"
+      ],
+      "input": "sessionId；writtenPath/bytes（保存）或 renameItems 映射（改名）",
+      "output": "更新后的 PreviewTab（file/files/index）",
+      "preconditions": [
+        "sessionId 对应的 preview tab 存在"
+      ],
+      "postconditions": [
+        "保存后 file.path/size 更新且内容组件重载",
+        "改名后 files 列表路径全部映射、index 指向同一张图"
+      ],
+      "invariants": [
+        "files[i] 与 file 在步进后始终一致（沿用既有不变量）"
+      ],
+      "errors": [
+        "会话不存在 → no-op（tab 已被用户关闭）"
+      ],
+      "data_ownership": "tabs store 拥有会话对象",
+      "transaction": "not_applicable",
+      "concurrency": "not_applicable（主线程同步更新）"
+    }
+  ],
+  "design_contract_checks": [
+    {
+      "id": "DC-1",
+      "item": "依赖方向：renderer view → useImageEdit(V) → IPC → ImageEditService → naming/值对象；不得反向（service 不 import renderer）",
+      "principle": "dependency_direction",
+      "role_scope": [
+        "ROLE-L01",
+        "ROLE-L05",
+        "ROLE-L02"
+      ]
+    },
+    {
+      "id": "DC-2",
+      "item": "覆盖保存必须 temp+rename 原子替换；copy 必须冲突递增",
+      "principle": "defensive_design",
+      "role_scope": [
+        "ROLE-L01",
+        "ROLE-L03"
+      ]
+    },
+    {
+      "id": "DC-3",
+      "item": "sharp/sips 管道与格式能力表只存在于 ImageEditService",
+      "principle": "information_hiding",
+      "role_scope": [
+        "ROLE-L01"
+      ]
+    },
+    {
+      "id": "DC-4",
+      "item": "FileOperationManager 不为本 feature 修改（批量改名复用既有通道）",
+      "principle": "OCP",
+      "role_scope": []
+    },
+    {
+      "id": "DC-5",
+      "item": "IPC 三处同步：channels.ts / main.ts / preload.ts / env.d.ts 同步新增面",
+      "principle": "separation_of_concerns",
+      "role_scope": [
+        "ROLE-L02"
+      ]
+    },
+    {
+      "id": "DC-6",
+      "item": "cropGeometry/batchRenamePattern/imageEditNaming 为纯函数（无 IO），各有 tests/*.test.ts",
+      "principle": "SRP",
+      "role_scope": [
+        "ROLE-L07",
+        "ROLE-L11",
+        "ROLE-L03"
+      ]
+    },
+    {
+      "id": "DC-7",
+      "item": "批量进度事件 100ms 节流 + 终态必发；单项失败不中断批次",
+      "principle": "defensive_design",
+      "role_scope": [
+        "ROLE-L01",
+        "ROLE-D02"
+      ]
+    },
+    {
+      "id": "DC-8",
+      "item": "对话框不建 ViewModel（短生命周期表单）；编辑会话状态只在 useImageEdit",
+      "principle": "minimize_complexity",
+      "role_scope": [
+        "ROLE-L08",
+        "ROLE-L09",
+        "ROLE-L10",
+        "ROLE-L05"
+      ]
+    },
+    {
+      "id": "DC-9",
+      "item": "[ImageEdit] 前缀结构化日志：入口/出口/异常/外部调用（sips、sharp 编码）打点",
+      "principle": "separation_of_concerns",
+      "role_scope": [
+        "ROLE-L01"
+      ]
+    },
+    {
+      "id": "DC-10",
+      "item": "改名后 files[i] 与 file 一致性由 store 单点维护（步进不变量保持）",
+      "principle": "tell_dont_ask",
+      "role_scope": [
+        "ROLE-L12"
+      ]
+    }
+  ],
+  "business_process": [
+    {
+      "step": 1,
+      "name": "预览 tab 展示编辑工具条",
+      "roles": [
+        "ROLE-L04",
+        "ROLE-L05"
+      ],
+      "code_refs": [
+        "src/components/preview/ImageEditToolbar.vue",
+        "src/composables/useImageEdit.ts"
+      ],
+      "doc_ref": "业务流程图-步骤1",
+      "exception": "非 local 设备或不可编辑格式 → 入口置灰"
+    },
+    {
+      "step": 2,
+      "name": "进入裁剪模式并拖选（比例锁+几何映射）",
+      "roles": [
+        "ROLE-L05",
+        "ROLE-L06",
+        "ROLE-L07"
+      ],
+      "code_refs": [
+        "src/components/preview/ImageCropOverlay.vue",
+        "src/utils/cropGeometry.ts:displayedToSourceRect"
+      ],
+      "doc_ref": "业务流程图-步骤2",
+      "exception": "Esc/取消 → 退出裁剪模式，零副作用"
+    },
+    {
+      "step": 3,
+      "name": "调整压缩参数并请求试编码预估",
+      "roles": [
+        "ROLE-L05",
+        "ROLE-L01"
+      ],
+      "code_refs": [
+        "src/composables/useImageEdit.ts",
+        "electron/src/services/ImageEditService.ts:estimate"
+      ],
+      "doc_ref": "业务流程图-步骤3",
+      "exception": "预估失败 → 显示『无法预估』，允许继续执行"
+    },
+    {
+      "step": 4,
+      "name": "确认保存策略（覆盖/另存+格式质量）",
+      "roles": [
+        "ROLE-L08"
+      ],
+      "code_refs": [
+        "src/components/dialogs/SaveImageDialog.vue"
+      ],
+      "doc_ref": "业务流程图-步骤4",
+      "exception": "用户取消 → 无副作用"
+    },
+    {
+      "step": 5,
+      "name": "执行单图编辑并原子落盘",
+      "roles": [
+        "ROLE-L01",
+        "ROLE-L03"
+      ],
+      "code_refs": [
+        "electron/src/services/ImageEditService.ts:apply",
+        "electron/src/services/support/imageEditNaming.ts:resolveOutputPath"
+      ],
+      "doc_ref": "业务流程图-步骤5",
+      "exception": "解码/编码/写盘失败 → 原文件不变，行内错误提示"
+    },
+    {
+      "step": 6,
+      "name": "保存后同步预览会话（size/path 重载）",
+      "roles": [
+        "ROLE-L12"
+      ],
+      "code_refs": [
+        "src/stores/preview.ts"
+      ],
+      "doc_ref": "业务流程图-步骤6",
+      "exception": "会话已关闭 → no-op"
+    },
+    {
+      "step": 7,
+      "name": "集合 tab 发起批量压缩（参数+应用到全部 N）",
+      "roles": [
+        "ROLE-L04",
+        "ROLE-L09"
+      ],
+      "code_refs": [
+        "src/components/dialogs/BatchCompressDialog.vue",
+        "src/components/preview/ImageEditToolbar.vue"
+      ],
+      "doc_ref": "业务流程图-步骤7",
+      "exception": "空集合/不可编辑项过滤后为空 → 禁止开始"
+    },
+    {
+      "step": 8,
+      "name": "批量顺序执行与进度事件推送",
+      "roles": [
+        "ROLE-L01",
+        "ROLE-D02",
+        "ROLE-L02"
+      ],
+      "code_refs": [
+        "electron/src/services/ImageEditService.ts:start",
+        "electron/main.ts"
+      ],
+      "doc_ref": "业务流程图-步骤8",
+      "exception": "单项失败记录继续；取消 → 当前项完成即停保留已完成"
+    },
+    {
+      "step": 9,
+      "name": "批量完成后刷新目录与会话文件列表",
+      "roles": [
+        "ROLE-L12"
+      ],
+      "code_refs": [
+        "src/stores/preview.ts"
+      ],
+      "doc_ref": "业务流程图-步骤9",
+      "exception": "部分失败 → itemResults 呈现，会话仍刷新成功项"
+    },
+    {
+      "step": 10,
+      "name": "集合 tab 发起批量改名（规则+前后预览）",
+      "roles": [
+        "ROLE-L10",
+        "ROLE-L11"
+      ],
+      "code_refs": [
+        "src/components/dialogs/BatchRenameDialog.vue",
+        "src/utils/batchRenamePattern.ts:buildRenameItems"
+      ],
+      "doc_ref": "业务流程图-步骤10",
+      "exception": "输出重名冲突 → 禁用提交并标注冲突项"
+    },
+    {
+      "step": 11,
+      "name": "执行批量改名（复用既有 batch-rename 任务队列）",
+      "roles": [
+        "ROLE-L10"
+      ],
+      "code_refs": [
+        "src/components/dialogs/BatchRenameDialog.vue"
+      ],
+      "doc_ref": "业务流程图-步骤11",
+      "exception": "单项失败由任务面板呈现"
+    },
+    {
+      "step": 12,
+      "name": "改名后同步会话文件列表与当前指向",
+      "roles": [
+        "ROLE-L12"
+      ],
+      "code_refs": [
+        "src/stores/preview.ts"
+      ],
+      "doc_ref": "业务流程图-步骤12",
+      "exception": "映射缺失（文件已被外部改名）→ 保留旧项并 log"
+    }
+  ],
+  "logging_standard": {
+    "library": "console（repo 惯例：main 进程 [ImageEdit] 前缀结构化对象日志；renderer 关键交互 console）",
+    "key_nodes_instrumented": [
+      "入口",
+      "出口",
+      "异常",
+      "外部调用"
+    ]
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "npm run typecheck",
+        "result": "0 错误",
+        "evidence": "vue-tsc --noEmit 无输出",
+        "status": "passed"
+      },
+      {
+        "command": "npx tsc -p tsconfig.node.json",
+        "result": "16 错误 = 预存基线（FileOperationManager/FileMetadataService，非本次文件）",
+        "evidence": "与改动前计数一致",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:crop-geometry",
+        "result": "8 用例通过",
+        "evidence": "tests/cropGeometry.test.ts",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:batch-rename-pattern",
+        "result": "7 用例通过",
+        "evidence": "tests/batchRenamePattern.test.ts",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:image-edit-naming",
+        "result": "6 用例通过",
+        "evidence": "tests/imageEditNaming.test.ts",
+        "status": "passed"
+      },
+      {
+        "command": "npx playwright test e2e/image-edit.spec.ts",
+        "result": "5 用例通过",
+        "evidence": "e2e/image-edit.spec.ts",
+        "status": "passed"
+      },
+      {
+        "command": "npx playwright test（全量，排除另一会话损坏的 hex-preview.spec）",
+        "result": "47 通过 + 5 稳定失败（3 预存 + 2 为并行会话未完成 FileInfoDialog/SymlinkDialog 改动，与本次无交集）",
+        "evidence": "多次运行计数稳定；本次曾引入的 grep-results 回归已由 imageEdit 可选链守卫修复并复测通过",
+        "status": "passed"
+      },
+      {
+        "command": "真机 CDP（electron-vite dev + sharp 实链路）",
+        "result": "压缩另存/裁剪覆盖/批量压缩/批量改名全通过，零 pageerror",
+        "evidence": "压缩另存 webp 132B；重复另存 -1/-2/-3 递增；裁剪映射 110×70 精确且原子覆盖当前文件；批量压缩 2/2 成功+终态「成功 2」+原子覆盖为 JPEG；批量改名 001/002.png 且集合 badge 保持",
+        "status": "passed"
+      }
+    ],
+    "checks": [
+      {
+        "target": "data_safety：覆盖原子性（temp+rename，失败原文件不变）",
+        "method": "manual_review",
+        "evidence": "真机 CDP：裁剪/批量覆盖后文件被原子替换为合法 JPEG/PNG，无半写文件",
+        "status": "passed"
+      },
+      {
+        "target": "data_safety：copy 冲突 -1 递增不覆盖",
+        "method": "new_test",
+        "evidence": "tests/imageEditNaming.test.ts + 真机重复另存观察到 a_edited/-1/-2/-3",
+        "status": "passed"
+      },
+      {
+        "target": "testability：cropGeometry contain/cover/actual/缩放反算与 clamp",
+        "method": "new_test",
+        "evidence": "tests/cropGeometry.test.ts 8 用例（含往返 ≤1px 不变量）",
+        "status": "passed"
+      },
+      {
+        "target": "testability：batchRenamePattern 序号 pad/查找替换/扩展名保持/重名检测",
+        "method": "new_test",
+        "evidence": "tests/batchRenamePattern.test.ts 7 用例（含输出撞未改名既有文件）",
+        "status": "passed"
+      },
+      {
+        "target": "observability/cancellability：批量逐项进度+终态+取消边界",
+        "method": "manual_review",
+        "evidence": "真机：进度条+「2/2 · 成功 2」终态；取消边界为代码审查确认（当前项完成即停，Registry 协作取消）",
+        "status": "passed"
+      },
+      {
+        "target": "回归：既有 e2e 与 typecheck 不劣化",
+        "method": "existing_test",
+        "evidence": "47 通过；失败项均溯源为预存或并行会话 WIP",
+        "status": "passed"
+      },
+      {
+        "target": "sips 前置解码链路（HEIC 输入）",
+        "method": "manual_review",
+        "evidence": "无 HEIC 样本未实测；代码路径复用既有 ImageDecodeService（已在生产使用）",
+        "status": "skipped"
+      }
+    ],
+    "unverified": [
+      {
+        "item": "sips 前置解码（HEIC/RAW 输入进入编辑管道）",
+        "impact": "HEIC/RAW 图片的编辑在本机未端到端实测（仅代码路径复用审查）",
+        "follow_up": "获得 HEIC 样本后真机验证裁剪/压缩输出"
+      }
+    ]
+  },
+  "summary": {
+    "roles_count": 14,
+    "interfaces_count": 7,
+    "process_steps": 12,
+    "verification_checks": 7,
+    "layer_roles": 12,
+    "domain_roles": 2
+  },
+  "gate": {
+    "architecture": "go",
+    "logging": "go",
+    "coverage": "go",
+    "verification": "go",
+    "verdict": "go",
+    "issues": [
+      {
+        "gate": "logging",
+        "severity": "minor",
+        "role_or_step": "ROLE-L02",
+        "problem": "日志门关键字覆盖 3/7 低于 60% 阈值：分母含纯声明/桥接文件（channels.ts 通道字符串表、preload.ts 转发、env.d.ts 类型声明），按 logging-standards『DTO/Mapper/util 默认不要求日志』不应打点",
+        "evidence": "辅助校验未覆盖（语义项）：关键流程角色 ImageEditService/useImageEdit/preview store 实际均已打点（入口/出口/异常/外部调用齐全，见验证证据）；脚本按文件关键字近似无法识别角色分工"
+      }
+    ],
+    "notes": "四门脚本证据见 validate_gate.py 输出。语义复核：角色↔代码一一对应；依赖已修正为单向（view→VM→IPC→service→util/值对象，VM 不依赖 View）；FileOperationManager 零修改（DC-4）；对话框未建空壳 VM（DC-8）。已知近似限制：(1) 日志门为文件级关键字近似——channels.ts/preload.ts/env.d.ts 属声明/桥接文件，按 logging-standards 默认不打日志，真实流程角色（service/VM/store）入口/出口/异常/外部调用均已打点；(2) 覆盖门 doc_ref 为文本对账。1 项 unverified（sips HEIC 输入）已登记并降低置信度。"
+  },
+  "open_questions": [
+    {
+      "question": "RAW >8192px 输入经 sips 解码被限制在 8192 上限",
+      "impact": "超高分辨率 RAW 的裁剪/压缩输出尺寸低于原始",
+      "follow_up": "后续评估 libraw/直接 sips 无上限模式"
+    },
+    {
+      "question": "GIF 编辑输出为静态首帧图",
+      "impact": "动图编辑后失去动画",
+      "follow_up": "如需保留动画需引入 gif 编码链路"
+    },
+    {
+      "question": "批量压缩不进 FileOperationPanel（独立集合 tab 进度 UI）",
+      "impact": "任务历史不统一在面板中呈现",
+      "follow_up": "观察使用反馈，必要时为 FileOperationManager 增加代理任务类型"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { useTabsStore } from './tabs'
 import type { QuickLookSession, PreviewType } from '@/types/preview'
 import { getPreviewType } from '@/types/preview'
 import { sniffPreviewKind, SNIFF_HEADER_BYTES, type FilePreviewKind } from '@shared/fileKinds'
+import type { EditApplyResult } from '@shared/types'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewStore] ${message}`, ...args)
@@ -190,6 +191,63 @@ export const usePreviewStore = defineStore('preview', () => {
     tab.title = session.files[next].name
   }
 
+  // ── 编辑结果同步（IFC-7：会话与磁盘一致性由本 store 单点维护） ────────────────
+
+  /**
+   * 单图编辑落盘后同步会话：file 替换为新对象（path/size 变化触发内容组件重载，
+   * 覆盖模式 path 不变但 size/mtime 变化同样触发）；集合中对应项一并替换。
+   */
+  function applyEditResult(sessionId: string | undefined, sourcePath: string, result: EditApplyResult) {
+    const tabsStore = useTabsStore()
+    const tab = sessionId
+      ? tabsStore.tabs.find(t => t.preview?.id === sessionId)
+      : tabsStore.tabs.find(t => t.preview?.file.path === sourcePath)
+    const session = tab?.preview
+    if (!tab || !session) return
+
+    const rebuilt: FileInfo = {
+      ...session.file,
+      path: result.writtenPath,
+      name: result.writtenPath.split('/').pop() || session.file.name,
+      size: result.bytes,
+      modifiedTime: new Date().toISOString()
+    }
+    session.file = rebuilt
+    if (session.files?.length) {
+      const idx = session.files.findIndex(f => f.path === sourcePath)
+      if (idx >= 0) session.files[idx] = rebuilt
+    }
+    tab.title = rebuilt.name
+    console.info('[PreviewStore] Applied edit result to session:', sessionId || tab.id, rebuilt.path)
+  }
+
+  /**
+   * 批量改名完成后按映射同步集合列表：路径/名称替换，index 指向修正为当前
+   * 文件的新路径（不变量：files[index] === file 保持）。
+   */
+  function applyRenameMapping(sessionId: string, items: Array<{ sourcePath: string; newName: string }>) {
+    const tabsStore = useTabsStore()
+    const tab = tabsStore.tabs.find(t => t.preview?.id === sessionId)
+    const session = tab?.preview
+    if (!tab || !session?.files?.length) return
+
+    const mapping = new Map(items.map(item => [item.sourcePath, item.newName]))
+    let currentName: string | null = null
+    session.files = session.files.map(file => {
+      const newName = mapping.get(file.path)
+      if (!newName) return file
+      const dir = file.path.slice(0, file.path.lastIndexOf('/')) || '/'
+      if (session.file.path === file.path) currentName = newName
+      return { ...file, path: `${dir}/${newName}`, name: newName }
+    })
+    const current = session.files[session.index ?? 0]
+    if (current) {
+      session.file = current
+      tab.title = current.name
+    }
+    console.info('[PreviewStore] Applied rename mapping to session:', sessionId, 'items:', mapping.size, 'current:', currentName)
+  }
+
   // Inline preview methods
   function setInlinePreview(file: FileInfo | null, deviceId: string = 'local') {
     if (file) {
@@ -212,6 +270,8 @@ export const usePreviewStore = defineStore('preview', () => {
     openPreview,
     openImageCollection,
     stepImageCollection,
+    applyEditResult,
+    applyRenameMapping,
     setInlinePreview,
     clearInlinePreview,
     quickLook,
