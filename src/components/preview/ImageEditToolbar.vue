@@ -17,9 +17,10 @@
       </svg>
     </button>
 
-    <!-- 右侧竖排标注工具面板（标注模式期间常驻，不随底部工具条折叠） -->
+    <!-- 右侧竖排标注工具面板：工具条展开即直接可见（平铺可用功能），
+         点击任一工具自动进入标注模式，无需先点「标注」二次展开 -->
     <div
-      v-if="mode === 'annotate'"
+      v-if="expanded"
       class="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1
              px-1.5 py-2 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
       role="toolbar"
@@ -31,7 +32,7 @@
         class="p-1.5 rounded-lg transition-colors"
         :class="annoTool === t.key ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
         :title="t.label"
-        @click="setAnnoTool(t.key)"
+        @click="pickAnnoTool(t.key)"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="t.path" /></svg>
       </button>
@@ -68,7 +69,8 @@
       </button>
       <button
         class="px-2 py-1.5 rounded-lg text-xs bg-accent-blue text-white hover:bg-accent-blue/90 transition-colors disabled:opacity-40"
-        :disabled="shapeCount === 0"
+        :disabled="mode !== 'annotate' || shapeCount === 0"
+        :title="mode !== 'annotate' ? '先选择一个标注工具' : '保存标注'"
         @click="emit('anno-apply')"
       >保存标注</button>
     </div>
@@ -150,6 +152,7 @@ const emit = defineEmits<{
   toggle: []
   crop: []
   annotate: []
+  'anno-tool': [tool: AnnoTool]
   'anno-apply': []
   compress: []
   'batch-compress': []
@@ -164,8 +167,9 @@ const ANNO_TOOLS: Array<{ key: AnnoTool; label: string; path: string }> = [
   { key: 'text', label: '文字', path: 'M5 6V4h14v2M12 4v16M9 20h6' }
 ]
 
-// 标注参数（工具/颜色/粗细）是 VM 状态——工具条仅转发赋值
-function setAnnoTool(t: AnnoTool) {
+/** 点任一标注工具：未进入标注模式时由宿主进入（复位视图），再选中工具。 */
+function pickAnnoTool(t: AnnoTool) {
+  if (props.mode !== 'annotate') emit('annotate')
   props.edit.annoTool.value = t
 }
 function setAnnoColor(c: string) {

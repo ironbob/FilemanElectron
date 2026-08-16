@@ -104,7 +104,7 @@ test('compress opens save dialog and confirm calls imageEdit.apply', async ({ pa
   await expandEditToolbar(page)
   await page.getByRole('toolbar', { name: '图片编辑' }).getByTitle('压缩').click()
   await expect(page.getByText('保存图片')).toBeVisible()
-  await page.getByRole('button', { name: '保存' }).click()
+  await page.getByRole('button', { name: '保存', exact: true }).click()
   await page.waitForTimeout(400)
   const ops = await page.evaluate(() => (window as any).__ops)
   const applyCall = ops.find((o: any) => o.kind === 'imageEdit.apply')
@@ -178,8 +178,8 @@ test('annotate mode draws a rect and save calls apply with annotate op', async (
   await page.locator('[data-file-path="/docs/a.png"]').dblclick()
   await page.waitForTimeout(600)
   await page.getByRole('button', { name: 'Expand edit toolbar' }).click()
-  await page.getByTitle('标注').click()
-  // 默认工具 = 箭头；切矩形
+  // 工具条展开即直接可见标注工具面板（平铺），点矩形自动进入标注模式
+  await expect(page.getByRole('toolbar', { name: '标注工具' })).toBeVisible()
   await page.getByTitle('矩形').click()
   const container = await page.locator('.image-container').boundingBox()
   if (container) {
