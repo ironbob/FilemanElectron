@@ -1,12 +1,12 @@
 <template>
   <!-- 底部编辑工具条 + 右下角开合按钮。
        开合状态归 VM（toolbarExpanded，纯手动）；本组件只渲染与转发意图。
-       布局：右下角圆形按钮常驻（editable 时）；展开时底部居中胶囊工具条。 -->
+       按钮沿用 Finder 工具栏风格（finder-icon-button），并在本工具条局部放大。 -->
   <div v-if="editable" class="pointer-events-none absolute inset-0 z-30">
-    <!-- 右下角开合按钮（严格手动） -->
+    <!-- 右下角开合按钮（严格手动；放大到 44px FAB） -->
     <button
-      class="pointer-events-auto absolute bottom-4 right-4 w-10 h-10 rounded-full flex items-center justify-center
-             bg-accent-blue text-white shadow-lg hover:bg-accent-blue/90 transition-colors"
+      class="pointer-events-auto absolute bottom-4 right-4 w-11 h-11 rounded-full flex items-center justify-center
+             bg-accent-blue text-white shadow-lg hover:bg-accent-blue/90 active:bg-accent-blue-active transition-colors"
       :title="expanded ? '收起编辑工具' : '展开编辑工具'"
       :aria-label="expanded ? 'Collapse edit toolbar' : 'Expand edit toolbar'"
       @click="emit('toggle')"
@@ -21,54 +21,54 @@
          点击任一工具自动进入标注模式，无需先点「标注」二次展开 -->
     <div
       v-if="expanded"
-      class="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1
-             px-1.5 py-2 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
+      class="edit-panel pointer-events-auto absolute right-4 top-4 bottom-24 flex flex-col items-center justify-center
+             gap-1 overflow-y-auto py-2 px-1.5 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
       role="toolbar"
       aria-label="标注工具"
     >
       <button
         v-for="t in ANNO_TOOLS"
         :key="t.key"
-        class="p-1.5 rounded-lg transition-colors"
-        :class="annoTool === t.key ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
+        class="finder-icon-button"
+        :class="annoTool === t.key ? 'is-active' : ''"
         :title="t.label"
         @click="pickAnnoTool(t.key)"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="t.path" /></svg>
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="t.path" /></svg>
       </button>
 
-      <span class="h-px w-6 bg-border my-1"></span>
+      <span class="h-px w-7 bg-border my-1"></span>
       <button
         v-for="c in ANNO_COLORS"
         :key="c"
-        class="w-5 h-5 rounded-full border transition-transform"
-        :class="annoColor === c ? 'ring-2 ring-accent-blue scale-110' : 'border-border hover:scale-110'"
+        class="w-6 h-6 rounded-full border-2 transition-transform"
+        :class="annoColor === c ? 'ring-2 ring-accent-blue ring-offset-1 ring-offset-bg-secondary scale-110' : 'border-transparent hover:scale-110'"
         :style="{ backgroundColor: c }"
         :title="`颜色 ${c}`"
         @click="setAnnoColor(c)"
       ></button>
 
-      <span class="h-px w-6 bg-border my-1"></span>
+      <span class="h-px w-7 bg-border my-1"></span>
       <button
         v-for="w in ANNO_WIDTHS"
         :key="w"
-        class="w-8 h-7 rounded-lg flex items-center justify-center transition-colors"
-        :class="annoWidth === w ? 'bg-accent-blue' : 'hover:bg-bg-hover'"
+        class="finder-icon-button"
+        :class="annoWidth === w ? 'is-active' : ''"
         :title="`粗细 ${w}px`"
         @click="setAnnoWidth(w)"
       >
-        <span class="rounded-full bg-current" :style="{ width: '14px', height: w + 'px' }"></span>
+        <span class="rounded-full bg-current" :style="{ width: '16px', height: w + 'px' }"></span>
       </button>
 
-      <span class="h-px w-6 bg-border my-1"></span>
-      <button class="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-30" title="撤销上一个标注" :disabled="shapeCount === 0" @click="edit.undoAnno()">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v6h6M3.51 13a9 9 0 102.13-9.36L3 7" /></svg>
+      <span class="h-px w-7 bg-border my-1"></span>
+      <button class="finder-icon-button" title="撤销上一个标注" :disabled="shapeCount === 0" @click="edit.undoAnno()">
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v6h6M3.51 13a9 9 0 102.13-9.36L3 7" /></svg>
       </button>
-      <button class="p-1.5 rounded-lg text-text-secondary hover:text-red-400 hover:bg-bg-hover transition-colors disabled:opacity-30" title="清空全部标注" :disabled="shapeCount === 0" @click="edit.clearAnno()">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+      <button class="finder-icon-button hover:!text-red-400" title="清空全部标注" :disabled="shapeCount === 0" @click="edit.clearAnno()">
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
       </button>
       <button
-        class="px-2 py-1.5 rounded-lg text-xs bg-accent-blue text-white hover:bg-accent-blue/90 transition-colors disabled:opacity-40"
+        class="mt-0.5 px-3 py-2 rounded-lg text-[13px] font-medium bg-accent-blue text-white hover:bg-accent-blue/90 active:bg-accent-blue-active transition-colors disabled:opacity-40"
         :disabled="mode !== 'annotate' || shapeCount === 0"
         :title="mode !== 'annotate' ? '先选择一个标注工具' : '保存标注'"
         @click="emit('anno-apply')"
@@ -78,51 +78,51 @@
     <!-- 底部工具条（expanded 时渲染；标注参数在右侧竖排面板） -->
     <div
       v-if="expanded"
-      class="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 max-w-[92%] flex items-center gap-1 flex-wrap justify-center
+      class="edit-panel pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 max-w-[92%] flex items-center gap-1 flex-wrap justify-center
              px-2 py-1.5 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
       role="toolbar"
       aria-label="图片编辑"
     >
       <!-- 模式组 -->
       <button
-        class="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        :class="mode === 'crop' ? 'bg-bg-hover text-accent-blue' : ''"
+        class="finder-icon-button"
+        :class="mode === 'crop' ? 'is-active' : ''"
         title="裁剪"
         :disabled="mode === 'crop'"
         @click="emit('crop')"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 2v14a2 2 0 002 2h14M2 6h14a2 2 0 012 2v14" /></svg>
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 2v14a2 2 0 002 2h14M2 6h14a2 2 0 012 2v14" /></svg>
       </button>
       <button
-        class="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
-        :class="mode === 'annotate' ? 'bg-bg-hover text-accent-blue' : ''"
+        class="finder-icon-button"
+        :class="mode === 'annotate' ? 'is-active' : ''"
         title="标注"
         @click="emit('annotate')"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
       </button>
 
       <!-- 单图压缩 -->
-      <span class="w-px h-5 bg-border mx-0.5"></span>
+      <span class="finder-toolbar-divider"></span>
       <button
-        class="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+        class="finder-icon-button"
         title="压缩"
         @click="emit('compress')"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2M9 10h6M9 14h6" /></svg>
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2M9 10h6M9 14h6" /></svg>
       </button>
 
       <!-- 批量组（集合会话） -->
       <template v-if="collection">
-        <span class="w-px h-5 bg-border mx-0.5"></span>
+        <span class="finder-toolbar-divider"></span>
         <button
-          class="px-2 py-1 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          class="px-3 py-1.5 rounded-lg text-[13px] font-medium text-text-secondary hover:bg-bg-hover active:bg-bg-active transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           title="批量压缩当前集合"
           :disabled="running"
           @click="emit('batch-compress')"
         >批量压缩</button>
         <button
-          class="px-2 py-1 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+          class="px-3 py-1.5 rounded-lg text-[13px] font-medium text-text-secondary hover:bg-bg-hover active:bg-bg-active transition-colors"
           title="批量改名当前集合"
           @click="emit('batch-rename')"
         >批量改名</button>
@@ -152,7 +152,6 @@ const emit = defineEmits<{
   toggle: []
   crop: []
   annotate: []
-  'anno-tool': [tool: AnnoTool]
   'anno-apply': []
   compress: []
   'batch-compress': []
@@ -172,6 +171,8 @@ function pickAnnoTool(t: AnnoTool) {
   if (props.mode !== 'annotate') emit('annotate')
   props.edit.annoTool.value = t
 }
+
+// 标注参数（颜色/粗细）是 VM 状态——工具条仅转发赋值
 function setAnnoColor(c: string) {
   props.edit.annoColor.value = c
 }
@@ -179,3 +180,14 @@ function setAnnoWidth(w: number) {
   props.edit.annoWidth.value = w
 }
 </script>
+
+<style scoped>
+/* 编辑工具条内的 Finder 图标按钮局部放大（finder-icon-button 全局为 28px） */
+.edit-panel :deep(.finder-icon-button) {
+  width: 34px;
+  height: 34px;
+}
+.edit-panel :deep(.finder-toolbar-divider) {
+  height: 24px;
+}
+</style>
