@@ -240,17 +240,41 @@ const getImageClass = computed(() => {
   }
 })
 
+/** contain 模式的短边适配边距（图像最长边 = 容器短边 − 2×margin）。 */
+const FIT_MARGIN_PX = 24
+
+/** 容器尺寸（ResizeObserver 维护；供短边适配与裁剪/标注布局）。 */
+const containerSize = ref({ width: 0, height: 0 })
+
+/** contain 显示尺寸：图像最长边适配容器短边（含 margin），居中由 flex 完成。 */
+const fittedSize = computed(() => {
+  const dims = imageDimensions.value
+  const longest = Math.max(dims.width, dims.height)
+  const shortSide = Math.min(containerSize.value.width, containerSize.value.height)
+  if (!longest || !shortSide) return null
+  const target = Math.max(1, shortSide - FIT_MARGIN_PX * 2)
+  const ratio = target / longest
+  return { width: Math.round(dims.width * ratio), height: Math.round(dims.height * ratio) }
+})
+
 const getImageStyle = computed(() => {
   const tx = translateX.value
   const ty = translateY.value
   const s = scale.value
   const r = rotation.value
 
-  if (tx === 0 && ty === 0 && s === 1 && r === 0) return {}
-
-  // translate FIRST so pan is always in screen-space regardless of zoom level.
-  // Order: translate → scale → rotate (applied right-to-left internally).
-  return { transform: `translate(${tx}px, ${ty}px) scale(${s}) rotate(${r}deg)` }
+  const style: Record<string, string> = {}
+  // contain：显式设定短边适配尺寸（小图放大、大图缩小都以此为准）
+  if (fitMode.value === 'contain' && fittedSize.value) {
+    style.width = `${fittedSize.value.width}px`
+    style.height = `${fittedSize.value.height}px`
+  }
+  if (tx !== 0 || ty !== 0 || s !== 1 || r !== 0) {
+    // translate FIRST so pan is always in screen-space regardless of zoom level.
+    // Order: translate → scale → rotate (applied right-to-left internally).
+    style.transform = `translate(${tx}px, ${ty}px) scale(${s}) rotate(${r}deg)`
+  }
+  return style
 })
 
 // Helper functions
@@ -408,14 +432,22 @@ function applyAnnotate() {
   })
 }
 
-// 视口/缩放变化重算布局（ResizeObserver 兜底窗口拖拽）
+// 视口/缩放变化重算布局（ResizeObserver 兜底窗口拖拽；同步容器尺寸供短边适配）
 let resizeObserver: ResizeObserver | null = null
 watch(imageContainerRef, el => {
   resizeObserver?.disconnect()
   resizeObserver = null
   if (el) {
-    resizeObserver = new ResizeObserver(() => { layoutTick.value++ })
+    resizeObserver = new ResizeObserver(entries => {
+      // 用 border box（getBoundingClientRect）：短边适配的 margin 相对可视区域，
+      // 不受容器 p-4 内边距影响
+      const box = entries[0]?.target.getBoundingClientRect()
+      if (box) containerSize.value = { width: box.width, height: box.height }
+      layoutTick.value++
+    })
     resizeObserver.observe(el)
+    const rect = el.getBoundingClientRect()
+    containerSize.value = { width: rect.width, height: rect.height }
   }
 })
 onUnmounted(() => resizeObserver?.disconnect())

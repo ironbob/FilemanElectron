@@ -17,7 +17,63 @@
       </svg>
     </button>
 
-    <!-- 底部工具条（expanded 时渲染） -->
+    <!-- 右侧竖排标注工具面板（标注模式期间常驻，不随底部工具条折叠） -->
+    <div
+      v-if="mode === 'annotate'"
+      class="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1
+             px-1.5 py-2 rounded-2xl bg-bg-secondary/95 border border-border shadow-xl"
+      role="toolbar"
+      aria-label="标注工具"
+    >
+      <button
+        v-for="t in ANNO_TOOLS"
+        :key="t.key"
+        class="p-1.5 rounded-lg transition-colors"
+        :class="annoTool === t.key ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
+        :title="t.label"
+        @click="setAnnoTool(t.key)"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="t.path" /></svg>
+      </button>
+
+      <span class="h-px w-6 bg-border my-1"></span>
+      <button
+        v-for="c in ANNO_COLORS"
+        :key="c"
+        class="w-5 h-5 rounded-full border transition-transform"
+        :class="annoColor === c ? 'ring-2 ring-accent-blue scale-110' : 'border-border hover:scale-110'"
+        :style="{ backgroundColor: c }"
+        :title="`颜色 ${c}`"
+        @click="setAnnoColor(c)"
+      ></button>
+
+      <span class="h-px w-6 bg-border my-1"></span>
+      <button
+        v-for="w in ANNO_WIDTHS"
+        :key="w"
+        class="w-8 h-7 rounded-lg flex items-center justify-center transition-colors"
+        :class="annoWidth === w ? 'bg-accent-blue' : 'hover:bg-bg-hover'"
+        :title="`粗细 ${w}px`"
+        @click="setAnnoWidth(w)"
+      >
+        <span class="rounded-full bg-current" :style="{ width: '14px', height: w + 'px' }"></span>
+      </button>
+
+      <span class="h-px w-6 bg-border my-1"></span>
+      <button class="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-30" title="撤销上一个标注" :disabled="shapeCount === 0" @click="edit.undoAnno()">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v6h6M3.51 13a9 9 0 102.13-9.36L3 7" /></svg>
+      </button>
+      <button class="p-1.5 rounded-lg text-text-secondary hover:text-red-400 hover:bg-bg-hover transition-colors disabled:opacity-30" title="清空全部标注" :disabled="shapeCount === 0" @click="edit.clearAnno()">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+      </button>
+      <button
+        class="px-2 py-1.5 rounded-lg text-xs bg-accent-blue text-white hover:bg-accent-blue/90 transition-colors disabled:opacity-40"
+        :disabled="shapeCount === 0"
+        @click="emit('anno-apply')"
+      >保存标注</button>
+    </div>
+
+    <!-- 底部工具条（expanded 时渲染；标注参数在右侧竖排面板） -->
     <div
       v-if="expanded"
       class="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 max-w-[92%] flex items-center gap-1 flex-wrap justify-center
@@ -43,57 +99,6 @@
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
       </button>
-
-      <!-- 标注参数组（仅标注模式） -->
-      <template v-if="mode === 'annotate'">
-        <span class="w-px h-5 bg-border mx-0.5"></span>
-        <button
-          v-for="t in ANNO_TOOLS"
-          :key="t.key"
-          class="p-1.5 rounded-lg transition-colors"
-          :class="annoTool === t.key ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
-          :title="t.label"
-          @click="setAnnoTool(t.key)"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="t.path" /></svg>
-        </button>
-
-        <span class="w-px h-5 bg-border mx-0.5"></span>
-        <button
-          v-for="c in ANNO_COLORS"
-          :key="c"
-          class="w-5 h-5 rounded-full border transition-transform"
-          :class="annoColor === c ? 'ring-2 ring-accent-blue scale-110' : 'border-border hover:scale-110'"
-          :style="{ backgroundColor: c }"
-          :title="`颜色 ${c}`"
-          @click="setAnnoColor(c)"
-        ></button>
-
-        <span class="w-px h-5 bg-border mx-0.5"></span>
-        <button
-          v-for="w in ANNO_WIDTHS"
-          :key="w"
-          class="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-          :class="annoWidth === w ? 'bg-accent-blue' : 'hover:bg-bg-hover'"
-          :title="`粗细 ${w}px`"
-          @click="setAnnoWidth(w)"
-        >
-          <span class="rounded-full bg-current" :style="{ width: '14px', height: w + 'px' }"></span>
-        </button>
-
-        <span class="w-px h-5 bg-border mx-0.5"></span>
-        <button class="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-30" title="撤销上一个标注" :disabled="shapeCount === 0" @click="edit.undoAnno()">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v6h6M3.51 13a9 9 0 102.13-9.36L3 7" /></svg>
-        </button>
-        <button class="p-1.5 rounded-lg text-text-secondary hover:text-red-400 hover:bg-bg-hover transition-colors disabled:opacity-30" title="清空全部标注" :disabled="shapeCount === 0" @click="edit.clearAnno()">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-        </button>
-        <button
-          class="px-2.5 py-1 rounded-lg text-xs bg-accent-blue text-white hover:bg-accent-blue/90 transition-colors disabled:opacity-40"
-          :disabled="shapeCount === 0"
-          @click="emit('anno-apply')"
-        >保存标注</button>
-      </template>
 
       <!-- 单图压缩 -->
       <span class="w-px h-5 bg-border mx-0.5"></span>
