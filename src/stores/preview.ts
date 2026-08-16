@@ -96,6 +96,59 @@ export const usePreviewStore = defineStore('preview', () => {
     return tab
   }
 
+  /**
+   * 打开（或复用）文件夹图片集合预览 tab。按 collectionKey 去重：
+   * 重复打开同目录同模式时就地刷新列表（目录内容可能已变化）并激活。
+   */
+  function openImageCollection(deviceId: string, files: FileInfo[], collectionKey: string): Tab {
+    const tabsStore = useTabsStore()
+    if (files.length === 0) throw new Error('openImageCollection requires a non-empty file list')
+
+    const existing = tabsStore.tabs.find(t => t.preview?.collectionKey === collectionKey)
+    if (existing?.preview) {
+      existing.preview.files = files
+      existing.preview.index = 0
+      existing.preview.file = files[0]
+      existing.title = files[0].name
+      tabsStore.setActiveTab(existing.id)
+      log('Image collection already open, refreshed:', collectionKey, files.length, 'images')
+      return existing
+    }
+
+    const tab: Tab = {
+      id: generateId(),
+      title: files[0].name,
+      panes: [],
+      activePaneId: '',
+      preview: {
+        id: generateId(),
+        file: files[0],
+        deviceId,
+        type: 'image',
+        files,
+        index: 0,
+        collectionKey
+      }
+    }
+    tabsStore.tabs.push(tab)
+    tabsStore.activeTabId = tab.id
+    log('Opened image collection tab:', tab.id, collectionKey, files.length, 'images')
+    return tab
+  }
+
+  /** 集合步进（clamp 不循环，与 QuickLook 一致）：同步 file/index 与 tab 标题。 */
+  function stepImageCollection(sessionId: string, delta: number) {
+    const tabsStore = useTabsStore()
+    const tab = tabsStore.tabs.find(t => t.preview?.id === sessionId)
+    const session = tab?.preview
+    if (!tab || !session?.files?.length) return
+    const next = Math.max(0, Math.min((session.index ?? 0) + delta, session.files.length - 1))
+    if (next === session.index) return
+    session.index = next
+    session.file = session.files[next]
+    tab.title = session.files[next].name
+  }
+
   // Inline preview methods
   function setInlinePreview(file: FileInfo | null, deviceId: string = 'local') {
     if (file) {
@@ -116,6 +169,8 @@ export const usePreviewStore = defineStore('preview', () => {
     inlinePreviewFile,
     inlinePreviewDeviceId,
     openPreview,
+    openImageCollection,
+    stepImageCollection,
     setInlinePreview,
     clearInlinePreview,
     quickLook,

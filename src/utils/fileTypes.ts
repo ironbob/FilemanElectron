@@ -155,6 +155,9 @@ export function isImageFile(extension: string): boolean {
   return extensionCategories.image.has(ext)
 }
 
+/** 图片扩展名（带点小写，如 '.jpg'），供主进程 search 的 fileTypes 过滤参数使用。 */
+export const IMAGE_EXTENSIONS_WITH_DOT: string[] = [...extensionCategories.image].map(ext => `.${ext}`)
+
 export function isVideoFile(extension: string): boolean {
   const ext = extension.toLowerCase().replace('.', '')
   return extensionCategories.video.has(ext)

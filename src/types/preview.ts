@@ -24,6 +24,11 @@ export interface PreviewTab {
   initialLine?: number
   /** 强制内容类型（右键「以十六进制查看」等显式入口用，覆盖扩展名推断）。 */
   forceType?: PreviewType
+  /** 图片集合（文件夹右键预览）：当前 file 始终等于 files[index]，步进只换 index。 */
+  files?: FileInfo[]
+  index?: number
+  /** 集合去重键：`${deviceId}:${folderPath}:${'flat'|'recursive'}`；重复打开复用 tab。 */
+  collectionKey?: string
 }
 
 /**

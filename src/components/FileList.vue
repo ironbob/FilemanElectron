@@ -27,6 +27,7 @@
         <button class="w-40 text-left hover:text-text-primary" @click="toggleSort('modifiedTime')">Date Modified {{ sortIndicator('modifiedTime') }}</button>
         <button class="w-20 text-right hover:text-text-primary" @click="toggleSort('size')">Size {{ sortIndicator('size') }}</button>
         <span class="w-24 text-left">Kind</span>
+        <span v-if="showPermissions" class="w-28 text-left">Permissions</span>
       </div>
 
       <!-- 虚拟滚动列表 -->
@@ -68,6 +69,15 @@
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
           />
+          <FileGitBadge v-if="gitStatusOf(file)" :x="gitStatusOf(file)!.x" :y="gitStatusOf(file)!.y" />
+          <svg
+            v-if="file.isSymlink"
+            class="w-3 h-3 flex-shrink-0 text-accent-teal"
+            :title="`符号链接 → ${file.symlinkTarget ?? ''}`"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+          </svg>
           <span class="w-40 text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ formatDate(file.modifiedTime) }}
           </span>
@@ -76,6 +86,13 @@
           </span>
           <span class="w-24 truncate text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ fileKind(file) }}
+          </span>
+          <span
+            v-if="showPermissions"
+            class="w-28 truncate text-left text-sm font-mono"
+            :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'"
+          >
+            {{ formatPermissions(file.mode) }}
           </span>
         </div>
       </RecycleScroller>
@@ -98,7 +115,7 @@
         <div
           v-for="file in row.files"
           :key="file.path"
-          class="file-item flex flex-col items-center p-2 rounded-lg overflow-hidden"
+          class="file-item relative flex flex-col items-center p-2 rounded-lg overflow-hidden"
           :data-file-path="file.path"
           :class="dropTargetPath === file.path ? 'drop-target-row' : ''"
           draggable="true"
@@ -129,6 +146,15 @@
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
           />
+          <FileGitBadge v-if="gitStatusOf(file)" class="absolute top-1 right-1" :x="gitStatusOf(file)!.x" :y="gitStatusOf(file)!.y" />
+          <svg
+            v-if="file.isSymlink"
+            class="absolute bottom-1 right-1 w-3.5 h-3.5 text-accent-teal bg-bg-secondary/70 rounded"
+            :title="`符号链接 → ${file.symlinkTarget ?? ''}`"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+          </svg>
         </div>
       </div>
     </RecycleScroller>
@@ -168,6 +194,15 @@
               :highlight-indices="typeaheadHighlightFor(file)"
               :selected="isSelected(file.path)"
             />
+            <FileGitBadge v-if="gitStatusOf(file)" :x="gitStatusOf(file)!.x" :y="gitStatusOf(file)!.y" />
+            <svg
+              v-if="file.isSymlink"
+              class="w-3 h-3 flex-shrink-0 text-accent-teal"
+              :title="`符号链接 → ${file.symlinkTarget ?? ''}`"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+            </svg>
             <svg v-if="file.isDirectory" class="w-4 h-4" :class="column.selectedPath === file.path ? 'opacity-70' : 'text-text-tertiary'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
@@ -287,10 +322,16 @@ import {
   resolveDropAction
 } from '@/utils/dragTransfer'
 import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHint'
-import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
+import { extensionCategories, extensionIconMap, isThumbnailable, isImageFile, IMAGE_EXTENSIONS_WITH_DOT } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
+import { listingDiffers } from '@/utils/listingDiff'
+import { toRelativePath, toFileUri, getBaseName } from '@/utils/path'
+import { copyToClipboard } from '@/utils/clipboard'
+import { formatPermissions } from '@/utils/permissions'
 import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
+import FileGitBadge from '@/components/FileGitBadge.vue'
+import { useGitStatusStore } from '@/stores/gitStatus'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
@@ -312,7 +353,7 @@ const emit = defineEmits<{
   select: [files: string[]]
   navigate: [path: string]
   preview: [file: FileInfo]
-  operation: [op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move' }]
+  operation: [op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move'; checksumItems?: Array<{ deviceId: string; path: string; name: string; size: number }> }]
   loaded: [files: FileInfo[]]
   sort: [sort: FileSortDescriptor]
 }>()
@@ -322,12 +363,29 @@ const thumbnailStore = useThumbnailStore()
 const tabsStore = useTabsStore()
 const favoritesStore = useFavoritesStore()
 const settingsStore = useSettingsStore()
+const gitStatusStore = useGitStatusStore()
 const previewStore = usePreviewStore()
 const dragSessionStore = useDragSessionStore()
 
 const files = ref<FileInfo[]>([])
 const searchResults = ref<FileInfo[] | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+// ── Git 状态徽标（只读，仅本地）────────────────────────────────────────────
+// 目录/设备变化时触发查询；非仓库目录拿到 isRepo:false 后零渲染开销。
+const gitEntryMap = computed(() => gitStatusStore.entryMapFor(props.deviceId, props.path))
+function gitStatusOf(file: FileInfo): { x: string; y: string } | undefined {
+  return gitEntryMap.value?.get(file.path)
+}
+watch(
+  () => [props.deviceId, props.path] as const,
+  ([deviceId, path]) => {
+    if (deviceId === 'local' && !isZipVirtualPath(path)) {
+      void gitStatusStore.fetch(deviceId, path)
+    }
+  },
+  { immediate: true }
+)
 const loading = ref(false)
 const columnFilesMap = ref<Map<string, FileInfo[]>>(new Map())
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
@@ -336,6 +394,7 @@ const transferTargets = ref<Map<string, { copy: boolean; move: boolean }>>(new M
 const dropTargetPath = ref<string | null>(null)
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
+const showPermissions = computed(() => settingsStore.settings.showPermissions)
 
 /** 隐藏文件开关关闭时过滤 dotfile（'..' 是 ZIP 视图的父目录项，始终保留） */
 function filterHiddenFiles(list: FileInfo[]): FileInfo[] {
@@ -686,6 +745,42 @@ watch(() => props.deviceId, () => {
   loadFiles()
 })
 
+// ── 自动刷新（watch:changed 订阅）───────────────────────────────────────────
+// FileList 的挂载周期与「某目录正被展示」精确对齐，因此由它（而非 FilePane）
+// 持有订阅；设备/路径切换时重订（引用计数，双面板同目录只一个 watcher）。
+// ZIP 虚拟路径不支持监听（主进程无对应实体目录）。
+watch(
+  () => [props.deviceId, props.path] as const,
+  ([deviceId, path], _prev, onCleanup) => {
+    if (isZipVirtualPath(path)) return
+    void window.fileman.watchSubscribe(deviceId, path).catch(() => {
+      // 订阅失败（目录已删等）不致命：退化为手动 Cmd+R 刷新
+    })
+    onCleanup(() => {
+      void window.fileman.watchUnsubscribe(deviceId, path).catch(() => {})
+    })
+  },
+  { immediate: true }
+)
+
+let unsubscribeWatchChanged: (() => void) | null = null
+let watchRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+/** watch 事件到达：300ms 合并后，diff 守卫（签名无变化不打扰选区/滚动）再重载。 */
+async function refreshAfterWatchEvent(): Promise<void> {
+  if (isZipVirtualPath(props.path)) return
+  const pathSnapshot = props.path
+  const deviceSnapshot = props.deviceId
+  try {
+    const fresh = await window.fileman.listFiles(deviceSnapshot, pathSnapshot)
+    if (props.path !== pathSnapshot || props.deviceId !== deviceSnapshot) return
+    if (!listingDiffers(files.value, fresh)) return
+    await loadFiles()
+  } catch {
+    // 设备瞬断等：忽略，下一事件或手动刷新再试
+  }
+}
+
 watch([() => props.searchQuery, () => props.recursiveSearch, () => props.path, () => props.deviceId], () => {
   if (searchTimer) clearTimeout(searchTimer)
   const isTagCollection = !!props.searchQuery?.trim().match(/^tag:(.+)$/i)
@@ -730,6 +825,21 @@ onMounted(() => {
   document.addEventListener('click', hideContextMenu)
   document.addEventListener('keydown', handleKeyDown)
   document.addEventListener('compositionend', handleCompositionEnd)
+  unsubscribeWatchChanged = window.fileman.onWatchChanged(event => {
+    if (settingsStore.settings.autoRefresh === false) return
+    if (event.deviceId !== props.deviceId || event.dirPath !== props.path) return
+    if (watchRefreshTimer) clearTimeout(watchRefreshTimer)
+    watchRefreshTimer = setTimeout(() => { void refreshAfterWatchEvent() }, 300)
+  })
+  // 「打开方式」应用列表仅本地设备需要；主进程 memoize，多面板重复调用无害。
+  // Array.isArray 守卫：桥接异常/返回异常值时保持空列表（菜单直接隐藏该项）
+  if (props.deviceId === 'local') {
+    window.fileman.detectOpenWithApps().then(apps => {
+      if (Array.isArray(apps)) openWithApps.value = apps
+    }).catch(err => {
+      console.warn('[FileList] detectOpenWithApps failed', err)
+    })
+  }
 })
 
 onUnmounted(() => {
@@ -740,6 +850,8 @@ onUnmounted(() => {
   // 确保 rubber-band 残留监听器被清理
   document.removeEventListener('mousemove', handleRubberBandMove)
   document.removeEventListener('mouseup', handleRubberBandUp)
+  unsubscribeWatchChanged?.()
+  if (watchRefreshTimer) clearTimeout(watchRefreshTimer)
 })
 
 function isTextEditingTarget(target: EventTarget | null): boolean {
@@ -1021,13 +1133,9 @@ function formatDate(dateStr: string): string {
   const cached = _formattedDateCache.get(dateStr)
   if (cached !== undefined) return cached
   const date = new Date(dateStr)
-  const result = date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  if (Number.isNaN(date.getTime())) return dateStr
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const result = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
   _formattedDateCache.set(dateStr, result)
   return result
 }
@@ -1724,6 +1832,9 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     if (caps?.canWrite) {
       items.push({ label: 'New File', action: 'touch' })
     }
+    if (!caps || caps.canSymlink) {
+      items.push({ label: '新建符号链接…', action: 'new-symlink' })
+    }
     if (caps?.canWrite) {
       items.push({ label: 'Paste', action: 'paste', shortcut: '⌘V' })
     }
@@ -1737,11 +1848,25 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
       shortcut: '⌘⇧.'
     })
     items.push({ label: 'Go to Folder…', action: 'goto', shortcut: '⇧⌘G' })
+    // 能力未知（未加载完）时不过度门控——遍历失败在工具页内呈现，不致命
+    if (!caps || (caps.canList && caps.canStat)) {
+      items.push({ label: '查找重复文件…', action: 'find-duplicates' })
+      items.push({ label: '可视化空间…', action: 'analyze-space' })
+    }
+    if (!caps || caps.canGrepContent !== false) {
+      items.push({ label: '在此搜索内容…', action: 'grep-here' })
+    }
 
     // 宿主集成：在终端打开当前目录（仅本地、非 ZIP）
     if (isHostShellAvailable()) {
       items.push({ label: '---', action: '__divider__' })
       items.push({ label: 'Open in Terminal', action: 'open-in-terminal' })
+    }
+
+    // 复制路径（当前目录）+ 打开方式（当前目录）
+    items.push(...buildCopyPathMenuItems())
+    if (isHostShellAvailable()) {
+      items.push(...buildOpenWithMenuItems())
     }
   } else {
     // File/folder context menu
@@ -1751,6 +1876,17 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     if (contextMenuTargetFile.value?.isDirectory) {
       items.push({ label: 'Open in New Tab', action: 'open-in-new-tab' })
       items.push({ label: 'Open in Dual-Pane Tab', action: 'open-in-split-tab' })
+      // 图片集合预览（ZIP 虚拟目录不适用：search/listFiles 语义不符）
+      if (!isZipVirtualPath(contextMenuTargetFile.value.path)) {
+        items.push({
+          label: '图片',
+          action: 'images-menu',
+          children: [
+            { label: '预览所有图片', action: 'preview-images' },
+            { label: '预览图片（递归）', action: 'preview-images-recursive' }
+          ]
+        })
+      }
     }
 
     if (caps?.canCopyFrom) {
@@ -1793,6 +1929,10 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
 
     items.push({ label: '属性', action: 'info', shortcut: '⌘I' })
+    // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制）
+    if (!contextMenuTargetFile.value?.isDirectory) {
+      items.push({ label: '以十六进制查看', action: 'open-as-hex' })
+    }
     if (props.selectedFiles.length > 1 && caps?.canRename) {
       items.push({ label: 'Batch Rename', action: 'batch-rename', shortcut: '⇧⌘R' })
     }
@@ -1801,6 +1941,19 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
     if (contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
       items.push({ label: 'Extract ZIP', action: 'extract-archive' })
+    }
+
+    // 校验和：恰好选中 1-2 个文件（单哈希 / 对比）
+    if (props.selectedFiles.length >= 1 && props.selectedFiles.length <= 2) {
+      const selectedInfos = props.selectedFiles
+        .map(p => files.value.find(f => f.path === p))
+        .filter(Boolean) as FileInfo[]
+      if (selectedInfos.length === props.selectedFiles.length && selectedInfos.every(f => !f.isDirectory)) {
+        items.push({
+          label: props.selectedFiles.length === 2 ? '校验和对比' : '计算校验和',
+          action: 'checksum'
+        })
+      }
     }
 
     // Compare two directories: only when exactly 2 directories are selected
@@ -1826,6 +1979,12 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
       items.push({ label: 'Reveal in Finder', action: 'reveal-in-finder' })
       items.push({ label: 'Open in Terminal', action: 'open-in-terminal' })
     }
+
+    // 复制路径（选中条目）+ 打开方式（右键命中条目）
+    items.push(...buildCopyPathMenuItems())
+    if (isHostShellAvailable()) {
+      items.push(...buildOpenWithMenuItems())
+    }
   }
 
   return items
@@ -1835,6 +1994,54 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
 const contextMenuSelectedFiles = ref<string[]>([])
 // 右键命中的具体文件（reveal/terminal 针对它）；空白菜单时为 null（terminal 改用当前目录）
 const contextMenuTargetFile = ref<FileInfo | null>(null)
+// 菜单打开时「另一面板」路径快照（同设备才有相对路径语义），供「相对另一面板复制」
+const contextMenuOtherPanePath = ref<string | null>(null)
+// 本机开发者应用（VS Code / iTerm2…，仅本地设备加载一次）
+const openWithApps = ref<OpenWithApp[]>([])
+
+/** 复制路径子菜单（本地/远程通用——路径字符串无宿主依赖）。 */
+function buildCopyPathMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
+  const otherPane = tabsStore.activeTab?.panes.find(p => p.id !== props.paneId && p.deviceId === props.deviceId)
+  contextMenuOtherPanePath.value = otherPane?.path ?? null
+  const children: Array<{ label: string; action: string }> = [
+    { label: 'POSIX 路径', action: 'copy-path:posix' },
+    { label: 'file:// URI', action: 'copy-path:uri' },
+    { label: '文件名', action: 'copy-path:name' }
+  ]
+  if (otherPane) children.splice(2, 0, { label: '相对另一面板', action: 'copy-path:relative' })
+  return [{ label: '复制路径', action: 'copy-path-menu', children }]
+}
+
+/** 「打开方式」子菜单（仅本地非 ZIP；app 检测在挂载时异步加载）。 */
+function buildOpenWithMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
+  if (openWithApps.value.length === 0) return []
+  return [{
+    label: '打开方式',
+    action: 'open-with-menu',
+    children: openWithApps.value.map(app => ({ label: app.name, action: `open-with:${app.bundlePath}` }))
+  }]
+}
+
+/** 复制路径动作（多选时按行拼接；name/relative 针对右键命中的文件）。 */
+async function handleCopyPath(kind: string): Promise<void> {
+  const targets = contextMenuSelectedFiles.value.length > 0
+    ? contextMenuSelectedFiles.value
+    : (contextMenuTargetFile.value ? [contextMenuTargetFile.value.path] : [props.path])
+  let text = ''
+  if (kind === 'posix') {
+    text = targets.join('\n')
+  } else if (kind === 'uri') {
+    text = targets.map(toFileUri).join('\n')
+  } else if (kind === 'name') {
+    const target = contextMenuTargetFile.value ?? files.value.find(f => f.path === targets[0])
+    text = target?.name ?? getBaseName(targets[0])
+  } else if (kind === 'relative') {
+    const fromDir = contextMenuOtherPanePath.value
+    const target = contextMenuTargetFile.value?.path ?? targets[0]
+    text = fromDir ? toRelativePath(fromDir, target) : target
+  }
+  if (text) await copyToClipboard(text)
+}
 
 /**
  * 宿主集成（Finder/Terminal）是否可用：仅本地设备、且当前目录不在 ZIP 虚拟路径内。
@@ -1948,6 +2155,38 @@ function confirmRename() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 收集目录下的图片并以集合预览 tab 打开（右键「图片」子菜单入口）。
+ * 非递归 = 该目录直接子级；递归 = 主进程 search 一次收集（空 pattern 匹配全部）。
+ * 空结果 / 远程设备不支持 search 时不开 tab（log 后静默返回）。
+ */
+async function openFolderImagePreview(folderPath: string, recursive: boolean) {
+  try {
+    const entries = recursive
+      ? await window.fileman.search(props.deviceId, folderPath, {
+          pattern: '',
+          fileTypes: IMAGE_EXTENSIONS_WITH_DOT
+        })
+      : await window.fileman.listFiles(props.deviceId, folderPath)
+    const images = entries
+      .filter(entry => !entry.isDirectory && isImageFile(entry.extension || ''))
+      .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+
+    if (images.length === 0) {
+      log.info('[FileList] no images found for collection preview', { folderPath, recursive })
+      return
+    }
+    previewStore.openImageCollection(
+      props.deviceId,
+      images,
+      `${props.deviceId}:${folderPath}:${recursive ? 'recursive' : 'flat'}`
+    )
+  } catch (error) {
+    log.warn('[FileList] image collection preview failed', { folderPath, recursive, error })
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function handleContextMenuAction(action: string) {
   console.log('[FileList] handleContextMenuAction called:', {
     action,
@@ -1991,6 +2230,56 @@ function handleContextMenuAction(action: string) {
       : props.path
     window.fileman.openInTerminal(dir).catch(err => {
       console.error('[FileList] openInTerminal failed for', dir, err)
+    })
+    return
+  }
+
+  // 复制路径变体（posix / uri / relative / name）——剪贴板即时写入，不经操作队列
+  if (action.startsWith('copy-path:')) {
+    void handleCopyPath(action.slice('copy-path:'.length))
+    return
+  }
+
+  // 校验和（1-2 个文件）——经 FilePane 弹窗呈现进度与结果
+  if (action === 'checksum') {
+    const infos = contextMenuSelectedFiles.value
+      .map(p => files.value.find(f => f.path === p))
+      .filter((f): f is FileInfo => !!f && !f.isDirectory)
+    if (infos.length >= 1 && infos.length <= 2) {
+      emit('operation', {
+        action: 'checksum',
+        files: [],
+        checksumItems: infos.map(f => ({ deviceId: props.deviceId, path: f.path, name: f.name, size: f.size }))
+      })
+    }
+    return
+  }
+
+  // 显式 hex 入口：右键命中的文件强制以十六进制预览（只读）
+  if (action === 'open-as-hex') {
+    const file = contextMenuTargetFile.value
+    if (file && !file.isDirectory) {
+      previewStore.openPreview(file, props.deviceId, undefined, 'hex')
+    }
+    return
+  }
+
+  // 图片集合预览：右键命中的目录 → 收集图片 → 集合预览 tab（可上一张/下一张）
+  if (action === 'preview-images' || action === 'preview-images-recursive') {
+    const folder = contextMenuTargetFile.value
+    if (folder?.isDirectory && !isZipVirtualPath(folder.path)) {
+      const recursive = action === 'preview-images-recursive'
+      void openFolderImagePreview(folder.path, recursive)
+    }
+    return
+  }
+
+  // 打开方式（本地开发者应用，action 携带 .app 包路径）
+  if (action.startsWith('open-with:')) {
+    const appPath = action.slice('open-with:'.length)
+    const target = contextMenuTargetFile.value?.path ?? props.path
+    window.fileman.openWith(appPath, target).catch(err => {
+      console.error('[FileList] openWith failed for', target, err)
     })
     return
   }
@@ -2042,6 +2331,36 @@ function handleContextMenuAction(action: string) {
   // 前往文件夹（空白菜单）
   if (action === 'goto') {
     emit('operation', { action: 'goto', files: [] })
+    return
+  }
+
+  // 重复文件查找（空白菜单）：当前目录开瞬态工具页
+  if (action === 'find-duplicates') {
+    tabsStore.openDuplicatesTab(props.deviceId, props.path)
+    return
+  }
+
+  // 新建符号链接（空白菜单，本地/SSH）
+  if (action === 'new-symlink') {
+    emit('operation', { action: 'new-symlink', files: [] })
+    return
+  }
+
+  // 空间分析（空白菜单）：当前目录开 treemap 工具页
+  if (action === 'analyze-space') {
+    tabsStore.openSpaceTab(props.deviceId, props.path)
+    return
+  }
+
+  // 内容搜索（空白菜单）：当前目录开 grep 工具页
+  if (action === 'grep-here') {
+    tabsStore.openGrepTab({
+      deviceId: props.deviceId,
+      rootPath: props.path,
+      pattern: '',
+      isRegex: false,
+      caseSensitive: false
+    })
     return
   }
 
