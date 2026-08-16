@@ -46,6 +46,9 @@ import type {
 const filemanAPI = {
   // ============ System ============
   getHomeDir: () => ipcRenderer.invoke(CH.invoke.systemGetHomeDir),
+  /** 原生目录选择（保存 Sheet「位置」行）；取消返回 null。 */
+  pickDirectory: (defaultPath?: string): Promise<string | null> =>
+    ipcRenderer.invoke(CH.invoke.systemPickDirectory, defaultPath),
 
   // ============ Windows ============
   openFileInfoWindow: (context: FileInfoWindowContext): Promise<void> =>

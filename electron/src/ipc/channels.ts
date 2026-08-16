@@ -20,6 +20,7 @@ export const CH = {
     // system:
     systemGetHomeDir: 'system:getHomeDir',
     systemSaveFileDialog: 'system:saveFileDialog',
+    systemPickDirectory: 'system:pickDirectory',
     // window:
     fileInfoWindowOpen: 'window:fileInfo:open',
     fileInfoWindowGetContext: 'window:fileInfo:getContext',

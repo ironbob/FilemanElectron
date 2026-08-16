@@ -233,9 +233,12 @@ onUnmounted(() => {
 // 对外提交源像素矩形（供宿主读取）
 defineExpose({ sourceRect })
 
-// 布局变化（窗口缩放）时，把源像素矩形回显到新显示坐标
-watch(() => [props.layout.containerWidth, props.layout.containerHeight], () => {
-  if (!sourceRect.value) return
-  emit('update:modelValue', sourceToDisplayedRect(sourceRect.value, props.layout))
-})
+// 布局变化（窗口缩放/平移/缩放视图）时，把源像素矩形回显到新显示坐标
+watch(
+  () => [props.layout.containerWidth, props.layout.containerHeight, props.layout.displayedRect?.x, props.layout.displayedRect?.y, props.layout.displayedRect?.width, props.layout.displayedRect?.height],
+  () => {
+    if (!sourceRect.value) return
+    emit('update:modelValue', sourceToDisplayedRect(sourceRect.value, props.layout))
+  }
+)
 </script>

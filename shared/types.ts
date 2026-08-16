@@ -506,16 +506,23 @@ export interface EditCompressParams {
   /** 最长边上限（px）；仅缩小不放大；不限制传 undefined */
   maxEdge?: number
   /** 输出格式：keep=保持输入（SIPS 输入映射为 jpeg） */
-  format: 'keep' | 'jpeg' | 'webp'
+  format: 'keep' | 'jpeg' | 'webp' | 'png'
 }
 
 /** 保存策略：覆盖原图（temp+rename 原子替换）或另存副本（冲突自动 -1 递增）。 */
 export interface EditSaveSpec {
   mode: 'overwrite' | 'copy'
-  /** copy 模式文件名后缀（默认 _edited） */
+  /** copy 模式文件名后缀（默认 _edited）；与 name 二选一，name 优先 */
   suffix?: string
+  /**
+   * copy 模式完整文件名（不含扩展名）——保存 Sheet「存储为」输入。
+   * 不含路径分隔符；设置后忽略 suffix。
+   */
+  name?: string
+  /** copy 模式输出目录（绝对路径）；缺省 = 原图所在目录 */
+  dir?: string
   /** 输出格式覆盖（与 CompressParams.format 二选一生效处：以此为准，缺省用 params） */
-  format?: 'jpeg' | 'webp'
+  format?: 'jpeg' | 'webp' | 'png'
 }
 
 /** 标注层（透明 PNG，与原图等比）；坐标空间宽 = referenceWidth（与 EditCrop 同机制）。 */

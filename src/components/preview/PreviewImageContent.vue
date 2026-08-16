@@ -17,157 +17,163 @@
       <p class="text-xs">{{ errorMessage }}</p>
     </div>
 
-    <!-- Image Content -->
-    <div v-else class="flex-1 flex flex-col overflow-hidden">
-      <!-- 底部编辑工具条（右下角按钮开合，状态纯手动） -->
-      <ImageEditToolbar
-        v-if="edit"
-        :edit="edit"
-        :editable="edit.editable.value"
-        :collection="edit.hasCollection.value"
-        :mode="edit.mode.value"
-        :running="edit.batchRunning.value"
-        :expanded="edit.toolbarExpanded.value"
-        :anno-tool="edit.annoTool.value"
-        :anno-color="edit.annoColor.value"
-        :anno-width="edit.annoWidth.value"
-        :shape-count="edit.shapes.value.length"
-        @toggle="edit.toggleToolbar()"
+    <!-- 三区布局：① 顶部工具栏 ② 画布 + 右侧轨道列 ③ 底部状态栏 -->
+    <div v-else class="flex-1 flex flex-col overflow-hidden min-h-0">
+      <!-- ① 顶部工具栏（恒显——标注/裁剪中不再隐藏；集合导航收编于此） -->
+      <ImageEditTopToolbar
+        :mode="edit?.mode.value ?? 'idle'"
+        :editable="edit?.editable.value ?? false"
+        :collection="collection ?? null"
+        :display-scale="displayScale"
+        :annotations-visible="edit?.annotationsVisible.value ?? true"
+        :running="edit?.batchRunning.value ?? false"
+        @zoom-in="zoomIn"
+        @zoom-out="zoomOut"
+        @fit-window="setFitMode('contain')"
+        @actual-size="setFitMode('actual')"
+        @zoom-to="zoomTo"
+        @rotate-left="rotateLeft"
+        @rotate-right="rotateRight"
         @crop="enterCropMode"
         @annotate="toggleAnnotateMode"
-        @anno-apply="applyAnnotate"
-        @compress="edit.requestCompress()"
-        @batch-compress="edit.openBatchCompress()"
-        @batch-rename="edit.openRename()"
+        @toggle-annotations="edit && (edit.annotationsVisible.value = !edit.annotationsVisible.value)"
+        @done="onDone"
+        @prev-image="stepCollection?.(-1)"
+        @next-image="stepCollection?.(1)"
+        @compress="edit?.requestCompress()"
+        @batch-compress="edit?.openBatchCompress()"
+        @batch-rename="edit?.openRename()"
       />
 
-      <!-- Toolbar（裁剪/标注模式下隐藏——变换与编辑几何互斥） -->
-      <div v-if="edit?.mode.value !== 'crop' && edit?.mode.value !== 'annotate'" class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1">
-        <!-- Zoom Controls -->
-        <button
-          class="finder-icon-button"
-          @click="zoomIn"
-          :title="$t('preview.common.zoomInTip')"
+      <!-- ② 画布区 + 右侧标注轨道列（独占布局列，结构上不可能遮挡画布） -->
+      <div class="flex-1 flex min-h-0 min-w-0">
+        <div
+          ref="imageContainerRef"
+          class="image-container flex-1 overflow-hidden flex items-center justify-center p-4 cursor-grab relative min-w-0"
+          @wheel="handleWheel"
+          @mousedown="startDrag"
+          @mousemove="handleDrag"
+          @mouseup="endDrag"
+          @mouseleave="endDrag"
+          @pointerdown.capture="paramPopoverVisible = false"
         >
-          <IconfontIcon name="zoomIn" />
-        </button>
-        <button
-          class="finder-icon-button"
-          @click="zoomOut"
-          :title="$t('preview.common.zoomOutTip')"
-        >
-          <IconfontIcon name="zoomOut" />
-        </button>
-        <button
-          class="finder-icon-button"
-          @click="resetView"
-          :title="$t('preview.image.resetViewTip')"
-        >
-          <IconfontIcon name="reset" />
-        </button>
+          <img
+            v-if="imageSrc"
+            ref="imageRef"
+            :src="imageSrc"
+            class="rounded-lg shadow-lg select-none"
+            :class="[getImageClass, isDragging ? 'transition-none' : 'transition-transform duration-150']"
+            :style="getImageStyle"
+            @load="handleImageLoad"
+            @error="handleImageError"
+            draggable="false"
+          />
 
-        <div class="finder-toolbar-divider"></div>
+          <!-- 裁剪浮层（自带底部比例/确认操作条；几何映射用实测 img rect） -->
+          <ImageCropOverlay
+            v-if="edit && edit.mode.value === 'crop'"
+            v-model="cropDisplayRect"
+            :layout="cropLayout"
+            @cancel="edit.exitCrop()"
+            @apply="edit.requestCropApply()"
+          />
 
-        <!-- Rotation Controls -->
-        <button
-          class="finder-icon-button"
-          @click="rotateLeft"
-          :title="$t('preview.image.rotateLeftTip')"
-        >
-          <IconfontIcon name="rotateLeft" />
-        </button>
-        <button
-          class="finder-icon-button"
-          @click="rotateRight"
-          :title="$t('preview.image.rotateRightTip')"
-        >
-          <IconfontIcon name="rotateRight" />
-        </button>
+          <!-- 标注浮层（选择/绘制/缩放/文字编辑） -->
+          <ImageAnnotateOverlay
+            v-if="edit && edit.mode.value === 'annotate'"
+            ref="annotateOverlayRef"
+            :edit="edit"
+            :layout="cropLayout"
+          />
 
-        <div class="finder-toolbar-divider"></div>
+          <!-- 对象上下文工具条（选中包围盒上方浮动，画布内夹紧） -->
+          <SelectionContextBar
+            v-if="edit && edit.mode.value === 'annotate' && contextBarBox"
+            class="absolute z-30"
+            :style="contextBarStyle"
+            :color="contextStyle.color"
+            :width="contextStyle.width"
+            :colors="ANNO_COLORS"
+            :widths="ANNO_WIDTHS"
+            @update="patch => edit?.setAnnoParam(patch)"
+            @duplicate="edit?.duplicateShapes(edit.selectedIds.value)"
+            @delete="edit?.deleteShapes(edit.selectedIds.value)"
+          />
+        </div>
 
-        <!-- Fit Mode -->
-        <button
-          class="finder-icon-button"
-          :class="{ 'is-active': fitMode === 'contain' }"
-          @click="setFitMode('contain')"
-          :title="$t('preview.image.fitWindowTip')"
-        >
-          <IconfontIcon name="fit" />
-        </button>
-        <button
-          class="finder-icon-button"
-          :class="{ 'is-active': fitMode === 'actual' }"
-          @click="setFitMode('actual')"
-          :title="$t('preview.image.actualSizeTip')"
-        >
-          <IconfontIcon name="actualSize" />
-        </button>
+        <!-- 右侧轨道列（64px：12 间距 + 52 面板） -->
+        <div v-if="edit && edit.mode.value === 'annotate'" class="w-16 flex-shrink-0 flex items-center justify-center">
+          <AnnotationRail
+            :tool="edit.annoTool.value"
+            :can-undo="edit.canUndo.value"
+            :can-redo="edit.canRedo.value"
+            :has-selection="edit.selectedIds.value.length > 0"
+            @pick="pickTool"
+            @undo="edit.undoAnno()"
+            @redo="edit.redoAnno()"
+            @delete="edit.deleteShapes(edit.selectedIds.value)"
+          />
+        </div>
 
-        <!-- Scale Display -->
-        <span class="text-xs text-text-secondary px-2 min-w-[3rem] text-right">{{ displayScale }}</span>
-      </div>
-
-      <!-- Image Container -->
-      <div
-        ref="imageContainerRef"
-        class="flex-1 overflow-hidden flex items-center justify-center p-4 image-container cursor-grab relative"
-        @wheel="handleWheel"
-        @mousedown="startDrag"
-        @mousemove="handleDrag"
-        @mouseup="endDrag"
-        @mouseleave="endDrag"
-      >
-        <img
-          v-if="imageSrc"
-          ref="imageRef"
-          :src="imageSrc"
-          class="rounded-lg shadow-lg select-none"
-          :class="[getImageClass, isDragging ? 'transition-none' : 'transition-transform duration-150']"
-          :style="getImageStyle"
-          @load="handleImageLoad"
-          @error="handleImageError"
-          draggable="false"
-        />
-
-        <!-- 裁剪浮层（几何映射用实测 img rect，进入裁剪自动复位视图/旋转） -->
-        <ImageCropOverlay
-          v-if="edit && edit.mode.value === 'crop'"
-          v-model="cropDisplayRect"
-          :layout="cropLayout"
-          @cancel="edit.exitCrop()"
-          @apply="edit.requestCropApply()"
-        />
-
-        <!-- 标注浮层（同实测 rect 坐标机制；进入标注复位视图） -->
-        <ImageAnnotateOverlay
-          v-if="edit && edit.mode.value === 'annotate'"
-          ref="annotateOverlayRef"
-          :edit="edit"
-          :layout="cropLayout"
+        <!-- 绘制参数 Popover（轨道左侧，选中绘制工具弹出；画布交互自动收起） -->
+        <ToolParamPopover
+          v-if="edit && edit.mode.value === 'annotate' && paramPopoverVisible && edit.activeParam.value"
+          class="absolute right-[76px] top-1/2 -translate-y-1/2 z-40"
+          :param="edit.activeParam.value"
+          :tool="edit.annoTool.value"
+          :has-selection="edit.selectedIds.value.length > 0"
+          :colors="ANNO_COLORS"
+          :widths="ANNO_WIDTHS"
+          @update="patch => edit?.setAnnoParam(patch)"
+          @close="paramPopoverVisible = false"
         />
       </div>
 
-      <!-- File Info -->
-      <div class="flex-shrink-0 px-4 py-2 bg-bg-tertiary border-t border-border">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="text-sm font-medium text-text-primary truncate max-w-xs">{{ file.name }}</span>
-            <span class="text-xs text-text-tertiary">{{ formatSize(file.size) }}</span>
-            <span v-if="imageDimensions.width" class="text-xs text-text-tertiary">
-              {{ imageDimensions.width }} x {{ imageDimensions.height }}
-            </span>
-          </div>
-          <span v-if="edit?.error.value" class="text-xs text-red-400 truncate max-w-[40%]" :title="edit.error.value">{{ edit.error.value }}</span>
+      <!-- ③ 底部状态栏（32px：文件信息 + 缩放 + 已编辑） -->
+      <div class="img-status-bar h-8 flex-shrink-0 flex items-center gap-3 px-3 text-[11px]">
+        <!-- 辅助技术播报：当前工具 / 选中对象数（设计 §12） -->
+        <span class="sr-only" aria-live="polite">{{ liveAnnouncement }}</span>
+        <span class="font-semibold text-text-primary truncate max-w-[240px]" :title="file.name">{{ file.name }}</span>
+        <span class="text-text-tertiary tabular-nums">{{ formatSize(file.size) }}</span>
+        <span v-if="imageDimensions.width" class="text-text-tertiary tabular-nums">{{ imageDimensions.width }} × {{ imageDimensions.height }}</span>
+        <span class="text-text-tertiary tabular-nums">{{ displayScale }}</span>
+        <div class="flex-1"></div>
+        <span v-if="edit?.flashMessage.value" class="text-text-secondary truncate max-w-[40%]">{{ edit.flashMessage.value }}</span>
+        <span v-if="edit?.error.value" class="text-red-400 truncate max-w-[30%]" :title="edit.error.value">{{ edit.error.value }}</span>
+        <template v-if="edit && edit.mode.value === 'annotate' && edit.annoDirty.value">
+          <span class="edited-dot"></span>
+          <span class="text-text-secondary">{{ $t('preview.editToolbar.editedBadge') }}</span>
+        </template>
+      </div>
+    </div>
+
+    <!-- 未保存确认（退出标注 / 集合切图共用；VM 持有开合与回调） -->
+    <div
+      v-if="edit?.unsavedPrompt.value"
+      class="absolute inset-0 z-[70] flex items-center justify-center bg-black/35"
+      role="alertdialog"
+      :aria-label="$t('preview.editToolbar.unsavedAria')"
+      @pointerdown.self.prevent
+    >
+      <div class="edit-panel p-5 w-[340px] text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-[color:var(--edit-warning)]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+        <h3 class="text-sm font-semibold text-text-primary">{{ $t('preview.editToolbar.unsavedTitle', { name: file.name }) }}</h3>
+        <p class="mt-1.5 text-xs text-text-secondary">{{ $t('preview.editToolbar.unsavedBody') }}</p>
+        <div class="mt-4 flex justify-center gap-2">
+          <button class="edit-secondary-btn !h-7" @click="edit?.resolveUnsaved('discard')">{{ $t('preview.editToolbar.unsavedDiscard') }}</button>
+          <button class="edit-secondary-btn !h-7" @click="edit?.resolveUnsaved('cancel')">{{ $t('preview.editToolbar.unsavedCancel') }}</button>
+          <button class="edit-primary-btn !h-7" @click="edit?.resolveUnsaved('store')">{{ $t('preview.editToolbar.unsavedStore') }}</button>
         </div>
       </div>
     </div>
 
-    <!-- 保存对话框（覆盖/另存 + 格式质量 + 预估体积） -->
-    <SaveImageDialog
+    <!-- 保存 Sheet（顶部吸附实色；导出副本默认） -->
+    <ImageSaveSheet
       v-if="edit && edit.saveDialogVisible.value"
       :file-name="file.name"
+      :file-dir="fileDir"
       :source-bytes="file.size"
+      :dims="imageDimensions"
       :estimate="edit.estimate.value"
       :estimating="edit.estimating.value"
       :applying="edit.applying.value"
@@ -189,11 +195,15 @@ import type { ImageFitMode } from '@/types/preview'
 import { needsNativeDecode } from '@/utils/fileTypes'
 import { displayedToSourceRect, type ImageLayout, type Rect } from '@/utils/cropGeometry'
 import type { ImageEditController } from '@/composables/useImageEdit'
-import IconfontIcon from './IconfontIcon.vue'
-import ImageEditToolbar from './ImageEditToolbar.vue'
+import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import { ANNO_COLORS, ANNO_WIDTHS, type AnnoTool } from '@/utils/annotationShapes'
+import ImageEditTopToolbar from './ImageEditTopToolbar.vue'
+import AnnotationRail from './AnnotationRail.vue'
+import ToolParamPopover from './ToolParamPopover.vue'
+import SelectionContextBar from './SelectionContextBar.vue'
 import ImageCropOverlay from './ImageCropOverlay.vue'
 import ImageAnnotateOverlay from './ImageAnnotateOverlay.vue'
-import SaveImageDialog from '../dialogs/SaveImageDialog.vue'
+import ImageSaveSheet from './ImageSaveSheet.vue'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewImageContent] ${message}`, ...args)
@@ -204,6 +214,10 @@ const props = defineProps<{
   deviceId: string
   /** 编辑控制器（PreviewView 创建，经 Router 下传；QuickLook 无） */
   edit?: ImageEditController
+  /** 集合会话导航信息（多图；PreviewView 提供） */
+  collection?: { index: number; total: number } | null
+  /** 集合步进（PreviewView 提供；dirty 时由 VM 弹未保存确认） */
+  stepCollection?: (delta: number) => void
 }>()
 
 // Loading state
@@ -229,8 +243,14 @@ let dragStartY = 0
 let lastTranslateX = 0
 let lastTranslateY = 0
 
-// Computed
-const displayScale = computed(() => Math.round(scale.value * 100) + '%')
+/** 真实像素百分比（contain 下 = 显示宽/自然宽；actual 下 = scale）。 */
+const displayScale = computed(() => {
+  if (fitMode.value === 'actual') return Math.round(scale.value * 100) + '%'
+  const fitted = fittedSize.value
+  const dims = imageDimensions.value
+  if (!fitted || !dims.width) return '100%'
+  return Math.round(((fitted.width * scale.value) / dims.width) * 100) + '%'
+})
 
 const getImageClass = computed(() => {
   return {
@@ -272,10 +292,14 @@ const getImageStyle = computed(() => {
   }
   if (tx !== 0 || ty !== 0 || s !== 1 || r !== 0) {
     // translate FIRST so pan is always in screen-space regardless of zoom level.
-    // Order: translate → scale → rotate (applied right-to-left internally).
     style.transform = `translate(${tx}px, ${ty}px) scale(${s}) rotate(${r}deg)`
   }
   return style
+})
+
+const fileDir = computed(() => {
+  const parts = props.file.path.split('/')
+  return parts.length > 1 ? parts.slice(0, -1).join('/') : '/'
 })
 
 // Helper functions
@@ -316,28 +340,20 @@ async function loadImage() {
     if (needsNativeDecode(props.file.extension || '')) {
       // HEIC/HEIF/TIFF/PSD/相机 RAW 等 Chromium 无法解码的格式：
       // 走主进程 sips（ImageDecodeService）转 JPEG 栅格。
-      log('Native decode (sips):', props.file.extension)
       const decoded = await window.fileman.decodeNativeImage(
         props.deviceId,
         props.file.path,
         { maxDim: 4096 }
       )
       imageSrc.value = `data:${decoded.mime};base64,${decoded.buffer}`
-      log('Native decode OK, jpeg base64 length:', decoded.buffer.length)
     } else {
-      log('Reading file from device:', props.deviceId, 'path:', props.file.path)
       const base64 = await window.fileman.readFile(props.deviceId, props.file.path)
-      log('File read successfully, base64 length:', base64.length)
 
       const buffer = base64ToArrayBuffer(base64)
-      log('Buffer size:', buffer.byteLength, 'bytes')
-
       const mimeType = getMimeType(props.file.extension || '')
-      log('MIME type:', mimeType)
 
       const blob = new Blob([buffer], { type: mimeType })
       imageSrc.value = URL.createObjectURL(blob)
-      log('Blob URL created:', imageSrc.value)
     }
   } catch (e) {
     console.error('[PreviewImageContent] Error loading image:', e)
@@ -355,7 +371,7 @@ function handleImageLoad(e: Event) {
     width: img.naturalWidth,
     height: img.naturalHeight
   }
-  props.edit?.setNaturalSize(img.naturalWidth)
+  props.edit?.setNaturalSize(img.naturalWidth, img.naturalHeight)
   layoutTick.value++
   log('Image loaded, dimensions:', imageDimensions.value)
 }
@@ -367,7 +383,6 @@ function handleImageError(e: Event) {
 }
 
 // ── 裁剪接线（几何事实源 = 实测 img rect，规避 transform/object-fit 数学） ─────
-// 裁剪显示矩形（overlay v-model）；提交给 VM 的始终是源像素矩形。
 const cropDisplayRect = ref<Rect | null>(null)
 const layoutTick = ref(0)
 
@@ -396,6 +411,11 @@ const cropLayout = computed<ImageLayout>(() => {
   }
 })
 
+// 缩放/平移/旋转变换即时重算布局（标注/裁剪浮层随动，不再隐藏工具栏）
+watch([scale, rotation, translateX, translateY], () => {
+  layoutTick.value++
+})
+
 watch(cropDisplayRect, rect => {
   if (!rect || !props.edit) return
   props.edit.setCropRect(displayedToSourceRect(rect, cropLayout.value))
@@ -411,27 +431,107 @@ function enterCropMode() {
 // ── 标注接线 ─────────────────────────────────────────────────────────────────
 const annotateOverlayRef = ref<InstanceType<typeof ImageAnnotateOverlay> | null>(null)
 
-/** 标注模式进入/退出切换（复位视图同裁剪限制）。 */
+/** 参数 Popover 开合：选绘制工具自动弹出；再点当前工具手动开合；画布交互收起。 */
+const paramPopoverVisible = ref(false)
+
+watch(
+  () => props.edit?.annoTool.value,
+  tool => {
+    if (!props.edit || props.edit.mode.value !== 'annotate') return
+    if (tool && tool !== 'select') paramPopoverVisible.value = true
+  }
+)
+
+function pickTool(tool: 'select' | AnnoTool) {
+  const edit = props.edit
+  if (!edit) return
+  if (edit.annoTool.value === tool) {
+    if (tool !== 'select') paramPopoverVisible.value = !paramPopoverVisible.value
+    return
+  }
+  edit.annoTool.value = tool
+  paramPopoverVisible.value = tool !== 'select'
+}
+
+/** 标注模式进入/退出（进入复位视图：与裁剪同限制）。 */
 function toggleAnnotateMode() {
   if (!props.edit) return
   if (props.edit.mode.value === 'annotate') {
-    props.edit.exitAnnotate()
+    requestExitAnnotate()
     return
   }
   resetView()
   layoutTick.value++
+  paramPopoverVisible.value = false
   props.edit.startAnnotate()
 }
 
-/** 保存标注：从浮层导出 natural 空间 overlay → VM 进入保存对话框。 */
-function applyAnnotate() {
-  const overlayBase64 = annotateOverlayRef.value?.exportOverlay() ?? null
-  if (!overlayBase64 || !props.edit || imageDimensions.value.width === 0) return
-  props.edit.requestAnnotateApply({
-    overlayBase64,
-    referenceWidth: imageDimensions.value.width
+/** 完成：VM 统一入口（dirty → 保存 Sheet；clean → 直接退出标注）。 */
+function onDone() {
+  props.edit?.completeEdit()
+}
+
+/** 退出标注（dirty 时经未保存确认）。 */
+function requestExitAnnotate() {
+  const edit = props.edit
+  if (!edit) return
+  edit.requestAnnotateExit({
+    onDiscard: () => edit.exitAnnotate(),
+    onStore: () => applyAnnotate()
   })
 }
+
+/** 保存标注：VM 自含导出（shapes → 透明 PNG，natural 空间）→ 保存 Sheet。 */
+function applyAnnotate() {
+  props.edit?.requestAnnotateApply()
+}
+
+/** 上下文浮动条定位：选中包围盒（容器坐标）上方 12px，画布内夹紧。 */
+const contextBarBox = computed(() => annotateOverlayRef.value?.selectionDisplayBox ?? null)
+
+const contextBarStyle = computed(() => {
+  const box = contextBarBox.value
+  if (!box) return {}
+  const barW = 210
+  const left = Math.max(8, Math.min(box.x + box.width / 2 - barW / 2, containerSize.value.width - barW - 8))
+  const top = box.y - 12 - 36 >= 8 ? box.y - 12 - 36 : box.y + box.height + 12
+  return { left: `${left}px`, top: `${top}px` }
+})
+
+/** 上下文条显示的当前值（首个选中对象的样式）。 */
+const contextStyle = computed(() => {
+  const edit = props.edit
+  if (!edit || edit.selectedIds.value.length === 0) return { color: '#FF3B30', width: 4 }
+  const first = edit.shapes.value.find(s => s.id === edit.selectedIds.value[0])
+  if (!first) return { color: '#FF3B30', width: 4 }
+  return { color: first.color, width: first.strokeWidth }
+})
+
+/** 辅助技术播报（aria-live）：选中对象数优先，其次当前工具。 */
+const TOOL_NAME_KEYS: Record<string, string> = {
+  select: 'toolSelect',
+  arrow: 'toolArrow',
+  rect: 'toolRect',
+  ellipse: 'toolEllipse',
+  freehand: 'toolFreehand',
+  text: 'toolText'
+}
+const liveAnnouncement = computed(() => {
+  const edit = props.edit
+  if (!edit || edit.mode.value !== 'annotate') return ''
+  const sel = edit.selectedIds.value.length
+  if (sel > 0) return t('preview.editToolbar.selectedCount', { n: sel })
+  return t(`preview.editToolbar.${TOOL_NAME_KEYS[edit.annoTool.value] ?? 'toolSelect'}`)
+})
+
+// Esc 阶梯终点：浮层内层（文字/绘制/选中/Popover）已被消费，这里退出标注（dirty 先确认）
+useKeyInterceptor(e => {
+  if (!props.edit || e.key !== 'Escape') return false
+  if (props.edit.mode.value !== 'annotate') return false
+  e.preventDefault()
+  requestExitAnnotate()
+  return true
+})
 
 // 视口/缩放变化重算布局（ResizeObserver 兜底窗口拖拽；同步容器尺寸供短边适配）
 let resizeObserver: ResizeObserver | null = null
@@ -440,8 +540,6 @@ watch(imageContainerRef, el => {
   resizeObserver = null
   if (el) {
     resizeObserver = new ResizeObserver(entries => {
-      // 用 border box（getBoundingClientRect）：短边适配的 margin 相对可视区域，
-      // 不受容器 p-4 内边距影响
       const box = entries[0]?.target.getBoundingClientRect()
       if (box) containerSize.value = { width: box.width, height: box.height }
       layoutTick.value++
@@ -457,15 +555,29 @@ onUnmounted(() => resizeObserver?.disconnect())
 function zoomIn() {
   if (scale.value < 10) {
     scale.value = Math.min(scale.value + 0.25, 10)
-    log('Zoom in, scale:', scale.value)
   }
 }
 
 function zoomOut() {
   if (scale.value > 0.1) {
-    scale.value = Math.max(scale.value - 0.25, 0.1)
-    log('Zoom out, scale:', scale.value)
+    scale.value = Math.max(scale.value - 0.1, 0.1)
   }
+}
+
+/** 缩放菜单目标百分比（真实像素；居中还原平移）。 */
+function zoomTo(pct: number) {
+  const target = pct / 100
+  if (fitMode.value === 'actual') {
+    scale.value = Math.max(0.1, Math.min(target, 10))
+  } else {
+    const fitted = fittedSize.value
+    const dims = imageDimensions.value
+    if (fitted && dims.width) {
+      scale.value = Math.max(0.1, Math.min((target * dims.width) / fitted.width, 10))
+    }
+  }
+  translateX.value = 0
+  translateY.value = 0
 }
 
 function resetView() {
@@ -474,33 +586,23 @@ function resetView() {
   translateX.value = 0
   translateY.value = 0
   fitMode.value = 'contain'
-  log('View reset')
 }
 
 // Rotation controls
 function rotateLeft() {
   rotation.value = (rotation.value - 90 + 360) % 360
-  log('Rotate left, rotation:', rotation.value)
 }
 
 function rotateRight() {
   rotation.value = (rotation.value + 90) % 360
-  log('Rotate right, rotation:', rotation.value)
 }
 
 // Fit mode
 function setFitMode(mode: ImageFitMode) {
   fitMode.value = mode
-  if (mode === 'contain' || mode === 'cover') {
-    scale.value = 1
-    translateX.value = 0
-    translateY.value = 0
-  } else if (mode === 'actual') {
-    scale.value = 1
-    translateX.value = 0
-    translateY.value = 0
-  }
-  log('Fit mode changed to:', mode)
+  scale.value = 1
+  translateX.value = 0
+  translateY.value = 0
 }
 
 // Wheel zoom
@@ -518,19 +620,15 @@ function handleWheel(e: WheelEvent) {
     const centerX = rect.width / 2
     const centerY = rect.height / 2
 
-    // Calculate the offset from center to mouse
     const offsetX = mouseX - centerX
     const offsetY = mouseY - centerY
 
-    // Calculate how much the point under cursor should move
     const scaleFactor = newScale / scale.value
 
-    // Adjust translation to keep the point under cursor stationary
     translateX.value = offsetX - (offsetX - translateX.value) * scaleFactor
     translateY.value = offsetY - (offsetY - translateY.value) * scaleFactor
 
     scale.value = newScale
-    log('Wheel zoom, scale:', scale.value)
   }
 }
 
@@ -572,7 +670,6 @@ watch(() => props.file, (newFile, oldFile) => {
 
 // Cleanup
 onUnmounted(() => {
-  log('Component unmounting, cleaning up')
   if (imageSrc.value) {
     URL.revokeObjectURL(imageSrc.value)
   }
@@ -596,5 +693,18 @@ onUnmounted(() => {
 
 .cursor-grabbing {
   cursor: grabbing;
+}
+
+.img-status-bar {
+  background: var(--finder-chrome);
+  border-top: 1px solid var(--finder-divider);
+}
+
+.edited-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--edit-warning);
+  flex-shrink: 0;
 }
 </style>

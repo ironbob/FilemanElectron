@@ -1,4 +1,4 @@
-import { ref, shallowRef, computed, watch, onUnmounted, type Ref } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, onUnmounted, type Ref } from 'vue'
 import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import type {
@@ -12,11 +12,40 @@ import type {
 import { isEditableImageExt } from '@shared/fileKinds'
 import { usePreviewStore } from '@/stores/preview'
 import type { Rect } from '@/utils/cropGeometry'
-import { ANNO_COLORS, ANNO_WIDTHS, type AnnoShape, type AnnoTool } from '@/utils/annotationShapes'
+import {
+  ANNO_COLORS,
+  ANNO_WIDTHS,
+  moveShape,
+  shapesToOverlayBase64,
+  type AnnoFillMode,
+  type AnnoShape,
+  type AnnoTool,
+  type AnnoToolKey
+} from '@/utils/annotationShapes'
 
 const log = console
 
 export type ImageEditMode = 'idle' | 'crop' | 'annotate'
+
+/** 工具参数记忆（颜色/线宽/填充/透明度，按工具独立保持）。 */
+export interface AnnoToolParam {
+  color: string
+  width: number
+  fill: AnnoFillMode
+  opacity: number
+}
+
+/** 参数面板 / 上下文条的样式增量（width 映射到 shape.strokeWidth）。 */
+export interface AnnoStylePatch {
+  color?: string
+  width?: number
+  fill?: AnnoFillMode
+  opacity?: number
+}
+
+function defaultAnnoParam(): AnnoToolParam {
+  return { color: ANNO_COLORS[0], width: ANNO_WIDTHS[1], fill: 'stroke', opacity: 1 }
+}
 
 /** PreviewView 创建后经 PreviewContentRouter 下传给图片内容的编辑控制器。 */
 export type ImageEditController = ReturnType<typeof useImageEdit>
@@ -34,10 +63,10 @@ export interface UseImageEditOptions {
 /**
  * 图片编辑会话 ViewModel（feature-scoped，对齐 useHexViewer 先例）。
  *
- * 职责：编辑模式状态机（裁剪/标注）、裁剪矩形与标注形状持有、压缩参数预估
- * （300ms 节流）、apply 编排与错误呈现、批量压缩任务订阅/取消、底部工具条
- * 开合状态（纯手动，任何模式/换图/保存事件都不自动改变）。
- * View（Toolbar/Overlay/Dialogs）只渲染与转发意图。
+ * 职责：编辑模式状态机（裁剪/标注）、裁剪矩形与标注形状持有（undo/redo 双栈、
+ * 多选、按工具参数记忆）、压缩参数预估（300ms 节流，Sheet 打开期间恒常请求）、
+ * apply 编排与错误呈现、批量压缩任务订阅/取消、保存结果 flash 提示。
+ * View（TopToolbar/Rail/Popover/Overlay/Sheet）只渲染与转发意图。
  */
 export function useImageEdit(options: UseImageEditOptions) {
   const { file, deviceId, sessionId, collectionPaths } = options
@@ -47,7 +76,7 @@ export function useImageEdit(options: UseImageEditOptions) {
   const aspect = ref<number | null>(null)
   /** 裁剪矩形（显示 natural 空间，源像素坐标；apply 时附 referenceWidth） */
   const cropRect = ref<Rect | null>(null)
-  /** 待保存对话框确认的 ops（裁剪 Apply / 标注 Apply / 压缩入口置入） */
+  /** 待保存 Sheet 确认的 ops（裁剪 Apply / 标注 Apply / 压缩入口置入） */
   const saveDialogVisible = ref(false)
   const pendingCrop = ref<Rect | null>(null)
   const pendingAnnotate = shallowRef<EditAnnotate | null>(null)
@@ -57,10 +86,17 @@ export function useImageEdit(options: UseImageEditOptions) {
   const applying = ref(false)
   const error = ref('')
 
-  /** 底部工具条开合：默认收起，仅由用户点击右下角按钮切换（严格无自动行为）。 */
-  const toolbarExpanded = ref(false)
-  function toggleToolbar() {
-    toolbarExpanded.value = !toolbarExpanded.value
+  /** 保存成功后的短暂状态栏提示（4s 自动消失）。 */
+  const flashMessage = ref('')
+  /** 保存完成信号（自增；守卫「存储后续动作」watch 它触发）。 */
+  const savedSeq = ref(0)
+  let flashTimer: ReturnType<typeof setTimeout> | null = null
+  function flash(message: string) {
+    flashMessage.value = message
+    if (flashTimer) clearTimeout(flashTimer)
+    flashTimer = setTimeout(() => {
+      flashMessage.value = ''
+    }, 4000)
   }
 
   const editable = computed(() => {
@@ -68,7 +104,7 @@ export function useImageEdit(options: UseImageEditOptions) {
     return !!f && !f.isDirectory && deviceId === 'local' && isEditableImageExt(f.extension || '')
   })
 
-  /** 是否处于集合会话（决定工具条是否显示批量入口）。 */
+  /** 是否处于集合会话（决定工具栏是否显示批量入口）。 */
   const hasCollection = computed(() => {
     const items = collectionPaths?.()
     return !!items && items.length > 0
@@ -78,7 +114,7 @@ export function useImageEdit(options: UseImageEditOptions) {
   const batchRunning = computed(() => batchProgress.value?.status === 'running')
   let batchTaskId: string | null = null
 
-  /** 集合级对话框开关（渲染在 PreviewView，入口在图片内容工具条） */
+  /** 集合级对话框开关（渲染在 PreviewView，入口在顶栏集合菜单） */
   const batchDialogVisible = ref(false)
   const renameDialogVisible = ref(false)
 
@@ -127,16 +163,178 @@ export function useImageEdit(options: UseImageEditOptions) {
   }
 
   // ── 标注 ────────────────────────────────────────────────────────────────────
-  const annoTool = ref<AnnoTool>('arrow')
-  const annoColor = ref<string>(ANNO_COLORS[0])
-  const annoWidth = ref<number>(ANNO_WIDTHS[1])
-  /** 标注形状（显示 natural 空间）；深结构不可变替换以便 overlay 重绘 */
+  /** 当前工具：'select'（选择/移动）或绘制工具；进入标注模式默认 'select'。 */
+  const annoTool = ref<AnnoToolKey>('select')
+  /** 各绘制工具的参数记忆（会话内独立，参数面板响应式读写）。 */
+  const annoParams = reactive<Record<AnnoTool, AnnoToolParam>>({
+    arrow: defaultAnnoParam(),
+    rect: defaultAnnoParam(),
+    ellipse: defaultAnnoParam(),
+    freehand: defaultAnnoParam(),
+    text: defaultAnnoParam()
+  })
+  /** 当前绘制工具的参数（select 工具无参数）。 */
+  const activeParam = computed<AnnoToolParam | null>(() =>
+    annoTool.value === 'select' ? null : annoParams[annoTool.value]
+  )
+
+  /** 标注可见性（顶栏眼睛开关：预览不含标注的最终效果）。 */
+  const annotationsVisible = ref(true)
+
+  /** 标注形状（显示 natural 空间）；深结构不可变替换以便 overlay 重绘。 */
   const shapes = shallowRef<AnnoShape[]>([])
+  const selectedIds = ref<number[]>([])
   let shapeSeq = 1
+
+  // undo/redo 双栈（所有提交型变更入口都走 commit）。栈本体是普通数组，
+  // computed 借道 shapes（每次 commit/undo/redo 必然整表替换）获得响应性。
+  const undoStack: AnnoShape[][] = []
+  const redoStack: AnnoShape[][] = []
+  const canUndo = computed(() => {
+    void shapes.value
+    return undoStack.length > 0
+  })
+  const canRedo = computed(() => {
+    void shapes.value
+    return redoStack.length > 0
+  })
+
+  function commit(next: AnnoShape[]) {
+    undoStack.push(shapes.value)
+    if (undoStack.length > 100) undoStack.shift()
+    redoStack.length = 0
+    shapes.value = next
+  }
+
+  /**
+   * 手势编辑（拖动/缩放手柄/滑杆连拨）：起点入历史一帧，过程中的变更走
+   * applyShapesLive / setAnnoParam(live) 免历史替换，保证一次手势 = 一条历史。
+   */
+  function beginShapeGesture() {
+    undoStack.push(shapes.value)
+    if (undoStack.length > 100) undoStack.shift()
+    redoStack.length = 0
+  }
+
+  /** 手势过程中的免历史整表替换（id 保持由调用方保证）。 */
+  function applyShapesLive(next: AnnoShape[]) {
+    shapes.value = next
+  }
+
+  /** 形状集变化后收敛选中集（删除/撤销后引用失效的 id）。 */
+  watch(shapes, () => {
+    if (selectedIds.value.length === 0) return
+    const alive = new Set(shapes.value.map(s => s.id))
+    const next = selectedIds.value.filter(id => alive.has(id))
+    if (next.length !== selectedIds.value.length) selectedIds.value = next
+  })
+
+  function undoAnno() {
+    if (!undoStack.length) return
+    redoStack.push(shapes.value)
+    shapes.value = undoStack.pop()!
+  }
+
+  function redoAnno() {
+    if (!redoStack.length) return
+    undoStack.push(shapes.value)
+    shapes.value = redoStack.pop()!
+  }
+
+  function selectShape(id: number, additive = false) {
+    if (additive) {
+      if (!selectedIds.value.includes(id)) selectedIds.value = [...selectedIds.value, id]
+    } else {
+      selectedIds.value = [id]
+    }
+  }
+
+  function selectMany(ids: number[]) {
+    selectedIds.value = [...new Set(ids)]
+  }
+
+  function clearSelection() {
+    selectedIds.value = []
+  }
+
+  function addShape(shape: Omit<AnnoShape, 'id'> & { id?: number }): void {
+    const withId = { ...shape, id: shape.id ?? shapeSeq++ } as AnnoShape
+    commit([...shapes.value, withId])
+  }
+
+  function replaceShape(id: number, shape: Omit<AnnoShape, 'id'>): void {
+    commit(shapes.value.map(s => (s.id === id ? ({ ...shape, id } as AnnoShape) : s)))
+  }
+
+  function moveShapes(ids: number[], dx: number, dy: number): void {
+    if (!dx && !dy) return
+    const set = new Set(ids)
+    commit(shapes.value.map(s => (set.has(s.id) ? moveShape(s, dx, dy) : s)))
+  }
+
+  function deleteShapes(ids: number[]): void {
+    if (!ids.length) return
+    const set = new Set(ids)
+    commit(shapes.value.filter(s => !set.has(s.id)))
+  }
+
+  function duplicateShapes(ids: number[]): void {
+    const set = new Set(ids)
+    // 偏移量随图幅缩放（大图固定 12px 不可见）
+    const offset = Math.max(12, Math.round((naturalWidthCache.value || 1000) * 0.012))
+    const copies = shapes.value
+      .filter(s => set.has(s.id))
+      .map(s => ({ ...moveShape(s, offset, offset), id: shapeSeq++ }) as AnnoShape)
+    if (!copies.length) return
+    commit([...shapes.value, ...copies])
+    selectedIds.value = copies.map(c => c.id)
+  }
+
+  function applyPatch(shape: AnnoShape, patch: AnnoStylePatch): AnnoShape {
+    const next = { ...shape } as AnnoShape & { strokeWidth: number; color: string }
+    if (patch.color !== undefined) next.color = patch.color
+    if (patch.width !== undefined) next.strokeWidth = patch.width
+    if (patch.fill !== undefined && (shape.kind === 'rect' || shape.kind === 'ellipse')) {
+      next.fill = patch.fill
+    }
+    if (patch.opacity !== undefined) next.opacity = patch.opacity
+    return next
+  }
+
+  function restyleShapes(ids: number[], patch: AnnoStylePatch): void {
+    if (!ids.length) return
+    const set = new Set(ids)
+    commit(shapes.value.map(s => (set.has(s.id) ? applyPatch(s, patch) : s)))
+  }
+
+  /**
+   * 参数面板唯一入口：更新当前工具默认值；有选中对象时同时即时作用于选中对象
+   * （可撤销）——与 Preview「改颜色即改选中」一致。
+   * live=true 供滑杆连拨帧使用（历史已在手势起点由 beginShapeGesture 记录）。
+   */
+  function setAnnoParam(patch: AnnoStylePatch, live = false) {
+    const tool = annoTool.value
+    if (tool !== 'select') {
+      const p = annoParams[tool]
+      if (patch.color !== undefined) p.color = patch.color
+      if (patch.width !== undefined) p.width = patch.width
+      if (patch.fill !== undefined) p.fill = patch.fill
+      if (patch.opacity !== undefined) p.opacity = patch.opacity
+    }
+    if (selectedIds.value.length > 0) {
+      if (live) {
+        const set = new Set(selectedIds.value)
+        applyShapesLive(shapes.value.map(s => (set.has(s.id) ? applyPatch(s, patch) : s)))
+      } else {
+        restyleShapes(selectedIds.value, patch)
+      }
+    }
+  }
 
   function startAnnotate() {
     if (!editable.value) return
     mode.value = 'annotate'
+    annoTool.value = 'select'
     error.value = ''
   }
 
@@ -144,27 +342,72 @@ export function useImageEdit(options: UseImageEditOptions) {
     mode.value = 'idle'
   }
 
-  function addShape(shape: Omit<AnnoShape, 'id'> & { id?: number }): void {
-    const withId = { ...shape, id: shape.id ?? shapeSeq++ } as AnnoShape
-    shapes.value = [...shapes.value, withId]
+  /** 编辑会话完成（顶栏「完成」）：有标注 → 统一保存 Sheet；无标注 → 直接退出。 */
+  function completeEdit() {
+    if (mode.value !== 'annotate') return
+    if (annoDirty.value) {
+      requestAnnotateApply()
+      return
+    }
+    exitAnnotate()
   }
 
-  function replaceShape(id: number, shape: Omit<AnnoShape, 'id'>): void {
-    shapes.value = shapes.value.map(s => (s.id === id ? ({ ...shape, id } as AnnoShape) : s))
-  }
-
-  function undoAnno() {
-    shapes.value = shapes.value.slice(0, -1)
-  }
-
-  function clearAnno() {
+  /** 丢弃全部标注（「不保存」路径）：形状/历史/选中清空并退出模式。 */
+  function discardAnnotate() {
     shapes.value = []
+    undoStack.length = 0
+    redoStack.length = 0
+    selectedIds.value = []
+    mode.value = 'idle'
   }
 
-  /** 标注应用：宿主从 overlay 导出 base64 后调用，进入保存对话框。 */
-  function requestAnnotateApply(overlay: EditAnnotate | null) {
-    if (!overlay || !file.value) return
-    pendingAnnotate.value = overlay
+  /** 保存成功后：标注已烘焙，整体复位（形状/历史/选中）。 */
+  function resetAnnoAfterSave() {
+    shapes.value = []
+    undoStack.length = 0
+    redoStack.length = 0
+    selectedIds.value = []
+    annotationsVisible.value = true
+  }
+
+  /** 存在未保存标注（退出前确认依据）。 */
+  const annoDirty = computed(() => shapes.value.length > 0)
+
+  /**
+   * 未保存确认（退出标注 / 集合切图共用）：dirty 时弹「取消 / 不保存 / 存储」；
+   * clean 时直接执行 onDiscard（无标注无需确认）。「存储」回调由宿主注入
+   * （overlay 导出 → 保存 Sheet）；保存成功后由 confirmSave 复位标注状态。
+   */
+  const unsavedPrompt = ref(false)
+  let unsavedHandlers: { onDiscard: () => void; onStore?: () => void } | null = null
+  function requestAnnotateExit(handlers: { onDiscard: () => void; onStore?: () => void }) {
+    if (!annoDirty.value) {
+      handlers.onDiscard()
+      return
+    }
+    unsavedHandlers = handlers
+    unsavedPrompt.value = true
+  }
+  function resolveUnsaved(choice: 'cancel' | 'discard' | 'store') {
+    if (!unsavedPrompt.value) return
+    unsavedPrompt.value = false
+    const handlers = unsavedHandlers
+    unsavedHandlers = null
+    if (choice === 'discard') {
+      discardAnnotate()
+      handlers?.onDiscard()
+    } else if (choice === 'store') {
+      handlers?.onStore?.()
+    }
+  }
+
+  /** 标注应用：VM 自含导出（shapes → 透明 PNG，natural 空间），进入保存 Sheet。 */
+  function requestAnnotateApply() {
+    if (!file.value || !shapes.value.length) return
+    if (!naturalWidthCache.value || !naturalHeightCache.value) return
+    const overlayBase64 = shapesToOverlayBase64(shapes.value, naturalWidthCache.value, naturalHeightCache.value)
+    if (!overlayBase64) return
+    pendingAnnotate.value = { overlayBase64, referenceWidth: naturalWidthCache.value }
     pendingCompress.value = false
     openSaveDialog()
   }
@@ -192,10 +435,13 @@ export function useImageEdit(options: UseImageEditOptions) {
     if (mode.value === 'crop') exitCrop()
   }
 
-  /** 保存对话框参数变化时预估（调用方 300ms 节流）。 */
+  /**
+   * Sheet 参数变化时预估（调用方 300ms 节流）。Sheet 打开期间恒常请求——
+   * 纯标注保存也必然重编码（修复旧版仅压缩入口才有预估的缺口）。
+   */
   async function refreshEstimate(params: EditCompressParams) {
     const f = file.value
-    if (!f || !pendingCompress.value) return
+    if (!f || !saveDialogVisible.value) return
     estimating.value = true
     try {
       estimate.value = await window.fileman.imageEdit.estimate(f.path, params)
@@ -230,12 +476,18 @@ export function useImageEdit(options: UseImageEditOptions) {
       const result = await window.fileman.imageEdit.apply(f.path, ops, save)
       log.info('[useImageEdit] saved', { path: f.path, written: result.writtenPath, bytes: result.bytes, mode: save.mode, annotate: !!ops.annotate })
       previewStore.applyEditResult(sessionId, f.path, result)
-      // 标注已烘焙：清空形状并退出标注模式（工具条开合不受影响）
+      savedSeq.value++
       if (ops.annotate) {
-        clearAnno()
+        // 标注已烘焙：复位标注状态并退出标注模式
+        resetAnnoAfterSave()
         exitAnnotate()
       }
       closeSaveDialog()
+      flash(
+        save.mode === 'overwrite'
+          ? t('preview.editToolbar.flashSavedReplace')
+          : t('preview.editToolbar.flashSavedCopy', { name: result.writtenPath.split('/').pop() || f.name })
+      )
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
       log.error('[useImageEdit] apply failed', { path: f.path, error: err })
@@ -246,8 +498,10 @@ export function useImageEdit(options: UseImageEditOptions) {
 
   // 由宿主（PreviewImageContent）注入 displayed natural 尺寸（onLoad 时）
   const naturalWidthCache = ref(0)
-  function setNaturalSize(width: number) {
+  const naturalHeightCache = ref(0)
+  function setNaturalSize(width: number, height: number) {
     naturalWidthCache.value = width
+    naturalHeightCache.value = height
   }
 
   // ── 批量压缩 ────────────────────────────────────────────────────────────────
@@ -282,16 +536,16 @@ export function useImageEdit(options: UseImageEditOptions) {
   }) ?? null
   onUnmounted(() => stopProgress?.())
 
-  // 步进换图：退出编辑模式、清标注形状与错误（预估随保存对话框重新触发）；
-  // 注意：不动 toolbarExpanded（严格手动开合，不随换图折叠）
+  // 步进换图：退出编辑模式、清标注形状与历史（预估随保存 Sheet 重新触发）
   watch(file, () => {
     if (mode.value === 'crop') exitCrop()
-    if (mode.value === 'annotate') {
-      exitAnnotate()
-      clearAnno()
-    }
+    if (mode.value === 'annotate') discardAnnotate()
     error.value = ''
     estimate.value = null
+  })
+
+  onUnmounted(() => {
+    if (flashTimer) clearTimeout(flashTimer)
   })
 
   return {
@@ -301,7 +555,6 @@ export function useImageEdit(options: UseImageEditOptions) {
     cropRect,
     editable,
     hasCollection,
-    toolbarExpanded,
     saveDialogVisible,
     pendingCrop,
     pendingAnnotate,
@@ -310,26 +563,47 @@ export function useImageEdit(options: UseImageEditOptions) {
     estimating,
     applying,
     error,
+    flashMessage,
+    savedSeq,
     shapes,
+    selectedIds,
     annoTool,
-    annoColor,
-    annoWidth,
+    annoParams,
+    activeParam,
+    annotationsVisible,
+    canUndo,
+    canRedo,
+    annoDirty,
+    unsavedPrompt,
+    requestAnnotateExit,
+    resolveUnsaved,
     batchProgress,
     batchRunning,
     batchDialogVisible,
     renameDialogVisible,
     // intents
-    toggleToolbar,
     startCrop,
     exitCrop,
     setCropRect,
     requestCropApply,
     startAnnotate,
     exitAnnotate,
+    completeEdit,
+    discardAnnotate,
     addShape,
     replaceShape,
+    beginShapeGesture,
+    applyShapesLive,
+    moveShapes,
+    deleteShapes,
+    duplicateShapes,
+    restyleShapes,
+    setAnnoParam,
+    selectShape,
+    selectMany,
+    clearSelection,
     undoAnno,
-    clearAnno,
+    redoAnno,
     requestAnnotateApply,
     requestCompress,
     closeSaveDialog,

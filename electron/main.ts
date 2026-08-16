@@ -654,6 +654,15 @@ ipcMain.handle(CH.invoke.systemSaveFileDialog, async (event, options: {
   return result.canceled || !result.filePath ? null : result.filePath
 })
 
+// 原生目录选择（图片保存 Sheet「位置」行）：取消返回 null。
+ipcMain.handle(CH.invoke.systemPickDirectory, async (event, defaultPath?: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const result = win
+    ? await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], defaultPath })
+    : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], defaultPath })
+  return result.canceled || !result.filePaths?.length ? null : result.filePaths[0]
+})
+
 // ============ Cross-Device Operations ============
 
 ipcMain.handle(CH.invoke.fsCopyBetween, async (

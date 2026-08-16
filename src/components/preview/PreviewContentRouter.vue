@@ -20,6 +20,8 @@
     :file="file"
     :device-id="deviceId"
     :edit="edit"
+    :collection="collection"
+    :step-collection="stepCollection"
   />
   <PreviewVideoContent
     v-else-if="type === 'video'"
@@ -90,6 +92,10 @@ const props = defineProps<{
   forceType?: PreviewType
   /** 图片编辑控制器（PreviewView 创建；仅图片内容消费，QuickLook 不传）。 */
   edit?: ImageEditController
+  /** 图片集合导航信息（多图会话；转发给图片内容顶栏）。 */
+  collection?: { index: number; total: number } | null
+  /** 集合步进（dirty 标注由 VM 弹未保存确认后执行）。 */
+  stepCollection?: (delta: number) => void
 }>()
 
 // 优先级：forceType > initialLine（grep 命中按文本渲染——grep 已证明内容

@@ -47,17 +47,19 @@ export class ImageEditService {
 
   constructor(private readonly decoder: Pick<ImageDecodeService, 'decodeToRaster'>) {}
 
-  /** 试编码预估（不落盘）。 */
+  /** 试编码预估（不落盘）。按真实输出格式/质量编码，保证体积与格式结论可用于 Sheet 摘要。 */
   async estimate(filePath: string, params: EditCompressParams): Promise<EditEstimateResult> {
     const t0 = Date.now()
     log.info('[ImageEdit] estimate start', { filePath, quality: params.quality, maxEdge: params.maxEdge, format: params.format })
-    const { pipeline, format } = await this.buildPipeline(filePath, { compress: params })
-    const { data, info } = await pipeline.toBuffer({ resolveWithObject: true })
+    const { pipeline, format: inputFormat } = await this.buildPipeline(filePath, { compress: params })
+    const meta = await pipeline.metadata()
+    const outFormat = this.resolveOutFormat({ mode: 'copy' }, { compress: params }, inputFormat)
+    const data = await this.encode(pipeline, outFormat, params.quality)
     const result: EditEstimateResult = {
       estimatedBytes: data.byteLength,
-      format: info.format as EditEstimateResult['format'],
-      width: info.width,
-      height: info.height
+      format: outFormat,
+      width: meta.width ?? 0,
+      height: meta.height ?? 0
     }
     log.info('[ImageEdit] estimate done', { filePath, ms: Date.now() - t0, ...result })
     return result
@@ -69,6 +71,12 @@ export class ImageEditService {
     log.info('[ImageEdit] apply start', { filePath, crop: !!ops.crop, compress: !!ops.compress, mode: save.mode })
     if (!ops.crop && !ops.compress && !ops.annotate) throw new Error(t('errors.main.imageEditEmptyOps'))
 
+    // copy 模式自定义目录前置校验：目录缺失时明确报错（而非写入时才炸）
+    if (save.dir && save.mode === 'copy') {
+      const stat = await fs.stat(save.dir).catch(() => null)
+      if (!stat?.isDirectory()) throw new Error(t('errors.main.imageEditTargetDirMissing', { dir: save.dir }))
+    }
+
     const { pipeline, format: inputFormat } = await this.buildPipeline(filePath, ops)
     const outFormat = this.resolveOutFormat(save, ops, inputFormat)
     const encoded = await this.encode(pipeline, outFormat, ops.compress?.quality)
@@ -77,6 +85,8 @@ export class ImageEditService {
       mode: save.mode,
       format: outFormat,
       suffix: save.suffix,
+      name: save.name,
+      dir: save.dir,
       exists: p => fs.existsSync(p)
     })
 

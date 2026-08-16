@@ -45,8 +45,9 @@ test('textFontSize：粗细档位映射且下限 14', () => {
   assert.equal(textFontSize(8), 32)
 })
 
-test('预设：7 色 + 3 档粗细', () => {
-  assert.equal(ANNO_COLORS.length, 7)
+test('预设：8 色（4×2 色板）+ 3 档粗细', () => {
+  assert.equal(ANNO_COLORS.length, 8)
+  assert.ok(ANNO_COLORS.includes('#AF52DE')) // 重设计新增紫，凑满 4×2
   assert.deepEqual([...ANNO_WIDTHS], [2, 4, 8])
 })
 

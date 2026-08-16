@@ -67,6 +67,8 @@ interface Window {
   fileman: {
     // System
     getHomeDir: () => Promise<string>
+    /** 原生目录选择（保存 Sheet「位置」行）；取消返回 null。 */
+    pickDirectory: (defaultPath?: string) => Promise<string | null>
     openFileInfoWindow: (context: FileInfoWindowContext) => Promise<void>
     getFileInfoWindowContext: () => Promise<FileInfoWindowContext>
 

@@ -938,3 +938,111 @@
   flex-shrink: 0;
 }
 @keyframes hex-spin { to { transform: rotate(360deg); } }
+
+/* ========================================
+   Image annotation editor —— Finder 式三区布局
+   （顶部工具栏 40 / 画布 + 右侧轨道列 64 / 状态栏 32；重设计 2026-08-16）
+   状态语言唯一：透明默认、hover 浅灰圆角、选中系统蓝实底、禁用降透明度。
+   ======================================== */
+.finder-shell {
+  --edit-surface: #ffffff;
+  --edit-hairline: rgba(60, 60, 67, 0.14);
+  --edit-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  --edit-shadow-sheet: 0 10px 32px rgba(0, 0, 0, 0.18);
+  --edit-warning: #ff9500;
+  --edit-scrim: rgba(0, 0, 0, 0.40);
+}
+.finder-shell[data-theme='dark'] {
+  --edit-surface: #26262a;
+  --edit-hairline: rgba(255, 255, 255, 0.12);
+  --edit-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --edit-shadow-sheet: 0 10px 32px rgba(0, 0, 0, 0.35);
+  --edit-warning: #ff9f0a;
+}
+
+/* 32×32 热区图标按钮（编辑器统一规格，热区大于 finder-icon-button 的 28px） */
+.finder-shell .edit-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--finder-secondary-label);
+  background: transparent;
+  transition: background-color 130ms ease, color 130ms ease;
+}
+.finder-shell .edit-icon-btn:hover:not(:disabled) {
+  background: var(--finder-control);
+  color: var(--finder-label);
+}
+.finder-shell .edit-icon-btn:active:not(:disabled) {
+  background: var(--finder-row-hover);
+}
+.finder-shell .edit-icon-btn.is-active {
+  background: var(--finder-selection);
+  color: #fff;
+}
+.finder-shell .edit-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.finder-shell .edit-icon-btn:focus-visible,
+.finder-shell .edit-focusable:focus-visible {
+  outline: 2px solid var(--finder-selection);
+  outline-offset: 2px;
+}
+
+/* 主按钮（蓝色文字钮，唯一主动作）：顶栏「完成」/ Sheet 底部 */
+.finder-shell .edit-primary-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 590;
+  color: #fff;
+  background: var(--finder-selection);
+  transition: filter 130ms ease, opacity 130ms ease;
+}
+.finder-shell .edit-primary-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.finder-shell .edit-primary-btn:active:not(:disabled) { filter: brightness(0.92); }
+.finder-shell .edit-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 次要按钮（Sheet「取消」等） */
+.finder-shell .edit-secondary-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--edit-hairline);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--finder-label);
+  background: var(--edit-surface);
+  transition: background-color 130ms ease;
+}
+.finder-shell .edit-secondary-btn:hover:not(:disabled) { background: var(--finder-control); }
+.finder-shell .edit-secondary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 浮动容器（轨道 / Popover / 上下文条）：实色面板 + 发丝线 + 克制阴影 */
+.finder-shell .edit-panel {
+  background: var(--edit-surface);
+  border: 1px solid var(--edit-hairline);
+  border-radius: 10px;
+  box-shadow: var(--edit-shadow);
+}
+
+/* 组内分隔线（横/竖） */
+.finder-shell .edit-sep-v {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--finder-divider);
+  flex-shrink: 0;
+}
+.finder-shell .edit-sep-h {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--finder-divider);
+  flex-shrink: 0;
+}
