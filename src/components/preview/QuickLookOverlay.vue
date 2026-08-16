@@ -15,41 +15,35 @@
         aria-label="Quick Look"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border">
+        <div class="finder-preview-toolbar flex items-center justify-between border-b border-border">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-sm font-medium text-text-primary truncate">{{ currentFile.name }}</span>
             <span class="text-xs text-text-tertiary flex-shrink-0">{{ sizeLabel }}</span>
             <span v-if="total > 1" class="text-xs text-text-tertiary flex-shrink-0">{{ index + 1 }} / {{ total }}</span>
           </div>
-          <div class="flex items-center gap-1">
+          <div class="finder-control-group">
             <button
-              class="p-1.5 rounded hover:bg-bg-hover text-text-secondary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              class="finder-icon-button"
               title="Previous (↑)"
               :disabled="index <= 0"
               @click="step(-1)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-              </svg>
+              <IconfontIcon name="up" />
             </button>
             <button
-              class="p-1.5 rounded hover:bg-bg-hover text-text-secondary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              class="finder-icon-button"
               title="Next (↓)"
               :disabled="index >= total - 1"
               @click="step(1)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
+              <IconfontIcon name="down" />
             </button>
             <button
-              class="p-1.5 rounded hover:bg-bg-hover text-text-secondary hover:text-text-primary transition-colors"
+              class="finder-icon-button"
               title="Close (Esc / Space)"
               @click="close"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <IconfontIcon name="close" />
             </button>
           </div>
         </div>
@@ -72,6 +66,7 @@ import { usePreviewStore } from '@/stores/preview'
 import { useTabsStore } from '@/stores/tabs'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import PreviewContentRouter from './PreviewContentRouter.vue'
+import IconfontIcon from './IconfontIcon.vue'
 
 const previewStore = usePreviewStore()
 const tabsStore = useTabsStore()

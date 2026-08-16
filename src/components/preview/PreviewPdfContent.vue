@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-bg-secondary">
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -20,52 +20,44 @@
     <!-- PDF Viewer -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
       <!-- Controls -->
-      <div class="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border">
-        <div class="flex items-center gap-2">
+      <div class="finder-preview-toolbar flex items-center justify-between border-b border-border">
+        <div class="finder-control-group">
           <!-- Page Navigation -->
           <button
-            class="p-1.5 rounded hover:bg-bg-hover disabled:opacity-50"
+            class="finder-icon-button"
             :disabled="currentPage <= 1"
             @click="prevPage"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-            </svg>
+            <IconfontIcon name="previous" />
           </button>
-          <span class="text-sm text-text-secondary">
+          <span class="px-1 text-xs text-text-secondary tabular-nums">
             {{ currentPage }} / {{ totalPages }}
           </span>
           <button
-            class="p-1.5 rounded hover:bg-bg-hover disabled:opacity-50"
+            class="finder-icon-button"
             :disabled="currentPage >= totalPages"
             @click="nextPage"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
+            <IconfontIcon name="next" />
           </button>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="finder-control-group">
           <!-- Zoom Controls -->
           <button
-            class="p-1.5 rounded hover:bg-bg-hover"
+            class="finder-icon-button"
             @click="zoomOut"
             title="Zoom Out"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
-            </svg>
+            <IconfontIcon name="zoomOut" />
           </button>
-          <span class="text-sm text-text-secondary w-12 text-center">{{ Math.round(scale * 100) }}%</span>
+          <span class="text-xs text-text-secondary w-12 text-center tabular-nums">{{ Math.round(scale * 100) }}%</span>
           <button
-            class="p-1.5 rounded hover:bg-bg-hover"
+            class="finder-icon-button"
             @click="zoomIn"
             title="Zoom In"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-            </svg>
+            <IconfontIcon name="zoomIn" />
           </button>
         </div>
       </div>
@@ -102,6 +94,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, watch, onUnmounted, nextTick } from 'vue'
 import type { FileInfo } from '@/types'
+import IconfontIcon from './IconfontIcon.vue'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 

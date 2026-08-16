@@ -5,6 +5,7 @@ import { formatOffset } from '@/utils/hexFormat'
 import { ROW_HEIGHT } from '@/utils/hexViewport'
 import { formatSize } from '@/utils/path'
 import { useHexViewer } from './composables/useHexViewer'
+import IconfontIcon from './IconfontIcon.vue'
 
 /**
  * Hex 预览内容（只读 View）。全文件虚拟滚动（占位高=真实总行数）、
@@ -61,16 +62,17 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col min-h-0">
+  <div class="finder-preview h-full flex flex-col min-h-0">
     <!-- 头部：文件信息 + 光标偏移 + 偏移跳转 -->
-    <div class="flex items-center gap-3 px-3 py-1.5 border-b border-border bg-bg-secondary text-[11px] text-text-tertiary flex-shrink-0">
+    <div class="finder-preview-toolbar flex items-center gap-3 border-b border-border text-[11px] text-text-tertiary flex-shrink-0">
+      <span class="finder-preview-badge">HEX</span>
       <span class="font-mono truncate max-w-48" :title="file.name">{{ file.name }}</span>
       <span class="flex-shrink-0">{{ formatSize(file.size) }}</span>
       <span v-if="vm.cursorLabel" class="font-mono flex-shrink-0 text-text-secondary">光标 {{ vm.cursorLabel }}</span>
       <span v-if="vm.fetching > 0" class="text-accent-blue flex-shrink-0">读取中…</span>
       <div class="flex-1" />
       <div class="flex flex-col items-end flex-shrink-0">
-        <div class="flex items-center gap-1">
+        <div class="finder-control-group">
           <input
             v-model="jumpInput"
             type="text"
@@ -80,15 +82,15 @@ onMounted(() => {
             @keydown.enter="submitJump"
           >
           <button
-            class="px-1.5 py-0.5 rounded border border-border hover:bg-bg-hover"
+            class="finder-icon-button"
             title="跳转到偏移（目标行居中高亮）"
             @click="submitJump"
-          >→</button>
+          ><IconfontIcon name="jump" /></button>
           <button
-            class="px-1.5 py-0.5 rounded border border-border hover:bg-bg-hover"
+            class="finder-icon-button"
             title="回到文件头"
             @click="backToTop"
-          >⤒</button>
+          ><IconfontIcon name="top" /></button>
         </div>
         <span v-if="vm.jumpNotice" class="text-[10px] text-accent-orange leading-tight">{{ vm.jumpNotice }}</span>
       </div>

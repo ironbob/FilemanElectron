@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-bg-secondary">
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -22,12 +22,12 @@
       <!-- Video Controls Toolbar -->
       <div
         v-show="showControls"
-        class="absolute top-2 right-2 z-10 flex items-center gap-1 bg-bg-tertiary/90 rounded-md p-1 backdrop-blur-sm transition-opacity"
+        class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1 transition-opacity"
       >
         <!-- Playback Speed -->
         <select
           v-model="playbackSpeed"
-          class="text-xs bg-transparent text-text-secondary border-none outline-none px-1"
+          class="h-7 text-xs bg-transparent text-text-secondary border-none outline-none px-1"
           @change="handleSpeedChange"
         >
           <option value="0.5">0.5x</option>
@@ -38,34 +38,30 @@
           <option value="2">2x</option>
         </select>
 
-        <div class="w-px h-4 bg-border mx-1"></div>
+        <div class="finder-toolbar-divider"></div>
 
         <!-- Picture-in-Picture -->
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           :disabled="!isPiPSupported"
           @click="togglePiP"
           title="Picture-in-Picture"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 6v12a2 2 0 1 2 2h12a2 2 0 1-2-2V7m16 4H8" />
-          </svg>
+          <IconfontIcon name="pip" />
         </button>
 
-        <div class="w-px h-4 bg-border mx-1"></div>
+        <div class="finder-toolbar-divider"></div>
 
         <!-- Fullscreen -->
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           @click="toggleFullscreen"
           title="Fullscreen"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1v4m0 0h-4m4 0l-5-5M4 16v4m0 0h4M4 20l5-5m11 5l-5 5m5 5v-4m0 0h-4" />
-          </svg>
+          <IconfontIcon name="expand" />
         </button>
 
-        <div class="w-px h-4 bg-border mx-1"></div>
+        <div class="finder-toolbar-divider"></div>
 
         <!-- Resolution Info -->
         <div v-if="resolution.width && resolution.height" class="text-xs text-text-secondary px-1">
@@ -206,6 +202,7 @@ import { getMimeType } from '@/types/preview'
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewVideoContent] ${message}`, ...args)
 }
+import IconfontIcon from './IconfontIcon.vue'
 
 const props = defineProps<{
   file: FileInfo

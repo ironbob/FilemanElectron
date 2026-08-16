@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-bg-secondary relative overflow-hidden">
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary relative overflow-hidden">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -20,81 +20,66 @@
     <!-- Image Content -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
       <!-- Toolbar -->
-      <div class="absolute top-2 right-2 z-10 flex items-center gap-1 bg-bg-tertiary/90 rounded-md p-1 backdrop-blur-sm">
+      <div class="finder-preview-floating-toolbar absolute top-2 right-2 z-10 flex items-center gap-1">
         <!-- Zoom Controls -->
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           @click="zoomIn"
           title="Zoom In"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-          </svg>
+          <IconfontIcon name="zoomIn" />
         </button>
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           @click="zoomOut"
           title="Zoom Out"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
-          </svg>
+          <IconfontIcon name="zoomOut" />
         </button>
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           @click="resetView"
           title="Reset View"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
+          <IconfontIcon name="reset" />
         </button>
 
-        <div class="w-px h-4 bg-border mx-1"></div>
+        <div class="finder-toolbar-divider"></div>
 
         <!-- Rotation Controls -->
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           @click="rotateLeft"
           title="Rotate Left"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-          </svg>
+          <IconfontIcon name="rotateLeft" />
         </button>
         <button
-          class="p-1.5 rounded hover:bg-bg-hover transition-colors"
+          class="finder-icon-button"
           @click="rotateRight"
           title="Rotate Right"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
-          </svg>
+          <IconfontIcon name="rotateRight" />
         </button>
 
-        <div class="w-px h-4 bg-border mx-1"></div>
+        <div class="finder-toolbar-divider"></div>
 
         <!-- Fit Mode -->
         <button
-          class="p-1.5 rounded transition-colors"
-          :class="fitMode === 'contain' ? 'bg-accent-blue text-white' : 'hover:bg-bg-hover'"
+          class="finder-icon-button"
+          :class="{ 'is-active': fitMode === 'contain' }"
           @click="setFitMode('contain')"
           title="Fit to Window"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-          </svg>
+          <IconfontIcon name="fit" />
         </button>
         <button
-          class="p-1.5 rounded transition-colors"
-          :class="fitMode === 'actual' ? 'bg-accent-blue text-white' : 'hover:bg-bg-hover'"
+          class="finder-icon-button"
+          :class="{ 'is-active': fitMode === 'actual' }"
           @click="setFitMode('actual')"
           title="Actual Size"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
+          <IconfontIcon name="actualSize" />
         </button>
 
         <!-- Scale Display -->
@@ -159,6 +144,7 @@ const loading = ref(true)
 const hasError = ref(false)
 const errorMessage = ref('')
 const imageSrc = ref('')
+import IconfontIcon from './IconfontIcon.vue'
 const imageRef = ref<HTMLImageElement | null>(null)
 const imageDimensions = ref({ width: 0, height: 0 })
 

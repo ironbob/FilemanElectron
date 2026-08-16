@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-bg-secondary">
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -20,44 +20,38 @@
     <!-- Content Area -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
       <!-- Toolbar -->
-      <div class="flex items-center justify-between px-4 py-1.5 bg-bg-tertiary border-b border-border flex-shrink-0">
+      <div class="finder-preview-toolbar flex items-center justify-between border-b border-border flex-shrink-0">
         <div class="flex items-center gap-2.5">
-          <span class="text-xs px-2 py-0.5 rounded bg-bg-hover text-text-secondary font-mono">
+          <span class="finder-preview-badge">
             ZIP
           </span>
           <span class="text-xs text-text-tertiary">
             {{ fileCount }} items · {{ formatSize(totalSize) }}
           </span>
         </div>
-        <div class="flex items-center gap-1">
+        <div class="finder-control-group">
           <button
-            class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
+            class="finder-icon-button"
             title="Expand All"
             @click="expandAll"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
+            <IconfontIcon name="expand" />
           </button>
           <button
-            class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
+            class="finder-icon-button"
             title="Collapse All"
             @click="collapseAll"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-            </svg>
+            <IconfontIcon name="collapse" />
           </button>
-          <div class="relative ml-2">
+          <div class="relative ml-1">
             <input
               v-model="searchQuery"
               type="text"
               placeholder="Search..."
               class="w-40 px-2 py-1 text-xs bg-bg-primary border border-border rounded focus:outline-none focus:border-accent-blue text-text-primary placeholder-text-tertiary"
             />
-            <svg class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <IconfontIcon name="search" size="sm" class="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
           </div>
         </div>
       </div>
@@ -90,6 +84,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, shallowRef } from 'vue'
 import type { FileInfo } from '@/types'
+import IconfontIcon from './IconfontIcon.vue'
 import { unzip } from 'fflate'
 import ZipTreeNode from './ZipTreeNode.vue'
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-bg-secondary">
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -20,10 +20,8 @@
     <!-- Audio Player -->
     <div v-else class="flex-1 flex flex-col items-center justify-center p-6">
       <!-- Audio Icon -->
-      <div class="w-32 h-32 rounded-xl bg-gradient-to-br from-accent-blue/20 to-purple-500/20 flex items-center justify-center mb-6 shadow-lg">
-        <svg class="w-16 h-16 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-        </svg>
+      <div class="w-32 h-32 rounded-2xl bg-accent-blue/10 flex items-center justify-center mb-6 shadow-sm border border-border">
+        <IconfontIcon name="play" size="lg" class="text-accent-blue text-5xl" />
       </div>
 
       <!-- File Name -->
@@ -62,6 +60,7 @@ import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 
 const log = (message: string, ...args: any[]) => {
+import IconfontIcon from './IconfontIcon.vue'
   console.log(`[PreviewAudioContent] ${message}`, ...args)
 }
 

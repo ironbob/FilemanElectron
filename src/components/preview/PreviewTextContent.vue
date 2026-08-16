@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-bg-secondary">
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -21,10 +21,10 @@
     <div v-else class="flex-1 flex flex-col overflow-hidden">
 
       <!-- ── Toolbar ── -->
-      <div class="flex items-center justify-between px-4 py-1.5 bg-bg-tertiary border-b border-border flex-shrink-0">
+      <div class="finder-preview-toolbar flex items-center justify-between border-b border-border flex-shrink-0">
         <!-- Left: language badge + stats -->
         <div class="flex items-center gap-2.5">
-          <span class="text-xs px-2 py-0.5 rounded bg-bg-hover text-text-secondary font-mono">
+          <span class="finder-preview-badge">
             {{ displayLanguage }}
           </span>
           <span v-if="viewMode === 'source'" class="text-xs text-text-tertiary">
@@ -121,24 +121,20 @@
           <!-- Source-mode controls (word wrap + minimap) -->
           <template v-if="viewMode === 'source'">
             <button
-              class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary"
-              :class="wordWrap ? 'bg-accent-blue/20 text-accent-blue' : 'hover:bg-bg-hover'"
+              class="finder-icon-button"
+              :class="{ 'is-active': wordWrap }"
               :title="wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap'"
               @click="toggleWordWrap"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10a4 4 0 010 8H10m0 0l3-3m-3 3l3 3" />
-              </svg>
+              <IconfontIcon name="code" />
             </button>
             <button
-              class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary"
-              :class="showMinimap ? 'bg-accent-blue/20 text-accent-blue' : 'hover:bg-bg-hover'"
+              class="finder-icon-button"
+              :class="{ 'is-active': showMinimap }"
               title="Toggle Minimap"
               @click="toggleMinimap"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
+              <IconfontIcon name="document" />
             </button>
           </template>
 
@@ -330,6 +326,7 @@ import { useLogAnalysis } from '@/components/preview/composables/useLogAnalysis'
 import LogAnalysisToolbar from '@/components/preview/logview/LogAnalysisToolbar.vue'
 import { queryJson } from '@/utils/jsonQuery'
 import { jsonToInterfaces } from '@/utils/jsonToTs'
+import IconfontIcon from './IconfontIcon.vue'
 import { copyToClipboard } from '@/utils/clipboard'
 import SchemeEditorDialog from '@/components/preview/logview/SchemeEditorDialog.vue'
 import '@alenaksu/json-viewer'
