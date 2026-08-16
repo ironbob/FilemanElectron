@@ -20,6 +20,15 @@
   --finder-list-header: rgba(255, 255, 255, 0.92);
   --finder-zebra: rgba(118, 118, 128, 0.045);
   --finder-row-hover: rgba(118, 118, 128, 0.09);
+  /* Hex 编辑器（v2）状态 token —— 全部为字节/行级局部反馈，无大面积描边 */
+  --hex-selection: rgba(10, 132, 255, 0.22);
+  --hex-selection-inactive: rgba(142, 142, 147, 0.28);
+  --hex-match: rgba(255, 214, 10, 0.40);
+  --hex-modified: #e08600;
+  --hex-row-current: rgba(10, 132, 255, 0.06);
+  --hex-grid: rgba(60, 60, 67, 0.10);
+  --hex-header-bg: #fbfbfd;
+  --hex-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
   background: var(--finder-canvas) !important;
   color: var(--finder-label);
 }
@@ -36,6 +45,13 @@
   --finder-list-header: rgba(40, 40, 42, 0.92);
   --finder-zebra: rgba(118, 118, 128, 0.06);
   --finder-row-hover: rgba(118, 118, 128, 0.13);
+  --hex-selection: rgba(10, 132, 255, 0.30);
+  --hex-selection-inactive: rgba(142, 142, 147, 0.28);
+  --hex-match: rgba(255, 214, 10, 0.28);
+  --hex-modified: #ffaa33;
+  --hex-row-current: rgba(10, 132, 255, 0.09);
+  --hex-grid: rgba(255, 255, 255, 0.08);
+  --hex-header-bg: #242426;
 }
 
 .finder-shell .bg-bg-primary { background-color: var(--finder-canvas) !important; }
@@ -366,3 +382,559 @@
 .iconfont-preview-icon--sm { font-size: 13px; }
 .iconfont-preview-icon--md { font-size: 16px; }
 .iconfont-preview-icon--lg { font-size: 20px; }
+
+/* ========================================
+   Hex 编辑器 v2 —— Finder 式布局与局部状态
+   结构：44px 工具栏 /（sticky 列头 + 虚拟滚动网格 + 可拖拽 Inspector）/ 28px 状态栏
+   状态原则：光标=实心蓝底、选区=浅蓝填充、匹配=黄底、修改=琥珀底边、
+   当前行=极浅蓝灰；窗口失活统一降饱和。列几何以 --hex-ch（实测等宽字符宽）
+   推导，列头与数据行共用同一套类保证对齐。
+   ======================================== */
+
+.hex-root { position: relative; }
+
+/* 字符宽探针（测量 --hex-ch；不参与布局） */
+.hex-probe {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  white-space: pre;
+  font-family: var(--hex-mono);
+}
+
+/* ── 工具栏（44px） ───────────────────────────────────────────────────────── */
+.finder-shell .hex-toolbar {
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--finder-chrome);
+  border-bottom: 1px solid var(--finder-divider);
+  color: var(--finder-secondary-label);
+}
+
+.finder-shell .hex-file-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--finder-label);
+}
+.finder-shell .hex-file-dirty {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-orange, #ffaa33);
+  white-space: nowrap;
+}
+
+/* 图标按钮：30px 热区、6px 圆角 hover 底（无常驻深色圆形底） */
+.finder-shell .hex-tb-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--finder-secondary-label);
+  flex-shrink: 0;
+}
+.finder-shell .hex-tb-btn:hover:not(:disabled) {
+  background: var(--finder-control);
+  color: var(--finder-label);
+}
+.finder-shell .hex-tb-btn:active:not(:disabled) { background: rgba(118, 118, 128, 0.26); }
+.finder-shell .hex-tb-btn.is-active {
+  background: var(--finder-control);
+  color: var(--finder-label);
+}
+.finder-shell .hex-tb-btn:disabled { opacity: 0.36; cursor: not-allowed; }
+.finder-shell .hex-tb-btn-sm { width: 24px; height: 24px; border-radius: 5px; }
+
+/* 文字小按钮（替换/全部替换等） */
+.finder-shell .hex-tb-text {
+  height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--finder-secondary-label);
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.finder-shell .hex-tb-text:hover:not(:disabled) {
+  background: var(--finder-control);
+  color: var(--finder-label);
+}
+.finder-shell .hex-tb-text:disabled { opacity: 0.36; cursor: not-allowed; }
+
+.finder-shell .hex-tb-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--finder-divider);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* 带标签紧凑字段（查找/跳转）：消灭裸数字 */
+.finder-shell .hex-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 3px 0 6px;
+  border-radius: 6px;
+  background: var(--finder-control);
+  flex-shrink: 0;
+}
+.finder-shell .hex-field:focus-within { box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.22); }
+.finder-shell .hex-find-field { width: clamp(180px, 22vw, 300px); }
+.finder-shell .hex-field-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0 2px;
+  color: var(--finder-label);
+  font-family: var(--hex-mono);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.finder-shell .hex-field-input::placeholder { color: var(--finder-secondary-label); opacity: 0.65; }
+.finder-shell .hex-field-mode {
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(118, 118, 128, 0.18);
+  color: var(--finder-secondary-label);
+  font-family: var(--hex-mono);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.finder-shell .hex-field-mode:hover { color: var(--finder-label); }
+.finder-shell .hex-field-glyph { color: var(--finder-secondary-label); opacity: 0.7; flex-shrink: 0; }
+.finder-shell .hex-field-label {
+  font-size: 11px;
+  color: var(--finder-secondary-label);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.finder-shell .hex-field-label-static { font-size: 12px; }
+.finder-shell .hex-field.is-searching .hex-field-input { opacity: 0.6; }
+
+/* 跳转字段下方就地错误（3.5s 自动消失） */
+.finder-shell .hex-jump-notice {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 30;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--finder-chrome);
+  border: 1px solid var(--finder-divider);
+  color: var(--accent-orange, #ffaa33);
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* segmented：只读（锁）｜覆写｜插入 */
+.finder-shell .hex-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 26px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--finder-control);
+  flex-shrink: 0;
+}
+.finder-shell .hex-seg-item {
+  height: 22px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--finder-secondary-label);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.finder-shell .hex-seg-item:hover:not(:disabled):not(.is-active) { color: var(--finder-label); }
+.finder-shell .hex-seg-item.is-active {
+  background: var(--finder-canvas);
+  color: var(--finder-label);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.finder-shell[data-theme='dark'] .hex-seg-item.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+}
+.finder-shell .hex-seg-item.is-insert { color: var(--accent-orange, #ffaa33); }
+.finder-shell .hex-seg-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.finder-shell .hex-seg-mini .hex-seg-item { height: 20px; padding: 0 7px; font-size: 11px; }
+
+/* 视图设置弹出层 */
+.finder-shell .hex-view-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 232px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 10px;
+  background: var(--finder-chrome);
+  border: 1px solid var(--finder-divider);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+  backdrop-filter: saturate(150%) blur(16px);
+  -webkit-backdrop-filter: saturate(150%) blur(16px);
+}
+.finder-shell .hex-view-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--finder-label);
+}
+.finder-shell .hex-view-ascii-toggle { background: var(--finder-control); }
+
+/* 保存按钮：图标 + 文字，永不换行；脏状态点亮为蓝字 */
+.finder-shell .hex-save-btn {
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--finder-control);
+  color: var(--finder-secondary-label);
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.finder-shell .hex-save-btn:hover:not(:disabled) { background: rgba(118, 118, 128, 0.2); }
+.finder-shell .hex-save-btn.is-dirty { color: var(--finder-selection); font-weight: 500; }
+.finder-shell .hex-save-btn:disabled { opacity: 0.36; cursor: not-allowed; }
+.finder-shell .hex-save-label { min-width: 26px; text-align: left; }
+
+/* ── 横幅（读取错误 / 替换确认 / 未保存关闭确认） ─────────────────────────── */
+.finder-shell .hex-banner {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--finder-divider);
+  color: var(--finder-label);
+}
+.finder-shell .hex-banner.is-error { color: var(--accent-red, #ff4d4d); background: rgba(255, 77, 77, 0.08); }
+.finder-shell .hex-banner.is-confirm { background: rgba(255, 170, 51, 0.1); border-bottom-color: rgba(255, 170, 51, 0.35); }
+.finder-shell .hex-banner-btn {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--finder-control);
+  color: var(--finder-secondary-label);
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.finder-shell .hex-banner-btn:hover { filter: brightness(1.05); color: var(--finder-label); }
+.finder-shell .hex-banner-btn.is-primary { background: var(--finder-selection); color: #fff; }
+.finder-shell .hex-banner-btn.is-danger { background: rgba(255, 77, 77, 0.9); color: #fff; }
+
+/* ── 替换行（工具栏下方 34px） ────────────────────────────────────────────── */
+.finder-shell .hex-replace-row {
+  height: 34px;
+  padding: 0 12px;
+  background: var(--finder-chrome);
+  border-bottom: 1px solid var(--finder-divider);
+}
+
+/* ── 数据网格（sticky 列头 + 虚拟滚动） ───────────────────────────────────── */
+.finder-shell .hex-scroller {
+  background: var(--finder-canvas);
+  color: var(--finder-label);
+  font-family: var(--hex-mono);
+  overflow-x: hidden;
+}
+
+.finder-shell .hex-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--hex-header-bg);
+  border-bottom: 1px solid var(--finder-divider);
+}
+.finder-shell .hex-col-label { color: var(--finder-secondary-label); opacity: 0.72; font-size: 11px; }
+.finder-shell .hex-col-label.is-col-active { color: var(--finder-selection); opacity: 1; font-weight: 600; }
+.finder-shell .hex-ascii-label { font-size: 11px; letter-spacing: 0.04em; color: var(--finder-secondary-label); }
+
+.finder-shell .hex-row {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+.finder-shell .hex-row:hover { background: var(--finder-row-hover); }
+.finder-shell .hex-row.is-cursor-row,
+.finder-shell .hex-row.is-cursor-row:hover { background: var(--hex-row-current); }
+/* 跳转落点：行首 2px 琥珀竖条 + 微琥珀底（800ms 淡出由 JS 移除类） */
+.finder-shell .hex-row.is-jump-row { box-shadow: inset 3px 0 0 0 var(--hex-modified); background: rgba(255, 170, 51, 0.07); }
+
+.finder-shell .hex-offset {
+  width: calc(var(--hex-ch) * 8);
+  flex-shrink: 0;
+  color: var(--finder-secondary-label);
+  opacity: 0.75;
+  margin-right: calc(var(--hex-ch) * 2);
+  padding-right: var(--hex-ch);
+  border-right: 1px solid var(--finder-divider);
+}
+.finder-shell .hex-offset.is-cursor-row { color: var(--finder-label); opacity: 1; font-weight: 600; }
+
+.finder-shell .hex-bytes,
+.finder-shell .hex-ascii { flex-shrink: 0; white-space: pre; }
+.finder-shell .hex-ascii {
+  margin-left: calc(var(--hex-ch) * 2);
+  padding-left: var(--hex-ch);
+  border-left: 1px solid var(--finder-divider);
+}
+.finder-shell .hex-group { display: inline-block; }
+/* 组界：额外 2ch 间隙 + 1px 网格线（组内间距由尾随空格字符承担） */
+.finder-shell .hex-bytes .hex-group + .hex-group,
+.finder-shell .hex-ascii .hex-group + .hex-group {
+  margin-left: var(--hex-ch);
+  padding-left: var(--hex-ch);
+  border-left: 1px solid var(--hex-grid);
+}
+
+.finder-shell .hex-b {
+  display: inline-block;
+  position: relative;
+  min-width: calc(var(--hex-ch) * 2);
+  border-radius: 2px;
+}
+.finder-shell .hex-b-ascii { min-width: var(--hex-ch); }
+.finder-shell .hex-b:hover { background: var(--finder-control); }
+
+/* 字节级状态（顺序即优先级：cursor > sel > match > hover） */
+.finder-shell .hex-b.is-match { background: var(--hex-match); }
+.finder-shell .hex-b.is-sel { background: var(--hex-selection); }
+.finder-shell .hex-b.is-cursor { background: var(--finder-selection); color: #fff; }
+/* 已修改：2px 琥珀底边（box-shadow 不影响行高） */
+.finder-shell .hex-b.is-modified { box-shadow: inset 0 -2px 0 0 var(--hex-modified); }
+
+/* nibble 光标（覆写）：光标字节内 hi/lo 分界处 1.5px 白竖线，1s 步进闪烁 */
+@keyframes hex-caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.finder-shell .hex-root.is-editing:not(.cursor-in-ascii) .hex-bytes .hex-b.is-cursor::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 1.5px;
+  background: #fff;
+  left: var(--hex-ch);
+  animation: hex-caret-blink 1.06s steps(1) infinite;
+}
+.finder-shell .hex-root.is-editing.nibble-lo:not(.cursor-in-ascii) .hex-bytes .hex-b.is-cursor::after {
+  left: calc(var(--hex-ch) * 2 - 0.75px);
+}
+
+/* 插入模式：字节间隙 2px 蓝竖线（不覆盖字节），光标字节转描边 */
+.finder-shell .hex-root.is-insert-mode .hex-b.is-cursor {
+  background: transparent;
+  color: var(--finder-label);
+  box-shadow: inset 0 0 0 1.5px rgba(10, 132, 255, 0.45);
+}
+.finder-shell .hex-root.is-insert-mode .hex-b.is-cursor.is-modified { box-shadow: inset 0 0 0 1.5px rgba(10, 132, 255, 0.45), inset 0 -2px 0 0 var(--hex-modified); }
+.finder-shell .hex-root.is-insert-mode:not(.cursor-in-ascii) .hex-bytes .hex-b.is-cursor::before {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 2px;
+  background: var(--finder-selection);
+  left: calc(var(--hex-ch) * -1.5);
+  animation: hex-caret-blink 1.06s steps(1) infinite;
+}
+
+/* 窗口失活：选区降饱和灰蓝、光标转灰空心、光标停闪（行定位保持可辨） */
+.finder-shell .hex-root.is-window-inactive .hex-b.is-sel { background: var(--hex-selection-inactive); }
+.finder-shell .hex-root.is-window-inactive .hex-b.is-cursor {
+  background: transparent;
+  color: var(--finder-label);
+  box-shadow: inset 0 0 0 1.5px rgba(142, 142, 147, 0.8);
+}
+.finder-shell .hex-root.is-window-inactive .hex-b.is-cursor::after,
+.finder-shell .hex-root.is-window-inactive .hex-b.is-cursor::before { animation: none; }
+
+.finder-shell .hex-placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--finder-secondary-label);
+  opacity: 0.35;
+}
+.finder-shell .hex-empty-file {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--finder-secondary-label);
+  font-size: 13px;
+}
+
+/* ── Data Inspector（默认 300px，可拖拽 240–420，可折叠） ─────────────────── */
+.finder-shell .hex-inspector-resize {
+  width: 5px;
+  margin-left: -3px;
+  z-index: 5;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+}
+.finder-shell .hex-inspector-resize:hover,
+.finder-shell .hex-inspector-resize:active { background: rgba(10, 132, 255, 0.28); }
+
+.finder-shell .hex-inspector {
+  flex-shrink: 0;
+  border-left: 1px solid var(--finder-divider);
+  background: var(--finder-chrome);
+}
+.finder-shell .hex-inspector-title {
+  padding: 8px 14px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--finder-secondary-label);
+  border-bottom: 1px solid var(--finder-divider);
+  flex-shrink: 0;
+}
+.finder-shell .hex-inspector-context {
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: rgba(118, 118, 128, 0.04);
+  border-bottom: 1px solid var(--finder-divider);
+  flex-shrink: 0;
+}
+.finder-shell .hex-inspector-cap {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--finder-secondary-label);
+}
+.finder-shell .hex-inspector-context .font-mono { font-family: var(--hex-mono); font-size: 12px; color: var(--finder-label); }
+
+.finder-shell .hex-inspector-empty {
+  padding: 30px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.finder-shell .hex-inspector-empty svg { color: var(--finder-secondary-label); opacity: 0.6; }
+.finder-shell .hex-inspector-empty-main { font-size: 13px; color: var(--finder-label); }
+.finder-shell .hex-inspector-empty-hint { font-size: 11px; color: var(--finder-secondary-label); }
+
+.finder-shell .hex-inspector-body { padding: 2px 0 12px; }
+.finder-shell .hex-inspector-group { padding: 8px 14px 2px; }
+.finder-shell .hex-inspector-group-title {
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--finder-secondary-label);
+}
+.finder-shell .hex-inspector-row {
+  height: 24px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.finder-shell .hex-inspector-label { font-size: 12px; color: var(--finder-secondary-label); white-space: nowrap; }
+.finder-shell .hex-inspector-value {
+  font-family: var(--hex-mono);
+  font-size: 13px;
+  color: var(--finder-label);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62%;
+}
+
+/* ── 底部状态栏（28px） ───────────────────────────────────────────────────── */
+.finder-shell .hex-statusbar {
+  min-height: 28px;
+  padding: 0 12px;
+  gap: 12px;
+  background: var(--finder-chrome);
+  border-top: 1px solid var(--finder-divider);
+  color: var(--finder-secondary-label);
+  font-size: 12px;
+}
+.finder-shell .hex-mode-chip {
+  height: 18px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 4px;
+  background: var(--finder-control);
+  color: var(--finder-secondary-label);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.finder-shell .hex-mode-chip.is-insert { color: var(--accent-orange, #ffaa33); }
+.finder-shell .hex-mode-chip.is-readonly { opacity: 0.9; }
+.finder-shell .hex-stat { white-space: nowrap; flex-shrink: 0; }
+.finder-shell .hex-stat-num { font-family: var(--hex-mono); color: var(--finder-label); }
+.finder-shell .hex-stat-dirty.is-dirty { color: var(--accent-orange, #ffaa33); font-weight: 500; }
+
+.finder-shell .hex-notice-slot { display: flex; justify-content: center; overflow: hidden; }
+.finder-shell .hex-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.finder-shell .hex-notice.is-info { color: var(--finder-secondary-label); }
+.finder-shell .hex-notice.is-success { color: var(--accent-green, #32d74b); }
+.finder-shell .hex-notice.is-warn { color: var(--accent-orange, #ffaa33); }
+.finder-shell .hex-notice.is-error { color: var(--accent-red, #ff4d4d); }
+.finder-shell .hex-spinner {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--finder-secondary-label);
+  border-top-color: transparent;
+  animation: hex-spin 0.7s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+@keyframes hex-spin { to { transform: rotate(360deg); } }

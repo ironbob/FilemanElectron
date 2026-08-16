@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { FileInfo } from '@/types'
 import type { HexRegion } from '@/utils/hexCursor'
 import { formatOffset } from '@/utils/hexFormat'
-import { ROW_HEIGHT } from '@/utils/hexViewport'
 import { formatSize } from '@/utils/path'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { useTabsStore } from '@/stores/tabs'
 import { useHexViewer } from './composables/useHexViewer'
-import IconfontIcon from './IconfontIcon.vue'
+import HexIcon from './HexIcon.vue'
 
 /**
- * Hex 预览内容（只读 View）。全文件虚拟滚动（占位高=真实总行数）、
- * 字节级光标/选区联动（Hex ↔ ASCII ↔ Offset ↔ Inspector）、偏移跳转
- * 与 Data Inspector；坐标换算/光标几何/窗口预取/解读全部来自
+ * Hex 预览内容（只读 View）。三段纵向结构（44px 工具栏 / 数据网格+Inspector /
+ * 28px 状态栏），全文件虚拟滚动（占位高=真实总行数×行高）、字节级光标/选区
+ * 联动（Hex ↔ ASCII ↔ Offset ↔ Inspector）、自适应每行字节（8/16/24/32）、
+ * 偏移跳转与分组 Data Inspector；坐标换算/光标几何/窗口预取/解读全部来自
  * useHexViewer（MVVM：View 只渲染与转发意图）。
  */
 const props = defineProps<{
@@ -26,15 +26,109 @@ const props = defineProps<{
 // open-in-full 声明保持与其余 Preview*Content 一致（hex 无全屏形态）
 defineEmits<{ 'open-in-full': [] }>()
 
+// ── 视图偏好（localStorage 持久化；bpr 自动档按宽度自适应） ─────────────────
+
+interface HexPrefs {
+  bprPref: 'auto' | 8 | 16 | 32
+  fontSize: 12 | 13 | 14
+  showAscii: boolean
+  inspectorWidth: number
+  inspectorCollapsed: boolean
+}
+
+const PREFS_KEY = 'fileman-hex-prefs'
+const DEFAULT_PREFS: HexPrefs = { bprPref: 'auto', fontSize: 13, showAscii: true, inspectorWidth: 300, inspectorCollapsed: false }
+
+function loadPrefs(): HexPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (!raw) return { ...DEFAULT_PREFS }
+    const parsed = JSON.parse(raw) as Partial<HexPrefs>
+    return {
+      bprPref: parsed.bprPref === 8 || parsed.bprPref === 16 || parsed.bprPref === 32 ? parsed.bprPref : 'auto',
+      fontSize: parsed.fontSize === 12 || parsed.fontSize === 14 ? parsed.fontSize : 13,
+      showAscii: parsed.showAscii !== false,
+      inspectorWidth: Number.isFinite(parsed.inspectorWidth) && (parsed.inspectorWidth as number) >= 240 && (parsed.inspectorWidth as number) <= 420
+        ? (parsed.inspectorWidth as number)
+        : 300,
+      inspectorCollapsed: parsed.inspectorCollapsed === true
+    }
+  } catch {
+    return { ...DEFAULT_PREFS }
+  }
+}
+
+const prefs = loadPrefs()
+const bprPref = ref<'auto' | 8 | 16 | 32>(prefs.bprPref)
+const fontSize = ref<12 | 13 | 14>(prefs.fontSize)
+const showAscii = ref(prefs.showAscii)
+const inspectorWidth = ref(prefs.inspectorWidth)
+const inspectorCollapsed = ref(prefs.inspectorCollapsed)
+
+let prefsSaveTimer: ReturnType<typeof setTimeout> | null = null
+watch([bprPref, fontSize, showAscii, inspectorWidth, inspectorCollapsed], () => {
+  if (prefsSaveTimer !== null) clearTimeout(prefsSaveTimer)
+  prefsSaveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        bprPref: bprPref.value, fontSize: fontSize.value, showAscii: showAscii.value,
+        inspectorWidth: inspectorWidth.value, inspectorCollapsed: inspectorCollapsed.value
+      } satisfies HexPrefs))
+    } catch { /* 私有模式等写入失败静默 */ }
+    prefsSaveTimer = null
+  }, 300)
+}, { deep: false })
+
+// ── 自适应每行字节（编辑器实测宽度 + 实测字符宽 → 最大可容纳档位） ──────────
+
+const scroller = ref<HTMLElement | null>(null)
+const probe = ref<HTMLElement | null>(null)
+const editorWidth = ref(0)
+const charWidth = ref(7.8)
+const rowHeight = computed(() => (fontSize.value === 12 ? 25 : fontSize.value === 14 ? 29 : 27))
+
+function measureCharWidth(): void {
+  const el = probe.value
+  if (!el) return
+  const width = el.getBoundingClientRect().width / 20
+  if (Number.isFinite(width) && width > 0) charWidth.value = width
+}
+
+/** 每行 bpr 字节所需的编辑器宽度（列几何与 CSS 同源：3ch/字节 + 组界 2ch+1px）。 */
+function requiredWidth(bpr: number): number {
+  const ch = charWidth.value
+  const groups = Math.ceil(bpr / 8)
+  const groupGap = 2 * ch + 1
+  const offset = 8 * ch + 3 * ch + 1                       // 偏移 8ch + 右距 2ch + 分隔内距 1ch + 1px 线
+  const hex = bpr * 3 * ch + (groups - 1) * groupGap        // 每字节 2ch + 尾随空 1ch
+  const ascii = showAscii.value ? bpr * ch + (groups - 1) * groupGap + 2 * ch + 1 + ch : 0
+  return 32 + offset + hex + ascii + 16                    // 行左右 padding 16×2 + 16px 余量
+}
+
+const bytesPerRow = computed<number>(() => {
+  if (bprPref.value !== 'auto') return bprPref.value
+  const width = editorWidth.value
+  for (const bpr of [32, 24, 16, 8]) {
+    if (requiredWidth(bpr) <= width) return bpr
+  }
+  return 8
+})
+
 // reactive() 解包 composable 嵌套 ref（脚本与模板一致访问）
-const vm = reactive(useHexViewer(props.file, props.deviceId))
+const vm = reactive(useHexViewer(props.file, props.deviceId, {
+  bytesPerRow: computed(() => bytesPerRow.value),
+  rowHeight: computed(() => rowHeight.value)
+}))
 
 const tabsStore = useTabsStore()
 
-const scroller = ref<HTMLElement | null>(null)
 const jumpInput = ref('')
 /** 拖选进行中（mousedown 起帧 → 字节 mouseenter 扩 head → mouseup 收帧）。 */
 const dragging = ref(false)
+/** 编辑器焦点（光标 caret 呈现条件之一）。 */
+const editorFocused = ref(false)
+/** 应用窗口失活（选区/光标降饱和）。 */
+const windowInactive = ref(false)
 
 function onScroll(event: Event): void {
   const el = event.target as HTMLElement
@@ -43,10 +137,6 @@ function onScroll(event: Event): void {
 
 function submitJump(): void {
   void vm.jumpTo(jumpInput.value)
-}
-
-function backToTop(): void {
-  scroller.value?.scrollTo({ top: 0 })
 }
 
 function onRowClick(row: number): void {
@@ -95,20 +185,32 @@ function onKeydown(event: KeyboardEvent): void {
     void vm.saveFile()
     return
   }
+  // 字号（Cmd/Ctrl + / -）
+  if (meta && (event.key === '=' || event.key === '+')) {
+    event.preventDefault()
+    fontSize.value = fontSize.value === 12 ? 13 : 14
+    return
+  }
+  if (meta && event.key === '-') {
+    event.preventDefault()
+    fontSize.value = fontSize.value === 14 ? 13 : 12
+    return
+  }
   // Insert 键：覆写/插入模式切换
   if (event.key === 'Insert') {
     event.preventDefault()
     vm.toggleEditMode()
     return
   }
-  // 查找条（Cmd/Ctrl+F，选区预填 Hex）与 F3 匹配导航
+  // 查找（Cmd/Ctrl+F 聚焦工具栏查找字段；选区预填 Hex）
   if (meta && (event.key === 'f' || event.key === 'F')) {
     event.preventDefault()
     vm.openFindBar()
-    void nextTick(() => findInput.value?.focus())
+    void nextTick(() => { findInput.value?.focus(); findInput.value?.select() })
     return
   }
-  if (event.key === 'F3') {
+  // 匹配导航（F3 / Cmd+G，Shift 反向）
+  if (event.key === 'F3' || (meta && (event.key === 'g' || event.key === 'G'))) {
     event.preventDefault()
     if (event.shiftKey) vm.prevMatch()
     else vm.nextMatch()
@@ -123,6 +225,12 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.altKey && event.key === 'ArrowRight') {
     event.preventDefault()
     vm.jumpForward()
+    return
+  }
+  // Tab/Shift+Tab：Hex ↔ ASCII 焦点区切换（偏移不动）
+  if (event.key === 'Tab') {
+    event.preventDefault()
+    vm.switchRegion()
     return
   }
   // Hex 区 nibble 输入（0-9A-F，每字符半个字节）
@@ -168,8 +276,8 @@ function onKeydown(event: KeyboardEvent): void {
   if (handled) event.preventDefault()
 }
 
-// ESC：有选区时先清选区（捕获期 LIFO 消费，预览面板不被全局 ESC 关闭）；
-// 无选区放行 → 维持"ESC 关闭预览"的既有行为。输入框内不拦截。
+// ESC：确认条 → 视图菜单 → 替换行 → 清选区（捕获期 LIFO 消费，预览面板不被
+// 全局 ESC 关闭）；无选区放行 → 维持“ESC 关闭预览”的既有行为。输入框内不拦截。
 useKeyInterceptor(event => {
   if (event.key !== 'Escape') return
   const target = event.target as HTMLElement | null
@@ -178,13 +286,21 @@ useKeyInterceptor(event => {
     closeConfirm.value = false
     return true
   }
+  if (viewMenuOpen.value) {
+    viewMenuOpen.value = false
+    return true
+  }
+  if (vm.replaceVisible) {
+    vm.replaceVisible = false
+    return true
+  }
   if (vm.selection) {
     vm.clearSelection()
     return true
   }
 })
 
-// ── 粘贴（scroller paste 事件 → VM 校验落地；非法输入就地报错） ─────────────
+// ── 粘贴（scroller paste 事件 → VM 校验落地；非法输入状态栏报错） ───────────
 
 function onPaste(event: ClipboardEvent): void {
   const text = event.clipboardData?.getData('text') ?? ''
@@ -192,6 +308,20 @@ function onPaste(event: ClipboardEvent): void {
   event.preventDefault()
   vm.pasteText(text)
 }
+
+// ── 只读来源锁定（ZIP 虚拟路径 / 设备无写能力 → segmented 锁定只读） ────────
+
+onMounted(() => {
+  if (props.file.path.includes('::')) {
+    vm.lockReadonly('ZIP 内文件为虚拟路径，不支持写入')
+  } else {
+    void window.fileman.getDeviceCapabilities(props.deviceId)
+      .then(caps => {
+        if (caps?.canWrite === false) vm.lockReadonly('该设备来源不支持写入')
+      })
+      .catch(() => undefined)
+  }
+})
 
 // ── 未保存关闭守卫（tabs store 注册；三键确认条就地呈现） ────────────────────
 
@@ -220,7 +350,7 @@ async function saveAndClose(): Promise<void> {
     closeConfirm.value = false
     if (props.sessionId) tabsStore.closePreviewSession(props.sessionId)
   }
-  // 保存失败：确认条保留，saveError 已就地显示
+  // 保存失败：确认条保留，失败原因已在状态栏通知槽呈现
 }
 
 /** 确认条：放弃修改并关闭。 */
@@ -230,29 +360,102 @@ function discardAndClose(): void {
   if (props.sessionId) tabsStore.closePreviewSession(props.sessionId)
 }
 
-// ── 字节样式（选区底色 / 光标焦点框 / 查找匹配黄底；Hex 与 ASCII 镜像） ──────
+// ── 字节样式（选区/光标/匹配/修改标记；Hex 与 ASCII 镜像，颜色见 CSS） ──────
 
 function byteClass(offset: number): string[] {
   const sel = vm.selection
   const inSelection = !!sel && offset >= sel.start && offset <= sel.end
-  const isCursor = offset === vm.cursorOffset
   const isMatch = vm.matchSet.has(offset) && !inSelection
   return [
-    isMatch ? 'bg-accent-orange/30' : '',
-    inSelection ? 'bg-accent-blue/35 text-text-primary' : '',
-    !inSelection && isCursor ? 'bg-accent-blue/15' : '',
-    isCursor ? 'outline outline-1 -outline-offset-1 outline-accent-blue font-bold' : ''
+    isMatch ? 'is-match' : '',
+    inSelection ? 'is-sel' : '',
+    offset === vm.cursorOffset ? 'is-cursor' : '',
+    vm.modifiedSet.has(offset) ? 'is-modified' : ''
   ].filter(Boolean)
 }
 
 const findInput = ref<HTMLInputElement | null>(null)
 
-/** 工具栏按钮打开查找条后聚焦输入框（等 v-if 挂载）。 */
-function nextTickFocusFind(): void {
-  void nextTick(() => findInput.value?.focus())
+// ── 列头（与数据行同一套列几何：偏移 | 列号（8 字节分组） | ASCII） ──────────
+
+const columnGroups = computed<string[][]>(() => {
+  const bpr = bytesPerRow.value
+  const groups: string[][] = []
+  for (let base = 0; base < bpr; base += 8) {
+    const group: string[] = []
+    for (let i = base; i < base + 8; i++) group.push(i.toString(16).padStart(2, '0'))
+    groups.push(group)
+  }
+  return groups
+})
+
+/** 光标所在列（列头联动强调；-1 无光标）。 */
+const cursorColumn = computed(() => {
+  const offset = vm.cursorOffset
+  return offset === null ? -1 : offset % bytesPerRow.value
+})
+
+/** 组内空格：行内最后一个字节不带尾随空格（其余字节后跟 1ch 空格）。 */
+function hexSpaceAfter(total: number, indexInRow: number): boolean {
+  return indexInRow < total - 1
 }
 
-// 跳转/键盘滚动目标：VM 给目标 scrollTop，滚动动作（DOM）由 View 执行
+// ── 视图设置弹出层（每行字节 / 字号 / ASCII 列） ─────────────────────────────
+
+const viewMenuOpen = ref(false)
+
+function onDocumentMouseDownForMenu(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null
+  if (target && target.closest('.hex-view-menu, .hex-tb-btn[data-view-toggle]')) return
+  viewMenuOpen.value = false
+}
+
+watch(viewMenuOpen, open => {
+  if (open) document.addEventListener('mousedown', onDocumentMouseDownForMenu, true)
+  else document.removeEventListener('mousedown', onDocumentMouseDownForMenu, true)
+})
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentMouseDownForMenu, true))
+
+// ── Inspector 拖拽调宽（240–420，双击复位 300）与折叠 ────────────────────────
+
+function toggleInspector(): void {
+  inspectorCollapsed.value = !inspectorCollapsed.value
+}
+
+let resizing = false
+let resizeStartX = 0
+let resizeStartWidth = 0
+
+function onResizeMove(event: MouseEvent): void {
+  if (!resizing) return
+  inspectorWidth.value = Math.min(420, Math.max(240, resizeStartWidth - (event.clientX - resizeStartX)))
+}
+
+function onResizeEnd(): void {
+  resizing = false
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+}
+
+function startResize(event: MouseEvent): void {
+  resizing = true
+  resizeStartX = event.clientX
+  resizeStartWidth = inspectorWidth.value
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', onResizeEnd)
+}
+
+onBeforeUnmount(onResizeEnd)
+
+// ── 窗口失活（选区/光标降饱和、光标停闪） ───────────────────────────────────
+
+function onWindowBlur(): void { windowInactive.value = true }
+function onWindowFocus(): void { windowInactive.value = false }
+
+// ── 宽度/字号测量与跳转/键盘滚动目标（DOM 动作由 View 执行） ─────────────────
+
+let resizeObserver: ResizeObserver | null = null
+
 watch(
   () => vm.pendingScroll,
   async pending => {
@@ -263,275 +466,391 @@ watch(
   }
 )
 
+watch(fontSize, () => { void nextTick(measureCharWidth) })
+
 onMounted(() => {
   if (scroller.value) {
     vm.onScroll(scroller.value.scrollTop, scroller.value.clientHeight)
+    resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) editorWidth.value = entry.contentRect.width
+    })
+    resizeObserver.observe(scroller.value)
   }
+  measureCharWidth()
+  window.addEventListener('blur', onWindowBlur)
+  window.addEventListener('focus', onWindowFocus)
 })
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  window.removeEventListener('blur', onWindowBlur)
+  window.removeEventListener('focus', onWindowFocus)
+  if (prefsSaveTimer !== null) clearTimeout(prefsSaveTimer)
+})
+
+const modeLabel = computed(() => (vm.editMode === 'readonly' ? '只读' : vm.editMode === 'insert' ? '插入' : '覆写'))
+const rootClass = computed(() => ({
+  'is-window-inactive': windowInactive.value,
+  'is-editing': editorFocused.value && vm.editMode !== 'readonly',
+  'is-insert-mode': editorFocused.value && vm.editMode === 'insert',
+  'cursor-in-ascii': vm.cursorRegion === 'ascii',
+  'nibble-lo': vm.cursorNibble === 1
+}))
 </script>
 
 <template>
-  <div class="finder-preview h-full flex flex-col min-h-0" @mouseup="dragging = false">
-    <!-- 头部：文件信息 + 光标/选区偏移 + 偏移跳转 -->
-    <div class="finder-preview-toolbar flex items-center gap-3 border-b border-border text-[11px] text-text-tertiary flex-shrink-0">
+  <div
+    class="finder-preview hex-root h-full flex flex-col min-h-0"
+    :class="rootClass"
+    :style="{ '--hex-ch': charWidth + 'px' }"
+    @mouseup="dragging = false"
+  >
+    <!-- 字符宽探针（测量列几何；不参与布局） -->
+    <span ref="probe" class="hex-probe" :style="{ fontSize: fontSize + 'px' }">00000000000000000000</span>
+
+    <!-- 工具栏 44px：文件标识 | 撤销重做 | 查找字段 | 跳转字段 | 模式 | 视图/Inspector | 保存 -->
+    <div class="hex-toolbar flex items-center gap-2 flex-shrink-0">
       <span class="finder-preview-badge">HEX</span>
-      <span class="font-mono truncate max-w-48" :title="file.name">{{ file.name }}</span>
-      <button
-        class="finder-preview-badge cursor-pointer flex-shrink-0"
-        :class="vm.editMode === 'insert' ? 'text-accent-orange !bg-accent-orange/10' : ''"
-        :title="`编辑模式：${vm.editMode === 'overwrite' ? '覆写（Overwrite）' : '插入（Insert）'}，按 Insert 键切换`"
-        @click="vm.toggleEditMode()"
-      >{{ vm.editMode === 'overwrite' ? '覆写' : '插入' }}</button>
-      <span
-        v-if="vm.isModified"
-        class="flex-shrink-0 text-accent-orange"
-        title="存在未保存修改（Cmd/Ctrl+S 保存）"
-      >● 未保存</span>
-      <span class="flex-shrink-0">{{ formatSize(file.size) }}</span>
-      <span v-if="vm.cursorLabel" class="font-mono flex-shrink-0 text-text-secondary">光标 {{ vm.cursorLabel }}</span>
-      <span v-if="vm.selectionLabel" class="font-mono flex-shrink-0 text-text-secondary">选区 {{ vm.selectionLabel }}</span>
-      <span v-if="vm.fetching > 0" class="text-accent-blue flex-shrink-0">读取中…</span>
-      <div class="flex-1" />
-      <div class="flex flex-col items-end flex-shrink-0">
-        <div class="finder-control-group">
-          <button
-            class="finder-icon-button !px-2 text-text-primary"
-            :class="vm.isModified ? 'text-accent-orange' : ''"
-            :disabled="!vm.isModified || vm.saveState === 'saving'"
-            :title="vm.isModified ? '保存修改（Cmd/Ctrl+S，写入前生成临时文件，原子替换）' : '无未保存修改'"
-            @click="vm.saveFile()"
-          >{{ vm.saveState === 'saving' ? '保存中…' : '保存' }}</button>
-          <button
-            class="finder-icon-button !px-2 text-text-primary"
-            :class="vm.findBarVisible ? 'text-accent-blue' : ''"
-            title="查找（Cmd/Ctrl+F，支持 Hex 通配 ? 与文本）"
-            @click="vm.openFindBar(); void nextTickFocusFind()"
-          >查找</button>
-          <input
-            v-model="jumpInput"
-            type="text"
-            class="w-32 px-2 py-0.5 font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
-            placeholder="0x1A2B / +0x20 / -16"
-            spellcheck="false"
-            @keydown.enter="submitJump"
-          >
-          <button
-            class="finder-icon-button"
-            title="跳转到偏移（目标行居中高亮；+0x20/-16 相对当前光标）"
-            @click="submitJump"
-          ><IconfontIcon name="jump" /></button>
-          <button
-            class="finder-icon-button"
-            :disabled="!vm.canJumpBack"
-            title="跳转后退（Alt+←）"
-            @click="vm.jumpBack()"
-          >‹</button>
-          <button
-            class="finder-icon-button"
-            :disabled="!vm.canJumpForward"
-            title="跳转前进（Alt+→）"
-            @click="vm.jumpForward()"
-          >›</button>
-          <button
-            class="finder-icon-button"
-            title="回到文件头"
-            @click="backToTop"
-          ><IconfontIcon name="top" /></button>
-        </div>
-        <span v-if="vm.jumpNotice" class="text-[10px] text-accent-orange leading-tight">{{ vm.jumpNotice }}</span>
-        <span
-          v-if="vm.pasteNotice"
-          class="text-[10px] text-accent-red leading-tight max-w-64 truncate"
-          :title="vm.pasteNotice"
-        >{{ vm.pasteNotice }}</span>
-        <span
-          v-if="vm.saveError"
-          class="text-[10px] text-accent-red leading-tight max-w-64 truncate"
-          :title="vm.saveError"
-        >保存失败：{{ vm.saveError }}</span>
+      <div class="min-w-0 flex items-baseline gap-1.5">
+        <span class="hex-file-name truncate max-w-56" :title="file.name">{{ file.name }}</span>
+        <span v-if="vm.isModified" class="hex-file-dirty flex-shrink-0" title="存在未保存修改（Cmd/Ctrl+S 保存）">• 已修改</span>
       </div>
+
+      <div class="flex-1" />
+
+      <button class="hex-tb-btn" :disabled="!vm.canUndo" title="撤销（Cmd/Ctrl+Z）" @click="vm.undoEdit()"><HexIcon name="undo" /></button>
+      <button class="hex-tb-btn" :disabled="!vm.canRedo" title="重做（Shift+Cmd/Ctrl+Z）" @click="vm.redoEdit()"><HexIcon name="redo" /></button>
+      <span class="hex-tb-sep" />
+
+      <!-- 查找字段：模式切换 + 查询 + 匹配计数 + 匹配导航 + 替换展开 -->
+      <div class="hex-field hex-find-field">
+        <button
+          class="hex-field-mode"
+          :title="vm.findMode === 'hex' ? '当前：Hex 字节（? 为半字节通配，如 4? ??）；点击切换为文本' : '当前：文本（UTF-8）；点击切换为 Hex'"
+          @click="vm.toggleFindMode()"
+        >{{ vm.findMode === 'hex' ? 'Hex' : '文本' }}</button>
+        <HexIcon name="search" :size="13" class="hex-field-glyph" />
+        <input
+          ref="findInput"
+          v-model="vm.findQuery"
+          type="text"
+          class="hex-field-input"
+          :class="{ 'is-searching': vm.searching }"
+          :placeholder="vm.findMode === 'hex' ? '48 65 / 4? ??' : '查找文本（UTF-8）'"
+          spellcheck="false"
+          @keydown.enter.prevent="vm.runFind()"
+          @keydown.f3.prevent="vm.nextMatch()"
+          @keydown.shift.f3.prevent="vm.prevMatch()"
+          @keydown.esc.prevent.stop="vm.closeFind(); findInput?.blur()"
+        >
+        <span v-if="vm.matchCountLabel" class="hex-field-label">匹配 {{ vm.matchCountLabel }}</span>
+        <button class="hex-tb-btn hex-tb-btn-sm" :disabled="vm.findMatches.length === 0" title="上一个匹配（Shift+F3）" @click="vm.prevMatch()"><HexIcon name="chevronUp" :size="14" /></button>
+        <button class="hex-tb-btn hex-tb-btn-sm" :disabled="vm.findMatches.length === 0" title="下一个匹配（F3）" @click="vm.nextMatch()"><HexIcon name="chevronDown" :size="14" /></button>
+        <button v-if="!vm.replaceVisible" class="hex-tb-text" title="展开替换行" @click="vm.replaceVisible = true">替换</button>
+      </div>
+
+      <!-- 跳转字段：标签 + 输入 + 提交；解析错误浮于字段下方（3.5s 自动消失） -->
+      <div class="hex-field hex-jump-field">
+        <span class="hex-field-label hex-field-label-static">跳转</span>
+        <input
+          v-model="jumpInput"
+          type="text"
+          class="hex-field-input"
+          placeholder="0x1A2B / +0x20 / -16"
+          spellcheck="false"
+          @keydown.enter="submitJump"
+        >
+        <button class="hex-tb-btn hex-tb-btn-sm" title="跳转到偏移（目标行居中高亮；+0x20/-16 相对当前光标；Alt+←/→ 跳转历史）" @click="submitJump"><HexIcon name="jump" :size="14" /></button>
+        <div v-if="vm.jumpNotice" class="hex-jump-notice">{{ vm.jumpNotice }}</div>
+      </div>
+
+      <span class="hex-tb-sep" />
+
+      <!-- 编辑模式 segmented：只读（锁）｜覆写｜插入 -->
+      <div
+        class="hex-seg"
+        role="group"
+        aria-label="编辑模式"
+        :title="vm.readonlyLock ?? '切换编辑模式（Insert 键在覆写/插入间切换）'"
+      >
+        <button
+          class="hex-seg-item"
+          :class="{ 'is-active': vm.editMode === 'readonly' }"
+          :disabled="vm.readonlyLock !== null && vm.editMode !== 'readonly'"
+          @click="vm.setEditMode('readonly')"
+        ><HexIcon name="lock" :size="11" />只读</button>
+        <button
+          class="hex-seg-item"
+          :class="{ 'is-active': vm.editMode === 'overwrite' }"
+          :disabled="vm.readonlyLock !== null"
+          @click="vm.setEditMode('overwrite')"
+        >覆写</button>
+        <button
+          class="hex-seg-item"
+          :class="{ 'is-active': vm.editMode === 'insert', 'is-insert': vm.editMode === 'insert' }"
+          :disabled="vm.readonlyLock !== null"
+          @click="vm.setEditMode('insert')"
+        >插入</button>
+      </div>
+
+      <span class="hex-tb-sep" />
+
+      <!-- 视图设置 + Inspector 开关 -->
+      <div class="relative">
+        <button
+          class="hex-tb-btn"
+          data-view-toggle
+          :class="{ 'is-active': viewMenuOpen }"
+          title="视图设置（每行字节 / 字号 / ASCII 列）"
+          @click="viewMenuOpen = !viewMenuOpen"
+        ><HexIcon name="sliders" /></button>
+        <div v-if="viewMenuOpen" class="hex-view-menu">
+          <div class="hex-view-menu-row">
+            <span>每行字节</span>
+            <div class="hex-seg hex-seg-mini">
+              <button v-for="opt in (['auto', 8, 16, 32] as const)" :key="opt" class="hex-seg-item" :class="{ 'is-active': bprPref === opt }" @click="bprPref = opt">{{ opt === 'auto' ? '自动' : opt }}</button>
+            </div>
+          </div>
+          <div class="hex-view-menu-row">
+            <span>字号</span>
+            <div class="hex-seg hex-seg-mini">
+              <button v-for="opt in ([12, 13, 14] as const)" :key="opt" class="hex-seg-item" :class="{ 'is-active': fontSize === opt }" @click="fontSize = opt">{{ opt }}</button>
+            </div>
+          </div>
+          <div class="hex-view-menu-row">
+            <span>显示 ASCII 列</span>
+            <button class="hex-seg-item hex-view-ascii-toggle" :class="{ 'is-active': showAscii }" @click="showAscii = !showAscii">{{ showAscii ? '开' : '关' }}</button>
+          </div>
+        </div>
+      </div>
+      <button
+        class="hex-tb-btn"
+        :class="{ 'is-active': !inspectorCollapsed }"
+        title="显示或隐藏 Data Inspector（折叠后主编辑区自动加宽）"
+        @click="toggleInspector"
+      ><HexIcon name="sidebar" /></button>
+
+      <span class="hex-tb-sep" />
+
+      <!-- 保存：图标 + 文字（无修改禁用；永不换行） -->
+      <button
+        class="hex-save-btn"
+        :class="{ 'is-dirty': vm.isModified }"
+        :disabled="!vm.isModified || vm.saveState === 'saving'"
+        :title="vm.isModified ? '保存修改（Cmd/Ctrl+S，写入前生成临时文件，原子替换）' : '无未保存修改'"
+        @click="vm.saveFile()"
+      >
+        <HexIcon name="save" :size="14" />
+        <span class="hex-save-label">{{ vm.saveState === 'saving' ? '保存中' : '保存' }}</span>
+      </button>
     </div>
 
-    <div v-if="vm.error" class="px-3 py-1 text-[11px] text-accent-red bg-accent-red/10 border-b border-accent-red/30 flex-shrink-0">
+    <div v-if="vm.error" class="hex-banner is-error">
       {{ vm.error }}（已加载区保持可用，滚动可重试新窗口）
     </div>
 
-    <!-- 查找/替换条（Cmd/Ctrl+F；Hex 模式支持 ? 半字节通配） -->
-    <div
-      v-if="vm.findBarVisible"
-      class="flex items-center gap-2 px-3 py-1 border-b border-border text-[11px] bg-bg-secondary/60 flex-shrink-0 flex-wrap"
-    >
-      <button
-        class="finder-preview-badge cursor-pointer flex-shrink-0"
-        :title="vm.findMode === 'hex' ? '当前：Hex 字节（? 为半字节通配，如 4? ??）；点击切换为文本' : '当前：文本（UTF-8）；点击切换为 Hex'"
-        @click="vm.toggleFindMode()"
-      >{{ vm.findMode === 'hex' ? 'Hex' : '文本' }}</button>
+    <!-- 替换行（查找字段「替换」展开；Esc 收起） -->
+    <div v-if="vm.replaceVisible" class="hex-replace-row flex items-center gap-2 flex-shrink-0">
+      <span class="hex-field-label hex-field-label-static">替换</span>
       <input
-        ref="findInput"
-        v-model="vm.findQuery"
+        v-model="vm.replaceQuery"
         type="text"
-        class="w-40 px-2 py-0.5 font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
-        :placeholder="vm.findMode === 'hex' ? '48 65 / 4? ??' : '查找文本（UTF-8）'"
+        class="hex-field-input w-36"
+        :placeholder="vm.findMode === 'hex' ? '替换字节（如 41 42）' : '替换文本'"
         spellcheck="false"
-        @keydown.enter.prevent="vm.runFind()"
-        @keydown.f3.prevent="vm.nextMatch()"
-        @keydown.shift.f3.prevent="vm.prevMatch()"
-        @keydown.esc.prevent="vm.closeFindBar()"
+        @keydown.esc.prevent.stop="vm.replaceVisible = false"
       >
-      <span class="font-mono text-text-secondary flex-shrink-0 min-w-10 text-center">{{ vm.matchCountLabel }}</span>
-      <button class="finder-icon-button" :disabled="vm.findMatches.length === 0" title="上一个匹配（Shift+F3）" @click="vm.prevMatch()">‹</button>
-      <button class="finder-icon-button" :disabled="vm.findMatches.length === 0" title="下一个匹配（F3）" @click="vm.nextMatch()">›</button>
-      <button
-        class="finder-icon-button !px-2"
-        :class="vm.replaceVisible ? 'text-accent-blue' : ''"
-        :title="vm.replaceVisible ? '收起替换' : '展开替换'"
-        @click="vm.replaceVisible = !vm.replaceVisible"
-      >替换</button>
-      <template v-if="vm.replaceVisible">
-        <input
-          v-model="vm.replaceQuery"
-          type="text"
-          class="w-32 px-2 py-0.5 font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
-          :placeholder="vm.findMode === 'hex' ? '替换字节（如 41 42）' : '替换文本'"
-          spellcheck="false"
-          @keydown.esc.prevent="vm.closeFindBar()"
-        >
-        <button
-          class="finder-icon-button !px-2"
-          :disabled="vm.findMatchIndex < 0"
-          title="替换当前匹配"
-          @click="vm.replaceCurrent()"
-        >替换</button>
-        <button
-          class="finder-icon-button !px-2"
-          :disabled="vm.findMatches.length === 0"
-          title="替换全部匹配（先确认）"
-          @click="vm.requestReplaceAll()"
-        >全部替换</button>
-      </template>
-      <span v-if="vm.findNotice" class="text-accent-red flex-shrink-0 max-w-56 truncate" :title="vm.findNotice">{{ vm.findNotice }}</span>
+      <button class="hex-tb-text" :disabled="vm.findMatchIndex < 0" title="替换当前匹配" @click="vm.replaceCurrent()">替换</button>
+      <button class="hex-tb-text" :disabled="vm.findMatches.length === 0" title="替换全部匹配（先确认）" @click="vm.requestReplaceAll()">全部替换</button>
       <div class="flex-1" />
-      <button class="finder-icon-button" title="关闭查找条（Esc）" @click="vm.closeFindBar()">×</button>
+      <button class="hex-tb-btn hex-tb-btn-sm" title="收起替换行（Esc）" @click="vm.replaceVisible = false"><HexIcon name="close" :size="13" /></button>
     </div>
 
     <!-- 全部替换确认条（先呈现 N 处再执行） -->
     <div
       v-if="vm.replaceConfirmCount !== null"
-      class="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-accent-orange/10 border-b border-accent-orange/40 flex-shrink-0"
+      class="hex-banner is-confirm flex items-center gap-2 flex-shrink-0"
       role="alertdialog"
       aria-label="确认全部替换"
     >
-      <span class="text-accent-orange font-medium">将替换 {{ vm.replaceConfirmCount }} 处匹配，确定执行？</span>
+      <span class="flex-shrink-0">将替换 {{ vm.replaceConfirmCount }} 处匹配，确定执行？</span>
       <div class="flex-1" />
-      <button class="px-2 py-0.5 rounded bg-accent-blue text-white hover:opacity-90" @click="vm.confirmReplaceAll()">替换 {{ vm.replaceConfirmCount }} 处</button>
-      <button class="px-2 py-0.5 rounded bg-bg-hover text-text-secondary hover:bg-bg-active" @click="vm.cancelReplaceAll()">取消</button>
+      <button class="hex-banner-btn is-primary" @click="vm.confirmReplaceAll()">替换 {{ vm.replaceConfirmCount }} 处</button>
+      <button class="hex-banner-btn" @click="vm.cancelReplaceAll()">取消</button>
     </div>
 
     <!-- 未保存关闭确认条（tabs 关闭被守卫阻止后就地呈现，三键决策） -->
     <div
       v-if="closeConfirm"
-      class="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-accent-orange/10 border-b border-accent-orange/40 flex-shrink-0"
+      class="hex-banner is-confirm flex items-center gap-2 flex-shrink-0"
       role="alertdialog"
       aria-label="存在未保存修改"
     >
-      <span class="text-accent-orange font-medium flex-shrink-0">存在未保存修改，关闭前如何处理？</span>
+      <span class="flex-shrink-0">存在未保存修改，关闭前如何处理？</span>
       <div class="flex-1" />
-      <button
-        class="px-2 py-0.5 rounded bg-accent-blue text-white hover:opacity-90 flex-shrink-0"
-        :disabled="vm.saveState === 'saving'"
-        @click="saveAndClose"
-      >{{ vm.saveState === 'saving' ? '保存中…' : '保存并关闭' }}</button>
-      <button
-        class="px-2 py-0.5 rounded bg-accent-red/90 text-white hover:opacity-90 flex-shrink-0"
-        @click="discardAndClose"
-      >放弃修改</button>
-      <button
-        class="px-2 py-0.5 rounded bg-bg-hover text-text-secondary hover:bg-bg-active flex-shrink-0"
-        @click="closeConfirm = false"
-      >取消</button>
+      <button class="hex-banner-btn is-primary" :disabled="vm.saveState === 'saving'" @click="saveAndClose">
+        {{ vm.saveState === 'saving' ? '保存中…' : '保存并关闭' }}
+      </button>
+      <button class="hex-banner-btn is-danger" @click="discardAndClose">放弃修改</button>
+      <button class="hex-banner-btn" @click="closeConfirm = false">取消</button>
     </div>
 
-    <!-- 主体：hex 行区 + Inspector 侧栏 -->
+    <!-- 主体：数据网格（列头 + 虚拟滚动）+ Inspector 侧栏 -->
     <div class="flex-1 min-h-0 flex">
       <div
         ref="scroller"
-        class="flex-1 min-w-0 overflow-y-auto font-mono text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent-blue"
+        class="hex-scroller flex-1 min-w-0 overflow-y-auto font-mono outline-none"
+        :data-bpr="bytesPerRow"
+        :data-row-height="rowHeight"
         tabindex="0"
         aria-label="十六进制内容：方向键移动光标，Shift 扩展选区，PageUp/PageDown 翻页"
         @scroll="onScroll"
         @keydown="onKeydown"
         @paste="onPaste"
+        @focus="editorFocused = true"
+        @blur="editorFocused = false"
       >
+        <!-- 固定列头（与数据行同列几何：偏移 | 列号 8 字节分组 | ASCII） -->
+        <div class="hex-header flex-shrink-0">
+          <div class="hex-row hex-header-row" :style="{ height: '24px', lineHeight: '24px', fontSize: '11px' }">
+            <span class="hex-offset">偏移</span>
+            <span class="hex-bytes">
+              <span v-for="(group, gi) in columnGroups" :key="gi" class="hex-group">
+                <span
+                  v-for="(col, ci) in group"
+                  :key="ci"
+                  class="hex-b hex-col-label"
+                  :class="{ 'is-col-active': gi * 8 + ci === cursorColumn }"
+                >{{ col }}{{ gi * 8 + ci < bytesPerRow - 1 ? ' ' : '' }}</span>
+              </span>
+            </span>
+            <span v-if="showAscii" class="hex-ascii hex-ascii-label">ASCII</span>
+          </div>
+        </div>
+
         <!-- 占位总高 = 真实总行数 × 行高：滚动条覆盖整个文件 -->
-        <div :style="{ height: vm.contentHeight + 'px', position: 'relative' }">
+        <div class="hex-rows-host" :style="{ height: vm.contentHeight + 'px', position: 'relative' }">
           <div
             v-for="row in vm.rows"
             :key="row.row"
-            class="flex gap-4 px-3 whitespace-nowrap cursor-pointer"
+            class="hex-row"
             :class="[
-              row.row === vm.cursorRow ? 'bg-accent-blue/10' : 'hover:bg-bg-hover',
-              row.row === vm.jumpRow ? 'ring-1 ring-inset ring-accent-orange' : ''
+              row.row === vm.cursorRow ? 'is-cursor-row' : '',
+              row.row === vm.jumpRow ? 'is-jump-row' : ''
             ]"
-            :style="{ position: 'absolute', top: row.top + 'px', height: ROW_HEIGHT + 'px', left: 0, right: 0, lineHeight: ROW_HEIGHT + 'px' }"
+            :style="{ position: 'absolute', top: row.top + 'px', height: rowHeight + 'px', left: 0, right: 0, fontSize: fontSize + 'px', lineHeight: rowHeight + 'px' }"
             :title="row.loaded ? `偏移 ${formatOffset(row.offset)}` : '加载中…'"
             @click="onRowClick(row.row)"
           >
-            <span
-              class="text-text-tertiary flex-shrink-0"
-              :class="row.row === vm.cursorRow ? '!text-text-primary font-semibold' : ''"
-            >{{ formatOffset(row.offset) }}</span>
+            <span class="hex-offset" :class="{ 'is-cursor-row': row.row === vm.cursorRow }">{{ formatOffset(row.offset) }}</span>
             <template v-if="row.loaded">
-              <!-- 字节 span 间的空格在 whitespace-pre 下保留（列对齐 + 文本可复制） -->
-              <span class="whitespace-pre text-text-primary tracking-wider">
-                <span
-                  v-for="(b, i) in row.hex"
-                  :key="i"
-                  :data-hex-offset="row.offset + i"
-                  class="cursor-pointer"
-                  :class="byteClass(row.offset + i)"
-                  @mousedown.prevent="onByteMouseDown(row.offset + i, 'hex', $event)"
-                  @mouseenter="onByteMouseEnter(row.offset + i)"
-                  @click.stop
-                >{{ b }}{{ i < row.hex.length - 1 ? ' ' : '' }}</span>
+              <!-- 字节 span 内尾随空格保留列距（whitespace-pre；选区底色随之连续） -->
+              <span class="hex-bytes whitespace-pre">
+                <span v-for="(group, gi) in row.hexGroups" :key="gi" class="hex-group">
+                  <span
+                    v-for="(b, i) in group"
+                    :key="i"
+                    class="hex-b"
+                    :class="byteClass(row.offset + gi * 8 + i)"
+                    :data-hex-offset="row.offset + gi * 8 + i"
+                    @mousedown.prevent="onByteMouseDown(row.offset + gi * 8 + i, 'hex', $event)"
+                    @mouseenter="onByteMouseEnter(row.offset + gi * 8 + i)"
+                    @click.stop
+                  >{{ b }}{{ hexSpaceAfter(row.hex.length, gi * 8 + i) ? ' ' : '' }}</span>
+                </span>
               </span>
-              <span class="whitespace-pre text-text-secondary">|<span
-                  v-for="(c, i) in row.ascii"
-                  :key="i"
-                  :data-ascii-offset="row.offset + i"
-                  class="cursor-pointer"
-                  :class="byteClass(row.offset + i)"
-                  @mousedown.prevent="onByteMouseDown(row.offset + i, 'ascii', $event)"
-                  @mouseenter="onByteMouseEnter(row.offset + i)"
-                  @click.stop
-                >{{ c }}</span></span>
+              <span v-if="showAscii" class="hex-ascii whitespace-pre">
+                <span v-for="(group, gi) in row.asciiGroups" :key="gi" class="hex-group">
+                  <span
+                    v-for="(c, i) in group"
+                    :key="i"
+                    class="hex-b hex-b-ascii"
+                    :class="byteClass(row.offset + gi * 8 + i)"
+                    :data-ascii-offset="row.offset + gi * 8 + i"
+                    @mousedown.prevent="onByteMouseDown(row.offset + gi * 8 + i, 'ascii', $event)"
+                    @mouseenter="onByteMouseEnter(row.offset + gi * 8 + i)"
+                    @click.stop
+                  >{{ c }}</span>
+                </span>
+              </span>
             </template>
-            <span v-else class="text-text-tertiary/50">································</span>
+            <span v-else class="hex-offset hex-placeholder">················································································································</span>
+          </div>
+          <div v-if="vm.totalRows === 0" class="hex-empty-file">
+            <HexIcon name="doc" :size="28" />
+            <span>空文件</span>
           </div>
         </div>
-        <div v-if="vm.totalRows === 0" class="p-4 text-text-tertiary">空文件</div>
       </div>
 
-      <!-- Data Inspector：光标/选区首字节的各类型解读 -->
-      <aside class="w-52 flex-shrink-0 border-l border-border bg-bg-secondary/60 overflow-y-auto flex flex-col">
-        <div class="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary border-b border-border flex-shrink-0">
-          Data Inspector
+      <!-- Inspector 拖拽调宽热区（双击复位 300px） -->
+      <div
+        v-if="!inspectorCollapsed"
+        class="hex-inspector-resize"
+        title="拖拽调整宽度（240–420px，双击复位）"
+        @mousedown.prevent="startResize"
+        @dblclick="inspectorWidth = 300"
+      />
+
+      <!-- Data Inspector：上下文头 + 分组解读（选区长度匹配类型） -->
+      <aside v-if="!inspectorCollapsed" class="hex-inspector flex flex-col min-h-0" :style="{ width: inspectorWidth + 'px' }">
+        <div class="hex-inspector-title">Data Inspector</div>
+
+        <div class="hex-inspector-context flex-shrink-0">
+          <template v-if="vm.inspectorContext">
+            <span class="hex-inspector-cap">Selection</span>
+            <span v-if="vm.inspectorContext.kind === 'offset'" class="font-mono">Offset 0x{{ formatOffset(vm.inspectorContext.start) }} · 1 byte</span>
+            <span v-else class="font-mono">Range 0x{{ formatOffset(vm.inspectorContext.start) }}–0x{{ formatOffset(vm.inspectorContext.end) }} · {{ vm.inspectorContext.length }} bytes</span>
+          </template>
         </div>
-        <div v-if="vm.cursorRow === null" class="px-3 py-3 text-[11px] text-text-tertiary">
-          点击任意字节查看该处数值解读
+
+        <!-- 空态：图标 + 主句 + 辅句（不是一行灰字） -->
+        <div v-if="vm.inspectorState === 'empty'" class="hex-inspector-empty">
+          <HexIcon name="dashed" :size="28" />
+          <span class="hex-inspector-empty-main">选择字节以查看数值解释</span>
+          <span class="hex-inspector-empty-hint">点击、拖选或 Cmd/Ctrl+A 选中数据</span>
         </div>
-        <div v-else-if="vm.inspector.length === 0" class="px-3 py-3 text-[11px] text-text-tertiary">
-          该处数据尚未加载
+        <div v-else-if="vm.inspectorState === 'loading'" class="hex-inspector-empty">
+          <span class="hex-inspector-empty-main">该处数据尚未加载</span>
+          <span class="hex-inspector-empty-hint">滚动或等待窗口预取完成后自动呈现</span>
         </div>
-        <dl v-else class="px-3 py-1.5 space-y-1">
-          <div v-for="entry in vm.inspector" :key="entry.label" class="flex justify-between gap-2 text-[11px]">
-            <dt class="text-text-tertiary font-mono flex-shrink-0">{{ entry.label }}</dt>
-            <dd class="text-text-primary font-mono text-right break-all">{{ entry.value }}</dd>
-          </div>
-        </dl>
-        <div v-if="vm.inspectorOffset !== null" class="px-3 py-2 text-[10px] text-text-tertiary border-t border-border mt-auto flex-shrink-0">
-          自 {{ formatOffset(vm.inspectorOffset) }} 起{{ vm.selection ? '（选区首字节）' : '' }}解读；窗口内不足类型宽度的条目自动跳过
+
+        <div v-else class="hex-inspector-body flex-1 min-h-0 overflow-y-auto">
+          <section v-for="group in vm.inspectorGroups" :key="group.title" class="hex-inspector-group">
+            <div class="hex-inspector-group-title">{{ group.title }}</div>
+            <div v-for="entry in group.entries" :key="entry.label" class="hex-inspector-row" :title="`${entry.label} = ${entry.value}`">
+              <span class="hex-inspector-label">{{ entry.label }}</span>
+              <span class="hex-inspector-value">{{ entry.value }}</span>
+            </div>
+          </section>
         </div>
       </aside>
+    </div>
+
+    <!-- 底部状态栏 28px：模式 | 偏移 | 选区 ⟷ 通知槽 ⟷ 编码 | 字节序 | 大小 | 修改状态 -->
+    <div class="hex-statusbar flex items-center flex-shrink-0">
+      <span class="hex-mode-chip" :class="`is-${vm.editMode}`" :title="vm.readonlyLock ?? `当前模式：${modeLabel}`">
+        <HexIcon v-if="vm.editMode === 'readonly'" name="lock" :size="11" />{{ modeLabel }}
+      </span>
+      <span class="hex-stat">偏移 <span class="hex-stat-num">0x{{ vm.cursorLabel ?? '—' }}</span></span>
+      <span class="hex-stat">选区 <span class="hex-stat-num">{{ vm.selectionShortLabel ?? (vm.cursorLabel !== null ? '1 byte' : '—') }}</span></span>
+
+      <div class="flex-1 min-w-0 hex-notice-slot">
+        <span v-if="vm.fetching > 0" class="hex-notice is-info"><i class="hex-spinner" />读取中…</span>
+        <span v-else-if="vm.notice" class="hex-notice" :class="`is-${vm.notice.tone}`">
+          <HexIcon v-if="vm.notice.tone === 'success'" name="check" :size="12" />
+          <HexIcon v-else-if="vm.notice.tone === 'error'" name="close" :size="12" />
+          {{ vm.notice.text }}
+        </span>
+      </div>
+
+      <span class="hex-stat">ASCII</span>
+      <span class="hex-stat">Little Endian</span>
+      <span class="hex-stat">{{ formatSize(file.size) }}</span>
+      <span class="hex-stat hex-stat-dirty" :class="{ 'is-dirty': vm.isModified }">
+        {{ vm.isModified ? `已修改 ${vm.modifiedCount} 处` : '已保存' }}
+      </span>
     </div>
   </div>
 </template>

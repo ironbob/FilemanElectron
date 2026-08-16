@@ -31,6 +31,16 @@ export type ContentPiece =
   | { kind: 'base'; start: number; length: number }
   | { kind: 'edit'; bytes: Uint8Array }
 
+/**
+ * 逻辑区间 [start, start+length)（供 UI 标记「与磁盘不同」的字节）。
+ * 来源 = runs 中 dirty 的 edit 片段（save 后全部清 dirty，编辑/重做再点亮）；
+ * 纯 base 片段永不 dirty。删除不产生区间（结构性变更由脏计数表达）。
+ */
+export interface DirtyRange {
+  start: number
+  length: number
+}
+
 /** 可逆编辑操作：offset 为应用时的逻辑偏移。 */
 export interface EditOp {
   type: 'overwrite' | 'insert' | 'delete'
@@ -74,11 +84,14 @@ function coalesceOps(a: EditOp, b: EditOp): EditOp | null {
   return null
 }
 
+/** 内部 run：ContentPiece + dirty 标记（edit 片段「与磁盘不同」；save 清零）。 */
+type RunPiece = ContentPiece & { dirty?: boolean }
+
 export class HexEditJournal {
   /** 源文件大小（base 物理上界）。 */
   private readonly baseSize: number
   /** 逻辑文档的 run 串联（串联即文档；base 物理序递增）。 */
-  private runs: ContentPiece[] = []
+  private runs: RunPiece[] = []
   private logicalSizeValue: number
   private readonly undoStack: EditOp[] = []
   private readonly redoStack: EditOp[] = []
@@ -100,9 +113,31 @@ export class HexEditJournal {
    */
   get isModified(): boolean { return this.undoStack.length !== this.savedDepth }
 
-  /** 保存成功后打点（当前状态 = 已保存基准）。 */
+  /** 保存成功后打点（当前状态 = 已保存基准；全部 dirty 清零）。 */
   markSaved(): void {
     this.savedDepth = this.undoStack.length
+    for (const run of this.runs) run.dirty = false
+  }
+
+  /**
+   * 与磁盘内容不同的逻辑区间列表（编辑写入且尚未保存/保存后又变更）。
+   * 保存后为空；撤销/重做随 run 结构自然增减。删除是结构性变更，
+   * 不产生区间（脏与否由 isModified 表达）。
+   */
+  dirtyRanges(): DirtyRange[] {
+    const ranges: DirtyRange[] = []
+    let logical = 0
+    for (const run of this.runs) {
+      const len = pieceLength(run)
+      if (run.kind === 'edit' && run.dirty && len > 0) {
+        // 相邻 edit run（切分手术产物）合并为同一脏区间
+        const last = ranges[ranges.length - 1]
+        if (last && last.start + last.length === logical) last.length += len
+        else ranges.push({ start: logical, length: len })
+      }
+      logical += len
+    }
+    return ranges
   }
 
   get canUndo(): boolean { return this.undoStack.length > 0 }
@@ -209,7 +244,7 @@ export class HexEditJournal {
       return null
     }
     const removed = this.removeRange(at, removedLength)
-    const inserted: ContentPiece[] = newBytes ? [{ kind: 'edit', bytes: newBytes.slice() }] : []
+    const inserted: RunPiece[] = newBytes ? [{ kind: 'edit', bytes: newBytes.slice(), dirty: true }] : []
     this.insertPieces(at, inserted)
     this.logicalSizeValue += newLen - piecesLength(removed)
     const op: EditOp = { type, offset: at, removed, inserted }
@@ -230,7 +265,7 @@ export class HexEditJournal {
     return op
   }
 
-  /** 在 offset 处切分 run（mid-run 边界补齐；0/末尾无操作）。 */
+  /** 在 offset 处切分 run（mid-run 边界补齐；0/末尾无操作；dirty 标记随分裂保留）。 */
   private sliceAt(offset: number): void {
     let logical = 0
     for (let i = 0; i < this.runs.length; i++) {
@@ -242,10 +277,10 @@ export class HexEditJournal {
           i, 1,
           run.kind === 'base'
             ? { kind: 'base', start: run.start, length: cut }
-            : { kind: 'edit', bytes: run.bytes.subarray(0, cut) },
+            : { kind: 'edit', bytes: run.bytes.subarray(0, cut), dirty: run.dirty },
           run.kind === 'base'
             ? { kind: 'base', start: run.start + cut, length: len - cut }
-            : { kind: 'edit', bytes: run.bytes.subarray(cut) }
+            : { kind: 'edit', bytes: run.bytes.subarray(cut), dirty: run.dirty }
         )
         return
       }

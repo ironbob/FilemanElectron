@@ -31,10 +31,14 @@ test.beforeEach(async ({ page }) => {
           fileSize = 1024 * 1024
           slice = Array.from({ length: Math.min(length, fileSize - offset) }, (_, i) => (offset + i) % 251)
         } else {
-          // "Hello, Hex View!\n" 的 UTF-8 字节（19 字节）+ 0x00 0xff
+          // "Hello, Hex View!\n" 的 UTF-8 字节（19 字节）+ 0x00 0xff；
+          // firmware.bin 声明 32 B → 尾部 13 字节补零（mock 供给与 size 声明一致）
           const bytes = [72, 101, 108, 108, 111, 44, 32, 72, 101, 120, 32, 86, 105, 101, 119, 33, 10, 0, 255]
-          fileSize = bytes.length
-          slice = bytes.slice(offset, offset + length)
+          fileSize = path.includes('firmware.bin') ? 32 : bytes.length
+          slice = Array.from(
+            { length: Math.min(length, Math.max(0, fileSize - offset)) },
+            (_, i) => (offset + i < bytes.length ? bytes[offset + i] : 0)
+          )
         }
         return { base64: btoa(String.fromCharCode(...slice)), bytesRead: slice.length, fileSize }
       },
@@ -74,10 +78,12 @@ test.beforeEach(async ({ page }) => {
 test('previewing a .bin file renders the hex view', async ({ page }) => {
   await page.locator('[data-file-path="/fw/firmware.bin"]').dblclick()
 
-  // 偏移列 + 十六进制 + ASCII
-  await expect(page.getByText('00000000').first()).toBeVisible({ timeout: 5000 })
+  // 偏移列 + 十六进制 + ASCII + 固定列头
+  await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('|Hello, Hex View!').first()).toBeVisible()
+  await expect(page.getByText('Hello, Hex View!').first()).toBeVisible()
+  await expect(page.locator('.hex-header-row').getByText('偏移')).toBeVisible()
+  await expect(page.locator('.hex-header-row').getByText('ASCII')).toBeVisible()
   // 0x00 与 0xff 显示为 . （ASCII 不可打印）
   await expect(page.getByText(/\.\./).first()).toBeVisible()
 
@@ -92,49 +98,56 @@ test('explicit entry forces hex view on a text file', async ({ page }) => {
   await page.locator('[data-file-path="/fw/notes.txt"]').click({ button: 'right' })
   await page.locator('.context-menu .context-menu-item', { hasText: '以十六进制查看' }).click()
 
-  await expect(page.getByText('00000000').first()).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible()
   // 不出现 Monaco 文本编辑器（确实强制为 hex，而非扩展名推断的 text）
   await expect(page.locator('.monaco-editor')).toHaveCount(0)
 })
 
-// ── 成熟基线升级回归（2026-08-16 hex-viewer-baseline） ──────────────────────
-// 4. 全文件滚动：占位高 = 真实总行数 × 22px（不再 5000 行封顶）
-// 5. 偏移跳转：0x20 → 目标行居中高亮，光标标签更新
-// 6. Data Inspector：点击行 → 该行首字节各类型解读（int8/uint8 立即可验）
+// ── 成熟基线升级回归（2026-08-16 hex-viewer-baseline；v2 界面重设计同步） ────
+// 4. 全文件滚动：占位高 = 真实总行数 × 行高（自适应 bpr/行高，从 data 属性读回）
+// 5. 偏移跳转：0x20 → 目标行琥珀高亮 + 状态栏偏移标签更新
+// 6. Data Inspector：点击字节 → 1 字节分组解读；扩选 8 字节 → Float64
 
-const BIG_SIZE = 1024 * 1024 // 1MB → 65536 行 × 22px = 1,441,792px（5000 行封顶只会有 110,000px）
+const BIG_SIZE = 1024 * 1024 // 1MB
 
 test('full-file scrollbar covers the entire file (no 5000-row cap)', async ({ page }) => {
   await page.locator('[data-file-path="/fw/big.bin"]').dblclick()
-  await expect(page.getByText('00000000').first()).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
 
-  const height = await page.evaluate(() => {
-    const container = document.querySelector('.overflow-y-auto.font-mono > div')
-    return container ? (container as HTMLElement).offsetHeight : -1
+  // 占位高 = 总行数 × 行高；行数按自适应 bpr 计算（data 属性回读，避免布局耦合）
+  const { height, bpr, rowHeight } = await page.evaluate(() => {
+    const host = document.querySelector('.hex-rows-host')
+    const scroller = document.querySelector('.hex-scroller')
+    return {
+      height: host ? (host as HTMLElement).offsetHeight : -1,
+      bpr: Number(scroller?.getAttribute('data-bpr') ?? 0),
+      rowHeight: Number(scroller?.getAttribute('data-row-height') ?? 0)
+    }
   })
-  expect(height).toBe(BIG_SIZE / 16 * 22) // 65536 行 × 22 = 1,441,792（旧实现只会 110,000）
+  expect(bpr).toBeGreaterThan(0)
+  expect(height).toBe(Math.ceil(BIG_SIZE / bpr) * rowHeight)
 
   // DOM 行数有界：缓冲行集 ≪ 总行数（QA-1：与文件大小无关）
-  const domRows = await page.evaluate(() => document.querySelectorAll('.overflow-y-auto.font-mono [style*="position: absolute"]').length)
+  const domRows = await page.evaluate(() => document.querySelectorAll('.hex-scroller [style*="position: absolute"]').length)
   expect(domRows).toBeLessThan(120)
 })
 
 test('offset jump centers and highlights the target row', async ({ page }) => {
   // 大文件（1MB）：0x20 未越界，不触发钳制
   await page.locator('[data-file-path="/fw/big.bin"]').dblclick()
-  await expect(page.getByText('00000000').first()).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
 
   const input = page.locator('input[placeholder*="0x1A2B"]')
   await input.fill('0x20')
   await input.press('Enter')
 
-  // 目标行（offset 0x20 = 行 2）高亮（ring-accent-orange）+ 光标标签
+  // 目标行（offset 0x20）琥珀左条高亮 + 状态栏偏移标签
   const targetRow = page.locator('[title="偏移 00000020"]')
-  await expect(targetRow).toHaveClass(/ring-accent-orange/, { timeout: 5000 })
-  await expect(page.getByText('光标 00000020')).toBeVisible()
+  await expect(targetRow).toHaveClass(/is-jump-row/, { timeout: 5000 })
+  await expect(page.getByText('偏移 0x00000020', { exact: true })).toBeVisible()
 
-  // 非法输入：就地报错不崩溃
+  // 非法输入：字段下方就地报错不崩溃
   await input.fill('zz')
   await input.press('Enter')
   await expect(page.getByText(/无法识别/)).toBeVisible()
@@ -144,25 +157,33 @@ test('offset jump centers and highlights the target row', async ({ page }) => {
 test('out-of-range jump clamps to the last byte with a notice', async ({ page }) => {
   // firmware.bin 声明 size=32：跳 0x64 → 钳到 0x1f（字节级光标直达末字节）并提示
   await page.locator('[data-file-path="/fw/firmware.bin"]').dblclick()
-  await expect(page.getByText('00000000').first()).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
   const input = page.locator('input[placeholder*="0x1A2B"]')
   await input.fill('0x64')
   await input.press('Enter')
   await expect(page.getByText(/已钳制到文件末尾 0x1f/)).toBeVisible({ timeout: 5000 })
-  await expect(page.getByText('光标 0000001f')).toBeVisible()
+  await expect(page.getByText('偏移 0x0000001f', { exact: true })).toBeVisible()
 })
 
-test('data inspector interprets the clicked row', async ({ page }) => {
+test('data inspector interprets cursor and 8-byte selection by length', async ({ page }) => {
   await page.locator('[data-file-path="/fw/firmware.bin"]').dblclick()
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible({ timeout: 5000 })
 
-  // 点击首字节（72='H'）—— 字节级命中
+  // 点击首字节（72='H'）→ 上下文头 Offset · 1 byte + 1 字节分组（Int8/UInt8/位视图）
   await page.locator('[data-hex-offset="0"]').click()
   const inspector = page.locator('aside')
-  await expect(inspector.getByText('int8', { exact: true })).toBeVisible({ timeout: 5000 })
-  await expect(inspector.getByText('72', { exact: true }).first()).toBeVisible()   // int8/uint8 均为 72
-  await expect(inspector.getByText('uint8')).toBeVisible()
-  await expect(inspector.getByText('float64 LE')).toBeVisible()            // 19 字节窗口 → 8 字节可用
+  await expect(inspector.getByText('Offset 0x00000000 · 1 byte')).toBeVisible({ timeout: 5000 })
+  await expect(inspector.getByText('Int8', { exact: true })).toBeVisible()
+  await expect(inspector.getByText('72', { exact: true }).first()).toBeVisible()
+  await expect(inspector.getByText('UInt8', { exact: true })).toBeVisible()
+  await expect(inspector.getByText('Bit 视图')).toBeVisible()
+  await expect(inspector.getByText('Float64 LE')).toHaveCount(0)   // 长度不匹配 → 不展示
+
+  // Shift+点击字节 7 → 8 字节选区 → Range 上下文 + Int64/Float64/CRC32
+  await page.locator('[data-hex-offset="7"]').click({ modifiers: ['Shift'] })
+  await expect(inspector.getByText('Range 0x00000000–0x00000007 · 8 bytes')).toBeVisible()
+  await expect(inspector.getByText('Float64 LE')).toBeVisible()
+  await expect(inspector.getByText('CRC32')).toBeVisible()
 })
 
 // ── P0-1 字节级光标/选区回归 ────────────────────────────────────────────────
@@ -173,22 +194,22 @@ test('byte-level cursor, shift-click selection and keyboard extend', async ({ pa
   await page.locator('[data-file-path="/fw/firmware.bin"]').dblclick()
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible({ timeout: 5000 })
 
-  // 点击字节 1 → 光标字节级精确
+  // 点击字节 1 → 状态栏偏移字节级精确
   await page.locator('[data-hex-offset="1"]').click()
-  await expect(page.getByText('光标 00000001')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000001', { exact: true })).toBeVisible()
 
-  // Shift+点击字节 4 → 选区 1–4（闭区间 4 字节）
+  // Shift+点击字节 4 → 选区 1–4（闭区间 4 字节，短标签形态）
   await page.locator('[data-hex-offset="4"]').click({ modifiers: ['Shift'] })
-  await expect(page.getByText('选区 00000001–00000004 · 4 B')).toBeVisible()
+  await expect(page.getByText('选区 0x1–0x4 · 4 B', { exact: true })).toBeVisible()
 
   // Shift+→ 再扩一字节（点击后焦点在 hex 滚动区，键盘直达）
   await page.keyboard.press('Shift+ArrowRight')
-  await expect(page.getByText('选区 00000001–00000005 · 5 B')).toBeVisible()
+  await expect(page.getByText('选区 0x1–0x5 · 5 B', { exact: true })).toBeVisible()
 
-  // ESC 清选区，光标保留在 head
+  // ESC 清选区 → 回到单字节形态，光标保留在 head
   await page.keyboard.press('Escape')
-  await expect(page.getByText(/选区/)).toHaveCount(0)
-  await expect(page.getByText('光标 00000005')).toBeVisible()
+  await expect(page.getByText('选区 0x1–0x5 · 5 B', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('偏移 0x00000005', { exact: true })).toBeVisible()
 })
 
 // ── P0-4 安全编辑回归（journal 叠加缓存 + nibble 输入 + Undo/Redo） ─────────
@@ -200,11 +221,11 @@ test('nibble typing edits bytes, cursor advances, undo/redo restores', async ({ 
   // 点击首字节（0x48）→ 键入 '4'：高 nibble 已是 4，值不变但光标进低 nibble
   await page.locator('[data-hex-offset="0"]').click()
   await page.keyboard.press('4')
-  await expect(page.getByText('光标 00000000')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000000', { exact: true })).toBeVisible()
   // 键入 '1'：低 nibble → 0x41，光标前进到字节 1
   await page.keyboard.press('1')
   await expect(page.getByText('41 65 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('光标 00000001')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000001', { exact: true })).toBeVisible()
 
   // 键入 'f'：字节 1 高 nibble 6→f（0x65 → 0xf5）
   await page.keyboard.press('f')
@@ -213,7 +234,7 @@ test('nibble typing edits bytes, cursor advances, undo/redo restores', async ({ 
   // Cmd+Z 一次还原整段连续输入（coalesce 合并为单条 Undo），光标回起点
   await page.keyboard.press('Meta+z')
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('光标 00000000')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000000', { exact: true })).toBeVisible()
 
   // Cmd+Shift+Z 重做
   await page.keyboard.press('Meta+Shift+z')
@@ -228,8 +249,8 @@ test('ascii typing overwrites the mirrored byte', async ({ page }) => {
   await page.locator('[data-ascii-offset="0"]').click()
   await page.keyboard.press('X')
   await expect(page.getByText('58 65 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('|Xello').first()).toBeVisible()
-  await expect(page.getByText('光标 00000001')).toBeVisible()
+  await expect(page.getByText('Xello').first()).toBeVisible()
+  await expect(page.getByText('偏移 0x00000001', { exact: true })).toBeVisible()
 })
 
 // ── P0-3 保存通道回归（脏状态 → Cmd+S → 净效果片段 → 脏状态清零） ───────────
@@ -239,17 +260,17 @@ test('dirty badge, Cmd+S saves edit pieces atomically, badge clears', async ({ p
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible({ timeout: 5000 })
 
   // 未修改：无脏徽章
-  await expect(page.getByText('● 未保存')).toHaveCount(0)
+  await expect(page.getByText('• 已修改')).toHaveCount(0)
 
   // 编辑首字节高 nibble：0x48 → 0x18（键入 '1'）→ 脏徽章出现
   await page.locator('[data-hex-offset="0"]').click()
   await page.keyboard.press('1')
   await expect(page.getByText('18 65 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('● 未保存')).toBeVisible()
+  await expect(page.getByText('已修改 1 处', { exact: true })).toBeVisible()
 
   // Cmd+S：保存通道收到净效果片段（edit 1B + base 剩余 31B），脏徽章清除
   await page.keyboard.press('Meta+s')
-  await expect(page.getByText('● 未保存')).toHaveCount(0)
+  await expect(page.getByText('• 已修改')).toHaveCount(0)
 
   const calls = await page.evaluate(() => (window as any).__saveCalls)
   expect(calls.length).toBe(1)
@@ -262,7 +283,7 @@ test('dirty badge, Cmd+S saves edit pieces atomically, badge clears', async ({ p
   // 保存后再编辑 → 脏状态以新保存点为基准重现
   await page.keyboard.press('2')               // 低 nibble：0x18 → 0x12
   await expect(page.getByText('12 65 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('● 未保存')).toBeVisible()
+  await expect(page.getByText('已修改 1 处', { exact: true })).toBeVisible()
 })
 
 // ── P0-4 收尾回归：Insert 模式 / 多字节粘贴 / 未保存关闭守卫 ─────────────────
@@ -280,10 +301,10 @@ test('insert mode shifts bytes right and undo restores', async ({ page }) => {
   await page.locator('[data-file-path="/fw/firmware.bin"]').dblclick()
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible({ timeout: 5000 })
 
-  // Insert 键切换：徽章变「插入」
+  // Insert 键切换：segmented「插入」段点亮（模式 chip 同步为插入）
   await page.locator('[data-hex-offset="0"]').click()
   await page.keyboard.press('Insert')
-  await expect(page.getByText('插入', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '插入', exact: true })).toHaveClass(/is-active/)
 
   // 高 nibble 'a' → 行首插入 a0，原字节右移
   await page.keyboard.press('a')
@@ -306,7 +327,7 @@ test('paste valid hex overwrites, invalid hex reports error without changes', as
   await page.locator('[data-hex-offset="0"]').click()
   await dispatchPaste(page, '41 42')
   await expect(page.getByText('41 42 6c 6c 6f').first()).toBeVisible()
-  await expect(page.getByText('光标 00000002')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000002', { exact: true })).toBeVisible()
 
   // 非法粘贴：字节不变 + 就地报错
   await dispatchPaste(page, '4z')
@@ -331,7 +352,7 @@ test('closing a dirty hex tab shows confirm bar; cancel keeps, discard closes', 
   // 制造未保存修改 → 点关闭 → 确认条出现，tab 仍在
   await page.locator('[data-hex-offset="0"]').click()
   await page.keyboard.press('9')
-  await expect(page.getByText('● 未保存')).toBeVisible()
+  await expect(page.getByText('已修改 1 处', { exact: true })).toBeVisible()
   await page.getByLabel('Close firmware.bin').click()
   await expect(page.getByText('存在未保存修改，关闭前如何处理？')).toBeVisible()
   await expect(page.getByText('98 65 6c 6c 6f').first()).toBeVisible()  // tab 未关闭
@@ -352,32 +373,32 @@ test('closing a dirty hex tab shows confirm bar; cancel keeps, discard closes', 
 
 test('relative jump (+0x20 / -16) and jump history back/forward', async ({ page }) => {
   await page.locator('[data-file-path="/fw/big.bin"]').dblclick()
-  await expect(page.getByText('00000000').first()).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
   const input = page.locator('input[placeholder*="0x1A2B"]')
 
   // 绝对跳转 0x40 → 光标 0x40
   await input.fill('0x40')
   await input.press('Enter')
-  await expect(page.getByText('光标 00000040')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000040', { exact: true })).toBeVisible()
 
   // 相对 +0x20 → 0x60
   await input.fill('+0x20')
   await input.press('Enter')
-  await expect(page.getByText('光标 00000060')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000060', { exact: true })).toBeVisible()
 
   // 相对 -16（十进制）→ 0x50
   await input.fill('-16')
   await input.press('Enter')
-  await expect(page.getByText('光标 00000050')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000050', { exact: true })).toBeVisible()
 
   // 历史：Alt+← 回 0x60；再回 0x40；Alt+→ 前进 0x60
   await page.locator('.overflow-y-auto.font-mono').click()  // 焦点移回 hex 区
   await page.keyboard.press('Alt+ArrowLeft')
-  await expect(page.getByText('光标 00000060')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000060', { exact: true })).toBeVisible()
   await page.keyboard.press('Alt+ArrowLeft')
-  await expect(page.getByText('光标 00000040')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000040', { exact: true })).toBeVisible()
   await page.keyboard.press('Alt+ArrowRight')
-  await expect(page.getByText('光标 00000060')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000060', { exact: true })).toBeVisible()
 })
 
 test('find with count, wildcard, navigation and selection highlight', async ({ page }) => {
@@ -390,31 +411,35 @@ test('find with count, wildcard, navigation and selection highlight', async ({ p
   await expect(page.getByPlaceholder('48 65 / 4? ??')).toBeVisible()
   await page.getByPlaceholder('48 65 / 4? ??').fill('65')
   await page.getByPlaceholder('48 65 / 4? ??').press('Enter')
-  await expect(page.getByText('1/3', { exact: true })).toBeVisible()
+  await expect(page.getByText('匹配 1/3', { exact: true })).toBeVisible()
   // 光标落在首个匹配（offset 1）
-  await expect(page.getByText('光标 00000001')).toBeVisible()
+  await expect(page.getByText('偏移 0x00000001', { exact: true })).toBeVisible()
 
   // F3 循环 2/3 → 3/3 → 1/3
   await page.getByPlaceholder('48 65 / 4? ??').press('F3')
-  await expect(page.getByText('2/3', { exact: true })).toBeVisible()
+  await expect(page.getByText('匹配 2/3', { exact: true })).toBeVisible()
   await page.getByPlaceholder('48 65 / 4? ??').press('F3')
-  await expect(page.getByText('3/3', { exact: true })).toBeVisible()
+  await expect(page.getByText('匹配 3/3', { exact: true })).toBeVisible()
   await page.getByPlaceholder('48 65 / 4? ??').press('F3')
-  await expect(page.getByText('1/3', { exact: true })).toBeVisible()
+  await expect(page.getByText('匹配 1/3', { exact: true })).toBeVisible()
 
   // 通配 '6?'：高 nibble 6 → 0x65(1,8,13) 0x6c(2,3) 0x6f(4) 0x69(12) 共 7 处
   await page.getByPlaceholder('48 65 / 4? ??').fill('6?')
   await page.getByPlaceholder('48 65 / 4? ??').press('Enter')
-  await expect(page.getByText('1/7', { exact: true })).toBeVisible()
+  await expect(page.getByText('匹配 1/7', { exact: true })).toBeVisible()
 
-  // 非法输入：奇数位
+  // 非法输入：奇数位（状态栏通知槽报错）
   await page.getByPlaceholder('48 65 / 4? ??').fill('645')
   await page.getByPlaceholder('48 65 / 4? ??').press('Enter')
   await expect(page.getByText(/位数须为偶数/)).toBeVisible()
 
-  // Esc 关闭查找条（清匹配选区）
+  // Esc：清空查询与匹配（字段常驻工具栏，不清除输入框本身）
+  await page.getByPlaceholder('48 65 / 4? ??').fill('6?')
+  await page.getByPlaceholder('48 65 / 4? ??').press('Enter')
+  await expect(page.getByText('匹配 1/7', { exact: true })).toBeVisible()
   await page.getByPlaceholder('48 65 / 4? ??').press('Escape')
-  await expect(page.getByPlaceholder('48 65 / 4? ??')).toHaveCount(0)
+  await expect(page.getByText(/匹配 \d/)).toHaveCount(0)
+  await expect(page.getByPlaceholder('48 65 / 4? ??')).toHaveValue('')
 })
 
 test('replace all with confirmation replaces every match', async ({ page }) => {
@@ -426,7 +451,7 @@ test('replace all with confirmation replaces every match', async ({ page }) => {
   await page.keyboard.press('Meta+f')
   await page.getByPlaceholder('48 65 / 4? ??').fill('6c')
   await page.getByPlaceholder('48 65 / 4? ??').press('Enter')
-  await expect(page.getByText('1/2', { exact: true })).toBeVisible()
+  await expect(page.getByText('匹配 1/2', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '替换', exact: true }).click()  // 展开替换区
   await page.getByPlaceholder('替换字节（如 41 42）').fill('4c')
 
@@ -436,8 +461,8 @@ test('replace all with confirmation replaces every match', async ({ page }) => {
   await page.getByRole('button', { name: '替换 2 处' }).click()
   await expect(page.getByText('已替换 2 处')).toBeVisible()
   await expect(page.getByText('48 65 4c 4c 6f').first()).toBeVisible()   // "HeLLo"
-  await expect(page.getByText('|HeLLo').first()).toBeVisible()
-  await expect(page.getByText('0/0', { exact: true })).toBeVisible()
+  await expect(page.getByText('HeLLo').first()).toBeVisible()
+  await expect(page.getByText('匹配 0/0', { exact: true })).toBeVisible()
   // 替换产生未保存修改
-  await expect(page.getByText('● 未保存')).toBeVisible()
+  await expect(page.getByText('已修改 1 处', { exact: true })).toBeVisible()
 })

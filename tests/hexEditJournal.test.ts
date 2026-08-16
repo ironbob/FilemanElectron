@@ -319,4 +319,62 @@ const baseNumbers = Array.from(base)
   }
 }
 
+// ============ dirtyRanges（未保存修改的字节标记） ============
+
+// 初始无脏区间；覆写点亮、相邻覆写合并为一段
+{
+  const j = new HexEditJournal(BASE_SIZE)
+  assert.deepEqual(j.dirtyRanges(), [])
+  j.overwrite(4, new Uint8Array([1]))
+  j.overwrite(5, new Uint8Array([2]))
+  assert.deepEqual(j.dirtyRanges(), [{ start: 4, length: 2 }])
+  j.overwrite(10, new Uint8Array([3]))
+  assert.deepEqual(j.dirtyRanges(), [{ start: 4, length: 2 }, { start: 10, length: 1 }])
+}
+
+// markSaved 清零全部脏区间；保存后再编辑重新点亮
+{
+  const j = new HexEditJournal(BASE_SIZE)
+  j.overwrite(4, new Uint8Array([9]))
+  assert.equal(j.isModified, true)
+  j.markSaved()
+  assert.deepEqual(j.dirtyRanges(), [])
+  assert.equal(j.isModified, false)
+  j.overwrite(4, new Uint8Array([8]))
+  assert.deepEqual(j.dirtyRanges(), [{ start: 4, length: 1 }])
+  // undo 回到保存点 → 脏清零（深度差语义 + 区间一致）
+  j.undo()
+  assert.deepEqual(j.dirtyRanges(), [])
+  assert.equal(j.isModified, false)
+}
+
+// 撤销/重做随 run 结构自然增减；redo 恢复脏标记
+{
+  const j = new HexEditJournal(BASE_SIZE)
+  j.overwrite(2, new Uint8Array([7]))
+  j.undo()
+  assert.deepEqual(j.dirtyRanges(), [])
+  j.redo()
+  assert.deepEqual(j.dirtyRanges(), [{ start: 2, length: 1 }])
+}
+
+// 插入的字节为脏；撤销插入后脏区间消失
+{
+  const j = new HexEditJournal(BASE_SIZE)
+  j.insert(4, new Uint8Array([1, 2, 3]))
+  assert.deepEqual(j.dirtyRanges(), [{ start: 4, length: 3 }])
+  j.undo()
+  assert.deepEqual(j.dirtyRanges(), [])
+}
+
+// 删除不产生区间（结构性变更由 isModified 表达）；删除后重插内容为脏
+{
+  const j = new HexEditJournal(BASE_SIZE)
+  j.delete(4, 2)
+  assert.deepEqual(j.dirtyRanges(), [])
+  assert.equal(j.isModified, true)
+  j.insert(4, new Uint8Array([5, 6]))
+  assert.deepEqual(j.dirtyRanges(), [{ start: 4, length: 2 }])
+}
+
 console.log('✓ hexEditJournal 稀疏补丁 + Undo/Redo 测试全部通过')

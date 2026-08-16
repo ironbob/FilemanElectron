@@ -60,6 +60,11 @@ export class HexWindowCache {
     return Math.floor(Math.max(0, offset) / this.windowBytes) * this.windowBytes
   }
 
+  /** 窗口字节数（消费方按窗分段读取用；构造后不变）。 */
+  get windowBytesValue(): number {
+    return this.windowBytes
+  }
+
   /** 同步探测：该偏移所在窗口是否已加载（渲染层判断占位用）。 */
   has(offset: number): boolean {
     return this.settled.has(this.align(offset))

@@ -30,7 +30,19 @@ assert.equal(offsetToRow(0), 0)
 assert.equal(offsetToRow(16), 1)
 assert.equal(rowToOffset(3), 48)
 assert.equal(rowTop(0), 0)
-assert.equal(rowTop(100), 2200)
+assert.equal(rowTop(100), 2700)
+
+// 参数化 bpr/rowHeight（自适应 8/16/24/32 × 25/27/29）
+assert.equal(offsetToRow(31, 16), 1)
+assert.equal(offsetToRow(31, 32), 0)
+assert.equal(offsetToRow(31, 8), 3)
+assert.equal(rowToOffset(2, 24), 48)
+assert.equal(rowTop(2, 29), 58)
+assert.equal(rowTop(2, 25), 50)
+// 非法 bpr/行高回落默认（16 / 27）
+assert.equal(offsetToRow(15, 0), 0)
+assert.equal(rowToOffset(3, Number.NaN), 48)
+assert.equal(rowTop(3, -5), 81)
 
 // ============ 钳制（含非法输入收敛） ============
 
@@ -108,9 +120,16 @@ assert.equal(scrollTopToShow(10, 300, 500), 10 * ROW_HEIGHT)
 // 行在视口下方 → 行底贴视口底
 assert.equal(scrollTopToShow(100, 0, 500), 101 * ROW_HEIGHT - 500)
 
-// 边界：行 21 底部 484 ≤ 500 恰好完全可见；行 22 底部 506 需滚 6px
+// 边界：末行底部恰 ≤ 500 完全可见；下一行需滚出 (行底 − 视口高)
 assert.equal(scrollTopToShow(Math.floor(500 / ROW_HEIGHT) - 1, 0, 500), -1)
-assert.equal(scrollTopToShow(Math.floor(500 / ROW_HEIGHT), 0, 500), 6)
+assert.equal(scrollTopToShow(Math.floor(500 / ROW_HEIGHT), 0, 500), (Math.floor(500 / ROW_HEIGHT) + 1) * ROW_HEIGHT - 500)
+
+// 自定义行高（29px）下的可视区间与最小滚动
+assert.equal(scrollTopToShow(10, 0, 500, 29), -1)
+assert.equal(scrollTopToShow(100, 0, 500, 29), 101 * 29 - 500)
+const tall = visibleRowRange(0, 500, 1_000_000, OVERSCAN_ROWS, 29)
+assert.equal(tall.first, 0)
+assert.equal(tall.last, Math.ceil(500 / 29) - 1)
 
 // 负 scrollTop / 非法视口高收敛
 assert.equal(scrollTopToShow(10, -50, 500), -1)

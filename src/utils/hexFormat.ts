@@ -1,6 +1,7 @@
 /**
  * Hex 视图行格式化（纯函数，可单测）。
- * 每行 16 字节：8 位十六进制偏移 + 16 组两位 hex + ASCII 列。
+ * 每行字节数可参数化（默认 16，视图层按宽度自适应 8/16/24/32）：
+ * 8 位十六进制偏移 + N 组两位 hex + ASCII 列；每 8 字节为一视觉组。
  */
 
 export const BYTES_PER_ROW = 16
@@ -29,11 +30,12 @@ export interface HexRow {
   ascii: string
 }
 
-/** 把一段字节切为 hex 行（不足 16 字节的尾行原样）。 */
-export function bytesToHexRows(bytes: Uint8Array, startOffset = 0): HexRow[] {
+/** 把一段字节切为 hex 行（不足每行字节数的尾行原样）。 */
+export function bytesToHexRows(bytes: Uint8Array, startOffset = 0, bytesPerRow = BYTES_PER_ROW): HexRow[] {
+  const bpr = Number.isFinite(bytesPerRow) && bytesPerRow > 0 ? Math.floor(bytesPerRow) : BYTES_PER_ROW
   const rows: HexRow[] = []
-  for (let base = 0; base < bytes.length; base += BYTES_PER_ROW) {
-    const slice = bytes.subarray(base, base + BYTES_PER_ROW)
+  for (let base = 0; base < bytes.length; base += bpr) {
+    const slice = bytes.subarray(base, base + bpr)
     rows.push({
       offset: startOffset + base,
       hex: Array.from(slice, formatByte),
@@ -44,8 +46,9 @@ export function bytesToHexRows(bytes: Uint8Array, startOffset = 0): HexRow[] {
 }
 
 /** 依据 file size 推断行数（虚拟化总高）。 */
-export function rowCountForSize(size: number): number {
-  return Math.ceil(size / BYTES_PER_ROW)
+export function rowCountForSize(size: number, bytesPerRow = BYTES_PER_ROW): number {
+  const bpr = Number.isFinite(bytesPerRow) && bytesPerRow > 0 ? Math.floor(bytesPerRow) : BYTES_PER_ROW
+  return Math.ceil(size / bpr)
 }
 
 // ── 偏移跳转输入解析（纯函数） ────────────────────────────────────────────────
@@ -104,7 +107,7 @@ export function parseOffsetInput(text: string, size: number, baseOffset = 0): Of
   return { ok: true, offset, clamped, relative }
 }
 
-// ── Data Inspector 字节解读（纯函数，DataView 语义） ────────────────────────
+// ── Data Inspector 选区解读（纯函数，DataView 语义） ───────────────────────
 
 export interface InspectorEntry {
   /** 展示名（含端序标注）。 */
@@ -113,44 +116,150 @@ export interface InspectorEntry {
   value: string
 }
 
+export interface InspectorGroup {
+  /** 分组标题（Integer / Floating Point / Text / Checksum / …）。 */
+  title: string
+  entries: InspectorEntry[]
+}
+
 const signed8 = (byte: number): number => (byte >= 0x80 ? byte - 0x100 : byte)
 
-/**
- * 解读 bytes 自 offset 起的各类型数值（int8/16/32/64、float32/64 × LE/BE）。
- * 不变量：行尾字节不足类型宽度时跳过该条目（不伪造）；数值与 DataView
- * 同位读数逐位一致。bytes 视为不可变。
- */
-export function interpretAt(bytes: Uint8Array, offset: number): InspectorEntry[] {
-  const safeOffset = Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : 0
-  if (safeOffset >= bytes.length) return []
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const available = bytes.length - safeOffset
-  const entries: InspectorEntry[] = []
+/** 千分位分组（负号不参与分组；BigInt 手工分组）。 */
+function groupDigits(text: string): string {
+  const negative = text.startsWith('-')
+  const body = negative ? text.slice(1) : text
+  const grouped = body.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return negative ? `-${grouped}` : grouped
+}
 
-  if (available >= 1) {
-    const byte = bytes[safeOffset]
-    entries.push({ label: 'int8', value: String(signed8(byte)) })
-    entries.push({ label: 'uint8', value: String(byte) })
+const formatInt = (value: number | bigint): string =>
+  typeof value === 'bigint' ? groupDigits(value.toString()) : groupDigits(String(value))
+
+/** float 解读：NaN/±Infinity 标注位模式（如 `NaN (0x7fc00000)`），其余原样。 */
+function formatFloat(value: number, bitsHex: string): string {
+  if (Number.isNaN(value)) return `NaN (${bitsHex})`
+  if (!Number.isFinite(value)) return `${value < 0 ? '-' : ''}Infinity (${bitsHex})`
+  return String(value)
+}
+
+/** Unix 时间戳合理性区间（1970-01-01 ~ 2100-01-01，秒/毫秒各判一档）。 */
+function formatUnixTimestamp(seconds: number): string | null {
+  if (!Number.isFinite(seconds) || seconds < 0 || seconds > 4_102_444_800) return null
+  const date = new Date(seconds * 1000)
+  if (Number.isNaN(date.getTime())) return null
+  const iso = date.toISOString()
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)} UTC`
+}
+
+// ── CRC-32（IEEE 802.3，查表法；与 zlib/python binascii.crc32 一致） ────────
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256)
+  for (let i = 0; i < 256; i++) {
+    let c = i
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    table[i] = c >>> 0
   }
-  if (available >= 2) {
-    entries.push({ label: 'int16 LE', value: String(view.getInt16(safeOffset, true)) })
-    entries.push({ label: 'int16 BE', value: String(view.getInt16(safeOffset, false)) })
-    entries.push({ label: 'uint16 LE', value: String(view.getUint16(safeOffset, true)) })
-    entries.push({ label: 'uint16 BE', value: String(view.getUint16(safeOffset, false)) })
+  return table
+})()
+
+export function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff
+  for (let i = 0; i < bytes.length; i++) crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8)
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+/**
+ * 按选区长度解读（分组列表，只展示与长度精确匹配的高价值类型）：
+ *   1B → Int8/UInt8/ASCII/位视图；2B → Int16·UInt16×LE·BE/Int8×2/ASCII；
+ *   4B → Int32·UInt32/Float32/CRC32/时间戳；8B → Int64/Float64/CRC32/时间戳；
+ *   其他长度（3/5/…/N>8）→ Overview（长度/CRC32/前 8 字节）+ 文本预览。
+ * truncated=true（超长选区只截取前缀）时省略 CRC32（避免伪值）。
+ * 不变量：数值与 DataView 同位读数逐位一致；bytes 视为不可变。
+ */
+export function interpretSelection(bytes: Uint8Array, options?: { truncated?: boolean }): InspectorGroup[] {
+  if (bytes.length === 0) return []
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const len = bytes.length
+  const groups: InspectorGroup[] = []
+
+  const push = (title: string, entries: InspectorEntry[]): void => {
+    if (entries.length > 0) groups.push({ title, entries })
   }
-  if (available >= 4) {
-    entries.push({ label: 'int32 LE', value: String(view.getInt32(safeOffset, true)) })
-    entries.push({ label: 'int32 BE', value: String(view.getInt32(safeOffset, false)) })
-    entries.push({ label: 'uint32 LE', value: String(view.getUint32(safeOffset, true)) })
-    entries.push({ label: 'uint32 BE', value: String(view.getUint32(safeOffset, false)) })
-    entries.push({ label: 'float32 LE', value: String(view.getFloat32(safeOffset, true)) })
-    entries.push({ label: 'float32 BE', value: String(view.getFloat32(safeOffset, false)) })
+  const textEntries = (limit: number): InspectorEntry[] => [
+    { label: 'ASCII', value: Array.from(bytes.subarray(0, limit), asciiChar).join('') }
+  ]
+
+  if (len === 1) {
+    const byte = bytes[0]
+    push('Integer', [
+      { label: 'Int8', value: formatInt(signed8(byte)) },
+      { label: 'UInt8', value: formatInt(byte) }
+    ])
+    push('Text / Character', [
+      { label: 'ASCII', value: asciiChar(byte) === '.' ? `· (0x${formatByte(byte)})` : asciiChar(byte) },
+      { label: 'Bit 视图', value: byte.toString(2).padStart(8, '0') }
+    ])
+    return groups
   }
-  if (available >= 8) {
-    entries.push({ label: 'int64 LE', value: view.getBigInt64(safeOffset, true).toString() })
-    entries.push({ label: 'int64 BE', value: view.getBigInt64(safeOffset, false).toString() })
-    entries.push({ label: 'float64 LE', value: String(view.getFloat64(safeOffset, true)) })
-    entries.push({ label: 'float64 BE', value: String(view.getFloat64(safeOffset, false)) })
+
+  if (len === 2) {
+    push('Integer', [
+      { label: 'Int16 LE', value: formatInt(view.getInt16(0, true)) },
+      { label: 'Int16 BE', value: formatInt(view.getInt16(0, false)) },
+      { label: 'UInt16 LE', value: formatInt(view.getUint16(0, true)) },
+      { label: 'UInt16 BE', value: formatInt(view.getUint16(0, false)) },
+      { label: 'Int8 ×2', value: `${signed8(bytes[0])} ${signed8(bytes[1])}` }
+    ])
+    push('Text / Character', textEntries(2))
+    return groups
   }
-  return entries
+
+  if (len === 4) {
+    push('Integer', [
+      { label: 'Int32 LE', value: formatInt(view.getInt32(0, true)) },
+      { label: 'Int32 BE', value: formatInt(view.getInt32(0, false)) },
+      { label: 'UInt32 LE', value: formatInt(view.getUint32(0, true)) },
+      { label: 'UInt32 BE', value: formatInt(view.getUint32(0, false)) }
+    ])
+    push('Floating Point', [
+      { label: 'Float32 LE', value: formatFloat(view.getFloat32(0, true), `0x${view.getUint32(0, true).toString(16).padStart(8, '0')}`) },
+      { label: 'Float32 BE', value: formatFloat(view.getFloat32(0, false), `0x${view.getUint32(0, false).toString(16).padStart(8, '0')}`) }
+    ])
+    push('Text / Character', textEntries(4))
+    if (!options?.truncated) push('Checksum', [{ label: 'CRC32', value: `0x${crc32(bytes).toString(16).padStart(8, '0')}` }])
+    const ts = formatUnixTimestamp(view.getUint32(0, true))
+    if (ts) push('Date / Timestamp', [{ label: 'Unix 时间戳 (s)', value: ts }])
+    return groups
+  }
+
+  if (len === 8) {
+    push('Integer', [
+      { label: 'Int64 LE', value: formatInt(view.getBigInt64(0, true)) },
+      { label: 'Int64 BE', value: formatInt(view.getBigInt64(0, false)) }
+    ])
+    push('Floating Point', [
+      { label: 'Float64 LE', value: formatFloat(view.getFloat64(0, true), `0x${view.getBigUint64(0, true).toString(16).padStart(16, '0')}`) },
+      { label: 'Float64 BE', value: formatFloat(view.getFloat64(0, false), `0x${view.getBigUint64(0, false).toString(16).padStart(16, '0')}`) }
+    ])
+    push('Text / Character', textEntries(8))
+    if (!options?.truncated) push('Checksum', [{ label: 'CRC32', value: `0x${crc32(bytes).toString(16).padStart(8, '0')}` }])
+    const ms = view.getBigInt64(0, true)
+    if (ms >= 0n && ms <= 4_102_444_800_000n) {
+      const ts = formatUnixTimestamp(Number(ms) / 1000)
+      if (ts) push('Date / Timestamp', [{ label: 'Unix 时间戳 (ms)', value: ts }])
+    }
+    return groups
+  }
+
+  // 非精确宽度（3/5/6/7/N>8）→ 概览：长度 + CRC32 + 前 8 字节 hex + 文本预览
+  const previewLen = Math.min(8, len)
+  const overview: InspectorEntry[] = [
+    { label: '长度', value: `${formatInt(len)} B` },
+    { label: '前 8 字节', value: Array.from(bytes.subarray(0, previewLen), formatByte).join(' ') }
+  ]
+  if (!options?.truncated) overview.push({ label: 'CRC32', value: `0x${crc32(bytes).toString(16).padStart(8, '0')}` })
+  push('Overview', overview)
+  push('Text / Character', textEntries(Math.min(16, len)))
+  return groups
 }
