@@ -2,6 +2,7 @@ import { ConfigService } from './ConfigService'
 import { CredentialService, type Credentials } from './CredentialService'
 import { LocalAdapter } from '../adapters/LocalAdapter'
 import { AndroidAdapter } from '../adapters/AndroidAdapter'
+import { OhosAdapter } from '../adapters/OhosAdapter'
 import { SMBAdapter } from '../adapters/SMBAdapter'
 import { SSHAdapter } from '../adapters/SSHAdapter'
 import { WebDAVAdapter } from '../adapters/WebDAVAdapter'
@@ -401,6 +402,11 @@ export class DeviceManager {
 
       case 'android':
         return new AndroidAdapter(device.id, device.name, {
+          deviceId: config.id
+        })
+
+      case 'ohos':
+        return new OhosAdapter(device.id, device.name, {
           deviceId: config.id
         })
 

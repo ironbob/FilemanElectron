@@ -137,6 +137,32 @@ export const ANDROID_CAPABILITIES: DeviceCapabilities = {
   readonlyPaths: ['/system', '/vendor', '/product', '/data/app'],
 }
 
+export const OHOS_CAPABILITIES: DeviceCapabilities = {
+  canRead: true,
+  canWrite: true,
+  canDelete: true,
+  canRename: true,
+  canMkdir: true,
+  canList: true,
+  canStat: true,
+  canCopy: true,        // Via shell cp -r
+  canMove: true,        // Via shell mv
+  canSearch: true,      // Via find -name
+  canCopyFrom: true,    // hdc file recv
+  canCopyTo: true,      // hdc file send
+  canMoveFrom: true,    // recv + delete
+  canMoveTo: true,      // send + delete source
+  canStream: false,     // hdc file recv/send 无流式 → buffer fallback(iOS 同姿态)
+  canCaptureScreenshot: true,  // hdc shell snapshot_display + file recv
+  canArchive: true,
+  canRecycle: true,
+  canGrepContent: true, // hdc shell 远端 grep (toybox)
+  canSymlink: false,    // hdc shell ln -s 权限受限，v1 不开
+  canChmod: true,       // hdc shell chmod
+  canChown: false,
+  readonlyPaths: ['/system', '/vendor'],
+}
+
 export const IOS_CAPABILITIES: DeviceCapabilities = {
   canRead: true,
   canWrite: true,
@@ -153,7 +179,7 @@ export const IOS_CAPABILITIES: DeviceCapabilities = {
   canMoveFrom: true,    // Pull + delete
   canMoveTo: true,      // Push + delete source
   canStream: false,     // AFC has no usable stream CLI → buffer fallback
-  canCaptureScreenshot: false,
+  canCaptureScreenshot: true,  // idevicescreenshot (libimobiledevice CLI)
   canArchive: true,
   canRecycle: true,
   canGrepContent: false, // AFC 无 exec 通道且无流式（buffer 上限 32MB）
@@ -204,7 +230,7 @@ export function isPathReadOnly(capabilities: DeviceCapabilities, path: string): 
  * 与能力声明分居两处）。允许 UI 在连接前展示能力；连接后由具体适配器的
  * capability 覆盖。行为与原内联版本逐字段一致（canStream 恒 false）。
  */
-export function DEFAULT_REMOTE_CAPABILITIES(deviceType: 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'): DeviceCapabilities {
+export function DEFAULT_REMOTE_CAPABILITIES(deviceType: 'android' | 'ohos' | 'smb' | 'ssh' | 'webdav' | 'ios'): DeviceCapabilities {
   return {
     canRead: true,
     canWrite: true,
@@ -221,12 +247,12 @@ export function DEFAULT_REMOTE_CAPABILITIES(deviceType: 'android' | 'smb' | 'ssh
     canMoveFrom: true,
     canMoveTo: true,
     canStream: false, // 连接后由具体适配器的 capability 覆盖
-    canCaptureScreenshot: deviceType === 'android',
+    canCaptureScreenshot: deviceType === 'android' || deviceType === 'ohos' || deviceType === 'ios',
     canArchive: true,
     canRecycle: true,
     canGrepContent: deviceType !== 'ios', // 连接后由具体适配器覆盖
     canSymlink: deviceType === 'ssh',     // 连接后由具体适配器覆盖
-    canChmod: deviceType === 'ssh' || deviceType === 'android',
+    canChmod: deviceType === 'ssh' || deviceType === 'android' || deviceType === 'ohos',
     canChown: deviceType === 'ssh',
   }
 }

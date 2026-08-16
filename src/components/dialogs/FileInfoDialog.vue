@@ -224,7 +224,7 @@ import FinderIcon from '@/components/FinderIcon.vue'
 
 const props = defineProps<{
   deviceId: string
-  deviceType: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
+  deviceType: 'local' | 'android' | 'ohos' | 'smb' | 'ssh' | 'webdav' | 'ios'
   deviceName: string
   /** 打开弹窗时的选中快照（1..N 项；弹窗生命周期内不随后续选择变化） */
   files: FileInfo[]

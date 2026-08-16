@@ -164,6 +164,9 @@
       </div>
     </div>
 
+    <!-- 移动设备截图结果浮层(全窗口覆盖,不随内容区裁剪;Esc 关闭,保存走原生另存为) -->
+    <ScreenshotOverlay />
+
     <!-- Status Bar -->
     <div class="h-7 bg-bg-statusbar flex items-center justify-between px-4 text-xs border-t border-border">
       <span class="text-text-secondary">{{ statusText }}</span>
@@ -209,6 +212,7 @@ import FilePane from './components/FilePane.vue'
 import FileOperationPanel from './components/FileOperationPanel.vue'
 import PreviewView from './components/preview/PreviewView.vue'
 import QuickLookOverlay from './components/preview/QuickLookOverlay.vue'
+import ScreenshotOverlay from './components/mobile/ScreenshotOverlay.vue'
 import SettingsDialog from './components/dialogs/SettingsDialog.vue'
 import CommandPalette from './components/palette/CommandPalette.vue'
 import { useCommandRegistryStore, type CommandContext } from './stores/commandRegistry'

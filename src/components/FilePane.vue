@@ -195,7 +195,7 @@
 
       <!-- Actions -->
       <div class="file-pane-toolbar-actions flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-        <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" title="Capture Android Screenshot" aria-label="Capture Android Screenshot" @click="captureScreenshot">
+        <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" title="Capture Device Screenshot" aria-label="Capture Device Screenshot" @click="captureScreenshot">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 5l1-2h6l1 2M12 10v4m-2-2h4"/></svg>
         </button>
         <button
@@ -404,7 +404,7 @@ const pane = computed(() => tabsStore.findPane(props.paneId))
 const browserState = computed(() => browserStore.stateFor(props.paneId))
 const currentDevice = computed(() => devicesStore.devices.find(device => device.id === pane.value?.deviceId))
 const currentDeviceName = computed(() => currentDevice.value?.name || pane.value?.deviceId || 'Local')
-const canCaptureScreenshot = computed(() => currentDevice.value?.type === 'android')
+const canCaptureScreenshot = computed(() => ['android', 'ohos', 'ios'].includes(currentDevice.value?.type ?? ''))
 
 const searchQuery = ref('')
 // ── 搜索历史下拉 ─────────────────────────────────────────────────────────────

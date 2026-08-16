@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, screen } from 'electron'
 import os from 'os'
-import path, { join } from 'path'
+import path, { basename, dirname, join } from 'path'
 import fs from 'fs-extra'
 import { ConfigService } from './src/services/ConfigService'
 import { CredentialService } from './src/services/CredentialService'
@@ -25,7 +25,7 @@ import { DuplicateFinderService } from './src/services/DuplicateFinderService'
 import { GrepService } from './src/services/GrepService'
 import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
-import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest } from '@shared/types'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest } from '@shared/types'
 import { CH } from './src/ipc/channels'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { DirectoryStatsRequest } from '@shared/types'
@@ -374,6 +374,63 @@ ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId: string, path: string, 
   return { base64: slice.toString('base64'), bytesRead: slice.length, fileSize }
 })
 
+// ============ Hex Save IPC Handler（编辑片段 → 临时文件 → 原子 rename） ============
+// 片段序 = 编辑日志净效果（renderer 端 journal.describe(0, logicalSize)）；
+// base 片段按区间流式搬运源字节，edit 片段写入编辑字节；写完经 rename
+// 原子覆盖，源文件在成功前不可变。P0 仅本机设备（远程原子写语义后续扩展）。
+
+ipcMain.handle(CH.invoke.fsSaveHexFile, async (_, deviceId: string, path: string, pieces: HexSavePiece[]): Promise<SaveHexFileResult> => {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  if (adapter.type !== 'local') {
+    throw new Error('当前设备暂不支持保存十六进制修改（仅本机设备）')
+  }
+  const st = await adapter.stat(path)
+  let bytesWritten = 0
+  for (const piece of pieces) {
+    if (piece.kind === 'base') {
+      if (piece.start < 0 || piece.length < 0 || piece.start + piece.length > st.size) {
+        throw new Error(`保存片段越界：base ${piece.start}+${piece.length} > 文件大小 ${st.size}`)
+      }
+      bytesWritten += piece.length
+    } else {
+      bytesWritten += Buffer.from(piece.base64, 'base64').length
+    }
+  }
+
+  const tempPath = join(dirname(path), `.${basename(path)}.hexsave-${process.pid}-${Date.now()}.tmp`)
+  const out = fs.createWriteStream(tempPath, { mode: st.mode })
+  try {
+    await new Promise<void>((resolve, reject) => {
+      out.on('error', reject)
+      void (async () => {
+        // 背压感知写入：write 返回 false 时等待 drain
+        const write = (chunk: Buffer): Promise<void> | void =>
+          out.write(chunk) ? undefined : new Promise<void>(onDrain => out.once('drain', () => onDrain()))
+        for (const piece of pieces) {
+          if (piece.kind === 'edit') {
+            await write(Buffer.from(piece.base64, 'base64'))
+            continue
+          }
+          if (piece.length === 0) continue
+          const src = fs.createReadStream(path, { start: piece.start, end: piece.start + piece.length - 1 })
+          src.on('error', reject)
+          for await (const chunkRaw of src) {
+            await write(chunkRaw as Buffer)
+          }
+        }
+        out.end()
+        out.on('finish', () => resolve())
+      })().catch(reject)
+    })
+    await fs.promises.rename(tempPath, path)
+    return { bytesWritten }
+  } catch (error) {
+    out.destroy()
+    await fs.promises.rm(tempPath, { force: true }).catch(() => undefined)
+    throw error instanceof Error ? new Error(`保存失败：${error.message}`) : new Error('保存失败')
+  }
+})
+
 // ============ Config IPC Handlers ============
 
 ipcMain.handle(CH.invoke.configGet, () => configService.getConfig())
@@ -567,6 +624,24 @@ ipcMain.handle(CH.invoke.archiveExtract, (_, deviceId: string, archivePath: stri
 ipcMain.handle(CH.invoke.mobileCaptureScreenshot, (_, deviceId: string, targetDirectory: string) =>
   mobileScreenshotService.captureToDirectory(deviceId, targetDirectory)
 )
+
+// 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。
+ipcMain.handle(CH.invoke.mobileCaptureScreen, async (_, deviceId: string) => {
+  const shot = await mobileScreenshotService.capture(deviceId)
+  return { base64: shot.data.toString('base64'), mime: shot.mime }
+})
+
+// 原生「另存为」对话框:渲染层拿到目标路径后经 fs:writeFile 写入 local 设备。
+ipcMain.handle(CH.invoke.systemSaveFileDialog, async (event, options: {
+  defaultPath?: string
+  filters?: Array<{ name: string; extensions: string[] }>
+}) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const result = win
+    ? await dialog.showSaveDialog(win, { defaultPath: options.defaultPath, filters: options.filters })
+    : await dialog.showSaveDialog({ defaultPath: options.defaultPath, filters: options.filters })
+  return result.canceled || !result.filePath ? null : result.filePath
+})
 
 // ============ Cross-Device Operations ============
 

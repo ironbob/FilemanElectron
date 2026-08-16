@@ -19,6 +19,7 @@ export const CH = {
   invoke: {
     // system:
     systemGetHomeDir: 'system:getHomeDir',
+    systemSaveFileDialog: 'system:saveFileDialog',
     // window:
     fileInfoWindowOpen: 'window:fileInfo:open',
     fileInfoWindowGetContext: 'window:fileInfo:getContext',
@@ -75,6 +76,7 @@ export const CH = {
     fsDirStatsStart: 'fs:dirStats:start',
     fsDirStatsCancel: 'fs:dirStats:cancel',
     fsReadChunk: 'fs:readChunk',
+    fsSaveHexFile: 'fs:saveHexFile',
     fsSymlink: 'fs:symlink',
     fsReadlink: 'fs:readlink',
     fsChmod: 'fs:chmod',
@@ -108,6 +110,7 @@ export const CH = {
     mobileForgetDevice: 'mobile:forgetDevice',
     mobileCheckLibimobiledevice: 'mobile:checkLibimobiledevice',
     mobileCaptureScreenshot: 'mobile:captureScreenshot',
+    mobileCaptureScreen: 'mobile:captureScreen',
     // thumbnail:
     thumbnailGet: 'thumbnail:get',
     thumbnailClearCache: 'thumbnail:clearCache',

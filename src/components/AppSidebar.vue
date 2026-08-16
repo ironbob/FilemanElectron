@@ -45,27 +45,21 @@
           class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('smb')"
         >
-          <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-          </svg>
+          <component :is="SmbIcon" class="w-5 h-5 text-text-secondary" />
           <span>SMB Share</span>
         </div>
         <div
           class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('ssh')"
         >
-          <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
+          <component :is="SshIcon" class="w-5 h-5 text-text-secondary" />
           <span>SSH/SFTP Server</span>
         </div>
         <div
           class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
           @click="addDevice('webdav')"
         >
-          <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16v14H4zM8 9h8M8 13h5" />
-          </svg>
+          <component :is="WebDavIcon" class="w-5 h-5 text-text-secondary" />
           <span>WebDAV (HTTP/HTTPS)</span>
         </div>
       </div>
@@ -97,18 +91,17 @@
         Scanning...
       </div>
       <div v-else class="space-y-0.5 px-2">
-        <div
-          v-for="device in mobileDevices"
-          :key="device.id"
-          class="sidebar-item group"
-          :class="[
-            isActiveDevice(device.id) && !devicesStore.isAutoConnectDevice(device.id) ? 'sidebar-item-active'
-              : 'sidebar-item-inactive'
-          ]"
-          @click="selectMobileDevice(device)"
-        >
+        <div v-for="device in mobileDevices" :key="device.id">
+          <div
+            class="sidebar-item group"
+            :class="[
+              isActiveDevice(device.id) && !devicesStore.isAutoConnectDevice(device.id) ? 'sidebar-item-active'
+                : 'sidebar-item-inactive'
+            ]"
+            @click="selectMobileDevice(device)"
+          >
           <!-- Device icon -->
-          <component :is="getMobileDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0" :class="device.type === 'ios' ? 'text-[#0a84ff]' : 'text-[#32d74b]'" />
+          <component :is="getMobileDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0" :class="getMobileDeviceIconColor(device.type)" />
           <span class="text-[13px] truncate flex-1 font-medium">{{ device.name }}</span>
           <!-- iOS pairing status badge -->
           <span
@@ -163,6 +156,21 @@
             </button>
           </div>
         </div>
+
+        <!-- 设备工具栏:第一项「截图」(Android/OHOS/iOS 通用) -->
+        <div class="flex items-center gap-1 pl-9 pr-2 py-0.5">
+          <button
+            class="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-40 disabled:cursor-default"
+            :disabled="!canScreenshot(device) || deviceScreenshot.isCapturing(device.id)"
+            :title="screenshotTooltip(device)"
+            :aria-label="`截取 ${device.name} 屏幕截图`"
+            @click.stop="deviceScreenshot.capture({ id: device.id, name: device.name })"
+          >
+            <component :is="CameraIcon" class="w-3.5 h-3.5" />
+            <span>{{ deviceScreenshot.isCapturing(device.id) ? '截图中…' : '截图' }}</span>
+          </button>
+        </div>
+        </div>
       </div>
 
       <!-- Empty state -->
@@ -174,7 +182,7 @@
       <div v-if="!libimobiledeviceInstalled" class="px-4 py-3">
         <div class="flex items-center gap-2 p-2 bg-yellow-50/30 dark:bg-yellow-50/10 border border-yellow-400/50 rounded">
           <svg class="w-5 h-5 text-yellow-500 dark:text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 0v14a2 2m0 4h0m-6 6h6-6 12a6 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div class="flex-1">
             <span class="text-sm text-yellow-700 dark:text-yellow-400">iOS Support</span>
@@ -217,7 +225,7 @@
             :title="item.path"
             @click="selectFavorite(item)"
           >
-            <component :is="StarIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
+            <component :is="BookmarkIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
             <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
             <button
               class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
@@ -245,8 +253,7 @@
         :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
         :aria-label="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
       >
-        <svg v-if="theme === 'dark'" class="w-4 h-4 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-        <svg v-else class="w-4 h-4 text-accent-indigo" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+        <component :is="theme === 'dark' ? SunIcon : MoonIcon" class="w-4 h-4" :class="theme === 'dark' ? 'text-accent-orange' : 'text-accent-indigo'" />
       </button>
       <button
         class="sidebar-utility-button relative"
@@ -255,7 +262,7 @@
         title="File Operations"
         :aria-label="activeTaskCount > 0 ? `File Operations, ${activeTaskCount} active task${activeTaskCount === 1 ? '' : 's'}` : 'File Operations'"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        <component :is="TransferIcon" class="w-4 h-4" />
         <span
           v-if="activeTaskCount > 0"
           class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 font-semibold text-center ring-2 ring-bg-sidebar"
@@ -263,10 +270,10 @@
         >{{ activeTaskCount }}</span>
       </button>
       <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" title="Toggle Dual Pane" aria-label="Toggle Dual Pane">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 012-2M9 7a2 2 0 012-2h2a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
+        <component :is="DualPaneIcon" class="w-4 h-4" />
       </button>
       <button class="sidebar-utility-button" @click="emit('open-settings')" title="Settings" aria-label="Settings">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        <component :is="SettingsIcon" class="w-4 h-4" />
       </button>
     </div>
 
@@ -281,12 +288,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, h, onMounted, computed, watch, markRaw } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useDevicesStore } from '@/stores/devices'
 import { useTabsStore } from '@/stores/tabs'
 import { useVolumesStore } from '@/stores/volumes'
 import { useFavoritesStore } from '@/stores/favorites'
 import DeviceDialog from './dialogs/DeviceDialog.vue'
+import {
+  HomeIcon, DesktopIcon, DocumentIcon, DownloadIcon, ApplicationIcon, BookmarkIcon,
+  LocalIcon, AndroidIcon, SmbIcon, SshIcon, WebDavIcon, IosIcon, VolumeDriveIcon,
+  SunIcon, MoonIcon, TransferIcon, DualPaneIcon, SettingsIcon, CameraIcon, OhosIcon
+} from './icons/sidebarIcons'
+import { useDeviceScreenshot } from '@/composables/useDeviceScreenshot'
 import type { Device, DetectedMobileDevice } from '@/stores/devices'
 import type { Volume } from '@/stores/volumes'
 import type { Favorite } from '@/types'
@@ -314,6 +327,9 @@ const emit = defineEmits<{
 
 const showAddDeviceMenu = ref(false)
 
+// 移动设备截图(侧边栏工具栏第一项;弹层挂 App.vue,状态由单例 composable 共享)
+const deviceScreenshot = useDeviceScreenshot()
+
 // Mobile device state
 const mobileScanInProgress = ref(false)
 const mobileDevices = computed(() => devicesStore.detectedMobileDevices)
@@ -327,56 +343,6 @@ const deviceDialog = reactive<{
   type: 'smb'
 })
 
-// SVG Icon Components
-const HomeIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' })
-    ])
-  }
-}
-
-const DesktopIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' })
-    ])
-  }
-}
-
-const DocumentIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
-    ])
-  }
-}
-
-const DownloadIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4' })
-    ])
-  }
-}
-
-const ApplicationIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' })
-    ])
-  }
-}
-
-// 用户收藏夹条目图标（金色书签）
-const StarIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'currentColor', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '1.5', d: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z' })
-    ])
-  }
-}
-
 // Default favorites with SVG icon components and colors
 const favorites = ref<Array<{ name: string; path: string; icon: any; iconColor: string }>>([])
 
@@ -384,16 +350,16 @@ async function loadFavorites() {
   try {
     const homeDir = await window.fileman.getHomeDir()
     favorites.value = [
-      { name: 'Home', path: homeDir, icon: markRaw(HomeIcon), iconColor: 'text-[#c084fc]' },
-      { name: 'Desktop', path: homeDir + '/Desktop', icon: markRaw(DesktopIcon), iconColor: 'text-[#6366f1]' },
-      { name: 'Documents', path: homeDir + '/Documents', icon: markRaw(DocumentIcon), iconColor: 'text-[#ffaa33]' },
-      { name: 'Downloads', path: homeDir + '/Downloads', icon: markRaw(DownloadIcon), iconColor: 'text-[#32d74b]' },
-      { name: 'Applications', path: '/Applications', icon: markRaw(ApplicationIcon), iconColor: 'text-[#ff5a7f]' },
+      { name: 'Home', path: homeDir, icon: HomeIcon, iconColor: 'text-[#c084fc]' },
+      { name: 'Desktop', path: homeDir + '/Desktop', icon: DesktopIcon, iconColor: 'text-[#6366f1]' },
+      { name: 'Documents', path: homeDir + '/Documents', icon: DocumentIcon, iconColor: 'text-[#ffaa33]' },
+      { name: 'Downloads', path: homeDir + '/Downloads', icon: DownloadIcon, iconColor: 'text-[#32d74b]' },
+      { name: 'Applications', path: '/Applications', icon: ApplicationIcon, iconColor: 'text-[#ff5a7f]' },
     ]
   } catch (error) {
     console.error('Failed to get home directory:', error)
     favorites.value = [
-      { name: 'Root', path: '/', icon: markRaw(HomeIcon), iconColor: 'text-[#c084fc]' },
+      { name: 'Root', path: '/', icon: HomeIcon, iconColor: 'text-[#c084fc]' },
     ]
   }
 }
@@ -423,72 +389,16 @@ watch(mobileDevices, (newDevices) => {
   console.log('[AppSidebar] mobileDevices changed:', newDevices.length, newDevices)
 }, { immediate: true, deep: true })
 
-// Device icon components
-const LocalIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' })
-    ])
-  }
-}
-
-const AndroidIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z' })
-    ])
-  }
-}
-
-const SmbIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' })
-    ])
-  }
-}
-
-const SshIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' })
-    ])
-  }
-}
-
-const WebDAVIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 5h16v14H4zM8 9h8M8 13h5' })
-    ])
-  }
-}
-
-const IosIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z' })
-    ])
-  }
-}
-
-// 外接磁盘图标（侧栏 External Volumes 分区用）
-const VolumeDriveIcon = {
-  render() {
-    return h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h9l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V6z' }),
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8 6v3h4V6M8 18v-6h8v6' })
-    ])
-  }
-}
+// Device icon components —— 见 ./icons/sidebarIcons.ts（iconfont「iconPark高质量统一化图标」库）
 
 function getDeviceIconComponent(type: string) {
   const icons: Record<string, any> = {
     local: LocalIcon,
     android: AndroidIcon,
+    ohos: OhosIcon,
     smb: SmbIcon,
     ssh: SshIcon,
-    webdav: WebDAVIcon,
+    webdav: WebDavIcon,
     ios: IosIcon
   }
   return icons[type] || LocalIcon
@@ -498,6 +408,7 @@ function getDeviceIconColor(type: string): string {
   const colors: Record<string, string> = {
     local: 'text-[#5ac8fa]',
     android: 'text-[#32d74b]',
+    ohos: 'text-[#f56c3d]',
     smb: 'text-[#ffaa33]',
     ssh: 'text-[#c084fc]',
     webdav: 'text-[#64d2ff]',
@@ -509,9 +420,19 @@ function getDeviceIconColor(type: string): string {
 function getMobileDeviceIconComponent(type: string) {
   const icons: Record<string, any> = {
     android: AndroidIcon,
+    ohos: OhosIcon,
     ios: IosIcon
   }
   return icons[type] || AndroidIcon
+}
+
+function getMobileDeviceIconColor(type: string): string {
+  const colors: Record<string, string> = {
+    android: 'text-[#32d74b]',
+    ohos: 'text-[#f56c3d]',
+    ios: 'text-[#0a84ff]'
+  }
+  return colors[type] || 'text-text-secondary'
 }
 
 function isActiveDevice(deviceId: string): boolean {
@@ -564,6 +485,7 @@ function navigateTo(path: string) {
 const FAVORITE_GROUP_ORDER: Array<{ type: string; label: string }> = [
   { type: 'local', label: '本机' },
   { type: 'android', label: 'Android' },
+  { type: 'ohos', label: 'HarmonyOS' },
   { type: 'ios', label: 'iOS' },
   { type: 'smb', label: 'SMB' },
   { type: 'ssh', label: 'SSH' },
@@ -726,6 +648,21 @@ async function pairMobileDevice(deviceId: string) {
 function isConnected(deviceId: string): boolean {
   const device = devicesStore.getDevice(deviceId)
   return device?.status === 'connected'
+}
+
+// ============ 移动设备工具栏:截图 ============
+
+/** 截图前置条件:设备已连接;iOS 还要求已配对(未配对 idevicescreenshot 必然失败)。 */
+function canScreenshot(device: DetectedMobileDevice): boolean {
+  if (!isConnected(device.id)) return false
+  if (device.type === 'ios') return device.pairingStatus === 'paired'
+  return true
+}
+
+function screenshotTooltip(device: DetectedMobileDevice): string {
+  if (!isConnected(device.id)) return '连接设备后可截图'
+  if (device.type === 'ios' && device.pairingStatus !== 'paired') return 'iOS 需先配对并连接后可截图'
+  return `截取 ${device.name} 的屏幕截图`
 }
 
 /**

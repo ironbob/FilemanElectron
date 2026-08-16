@@ -1,6 +1,7 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { ToolPathResolver } from './ToolPathResolver'
+import { parseHdcListTargets } from './support/ohosParsing'
 
 const execAsync = promisify(exec)
 
@@ -12,8 +13,8 @@ const log = {
 }
 
 export interface DetectedDevice {
-  id: string              // android:serial 或 ios:udid
-  type: 'android' | 'ios'
+  id: string              // android:serial / ohos:connectKey / ios:udid
+  type: 'android' | 'ohos' | 'ios'
   name: string
   model?: string
   pairingStatus?: 'unpaired' | 'pairing' | 'paired'
@@ -33,6 +34,7 @@ export class MobileDeviceScanner {
   private handlers: DeviceChangeHandler[] = []
   private libimobiledeviceInstalled: boolean | null = null
   private adbAvailable: boolean | null = null
+  private hdcAvailable: boolean | null = null
 
   constructor(options: Partial<MobileDeviceScannerOptions> = {}) {
     this.options = {
@@ -91,6 +93,9 @@ export class MobileDeviceScanner {
         this.libimobiledeviceInstalled = await this.checkLibimobiledeviceInstalled()
         // log.info('libimobiledevice availability check result:', this.libimobiledeviceInstalled)
       }
+      if (this.hdcAvailable === null) {
+        this.hdcAvailable = await this.checkHdcInstalled()
+      }
 
       // Scan Android devices
       // log.debug('ADB available:', this.adbAvailable)
@@ -112,6 +117,14 @@ export class MobileDeviceScanner {
         devices.push(...iosDevices)
       } else {
         log.debug('libimobiledevice not available, skipping iOS scan')
+      }
+
+      // Scan HarmonyOS(OHOS) devices
+      if (this.hdcAvailable) {
+        const ohosDevices = await this.scanOHOS()
+        devices.push(...ohosDevices)
+      } else {
+        log.debug('hdc not available, skipping OHOS scan')
       }
     } catch (error) {
       log.error('Mobile device scan error:', error)
@@ -221,6 +234,26 @@ export class MobileDeviceScanner {
       return !!stdout.trim()
     } catch (error) {
       log.debug('ADB check failed:', error)
+      return false
+    }
+  }
+
+  /**
+   * Check if hdc (HarmonyOS Device Connector) is installed
+   */
+  async checkHdcInstalled(): Promise<boolean> {
+    // 打包内 hdc 优先(生产态);开发态回退 $PATH(常经 DevEco Studio 安装)。
+    const bundled = ToolPathResolver.getHdcPath()
+    if (bundled) {
+      log.debug('hdc resolved (bundled):', bundled)
+      return true
+    }
+    try {
+      const { stdout, stderr } = await execAsync('which hdc')
+      log.debug('hdc path ($PATH):', stdout.trim() || 'not found', stderr ? `stderr: ${stderr}` : '')
+      return !!stdout.trim()
+    } catch (error) {
+      log.debug('hdc check failed:', error)
       return false
     }
   }
@@ -408,6 +441,47 @@ export class MobileDeviceScanner {
   }
 
   /**
+   * Scan for HarmonyOS(OHOS) devices using hdc
+   */
+  private async scanOHOS(): Promise<DetectedDevice[]> {
+    const devices: DetectedDevice[] = []
+
+    try {
+      const { stdout, stderr } = await execAsync(`${ToolPathResolver.getHdcExecutable()} list targets`)
+      if (stderr) {
+        log.debug('hdc list targets stderr:', stderr)
+      }
+
+      const connectKeys = parseHdcListTargets(stdout)
+      for (const key of connectKeys) {
+        // 设备名取产品型号(如 "HUAWEI Mate 60 Pro");取不到时回退通用名。
+        let name = 'HarmonyOS Device'
+        try {
+          const { stdout: nameOutput } = await execAsync(
+            `${ToolPathResolver.getHdcExecutable()} -t ${key} shell param get const.product.name 2>/dev/null || echo ""`
+          )
+          if (nameOutput.trim()) {
+            name = nameOutput.trim()
+          }
+        } catch (nameError) {
+          log.debug('Failed to get OHOS device name:', nameError)
+        }
+
+        log.info('Found OHOS device:', { connectKey: key, name })
+        devices.push({
+          id: `ohos:${key}`,
+          type: 'ohos',
+          name
+        })
+      }
+    } catch (error) {
+      log.error('OHOS scan error:', error)
+    }
+
+    return devices
+  }
+
+  /**
    * Check if a device should auto-connect
    */
   shouldAutoConnect(deviceId: string): boolean {
@@ -440,6 +514,13 @@ export class MobileDeviceScanner {
    */
   isAdbAvailable(): boolean | null {
     return this.adbAvailable
+  }
+
+  /**
+   * Check if hdc is available
+   */
+  isHdcAvailable(): boolean | null {
+    return this.hdcAvailable
   }
 }
 

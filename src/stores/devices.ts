@@ -19,7 +19,7 @@ export const useDevicesStore = defineStore('devices', () => {
     const localDevice = computed(() => devices.value.find(d => d.type === 'local'))
     const connectedDevices = computed(() => devices.value.filter(d => d.status === 'connected'))
     const remoteDevices = computed(() => devices.value.filter(d => d.type !== 'local'))
-    const mobileDevices = computed(() => devices.value.filter(d => d.type === 'android' || d.type === 'ios'))
+    const mobileDevices = computed(() => devices.value.filter(d => d.type === 'android' || d.type === 'ohos' || d.type === 'ios'))
     const androidDevices = computed(() => detectedMobileDevices.value.filter(d => d.type === 'android'))
     const iosDevices = computed(() => detectedMobileDevices.value.filter(d => d.type === 'ios'))
 

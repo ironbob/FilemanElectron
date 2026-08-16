@@ -16,7 +16,7 @@
 
 export interface DeviceConfig {
   id: string
-  type: 'local' | 'android' | 'smb' | 'ssh' | 'webdav' | 'ios'
+  type: 'local' | 'android' | 'ohos' | 'smb' | 'ssh' | 'webdav' | 'ios'
   name: string
   host?: string
   port?: number
@@ -251,10 +251,10 @@ export interface CreateTaskParams {
 
 // ============ Mobile Device Types ============
 
-/** USB/网络发现的移动设备（android:serial 或 ios:udid）。 */
+/** USB/网络发现的移动设备（android:serial / ohos:connectKey / ios:udid）。 */
 export interface DetectedDevice {
   id: string
-  type: 'android' | 'ios'
+  type: 'android' | 'ohos' | 'ios'
   name: string
   model?: string
   pairingStatus?: 'unpaired' | 'pairing' | 'paired'

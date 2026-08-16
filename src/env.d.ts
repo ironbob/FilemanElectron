@@ -51,6 +51,8 @@ type GrepMatch = import('@shared/types').GrepMatch
 type SpaceAnalysisRequest = import('@shared/types').SpaceAnalysisRequest
 type SpaceAnalysisProgress = import('@shared/types').SpaceAnalysisProgress
 type ReadChunkResult = import('@shared/types').ReadChunkResult
+type HexSavePiece = import('@shared/types').HexSavePiece
+type SaveHexFileResult = import('@shared/types').SaveHexFileResult
 type MediaInfoSummary = import('@shared/types').MediaInfoSummary
 type DeviceConfig = import('@shared/types').DeviceConfig
 type Credentials = import('@shared/types').Credentials
@@ -136,6 +138,9 @@ interface Window {
     // Read chunk (分块读取；hex 预览用；本地/流式远程支持区间，非流式整读 slice)
     readChunk: (deviceId: string, path: string, offset: number, length: number) => Promise<ReadChunkResult>
 
+    // Hex save (hex 编辑保存；片段 = 编辑日志净效果，传输量 ∝ 编辑量；仅本机设备)
+    saveHexFile: (deviceId: string, path: string, pieces: HexSavePiece[]) => Promise<SaveHexFileResult>
+
     // Space analysis (空间分析 treemap；entries 只随 completed 终态携带)
     startSpaceAnalysis: (request: SpaceAnalysisRequest) => Promise<{ taskId: string }>
     cancelSpaceAnalysis: (taskId: string) => Promise<boolean>
@@ -182,6 +187,10 @@ interface Window {
     createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) => Promise<{ path: string }>
     extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) => Promise<{ count: number }>
     captureMobileScreenshot: (deviceId: string, targetDirectory: string) => Promise<{ path: string }>
+    /** 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。 */
+    captureMobileScreen: (deviceId: string) => Promise<{ base64: string; mime: 'image/png' | 'image/jpeg' }>
+    /** 原生「另存为」对话框;用户取消返回 null。 */
+    showSaveFileDialog: (options: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>
 
     // File Operations Events
     onFileOperationAdded: (callback: (task: FileOperationTask) => void) => () => void

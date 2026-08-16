@@ -27,6 +27,8 @@ import type {
   SpaceAnalysisRequest,
   SpaceAnalysisProgress,
   ReadChunkResult,
+  HexSavePiece,
+  SaveHexFileResult,
   MediaInfoSummary,
   FileOperationTask,
   CreateTaskParams,
@@ -220,6 +222,10 @@ const filemanAPI = {
   readChunk: (deviceId: string, path: string, offset: number, length: number): Promise<ReadChunkResult> =>
     ipcRenderer.invoke(CH.invoke.fsReadChunk, deviceId, path, offset, length),
 
+  // ============ Hex Save (hex 编辑保存：片段流式原子写，仅本机设备) ============
+  saveHexFile: (deviceId: string, path: string, pieces: HexSavePiece[]): Promise<SaveHexFileResult> =>
+    ipcRenderer.invoke(CH.invoke.fsSaveHexFile, deviceId, path, pieces),
+
   // ============ Space Analysis (空间分析 treemap) ============
   startSpaceAnalysis: (request: SpaceAnalysisRequest): Promise<{ taskId: string }> =>
     ipcRenderer.invoke(CH.invoke.spaceStart, request),
@@ -274,6 +280,12 @@ const filemanAPI = {
     ipcRenderer.invoke(CH.invoke.archiveExtract, deviceId, archivePath, targetDirectory),
   captureMobileScreenshot: (deviceId: string, targetDirectory: string) =>
     ipcRenderer.invoke(CH.invoke.mobileCaptureScreenshot, deviceId, targetDirectory),
+  // 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。
+  captureMobileScreen: (deviceId: string): Promise<{ base64: string; mime: 'image/png' | 'image/jpeg' }> =>
+    ipcRenderer.invoke(CH.invoke.mobileCaptureScreen, deviceId),
+  // 原生「另存为」对话框;取消返回 null。
+  showSaveFileDialog: (options: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }): Promise<string | null> =>
+    ipcRenderer.invoke(CH.invoke.systemSaveFileDialog, options),
 
   // ============ File Operation Events ============
   onFileOperationAdded: (callback: (task: FileOperationTask) => void) => {

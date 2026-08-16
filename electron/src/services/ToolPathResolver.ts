@@ -29,6 +29,9 @@ export class ToolPathResolver {
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
     rg: { candidates: ['rg/rg', 'rg', 'tools/rg'], probePath: true },
+    // hdc（HarmonyOS Device Connector）常经 DevEco Studio 安装在 $PATH，
+    // 开发态值得探测；打包态同样支持捆绑（布局同 adb）
+    hdc: { candidates: ['hdc', 'tools/hdc'], probePath: true },
   }
 
   /** undefined=未探测, null=无捆绑(回退 $PATH)。按工具名缓存。 */
@@ -84,6 +87,34 @@ export class ToolPathResolver {
   /** 供 child_process spawn 使用的 adb 命令。 */
   static getAdbExecutable(): string {
     return this.getExecutable('adb')
+  }
+
+  // ============ hdc(HarmonyOS 设备连接器) ============
+
+  /** 解析 hdc 可执行文件路径(打包且存在 → 绝对路径;否则 undefined 走 $PATH)。 */
+  static getHdcPath(): string | undefined {
+    return this.getBundledPath('hdc')
+  }
+
+  /** 供 child_process spawn 使用的 hdc 命令。 */
+  static getHdcExecutable(): string {
+    return this.getExecutable('hdc')
+  }
+
+  /** hdc 是否可用(捆绑存在或 $PATH 上有)。 */
+  static hasHdc(): boolean {
+    if (this.getBundledPath('hdc')) return true
+    if (this.pathCache.has('hdc')) return this.pathCache.get('hdc')!
+    let found = false
+    try {
+      execFileSync('which', ['hdc'], { stdio: 'ignore' })
+      found = true
+    } catch {
+      found = false
+    }
+    this.pathCache.set('hdc', found)
+    if (found) console.log('[ToolPathResolver] hdc resolved via $PATH')
+    return found
   }
 
   // ============ ripgrep(grep 内容搜索引擎) ============
