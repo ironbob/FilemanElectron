@@ -193,6 +193,7 @@ interface Window {
     openInTerminal: (path: string) => Promise<void>
     // Open a local file/directory with a chosen app (macOS: open -a).
     openWith: (appPath: string, targetPath: string) => Promise<void>
+    openDefault: (path: string) => Promise<void>
     // Detect installed developer apps (VS Code / iTerm2 / …; memoized in main).
     detectOpenWithApps: () => Promise<OpenWithApp[]>
 
@@ -233,6 +234,26 @@ interface Window {
       filePath: string,
       opts?: { maxDim?: number }
     ) => Promise<{ buffer: string; mime: string }>
+
+    // 图片编辑（仅 local；裁剪/压缩/批量）
+    imageEdit: {
+      estimate: (
+        filePath: string,
+        params: import('@shared/types').EditCompressParams
+      ) => Promise<import('@shared/types').EditEstimateResult>
+      apply: (
+        filePath: string,
+        ops: import('@shared/types').EditOps,
+        save: import('@shared/types').EditSaveSpec
+      ) => Promise<import('@shared/types').EditApplyResult>
+      batchStart: (
+        request: import('@shared/types').ImageEditBatchRequest
+      ) => Promise<{ taskId: string }>
+      batchCancel: (taskId: string) => Promise<boolean>
+      onBatchProgress: (
+        callback: (progress: import('@shared/types').ImageEditBatchProgress) => void
+      ) => () => void
+    }
 
     // ZIP archive browsing (lazy – no full extraction)
     zip: {

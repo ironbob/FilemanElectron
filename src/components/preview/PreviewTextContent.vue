@@ -20,6 +20,14 @@
     <!-- Content Area -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
 
+      <!-- 大文件截断横幅 -->
+      <div
+        v-if="truncated"
+        class="flex-shrink-0 px-3 py-1 text-xs text-text-tertiary bg-bg-hover border-b border-border"
+      >
+        文件共 {{ formatSizeText(props.file.size) }}，仅载入前 {{ TEXT_PREVIEW_BYTE_CAP / 1024 / 1024 }} MB（大文件整读有卡顿/内存风险）
+      </div>
+
       <!-- ── Toolbar ── -->
       <div class="finder-preview-toolbar flex items-center justify-between border-b border-border flex-shrink-0">
         <!-- Left: language badge + stats -->
@@ -322,12 +330,13 @@
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import type { FileInfo } from '@/types'
+import IconfontIcon from './IconfontIcon.vue'
 import { useLogAnalysis } from '@/components/preview/composables/useLogAnalysis'
 import LogAnalysisToolbar from '@/components/preview/logview/LogAnalysisToolbar.vue'
 import { queryJson } from '@/utils/jsonQuery'
 import { jsonToInterfaces } from '@/utils/jsonToTs'
-import IconfontIcon from './IconfontIcon.vue'
 import { copyToClipboard } from '@/utils/clipboard'
+import { getLanguageForFile } from '@shared/fileKinds'
 import SchemeEditorDialog from '@/components/preview/logview/SchemeEditorDialog.vue'
 import '@alenaksu/json-viewer'
 import { Marked } from 'marked'
@@ -564,125 +573,9 @@ const fileCategory = computed((): FileCategory => {
 })
 
 // ── Language detection ────────────────────────────────────────────────────────
-// Maps file extensions to Monaco language identifiers
-// Only includes languages supported by Monaco Editor basic-languages
-const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
-  // Web Frontend
-  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
-  ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
-  vue: 'html', html: 'html', htm: 'html', xhtml: 'html', shtml: 'html',
-  css: 'css', scss: 'scss', sass: 'scss', less: 'less',
-  svelte: 'html', astro: 'html',
-
-  // Data Formats
-  json: 'json', jsonc: 'json', json5: 'json',
-  xml: 'xml', svg: 'xml', xsl: 'xml', xsd: 'xml', xslt: 'xml',
-  yaml: 'yaml', yml: 'yaml',
-  toml: 'ini', ini: 'ini', cfg: 'ini', conf: 'ini', env: 'ini',
-  csv: 'plaintext', tsv: 'plaintext',
-
-  // Scripting Languages
-  py: 'python', pyw: 'python', pyx: 'python', pyi: 'python',
-  rb: 'ruby', rbs: 'ruby', rake: 'ruby', gemspec: 'ruby',
-  php: 'php', phtml: 'php', php3: 'php', php4: 'php', php5: 'php',
-  lua: 'lua',
-  pl: 'perl', pm: 'perl', t: 'perl', pod: 'perl',
-  r: 'r', rmd: 'markdown',
-  jl: 'julia',
-
-  // Shell Scripts
-  sh: 'shell', bash: 'shell', zsh: 'shell', ksh: 'shell', fish: 'shell',
-  bat: 'bat', cmd: 'bat',
-  ps1: 'powershell', ps1m: 'powershell', psd1: 'powershell',
-
-  // Systems Programming
-  c: 'cpp', h: 'cpp',  // Use cpp for C as Monaco doesn't have separate C support
-  cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hxx: 'cpp', inc: 'cpp',
-  cs: 'csharp', vb: 'vb',
-  java: 'java', jav: 'java',
-  kt: 'kotlin', kts: 'kotlin',
-  swift: 'swift',
-  go: 'go',
-  rs: 'rust',
-  dart: 'dart',
-  scala: 'scala', sc: 'scala',
-  // Unsupported systems languages fallback to plaintext
-  nim: 'plaintext', zig: 'plaintext', v: 'plaintext', odin: 'plaintext',
-
-  // Functional Languages
-  // OCaml, Haskell, Elm, Erlang not supported -> plaintext
-  ml: 'plaintext', mli: 'plaintext',
-  fs: 'fsharp', fsi: 'fsharp', fsx: 'fsharp',
-  hs: 'plaintext', lhs: 'plaintext',
-  elm: 'plaintext',
-  clj: 'clojure', cljs: 'clojure', cljc: 'clojure',
-  ex: 'elixir', exs: 'elixir',
-  erl: 'plaintext', hrl: 'plaintext',
-  lisp: 'plaintext', lsp: 'plaintext', cl: 'plaintext',
-  scm: 'scheme', ss: 'scheme',
-
-  // Mobile Development
-  m: 'objective-c', mm: 'objective-c',
-  gradle: 'plaintext',  // Groovy not in basic-languages
-  storyboard: 'xml', xib: 'xml',
-
-  // Database
-  sql: 'sql', ddl: 'sql', dml: 'sql',
-  prisma: 'plaintext',
-  graphql: 'graphql', gql: 'graphql',
-  proto: 'protobuf',
-
-  // Markup & Documentation
-  md: 'markdown', markdown: 'markdown', mdx: 'mdx',
-  rst: 'restructuredtext',
-  tex: 'plaintext', sty: 'plaintext',  // LaTeX not supported
-  asciidoc: 'plaintext', adoc: 'plaintext',
-  org: 'plaintext',
-
-  // DevOps & Infrastructure
-  dockerfile: 'dockerfile',
-  dockerignore: 'plaintext',
-  helm: 'yaml',
-  tf: 'hcl', tfvars: 'hcl',
-  hcl: 'hcl',
-  nginx: 'plaintext',
-  apache: 'plaintext',
-  vhost: 'plaintext',
-
-  // Config Files
-  editorconfig: 'ini',
-  prettierc: 'json',
-  eslintrc: 'json',
-  babelrc: 'json',
-  tsconfig: 'json',
-
-  // Build & Package
-  makefile: 'plaintext', mk: 'plaintext',
-  cmake: 'plaintext',
-  bazel: 'plaintext', bzl: 'plaintext',
-  groovy: 'plaintext', gvy: 'plaintext',
-
-  // Other
-  log: 'plaintext', txt: 'plaintext', text: 'plaintext',
-  asm: 'plaintext', s: 'plaintext',
-  wasm: 'plaintext', wat: 'plaintext',
-  sol: 'solidity',
-  move: 'plaintext',
-  coq: 'plaintext',
-  verilog: 'systemverilog', vlog: 'systemverilog',
-  vhdl: 'plaintext',
-}
-
-function detectLanguage(file: FileInfo): string {
-  const ext = (file.extension?.replace('.', '') || '').toLowerCase()
-  const nameLower = file.name.toLowerCase()
-  if (nameLower === 'dockerfile') return 'dockerfile'
-  if (nameLower === 'makefile') return 'plaintext'
-  if (nameLower.startsWith('.gitignore') || nameLower === '.gitattributes') return 'plaintext'
-  return EXTENSION_LANGUAGE_MAP[ext] || 'plaintext'
-}
-
-const monacoLanguage = computed(() => detectLanguage(props.file))
+// 单一事实源：shared/fileKinds.ts 注册表（扩展名 + 无扩展名/点文件名规则）。
+// 语言 id 仅使用 Monaco basic-languages 实际注册过的子集。
+const monacoLanguage = computed(() => getLanguageForFile(props.file.name, props.file.extension ?? ''))
 
 const displayLanguage = computed(() => {
   const DISPLAY: Record<string, string> = {
@@ -935,6 +828,15 @@ function destroyEditor() {
 }
 
 // ── File loading ──────────────────────────────────────────────────────────────
+/** 文本预览载入上限；超过则只读前 8MB 并显示截断横幅。 */
+const TEXT_PREVIEW_BYTE_CAP = 8 * 1024 * 1024
+const truncated = ref(false)
+
+function formatSizeText(bytes: number): string {
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
 async function loadFile() {
   loading.value = true
   hasError.value = false
@@ -949,7 +851,16 @@ async function loadFile() {
 
   try {
     log('Loading:', props.file.name, 'device:', props.deviceId)
-    const base64 = await window.fileman.readFile(props.deviceId, props.file.path)
+    let base64: string
+    if (props.file.size > TEXT_PREVIEW_BYTE_CAP) {
+      // 大文件截断：Monaco 整模型渲染几十 MB 会拖垮渲染进程
+      const chunk = await window.fileman.readChunk(props.deviceId, props.file.path, 0, TEXT_PREVIEW_BYTE_CAP)
+      base64 = chunk.base64
+      truncated.value = true
+    } else {
+      base64 = await window.fileman.readFile(props.deviceId, props.file.path)
+      truncated.value = false
+    }
     const binary = atob(base64)
     const bytes = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)

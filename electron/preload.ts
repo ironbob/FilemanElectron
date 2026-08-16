@@ -32,6 +32,13 @@ import type {
   CreateTaskParams,
   DetectedMobileDevice,
   DetectedVolume,
+  EditCompressParams,
+  EditOps,
+  EditSaveSpec,
+  EditEstimateResult,
+  EditApplyResult,
+  ImageEditBatchRequest,
+  ImageEditBatchProgress,
 } from '@shared/types'
 
 const filemanAPI = {
@@ -237,6 +244,9 @@ const filemanAPI = {
   // Detect installed developer apps (memoized in main; VS Code / iTerm / …).
   detectOpenWithApps: (): Promise<OpenWithApp[]> =>
     ipcRenderer.invoke(CH.invoke.shellDetectOpenWithApps),
+  openDefault: (path: string): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.shellOpenDefault, path),
+
 
   // ============ File Operations ============
   createFileOperation: (params: CreateTaskParams) =>
@@ -314,6 +324,23 @@ const filemanAPI = {
       buffer: string
       mime: string
     }>,
+
+  // ============ Image Edit（仅 local；裁剪/压缩/批量） ============
+  imageEdit: {
+    estimate: (filePath: string, params: EditCompressParams): Promise<EditEstimateResult> =>
+      ipcRenderer.invoke(CH.invoke.imageEditEstimate, filePath, params),
+    apply: (filePath: string, ops: EditOps, save: EditSaveSpec): Promise<EditApplyResult> =>
+      ipcRenderer.invoke(CH.invoke.imageEditApply, filePath, ops, save),
+    batchStart: (request: ImageEditBatchRequest): Promise<{ taskId: string }> =>
+      ipcRenderer.invoke(CH.invoke.imageEditBatchStart, request),
+    batchCancel: (taskId: string): Promise<boolean> =>
+      ipcRenderer.invoke(CH.invoke.imageEditBatchCancel, taskId),
+    onBatchProgress: (callback: (progress: ImageEditBatchProgress) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, progress: ImageEditBatchProgress) => callback(progress)
+      ipcRenderer.on(CH.push.imageEditBatchProgress, handler)
+      return () => ipcRenderer.removeListener(CH.push.imageEditBatchProgress, handler)
+    },
+  },
 
   // ============ ZIP browsing (lazy – no full extraction) ============
   zip: {

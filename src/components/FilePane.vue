@@ -337,15 +337,6 @@
       @close="targetDialog.visible = false"
       @confirm="confirmTargetOperation"
     />
-    <FileInfoDialog
-      v-if="infoDialog.files.length > 0"
-      :device-id="pane?.deviceId || 'local'"
-      :device-type="currentDevice?.type || 'local'"
-      :device-name="currentDeviceName"
-      :files="infoDialog.files"
-      @close="infoDialog.files = []"
-      @save-tags="saveTags"
-    />
     <BatchRenameDialog
       v-if="batchRenameDialog.visible"
       :files="batchRenameDialog.files"
@@ -382,7 +373,6 @@ import FileList from './FileList.vue'
 import InlinePreview from './preview/InlinePreview.vue'
 import RenameDialog from './dialogs/RenameDialog.vue'
 import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
-import FileInfoDialog from './dialogs/FileInfoDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import ChecksumDialog from './dialogs/ChecksumDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
@@ -541,7 +531,6 @@ const targetDialog = reactive({
   files: [] as string[],
   devices: [] as Array<{ id: string; name: string; path?: string }>
 })
-const infoDialog = reactive<{ files: FileInfo[] }>({ files: [] })
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 const checksumDialog = reactive<{ visible: boolean; items: ChecksumItem[]; algo: ChecksumAlgo }>({ visible: false, items: [], algo: 'sha256' })
 const symlinkDialog = reactive({ visible: false })
@@ -1101,10 +1090,25 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'info': {
-      // 同步快照当前选中（单选/多选均支持），stats/tags/扫描由弹窗自行异步获取
-      infoDialog.files = op.files
+      // 将当前选中快照交给主进程创建的独立简介窗口；文件后续选择不会影响它。
+      // loadedFiles 是 deep-reactive ref，元素为 Proxy —— IPC 结构化克隆会抛
+      // "An object could not be cloned"，发送前必须展开成普通对象。
+      const files = op.files
         .map(p => loadedFiles.value.find(item => item.path === p))
         .filter((item): item is FileInfo => !!item)
+        .map(item => ({ ...item }))
+      if (files.length > 0) {
+        try {
+          await window.fileman.openFileInfoWindow({
+            deviceId,
+            deviceType: currentDevice.value?.type || 'local',
+            deviceName: currentDeviceName.value,
+            files
+          })
+        } catch (error) {
+          log.error('[FinderFilePane] failed to open file info window', { error })
+        }
+      }
       break
     }
 
@@ -1204,13 +1208,6 @@ async function confirmTargetOperation(value: { deviceId: string; targetPath: str
   targetDialog.visible = false
   log.info('[FilePane] target operation queued', { mode: targetDialog.mode, targetDeviceId: value.deviceId, targetPath: value.targetPath })
   if (targetDialog.mode === 'move') tabsStore.setSelectedFiles(props.paneId, [])
-}
-
-async function saveTags(tags: string[]) {
-  const file = infoDialog.files[0]
-  if (!file || !pane.value) return
-  // 持久化即可：弹窗内 tagText 是本地真源（乐观更新），无需回写
-  await window.fileman.setFileTags(pane.value.deviceId, file.path, tags)
 }
 
 async function confirmBatchRename(items: BatchRenameItem[]) {

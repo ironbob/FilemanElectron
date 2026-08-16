@@ -25,6 +25,7 @@ export const CH = {
     // shell:
     shellOpenInTerminal: 'shell:openInTerminal',
     shellOpenWith: 'shell:openWith',
+    shellOpenDefault: 'shell:openDefault',
     shellDetectOpenWithApps: 'shell:detectOpenWithApps',
     // git (只读徽标):
     gitStatus: 'git:status',
@@ -113,6 +114,10 @@ export const CH = {
     thumbnailGetCacheSize: 'thumbnail:getCacheSize',
     // image:
     imageDecodeNative: 'image:decodeNative',
+    imageEditEstimate: 'image:editEstimate',
+    imageEditApply: 'image:editApply',
+    imageEditBatchStart: 'image:editBatchStart',
+    imageEditBatchCancel: 'image:editBatchCancel',
     // volumes:
     volumesList: 'volumes:list',
   },
@@ -130,6 +135,7 @@ export const CH = {
     dupesProgress: 'dupes:progress',
     grepProgress: 'grep:progress',
     spaceProgress: 'space:progress',
+    imageEditBatchProgress: 'image:editBatchProgress',
   },
   send: {
     dragStartNative: 'drag:startNative',

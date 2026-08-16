@@ -129,6 +129,8 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import type { ImageFitMode } from '@/types/preview'
+import { needsNativeDecode } from '@/utils/fileTypes'
+import IconfontIcon from './IconfontIcon.vue'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewImageContent] ${message}`, ...args)
@@ -144,7 +146,6 @@ const loading = ref(true)
 const hasError = ref(false)
 const errorMessage = ref('')
 const imageSrc = ref('')
-import IconfontIcon from './IconfontIcon.vue'
 const imageRef = ref<HTMLImageElement | null>(null)
 const imageDimensions = ref({ width: 0, height: 0 })
 
@@ -222,19 +223,32 @@ async function loadImage() {
   }
 
   try {
-    log('Reading file from device:', props.deviceId, 'path:', props.file.path)
-    const base64 = await window.fileman.readFile(props.deviceId, props.file.path)
-    log('File read successfully, base64 length:', base64.length)
+    if (needsNativeDecode(props.file.extension || '')) {
+      // HEIC/HEIF/TIFF/PSD/相机 RAW 等 Chromium 无法解码的格式：
+      // 走主进程 sips（ImageDecodeService）转 JPEG 栅格。
+      log('Native decode (sips):', props.file.extension)
+      const decoded = await window.fileman.decodeNativeImage(
+        props.deviceId,
+        props.file.path,
+        { maxDim: 4096 }
+      )
+      imageSrc.value = `data:${decoded.mime};base64,${decoded.buffer}`
+      log('Native decode OK, jpeg base64 length:', decoded.buffer.length)
+    } else {
+      log('Reading file from device:', props.deviceId, 'path:', props.file.path)
+      const base64 = await window.fileman.readFile(props.deviceId, props.file.path)
+      log('File read successfully, base64 length:', base64.length)
 
-    const buffer = base64ToArrayBuffer(base64)
-    log('Buffer size:', buffer.byteLength, 'bytes')
+      const buffer = base64ToArrayBuffer(base64)
+      log('Buffer size:', buffer.byteLength, 'bytes')
 
-    const mimeType = getMimeType(props.file.extension || '')
-    log('MIME type:', mimeType)
+      const mimeType = getMimeType(props.file.extension || '')
+      log('MIME type:', mimeType)
 
-    const blob = new Blob([buffer], { type: mimeType })
-    imageSrc.value = URL.createObjectURL(blob)
-    log('Blob URL created:', imageSrc.value)
+      const blob = new Blob([buffer], { type: mimeType })
+      imageSrc.value = URL.createObjectURL(blob)
+      log('Blob URL created:', imageSrc.value)
+    }
   } catch (e) {
     console.error('[PreviewImageContent] Error loading image:', e)
     hasError.value = true

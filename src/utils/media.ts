@@ -1,4 +1,5 @@
 import type { MediaMetadata } from '@/types/preview'
+import { resolveFileKind } from '@shared/fileKinds'
 
 /**
  * Format file size in human-readable format
@@ -107,49 +108,23 @@ export async function extractMediaMetadata(
 }
 
 /**
- * Check if file is a text file based on extension
+ * 以下判定全部委托 shared/fileKinds.ts 注册表（与双击路由同一事实源），
+ * 不再维护独立扩展名清单。
  */
 export function isTextFile(extension: string): boolean {
-  const textExts = new Set([
-    'txt', 'md', 'markdown', 'json', 'xml', 'yaml', 'yml', 'log', 'csv',
-    'js', 'jsx', 'ts', 'tsx', 'vue', 'html', 'htm', 'css', 'scss', 'sass',
-    'py', 'go', 'rs', 'java', 'c', 'cpp', 'cc', 'cxx', 'h', 'hpp',
-    'sh', 'bash', 'zsh', 'bat', 'cmd', 'ps1',
-    'sql', 'php', 'rb', 'swift', 'kt', 'kts', 'scala', 'lua',
-    'ini', 'conf', 'cfg', 'toml', 'env', 'gitignore', 'dockerfile',
-    'm', 'mm', 'pl', 'pm', 'asm', 's', 'dart', 'fs', 'hs', 'ml', 'erl'
-  ])
-  return textExts.has(extension.toLowerCase().replace('.', ''))
+  return resolveFileKind('', extension) === 'text'
 }
 
-/**
- * Check if file is an image
- */
 export function isImageFile(extension: string): boolean {
-  const imageExts = new Set([
-    'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'dng', 'heic', 'heif', 'raw'
-  ])
-  return imageExts.has(extension.toLowerCase().replace('.', ''))
+  return resolveFileKind('', extension) === 'image'
 }
 
-/**
- * Check if file is a video
- */
 export function isVideoFile(extension: string): boolean {
-  const videoExts = new Set([
-    'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'rmvb', '3gp', 'ts', 'mts', 'm2ts'
-  ])
-  return videoExts.has(extension.toLowerCase().replace('.', ''))
+  return resolveFileKind('', extension) === 'video'
 }
 
-/**
- * Check if file is audio
- */
 export function isAudioFile(extension: string): boolean {
-  const audioExts = new Set([
-    'mp3', 'flac', 'aac', 'ogg', 'm4a', 'wav', 'wma', 'alac', 'ape', 'aiff', 'amr', 'opus'
-  ])
-  return audioExts.has(extension.toLowerCase().replace('.', ''))
+  return resolveFileKind('', extension) === 'audio'
 }
 
 /**

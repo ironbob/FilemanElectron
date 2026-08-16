@@ -465,3 +465,81 @@ export interface ReadChunkResult {
   bytesRead: number
   fileSize: number
 }
+
+// ============ Image Edit（图片预览编辑：裁剪/压缩/批量） ============
+// 值对象组（ROLE-D01）+ 批量进度事件（ROLE-D02）。
+// 仅 local 设备；处理在主进程 ImageEditService（sharp，SIPS 格式先经
+// ImageDecodeService 解码）。坐标约定见 EditCrop。
+
+/** 源图像素坐标系下的裁剪矩形（相对 referenceWidth 空间，服务端等比换算）。 */
+export interface EditCrop {
+  x: number
+  y: number
+  width: number
+  height: number
+  /**
+   * rect 所处坐标空间的图像宽度 = 用户在预览中看到的 naturalWidth。
+   * 服务端解码后的实际宽度可能不同（SIPS 上限 8192），按
+   * decodedWidth / referenceWidth 等比缩放 rect，保证裁的是用户看到的同一区域。
+   */
+  referenceWidth: number
+}
+
+/** 压缩参数。quality 仅对有损格式（jpeg/webp）生效；png 无损重编码忽略。 */
+export interface EditCompressParams {
+  /** 1-100 */
+  quality: number
+  /** 最长边上限（px）；仅缩小不放大；不限制传 undefined */
+  maxEdge?: number
+  /** 输出格式：keep=保持输入（SIPS 输入映射为 jpeg） */
+  format: 'keep' | 'jpeg' | 'webp'
+}
+
+/** 保存策略：覆盖原图（temp+rename 原子替换）或另存副本（冲突自动 -1 递增）。 */
+export interface EditSaveSpec {
+  mode: 'overwrite' | 'copy'
+  /** copy 模式文件名后缀（默认 _edited） */
+  suffix?: string
+  /** 输出格式覆盖（与 CompressParams.format 二选一生效处：以此为准，缺省用 params） */
+  format?: 'jpeg' | 'webp'
+}
+
+export interface EditOps {
+  crop?: EditCrop
+  compress?: EditCompressParams
+}
+
+export interface EditEstimateResult {
+  estimatedBytes: number
+  format: 'jpeg' | 'webp' | 'png'
+  width: number
+  height: number
+}
+
+export interface EditApplyResult {
+  writtenPath: string
+  bytes: number
+}
+
+export interface ImageEditItemResult {
+  sourcePath: string
+  targetPath?: string
+  status: 'success' | 'failed' | 'skipped'
+  error?: string
+}
+
+/** 批量执行事实事件（领域事件）：进度节流 100ms，终态必发。 */
+export interface ImageEditBatchProgress {
+  taskId: string
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  index: number
+  total: number
+  currentFile: string
+  itemResults: ImageEditItemResult[]
+}
+
+export interface ImageEditBatchRequest {
+  items: string[]
+  ops: EditOps
+  save: EditSaveSpec
+}

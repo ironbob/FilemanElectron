@@ -106,6 +106,28 @@ export class HostShellService {
   }
 
   /**
+   * 用系统默认应用打开本地文件/目录（macOS：`open <target>`）。
+   * 与 openWith 同构：execFile 参数组，不经 shell。
+   */
+  openDefault(targetPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const normalized = path.resolve(targetPath)
+      execFile('open', [normalized], (err, _stdout, stderr) => {
+        if (err) {
+          console.error(`[HostShellService] openDefault failed for "${normalized}":`, err.message)
+          reject(new Error(`Failed to open "${normalized}" with default app: ${err.message}`))
+          return
+        }
+        if (stderr && stderr.trim()) {
+          console.warn(`[HostShellService] open stderr for "${normalized}":`, stderr.trim())
+        }
+        console.log(`[HostShellService] Opened "${normalized}" with default app`)
+        resolve()
+      })
+    })
+  }
+
+  /**
    * 探测本机已安装的开发者应用（/Applications 与 ~/Applications）。
    * 结果 memoize（应用安装是罕见事件；重探经重启或后续显式刷新）。
    */

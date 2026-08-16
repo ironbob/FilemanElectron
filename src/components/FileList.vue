@@ -2014,12 +2014,11 @@ function buildCopyPathMenuItems(): Array<{ label: string; action: string; childr
 
 /** 「打开方式」子菜单（仅本地非 ZIP；app 检测在挂载时异步加载）。 */
 function buildOpenWithMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
-  if (openWithApps.value.length === 0) return []
-  return [{
-    label: '打开方式',
-    action: 'open-with-menu',
-    children: openWithApps.value.map(app => ({ label: app.name, action: `open-with:${app.bundlePath}` }))
-  }]
+  // 首项固定为系统默认应用（open <path>）；其余为探测到的本地应用。
+  // 无可探测应用时子菜单仍保留（默认应用始终可用）。
+  const children: Array<{ label: string; action: string }> = [{ label: '默认应用', action: 'open-default' }]
+  children.push(...openWithApps.value.map(app => ({ label: app.name, action: `open-with:${app.bundlePath}` })))
+  return [{ label: '打开方式', action: 'open-with-menu', children }]
 }
 
 /** 复制路径动作（多选时按行拼接；name/relative 针对右键命中的文件）。 */
@@ -2271,6 +2270,15 @@ function handleContextMenuAction(action: string) {
       const recursive = action === 'preview-images-recursive'
       void openFolderImagePreview(folder.path, recursive)
     }
+    return
+  }
+
+  // 系统默认应用打开（open <path>；本地设备，目录=Finder）
+  if (action === 'open-default') {
+    const target = contextMenuTargetFile.value?.path ?? props.path
+    window.fileman.openDefault(target).catch(err => {
+      console.error('[FileList] openDefault failed for', target, err)
+    })
     return
   }
 

@@ -265,6 +265,7 @@
 import { ref, shallowRef, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FileDiffSession } from '@/types'
 import { getFileCategory } from '@/utils/fileTypes'
+import { getLanguageForFile } from '@shared/fileKinds'
 import { useTabsStore } from '@/stores/tabs'
 
 // ── Electron freeze prevention: MonacoEnvironment BEFORE any monaco import ───
@@ -381,39 +382,9 @@ let _rightImg: HTMLImageElement | null = null
 const editorContainer = ref<HTMLElement | null>(null)
 const diffEditorInstance = shallowRef<monaco.editor.IStandaloneDiffEditor | null>(null)
 
-// ── Language detection (mirrors PreviewTextContent) ───────────────────────────
-const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
-  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
-  ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
-  vue: 'html', html: 'html', htm: 'html', xhtml: 'html',
-  css: 'css', scss: 'scss', sass: 'scss', less: 'less',
-  json: 'json', jsonc: 'json', json5: 'json',
-  xml: 'xml', svg: 'xml', xsl: 'xml', xsd: 'xml',
-  yaml: 'yaml', yml: 'yaml',
-  toml: 'ini', ini: 'ini', cfg: 'ini', conf: 'ini', env: 'ini',
-  py: 'python', pyw: 'python', pyx: 'python', pyi: 'python',
-  rb: 'ruby', php: 'php', lua: 'lua', pl: 'perl', r: 'r', jl: 'julia',
-  sh: 'shell', bash: 'shell', zsh: 'shell', fish: 'shell',
-  bat: 'bat', cmd: 'bat', ps1: 'powershell',
-  c: 'cpp', h: 'cpp', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp',
-  cs: 'csharp', java: 'java', kt: 'kotlin', kts: 'kotlin',
-  swift: 'swift', go: 'go', rs: 'rust', dart: 'dart', scala: 'scala',
-  sql: 'sql', graphql: 'graphql', gql: 'graphql', proto: 'protobuf',
-  md: 'markdown', markdown: 'markdown', dockerfile: 'dockerfile',
-  tf: 'hcl', tfvars: 'hcl', hcl: 'hcl',
-  ex: 'elixir', exs: 'elixir', clj: 'clojure',
-  fs: 'fsharp', fsi: 'fsharp',
-  m: 'objective-c', mm: 'objective-c',
-  sol: 'solidity',
-  log: 'plaintext', txt: 'plaintext',
-}
-
+// ── Language detection（单一事实源：shared/fileKinds.ts 注册表） ──────────────
 function detectLanguage(name: string, ext: string): string {
-  const lower = name.toLowerCase()
-  if (lower === 'dockerfile') return 'dockerfile'
-  if (lower === 'makefile')   return 'plaintext'
-  if (lower.startsWith('.gitignore')) return 'plaintext'
-  return EXTENSION_LANGUAGE_MAP[ext] || 'plaintext'
+  return getLanguageForFile(name, ext)
 }
 
 // ── Base64 helpers ────────────────────────────────────────────────────────────

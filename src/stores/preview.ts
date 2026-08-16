@@ -4,10 +4,17 @@ import type { FileInfo, Tab } from '@/types'
 import { useTabsStore } from './tabs'
 import type { QuickLookSession, PreviewType } from '@/types/preview'
 import { getPreviewType } from '@/types/preview'
+import { sniffPreviewKind, SNIFF_HEADER_BYTES, type FilePreviewKind } from '@shared/fileKinds'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewStore] ${message}`, ...args)
 }
+
+/**
+ * 内容嗅探缓存：`${deviceId}|${path}|${size}|${mtime}` → kind。
+ * 8KB 头部只读一次；同文件再次双击 / 远程列表刷新后命中缓存。
+ */
+const sniffCache = new Map<string, FilePreviewKind>()
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9)
@@ -55,10 +62,39 @@ export const usePreviewStore = defineStore('preview', () => {
   }
 
   /**
+   * unknown 类型的嗅探细化：读头部 8KB（readChunk）走 sniffPreviewKind 魔数判定，
+   * 就地更新 tab.preview.type（router 响应式切换内容组件）。失败兜底 hex——
+   * "Cannot preview this file type" 从此只是嗅探期间的瞬态。
+   */
+  async function refineUnknownType(tab: Tab, file: FileInfo, deviceId: string): Promise<void> {
+    const cacheKey = `${deviceId}|${file.path}|${file.size}|${file.modifiedTime}`
+    let kind = sniffCache.get(cacheKey)
+    if (kind === undefined) {
+      try {
+        const chunk = await window.fileman.readChunk(deviceId, file.path, 0, SNIFF_HEADER_BYTES)
+        const bin = atob(chunk.base64)
+        const bytes = new Uint8Array(bin.length)
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+        kind = sniffPreviewKind(bytes) ?? 'hex'
+      } catch (err) {
+        log('Sniff read failed, fallback hex:', file.name, err)
+        kind = 'hex'
+      }
+      sniffCache.set(cacheKey, kind)
+    }
+    // 仅当仍是 unknown 且无 forceType 时细化（用户可能已显式指定打开方式）
+    if (tab.preview && !tab.preview.forceType && tab.preview.type === 'unknown') {
+      tab.preview.type = kind
+      log('Sniff refined:', file.name, '→', kind)
+    }
+  }
+
+  /**
    * 在主 tab 栏打开（或激活已有的）文件预览 tab。
    * 按 path + deviceId 去重；重复打开只切换激活。显式 forceType（如
    * 「以十六进制查看」）会就地更新已有 tab 的强制类型——用户此刻点名
    * 要 hex，不能复用旧的文本预览。
+   * unknown 类型（未注册扩展名/无扩展名）由 refineUnknownType 异步嗅探细化。
    */
   function openPreview(file: FileInfo, deviceId: string, initialLine?: number, forceType?: PreviewType): Tab {
     const tabsStore = useTabsStore()
@@ -71,6 +107,8 @@ export const usePreviewStore = defineStore('preview', () => {
       if (forceType && existing.preview) {
         existing.preview.forceType = forceType
         existing.preview.type = forceType
+      } else if (existing.preview?.type === 'unknown') {
+        void refineUnknownType(existing, file, deviceId)
       }
       tabsStore.setActiveTab(existing.id)
       return existing
@@ -93,6 +131,9 @@ export const usePreviewStore = defineStore('preview', () => {
     tabsStore.tabs.push(tab)
     tabsStore.activeTabId = tab.id
     log('Opened preview tab:', tab.id, file.name, 'deviceId:', deviceId)
+    if (tab.preview?.type === 'unknown') {
+      void refineUnknownType(tab, file, deviceId)
+    }
     return tab
   }
 

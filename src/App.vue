@@ -226,6 +226,7 @@ import { useSettingsStore } from './stores/settings'
 import { useGitStatusStore } from './stores/gitStatus'
 import { useDragSessionStore } from './stores/dragSession'
 import { getParentPath } from './utils/path'
+import { resolveInitialTheme, persistTheme } from './utils/theme'
 import { isZipVirtualPath } from '@shared/zipPath'
 import {
   extractDragSource,
@@ -261,14 +262,7 @@ const isSidebarResizing = ref(false)
 
 // Load theme from storage
 onMounted(() => {
-  const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
-  if (savedTheme) {
-    theme.value = savedTheme
-  } else {
-    // Follow system preference
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    theme.value = prefersDark ? 'dark' : 'light'
-  }
+  theme.value = resolveInitialTheme()
 
   // Initialize file operations store
   fileOpsStore.initialize()
@@ -333,7 +327,7 @@ onUnmounted(() => {
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  localStorage.setItem('theme', theme.value)
+  persistTheme(theme.value)
 }
 
 // ── 命令面板（⌘⇧P）────────────────────────────────────────────────────────

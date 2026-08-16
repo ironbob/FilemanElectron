@@ -1,26 +1,31 @@
+/**
+ * 分类 / 图标工具。分类不再手写清单——全部从 shared/fileKinds.ts 注册表派生，
+ * 与双击路由（getPreviewType）、Monaco 语言、缩略图格式保持单一事实源。
+ * 图标映射（extensionIconMap）是纯外观，允许独立维护。
+ */
+import {
+  EXTENSION_KINDS,
+  IMAGE_EXTS,
+  SIPS_IMAGE_EXTS,
+  VIDEO_EXTS,
+  getFileCategoryFor,
+  normalizeExt,
+  type FileCategory,
+} from '@shared/fileKinds'
+
+function categorySet(cat: FileCategory): Set<string> {
+  return new Set(
+    Object.keys(EXTENSION_KINDS).filter(ext => getFileCategoryFor('', ext) === cat)
+  )
+}
+
 export const extensionCategories = {
-  text: new Set(['txt', 'log', 'json', 'xml', 'yml', 'yaml', 'csv', 'md', 'mm', 'm', 'cpp', 'h', 'hpp', 'c', 'cc', 'cxx', 'c++', 
-                 'cs', 'java', 'py', 'js', 'jsx', 'ts', 'tsx', 'html', 'htm', 'css', 'scss', 'sass', 'php', 'php3', 'php4', 'php5', 
-                 'phtml', 'rb', 'ruby', 'erb', 'pl', 'pm', 'perl', 'go', 'rs', 'swift', 'kt', 'kts', 'scala', 'groovy', 'sql', 'sh', 
-                 'bash', 'zsh', 'bat', 'cmd', 'ps1', 'ini', 'conf', 'cfg', 'toml', 'lua', 'tcl', 'asm', 's', 'dart', 'fs', 'fsx', 
-                 'fsharp', 'hs', 'lhs', 'haskell', 'ml', 'mli', 'ocaml', 'erl', 'hrl', 'elixir', 'clj', 'cljs', 'cljc', 'clojure', 
-                 'lisp', 'el', 'elisp', 'vim', 'vimrc', 'tex', 'latex', 'rst', 'adoc', 'asciidoc', 'graphql', 'gql', 'proto', 
-                 'dockerfile', 'dockerignore', 'gitignore', 'gitattributes', 'gitmodules', 'properties', 'env', 'envrc', 'makefile', 
-                 'mk', 'mak', 'cmake', 'cmake.in', 'gradle', 'gradle.kts', 'pom', 'logcat', 'ips']),
-  
-  video: new Set(['mp4', 'mov', 'avi', 'mkv', 'insv', 'lrv', 'prx', 'webm', 'wav', '3gp', '3g2', 'ts', 'mts', 'm2ts', 'flv', 'f4v', 
-                  'rmvb', 'rm', 'mpeg', 'mpg', 'mpe', 'vob', 'ogv', 'ogm', 'mxf', 'roq', 'divx', 'wmv', 'asf', 'dv', 'amv', 'dat', 
-                  'qt', 'vid', 'hevc', 'h264']),
-  
-  image: new Set(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'svg', 'webp', 'avif', 'tiff', 'ico', 'dng', 'heic', 'heif', 'raw', 'arw', 'cr2', 'nef',
-                  'orf', 'raf', 'sr2', 'psd', 'xcf', 'pbm', 'pgm', 'ppm', 'pam', 'exr', 'hdr']),
-  
-  audio: new Set(['mp3', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'alac', 'ape', 'aiff', 'amr', 'ac3', 'eac3', 'opus', 'wavpack', 'pcm', 
-                  'mka', 'm3u', 'm4b', 'caf']),
-  
-  archive: new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso']),
-  
-  document: new Set(['pdf', 'md', 'markdown', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']),
+  text: categorySet('text'),
+  image: categorySet('image'),
+  video: categorySet('video'),
+  audio: categorySet('audio'),
+  archive: categorySet('archive'),
+  document: categorySet('document'),
 }
 
 export const extensionIconMap: Record<string, string> = {
@@ -135,14 +140,7 @@ export const extensionIconMap: Record<string, string> = {
 }
 
 export function getFileCategory(extension: string): string {
-  const ext = extension.toLowerCase().replace('.', '')
-  if (extensionCategories.image.has(ext)) return 'image'
-  if (extensionCategories.video.has(ext)) return 'video'
-  if (extensionCategories.audio.has(ext)) return 'audio'
-  if (extensionCategories.archive.has(ext)) return 'archive'
-  if (extensionCategories.document.has(ext)) return 'document'
-  if (extensionCategories.text.has(ext)) return 'text'
-  return 'unknown'
+  return getFileCategoryFor('', extension)
 }
 
 export function getFileIcon(extension: string): string {
@@ -151,33 +149,27 @@ export function getFileIcon(extension: string): string {
 }
 
 export function isImageFile(extension: string): boolean {
-  const ext = extension.toLowerCase().replace('.', '')
-  return extensionCategories.image.has(ext)
+  return IMAGE_EXTS.has(normalizeExt(extension))
 }
 
-/** 图片扩展名（带点小写，如 '.jpg'），供主进程 search 的 fileTypes 过滤参数使用。 */
-export const IMAGE_EXTENSIONS_WITH_DOT: string[] = [...extensionCategories.image].map(ext => `.${ext}`)
-
 export function isVideoFile(extension: string): boolean {
-  const ext = extension.toLowerCase().replace('.', '')
-  return extensionCategories.video.has(ext)
+  return VIDEO_EXTS.has(normalizeExt(extension))
 }
 
 export function isThumbnailable(extension: string): boolean {
   return isImageFile(extension) || isVideoFile(extension)
 }
 
+/** 图片扩展名（带点小写，如 '.jpg'），供主进程 search 的 fileTypes 过滤参数使用。 */
+export const IMAGE_EXTENSIONS_WITH_DOT: string[] = [...IMAGE_EXTS].map(ext => `.${ext}`)
+
 /**
  * Image formats Chromium cannot decode natively and must route through the
  * main-process native decoder (macOS `sips` via ImageDecodeService).
- * Renderer-side single source of truth. Keep aligned with the electron-side
- * SUPPORTED_IMAGE_FORMATS in ThumbnailService.ts.
+ * Derived from the shared registry (SIPS_IMAGE_EXTS) — no separate list.
  */
-export const NATIVE_DECODE_EXTS = new Set([
-  'heic', 'heif', 'cr2', 'nef', 'arw', 'dng', 'orf', 'raf', 'sr2', 'raw'
-])
+export const NATIVE_DECODE_EXTS: ReadonlySet<string> = SIPS_IMAGE_EXTS
 
 export function needsNativeDecode(extension: string): boolean {
-  const ext = extension.toLowerCase().replace('.', '')
-  return NATIVE_DECODE_EXTS.has(ext)
+  return SIPS_IMAGE_EXTS.has(normalizeExt(extension))
 }

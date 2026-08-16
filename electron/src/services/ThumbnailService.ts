@@ -4,6 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import sharp from 'sharp'
 import ffmpeg from 'ffmpeg-static'
+import { EXTENSION_KINDS } from '@shared/fileKinds'
 
 const LOG_PREFIX = '[ThumbnailService]'
 
@@ -24,17 +25,19 @@ const THUMBNAIL_SIZES = {
   large: { width: 256, height: 256 },
 }
 
-// NOTE: must mirror the renderer-side image set in src/utils/fileTypes.ts
-// (extensionCategories.image). Kept physically separate because the main
-// process cannot import renderer-path modules under electron-vite.
-const SUPPORTED_IMAGE_FORMATS = new Set([
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'ico',
-  'heic', 'heif', 'dng', 'raw', 'arw', 'cr2', 'nef', 'orf', 'raf', 'sr2'
-])
+// 图片/视频格式从 shared/fileKinds.ts 注册表派生（与双击路由同一事实源；
+// @shared 别名对主进程可用，不再手抄清单）。注意：
+//  - 图片集合含 sharp 解不了的 sips 系格式（heic/RAW 等）——生成失败返回
+//    null 走占位图标，与旧行为一致；psd 为 sharp 可解的净增收益。
+//  - 视频集合由 ffmpeg 抽帧，容器兼容性远宽于 Chromium 播放。
+//  - `.ts`/`.mts` 注册为 TypeScript，不再误跑视频抽帧。
+const SUPPORTED_IMAGE_FORMATS = new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === 'image').map(([ext]) => ext)
+)
 
-const SUPPORTED_VIDEO_FORMATS = new Set([
-  'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', '3gp', 'ts', 'mts', 'm2ts'
-])
+const SUPPORTED_VIDEO_FORMATS = new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === 'video').map(([ext]) => ext)
+)
 
 interface ThumbnailResult {
   cacheKey: string

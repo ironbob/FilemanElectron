@@ -13,8 +13,19 @@
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
-      <p class="text-sm font-medium text-text-primary mb-1">Failed to load video</p>
+      <p class="text-sm font-medium text-text-primary mb-1">无法播放视频</p>
       <p class="text-xs">{{ errorMessage }}</p>
+      <div class="flex items-center gap-2 mt-4">
+        <button
+          class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:opacity-90"
+          @click="openAsHex"
+        >以十六进制查看</button>
+        <button
+          v-if="isLocal"
+          class="px-3 py-1.5 text-xs rounded bg-bg-hover text-text-secondary hover:bg-bg-active"
+          @click="openWithSystem"
+        >用系统默认应用打开</button>
+      </div>
     </div>
 
     <!-- Video Player -->
@@ -198,11 +209,12 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
+import { usePreviewStore } from '@/stores/preview'
+import IconfontIcon from './IconfontIcon.vue'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewVideoContent] ${message}`, ...args)
 }
-import IconfontIcon from './IconfontIcon.vue'
 
 const props = defineProps<{
   file: FileInfo
@@ -290,6 +302,23 @@ function saveVolume(vol: number) {
   }
 }
 
+/** 媒体预览整体载入上限（video/audio 走 readFile 全量 Blob，无流式）。 */
+const MEDIA_PREVIEW_BYTE_LIMIT = 200 * 1024 * 1024
+
+const previewStore = usePreviewStore()
+const isLocal = computed(() => props.deviceId === 'local')
+
+/** 就地切换当前 tab 为 hex（openPreview 按 path+deviceId 去重并更新 forceType）。 */
+function openAsHex(): void {
+  previewStore.openPreview(props.file, props.deviceId, undefined, 'hex')
+}
+
+function openWithSystem(): void {
+  window.fileman.openDefault(props.file.path).catch(err => {
+    console.error('[PreviewVideoContent] openDefault failed:', err)
+  })
+}
+
 // Load video
 async function loadContent() {
   log('Loading video:', props.file.name, 'size:', props.file.size)
@@ -310,6 +339,14 @@ async function loadContent() {
   bufferedPercent.value = 0
   isPlaying.value = false
   showControls.value = true
+
+  // 整读进 Blob（无流式）：超大文件拒载，避免远程设备整读阻塞/内存暴涨
+  if (props.file.size > MEDIA_PREVIEW_BYTE_LIMIT) {
+    hasError.value = true
+    errorMessage.value = `文件 ${(props.file.size / 1024 / 1024).toFixed(0)} MB 超过媒体预览上限 ${MEDIA_PREVIEW_BYTE_LIMIT / 1024 / 1024} MB（整体载入无流式）`
+    loading.value = false
+    return
+  }
 
   try {
     log('Reading file from device:', props.deviceId, 'path:', props.file.path)
@@ -366,7 +403,7 @@ function handleVideoError(e: Event) {
         errorMessage.value = 'Video decoding failed'
         break
       case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-        errorMessage.value = 'Video format not supported'
+        errorMessage.value = '容器或编码不受支持（Chromium 可解：MP4/H.264、WebM 等；AVI/WMV/FLV/MPEG-2 需外部播放）'
         break
       default:
         errorMessage.value = 'Unknown video error'

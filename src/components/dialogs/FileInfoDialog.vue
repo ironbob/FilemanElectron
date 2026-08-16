@@ -1,18 +1,21 @@
 <template>
-  <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45" @click.self="$emit('close')">
-    <div class="w-[460px] max-h-[80vh] flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl">
-      <!-- Header：图片文件显示预览，其余显示文件名 + 路径 -->
-      <div class="relative flex-shrink-0">
+  <div :class="standalone ? 'min-h-screen bg-bg-secondary' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/45'" @click.self="!standalone && $emit('close')">
+    <div :class="standalone ? 'flex min-h-screen flex-col bg-bg-secondary' : 'w-[460px] max-h-[80vh] flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl'">
+      <!-- Header：图片文件显示预览，其余显示文件名 + 路径。
+           standalone（独立简介窗口）时整块作为窗口拖拽区——hiddenInset 标题栏
+           没有原生可拖区域；此模式下 header 内无交互子元素，无需 app-no-drag 豁免。 -->
+      <div class="relative flex-shrink-0" :class="standalone ? 'app-drag' : ''">
         <img v-if="thumbnailSrc" :src="thumbnailSrc" class="h-40 w-full rounded-t-xl bg-bg-primary object-contain" alt="preview" />
-        <div v-else class="flex items-start justify-between gap-4 px-5 pt-5">
+        <div v-else :class="standalone ? 'flex items-start gap-3 px-6 pb-4 pt-11' : 'flex items-start justify-between gap-4 px-5 pt-5'">
+          <FinderIcon v-if="standalone" :name="file.isDirectory ? 'folder' : 'fileText'" class="h-11 w-11 flex-shrink-0" />
           <div class="min-w-0">
-            <h2 class="truncate text-base font-semibold text-text-primary">{{ headerTitle }}</h2>
+            <h2 :class="standalone ? 'truncate text-[17px] font-semibold text-text-primary' : 'truncate text-base font-semibold text-text-primary'">{{ headerTitle }}</h2>
             <p class="mt-1 break-all text-xs text-text-tertiary">{{ headerSubtitle }}</p>
           </div>
-          <button type="button" class="text-text-tertiary hover:text-text-primary" @click="$emit('close')">×</button>
+          <button v-if="!standalone" type="button" class="text-text-tertiary hover:text-text-primary" @click="$emit('close')">×</button>
         </div>
         <button
-          v-if="thumbnailSrc"
+          v-if="thumbnailSrc && !standalone"
           type="button"
           class="absolute right-3 top-3 rounded px-1.5 text-text-tertiary hover:text-text-primary"
           @click="$emit('close')"
@@ -21,7 +24,7 @@
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+      <div :class="standalone ? 'flex-1 overflow-y-auto px-6 pb-6 pt-2 space-y-5' : 'flex-1 overflow-y-auto px-5 py-4 space-y-4'">
         <!-- ── 常规 ─────────────────────────────────────────── -->
         <section>
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">常规</h4>
@@ -167,7 +170,7 @@
       </div>
 
       <!-- Footer -->
-      <div class="flex flex-shrink-0 items-center justify-between border-t border-border px-5 py-3">
+      <div :class="standalone ? 'flex flex-shrink-0 items-center justify-between border-t border-border px-6 py-3' : 'flex flex-shrink-0 items-center justify-between border-t border-border px-5 py-3'">
         <button
           type="button"
           class="flex items-center gap-1.5 rounded px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -195,7 +198,7 @@
             class="rounded bg-bg-tertiary px-4 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
             @click="$emit('close')"
           >
-            关闭
+            {{ standalone ? '关闭窗口' : '关闭' }}
           </button>
         </div>
       </div>
@@ -217,6 +220,7 @@ import { getFileCategory, isImageFile, needsNativeDecode } from '@/utils/fileTyp
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import { copyToClipboard } from '@/utils/clipboard'
 import InfoRow from '@/components/InfoRow.vue'
+import FinderIcon from '@/components/FinderIcon.vue'
 
 const props = defineProps<{
   deviceId: string
@@ -224,6 +228,8 @@ const props = defineProps<{
   deviceName: string
   /** 打开弹窗时的选中快照（1..N 项；弹窗生命周期内不随后续选择变化） */
   files: FileInfo[]
+  /** 独立原生窗口中渲染：去掉遮罩与页面内关闭图标。 */
+  standalone?: boolean
 }>()
 
 const emit = defineEmits<{ close: []; saveTags: [tags: string[]] }>()

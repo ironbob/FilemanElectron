@@ -20,11 +20,12 @@ import { MediaInfoService } from './src/services/MediaInfoService'
 import { WatchService } from './src/services/WatchService'
 import { GitStatusService } from './src/services/GitStatusService'
 import { ChecksumService } from './src/services/ChecksumService'
+import { ImageEditService } from './src/services/ImageEditService'
 import { DuplicateFinderService } from './src/services/DuplicateFinderService'
 import { GrepService } from './src/services/GrepService'
 import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
-import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult } from '@shared/types'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest } from '@shared/types'
 import { CH } from './src/ipc/channels'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { DirectoryStatsRequest } from '@shared/types'
@@ -33,12 +34,14 @@ const isDev = !app.isPackaged
 const log = console
 
 let mainWindow: BrowserWindow | null = null
+const fileInfoWindowContexts = new Map<number, FileInfoWindowContext>()
 const configService = new ConfigService()
 const credentialService = new CredentialService()
 const deviceManager = new DeviceManager(configService, credentialService)
 const fileOperationManager = new FileOperationManager()
 const thumbnailService = new ThumbnailService()
 const imageDecodeService = new ImageDecodeService(deviceManager)
+const imageEditService = new ImageEditService(imageDecodeService)
 const zipService = new ZipService()
 const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
 const hostShellService = new HostShellService()
@@ -116,10 +119,65 @@ function createWindow(): void {
   }
 }
 
+/**
+ * 创建 Finder 风格的非模态「简介」窗口。
+ *
+ * 打开快照保存在主进程、以 webContents.id 为键，避免将远程路径与文件元数据
+ * 放到 URL；属性窗口也只能读取属于自己的上下文。
+ */
+function createFileInfoWindow(parent: BrowserWindow | null, context: FileInfoWindowContext): void {
+  const isSingle = context.files.length === 1
+  const title = isSingle ? `“${context.files[0].name}”简介` : `${context.files.length} 个项目简介`
+  const infoWindow = new BrowserWindow({
+    width: 560,
+    height: 720,
+    minWidth: 460,
+    minHeight: 440,
+    title,
+    parent: parent && !parent.isDestroyed() ? parent : undefined,
+    modal: false,
+    show: false,
+    backgroundColor: '#f5f5f7',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 14 },
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  fileInfoWindowContexts.set(infoWindow.webContents.id, context)
+  infoWindow.once('ready-to-show', () => infoWindow.show())
+  infoWindow.on('closed', () => fileInfoWindowContexts.delete(infoWindow.webContents.id))
+
+  if (isDev) {
+    const devServerUrl = process.env['ELECTRON_RENDERER_URL'] || 'http://localhost:5173'
+    const separator = devServerUrl.includes('?') ? '&' : '?'
+    void infoWindow.loadURL(`${devServerUrl}${separator}file-info-window=1`)
+  } else {
+    void infoWindow.loadFile(join(__dirname, '../renderer/index.html'), { query: { 'file-info-window': '1' } })
+  }
+}
+
 // ============ System IPC Handlers ============
 
 ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
   return os.homedir()
+})
+
+ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context: FileInfoWindowContext): void => {
+  if (!context || !Array.isArray(context.files) || context.files.length === 0) {
+    throw new Error('无法为未选择的项目打开简介窗口')
+  }
+  const parent = BrowserWindow.fromWebContents(event.sender)
+  createFileInfoWindow(parent, context)
+})
+
+ipcMain.handle(CH.invoke.fileInfoWindowGetContext, event => {
+  const context = fileInfoWindowContexts.get(event.sender.id)
+  if (!context) throw new Error('此窗口没有可用的简介上下文')
+  return context
 })
 
 // ============ Host Shell Integration IPC Handlers ============
@@ -132,6 +190,9 @@ ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath: string): Promis
 })
 ipcMain.handle(CH.invoke.shellOpenWith, async (_, appPath: string, targetPath: string): Promise<void> => {
   return hostShellService.openWith(appPath, targetPath)
+})
+ipcMain.handle(CH.invoke.shellOpenDefault, async (_, targetPath: string): Promise<void> => {
+  return hostShellService.openDefault(targetPath)
 })
 ipcMain.handle(CH.invoke.shellDetectOpenWithApps, () => {
   return hostShellService.detectDevApps()
@@ -731,6 +792,28 @@ ipcMain.handle(CH.invoke.imageDecodeNative, async (
 ) => {
   const result = await imageDecodeService.decodeToRaster(deviceId, filePath, opts)
   return result // { buffer: string(base64), mime: 'image/jpeg' }
+})
+
+// ============ Image Edit IPC Handlers ============
+// 单图编辑（预估/执行）为同步 invoke；批量为 start/cancel + 推送事件
+// （ChecksumService 模式）。仅 local：路径即本机绝对路径。
+
+ipcMain.handle(CH.invoke.imageEditEstimate, (_, filePath: string, params: EditCompressParams) => {
+  return imageEditService.estimate(filePath, params)
+})
+
+ipcMain.handle(CH.invoke.imageEditApply, (_, filePath: string, ops: EditOps, save: EditSaveSpec) => {
+  return imageEditService.apply(filePath, ops, save)
+})
+
+ipcMain.handle(CH.invoke.imageEditBatchStart, (event, request: ImageEditBatchRequest) => {
+  return imageEditService.start(request, progress => {
+    if (!event.sender.isDestroyed()) event.sender.send(CH.push.imageEditBatchProgress, progress)
+  })
+})
+
+ipcMain.handle(CH.invoke.imageEditBatchCancel, (_, taskId: string) => {
+  return imageEditService.cancel(taskId)
 })
 
 // ============ External Volumes IPC Handlers ============

@@ -13,8 +13,19 @@
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
-      <p class="text-sm font-medium text-text-primary mb-1">Failed to load audio</p>
+      <p class="text-sm font-medium text-text-primary mb-1">无法播放音频</p>
       <p class="text-xs">{{ errorMessage }}</p>
+      <div class="flex items-center gap-2 mt-4">
+        <button
+          class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:opacity-90"
+          @click="openAsHex"
+        >以十六进制查看</button>
+        <button
+          v-if="isLocal"
+          class="px-3 py-1.5 text-xs rounded bg-bg-hover text-text-secondary hover:bg-bg-active"
+          @click="openWithSystem"
+        >用系统默认应用打开</button>
+      </div>
     </div>
 
     <!-- Audio Player -->
@@ -55,12 +66,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
+import { usePreviewStore } from '@/stores/preview'
+import IconfontIcon from './IconfontIcon.vue'
 
 const log = (message: string, ...args: any[]) => {
-import IconfontIcon from './IconfontIcon.vue'
   console.log(`[PreviewAudioContent] ${message}`, ...args)
 }
 
@@ -99,6 +111,23 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer as ArrayBuffer
 }
 
+/** 媒体预览整体载入上限（与 PreviewVideoContent 一致）。 */
+const MEDIA_PREVIEW_BYTE_LIMIT = 200 * 1024 * 1024
+
+const previewStore = usePreviewStore()
+const isLocal = computed(() => props.deviceId === 'local')
+
+/** 就地切换当前 tab 为 hex（openPreview 按 path+deviceId 去重并更新 forceType）。 */
+function openAsHex(): void {
+  previewStore.openPreview(props.file, props.deviceId, undefined, 'hex')
+}
+
+function openWithSystem(): void {
+  window.fileman.openDefault(props.file.path).catch(err => {
+    console.error('[PreviewAudioContent] openDefault failed:', err)
+  })
+}
+
 async function loadContent() {
   log('Loading audio:', props.file.name, 'size:', props.file.size)
 
@@ -110,6 +139,14 @@ async function loadContent() {
   if (audioSrc.value) {
     URL.revokeObjectURL(audioSrc.value)
     audioSrc.value = ''
+  }
+
+  // 整读进 Blob（无流式）：超大文件拒载
+  if (props.file.size > MEDIA_PREVIEW_BYTE_LIMIT) {
+    hasError.value = true
+    errorMessage.value = `文件 ${(props.file.size / 1024 / 1024).toFixed(0)} MB 超过媒体预览上限 ${MEDIA_PREVIEW_BYTE_LIMIT / 1024 / 1024} MB（整体载入无流式）`
+    loading.value = false
+    return
   }
 
   try {

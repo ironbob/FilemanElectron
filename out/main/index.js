@@ -1,4 +1,4 @@
-import { safeStorage, app, shell, ipcMain, nativeImage, BrowserWindow, screen } from "electron";
+import { safeStorage, app, shell, ipcMain, BrowserWindow, nativeImage, screen } from "electron";
 import os from "os";
 import * as path from "path";
 import path__default, { join } from "path";
@@ -2748,9 +2748,13 @@ const CH = {
   invoke: {
     // system:
     systemGetHomeDir: "system:getHomeDir",
+    // window:
+    fileInfoWindowOpen: "window:fileInfo:open",
+    fileInfoWindowGetContext: "window:fileInfo:getContext",
     // shell:
     shellOpenInTerminal: "shell:openInTerminal",
     shellOpenWith: "shell:openWith",
+    shellOpenDefault: "shell:openDefault",
     shellDetectOpenWithApps: "shell:detectOpenWithApps",
     // git (只读徽标):
     gitStatus: "git:status",
@@ -3500,6 +3504,527 @@ function posixDirname(p) {
   if (idx === 0) return "/";
   return trimmed.slice(0, idx);
 }
+const text = (lang = "plaintext") => ({ kind: "text", lang });
+const image = { kind: "image" };
+const sipsImage = { kind: "image", sips: true };
+const video = { kind: "video" };
+const audio = { kind: "audio" };
+const zipOf = (cat = "archive") => ({ kind: "zip", cat });
+const hexOf = (cat) => ({ kind: "hex", cat });
+const EXTENSION_KINDS = {
+  // ── 文本：Web / 前端 ──────────────────────────────────────────────────────
+  js: text("javascript"),
+  jsx: text("javascript"),
+  mjs: text("javascript"),
+  cjs: text("javascript"),
+  ts: text("typescript"),
+  tsx: text("typescript"),
+  mts: text("typescript"),
+  cts: text("typescript"),
+  vue: text("html"),
+  svelte: text("html"),
+  astro: text("html"),
+  html: text("html"),
+  htm: text("html"),
+  xhtml: text("html"),
+  shtml: text("html"),
+  css: text("css"),
+  scss: text("scss"),
+  sass: text("scss"),
+  less: text("less"),
+  // ── 文本：数据 / 序列化 ───────────────────────────────────────────────────
+  json: text("json"),
+  jsonc: text("json"),
+  json5: text("json"),
+  jsonl: text("json"),
+  ndjson: text("json"),
+  har: text("json"),
+  geojson: text("json"),
+  ipynb: text("json"),
+  avsc: text("json"),
+  mcmeta: text("json"),
+  xml: text("xml"),
+  xsl: text("xml"),
+  xsd: text("xml"),
+  xslt: text("xml"),
+  plist: text("xml"),
+  entitlements: text("xml"),
+  mobileconfig: text("xml"),
+  xcscheme: text("xml"),
+  xctestplan: text("xml"),
+  storyboard: text("xml"),
+  xib: text("xml"),
+  resx: text("xml"),
+  csproj: text("xml"),
+  vbproj: text("xml"),
+  fsproj: text("xml"),
+  props: text("xml"),
+  targets: text("xml"),
+  wxs: text("xml"),
+  wxi: text("xml"),
+  appxmanifest: text("xml"),
+  pom: text("xml"),
+  yaml: text("yaml"),
+  yml: text("yaml"),
+  toml: text("ini"),
+  ini: text("ini"),
+  cfg: text("ini"),
+  conf: text("ini"),
+  cnf: text("ini"),
+  properties: text("ini"),
+  editorconfig: text("ini"),
+  npmrc: text("ini"),
+  yarnrc: text("ini"),
+  xcconfig: text("ini"),
+  csv: text(),
+  tsv: text(),
+  lock: text(),
+  // ── 文本：脚本语言 ────────────────────────────────────────────────────────
+  py: text("python"),
+  pyw: text("python"),
+  pyx: text("python"),
+  pyi: text("python"),
+  rb: text("ruby"),
+  rbs: text("ruby"),
+  rake: text("ruby"),
+  gemspec: text("ruby"),
+  php: text("php"),
+  phtml: text("php"),
+  php3: text("php"),
+  php4: text("php"),
+  php5: text("php"),
+  lua: text("lua"),
+  pl: text("perl"),
+  pm: text("perl"),
+  t: text("perl"),
+  pod: text("perl"),
+  r: text("r"),
+  rmd: text("markdown"),
+  jl: text("julia"),
+  tcl: text("tcl"),
+  gd: text(),
+  feature: text(),
+  // ── 文本：Shell ───────────────────────────────────────────────────────────
+  sh: text("shell"),
+  bash: text("shell"),
+  zsh: text("shell"),
+  ksh: text("shell"),
+  fish: text("shell"),
+  bat: text("bat"),
+  cmd: text("bat"),
+  ps1: text("powershell"),
+  psm1: text("powershell"),
+  ps1m: text("powershell"),
+  psd1: text("powershell"),
+  // ── 文本：系统编程 ────────────────────────────────────────────────────────
+  c: text("cpp"),
+  h: text("cpp"),
+  cpp: text("cpp"),
+  cc: text("cpp"),
+  cxx: text("cpp"),
+  "c++": text("cpp"),
+  hpp: text("cpp"),
+  hxx: text("cpp"),
+  hh: text("cpp"),
+  inc: text("cpp"),
+  ino: text("cpp"),
+  cs: text("csharp"),
+  vb: text("vb"),
+  vbs: text("vb"),
+  bas: text("vb"),
+  java: text("java"),
+  jav: text("java"),
+  kt: text("kotlin"),
+  kts: text("kotlin"),
+  swift: text("swift"),
+  go: text("go"),
+  rs: text("rust"),
+  dart: text("dart"),
+  scala: text("scala"),
+  sc: text("scala"),
+  sbt: text("scala"),
+  nim: text(),
+  zig: text(),
+  v: text(),
+  vsh: text(),
+  odin: text(),
+  cr: text(),
+  // ── 文本：函数式 ──────────────────────────────────────────────────────────
+  ml: text(),
+  mli: text(),
+  fs: text("fsharp"),
+  fsi: text("fsharp"),
+  fsx: text("fsharp"),
+  fsscript: text("fsharp"),
+  hs: text(),
+  lhs: text(),
+  elm: text(),
+  clj: text("clojure"),
+  cljs: text("clojure"),
+  cljc: text("clojure"),
+  edn: text("clojure"),
+  ex: text("elixir"),
+  exs: text("elixir"),
+  eex: text(),
+  leex: text(),
+  heex: text(),
+  erl: text(),
+  hrl: text(),
+  lisp: text(),
+  lsp: text(),
+  cl: text(),
+  el: text(),
+  elisp: text(),
+  scm: text("scheme"),
+  ss: text("scheme"),
+  rkt: text(),
+  // ── 文本：移动 / Apple 工程 ───────────────────────────────────────────────
+  m: text("objective-c"),
+  mm: text("objective-c"),
+  pbxproj: text(),
+  sln: text(),
+  // ── 文本：数据库 / 接口定义 ───────────────────────────────────────────────
+  sql: text("sql"),
+  ddl: text("sql"),
+  dml: text("sql"),
+  graphql: text("graphql"),
+  gql: text("graphql"),
+  proto: text("protobuf"),
+  prisma: text(),
+  // ── 文本：标记 / 文档 ─────────────────────────────────────────────────────
+  md: text("markdown"),
+  markdown: text("markdown"),
+  mdx: text("mdx"),
+  rst: text("restructuredtext"),
+  tex: text(),
+  sty: text(),
+  cls: text(),
+  bib: text(),
+  adoc: text(),
+  asciidoc: text(),
+  asc: text(),
+  org: text(),
+  nfo: text(),
+  rtf: text(),
+  eps: text(),
+  ps: text(),
+  // ── 文本：DevOps / 构建 ───────────────────────────────────────────────────
+  dockerfile: text("dockerfile"),
+  dockerignore: text(),
+  helm: text("yaml"),
+  tf: text("hcl"),
+  tfvars: text("hcl"),
+  hcl: text("hcl"),
+  nix: text(),
+  nginx: text(),
+  apache: text(),
+  vhost: text(),
+  makefile: text(),
+  mk: text(),
+  mak: text(),
+  ninja: text(),
+  meson: text(),
+  just: text(),
+  cmake: text(),
+  "cmake.in": text(),
+  gradle: text(),
+  groovy: text(),
+  gvy: text(),
+  gy: text(),
+  bazel: text(),
+  bzl: text(),
+  ac: text(),
+  am: text(),
+  in: text(),
+  // ── 文本：systemd / 桌面项 ────────────────────────────────────────────────
+  desktop: text("ini"),
+  service: text(),
+  socket: text(),
+  timer: text(),
+  mount: text(),
+  policy: text(),
+  rules: text(),
+  // ── 文本：证书（PEM 为文本） ───────────────────────────────────────────────
+  // 注：`.key`（PEM 私钥）与 Keynote（zip 包）冲突，不注册——交给内容嗅探裁决：
+  // '-----BEGIN' → text；'PK\x03\x04' → zip。
+  pem: text(),
+  crt: text(),
+  cer: text(),
+  pub: text(),
+  // ── 文本：播放列表 / 字幕 / 邮件 / 快捷方式（均为文本格式） ────────────────
+  m3u: text(),
+  m3u8: text(),
+  pls: text(),
+  asx: text(),
+  xspf: text(),
+  srt: text(),
+  ass: text(),
+  ssa: text(),
+  vtt: text(),
+  eml: text(),
+  url: text(),
+  webloc: text(),
+  // ── 文本：日志 / 杂项 ─────────────────────────────────────────────────────
+  log: text(),
+  logcat: text(),
+  ips: text(),
+  txt: text(),
+  text: text(),
+  asm: text(),
+  s: text(),
+  wat: text(),
+  sol: text("solidity"),
+  move: text(),
+  coq: text(),
+  verilog: text("systemverilog"),
+  vlog: text("systemverilog"),
+  sv: text("systemverilog"),
+  svh: text("systemverilog"),
+  vhdl: text(),
+  coffee: text("coffee"),
+  litcoffee: text("coffee"),
+  pug: text("pug"),
+  hbs: text("handlebars"),
+  handlebars: text("handlebars"),
+  mustache: text("handlebars"),
+  ejs: text(),
+  twig: text("twig"),
+  liquid: text("liquid"),
+  haml: text(),
+  slim: text(),
+  erb: text(),
+  // ── 文本：着色器 / GPU ────────────────────────────────────────────────────
+  glsl: text(),
+  vert: text(),
+  frag: text(),
+  comp: text(),
+  geom: text(),
+  tesc: text(),
+  tese: text(),
+  hlsl: text(),
+  fx: text(),
+  shader: text(),
+  cg: text(),
+  cu: text("cpp"),
+  cuh: text("cpp"),
+  metal: text(),
+  // ── 图片：Chromium <img> 原生可解 ─────────────────────────────────────────
+  jpg: image,
+  jpeg: image,
+  png: image,
+  gif: image,
+  webp: image,
+  avif: image,
+  bmp: image,
+  svg: image,
+  ico: image,
+  // ── 图片：Chromium 不可解，走主进程 sips（ImageDecodeService） ─────────────
+  tiff: sipsImage,
+  tif: sipsImage,
+  heic: sipsImage,
+  heif: sipsImage,
+  psd: sipsImage,
+  tga: sipsImage,
+  sgi: sipsImage,
+  jp2: sipsImage,
+  pict: sipsImage,
+  qtif: sipsImage,
+  icns: sipsImage,
+  dng: sipsImage,
+  cr2: sipsImage,
+  nef: sipsImage,
+  arw: sipsImage,
+  orf: sipsImage,
+  raf: sipsImage,
+  sr2: sipsImage,
+  raw: sipsImage,
+  // ── 视频（容器/编码不可解的进入播放器后报错并提供 hex/系统打开） ──────────
+  mp4: video,
+  m4v: video,
+  mov: video,
+  webm: video,
+  mkv: video,
+  avi: video,
+  wmv: video,
+  asf: video,
+  flv: video,
+  f4v: video,
+  rmvb: video,
+  rm: video,
+  mpg: video,
+  mpeg: video,
+  mpe: video,
+  vob: video,
+  m2ts: video,
+  "3gp": video,
+  "3g2": video,
+  ogv: video,
+  ogm: video,
+  divx: video,
+  dv: video,
+  amv: video,
+  roq: video,
+  mxf: video,
+  qt: video,
+  insv: video,
+  lrv: video,
+  prx: video,
+  vid: video,
+  // 注：`ts` 判为 TypeScript（MPEG-TS 用右键/打开方式进播放器已不可行，走 hex 兜底可看）
+  // ── 音频 ──────────────────────────────────────────────────────────────────
+  mp3: audio,
+  flac: audio,
+  aac: audio,
+  ogg: audio,
+  oga: audio,
+  m4a: audio,
+  m4b: audio,
+  wav: audio,
+  wma: audio,
+  alac: audio,
+  ape: audio,
+  aiff: audio,
+  aif: audio,
+  amr: audio,
+  opus: audio,
+  ac3: audio,
+  eac3: audio,
+  caf: audio,
+  mka: audio,
+  pcm: audio,
+  // ── PDF ───────────────────────────────────────────────────────────────────
+  pdf: { kind: "pdf" },
+  // ── ZIP 族（.zip 双击进虚拟目录；其余开 zip 浏览 tab） ─────────────────────
+  zip: zipOf(),
+  jar: zipOf(),
+  war: zipOf(),
+  ear: zipOf(),
+  apk: zipOf(),
+  ipa: zipOf(),
+  docx: zipOf("document"),
+  xlsx: zipOf("document"),
+  pptx: zipOf("document"),
+  docm: zipOf("document"),
+  xlsm: zipOf("document"),
+  pptm: zipOf("document"),
+  odt: zipOf(),
+  ods: zipOf(),
+  odp: zipOf(),
+  epub: zipOf(),
+  cbz: zipOf(),
+  pages: zipOf("document"),
+  numbers: zipOf("document"),
+  whl: zipOf(),
+  vsix: zipOf(),
+  xpi: zipOf(),
+  nupkg: zipOf(),
+  sar: zipOf(),
+  kmz: zipOf(),
+  // ── 十六进制：压缩（非 zip，暂无应用内浏览） ───────────────────────────────
+  rar: hexOf("archive"),
+  "7z": hexOf("archive"),
+  tar: hexOf("archive"),
+  gz: hexOf("archive"),
+  tgz: hexOf("archive"),
+  bz2: hexOf("archive"),
+  tbz: hexOf("archive"),
+  xz: hexOf("archive"),
+  txz: hexOf("archive"),
+  zst: hexOf("archive"),
+  lz4: hexOf("archive"),
+  lz: hexOf("archive"),
+  z: hexOf("archive"),
+  br: hexOf("archive"),
+  xar: hexOf("archive"),
+  pkg: hexOf("archive"),
+  iso: hexOf("archive"),
+  // ── 十六进制：磁盘镜像 ─────────────────────────────────────────────────────
+  dmg: hexOf(),
+  sparseimage: hexOf(),
+  sparsebundle: hexOf(),
+  vmdk: hexOf(),
+  vhd: hexOf(),
+  vhdx: hexOf(),
+  qcow2: hexOf(),
+  vdi: hexOf(),
+  wim: hexOf(),
+  img: hexOf(),
+  // ── 十六进制：Office OLE 二进制（右键可用系统应用打开） ─────────────────────
+  doc: hexOf("document"),
+  dot: hexOf("document"),
+  xls: hexOf("document"),
+  xlt: hexOf("document"),
+  ppt: hexOf("document"),
+  pps: hexOf("document"),
+  msi: hexOf("document"),
+  // ── 十六进制：库 / 编译产物 ────────────────────────────────────────────────
+  bin: hexOf(),
+  dat: hexOf(),
+  o: hexOf(),
+  a: hexOf(),
+  class: hexOf(),
+  wasm: hexOf(),
+  dylib: hexOf(),
+  so: hexOf(),
+  exe: hexOf(),
+  dll: hexOf(),
+  lib: hexOf(),
+  pdb: hexOf(),
+  obj: hexOf(),
+  node: hexOf(),
+  pyc: hexOf(),
+  pyo: hexOf(),
+  elc: hexOf(),
+  mo: hexOf(),
+  hevc: hexOf(),
+  h264: hexOf(),
+  // ── 十六进制：字体 ────────────────────────────────────────────────────────
+  ttf: hexOf(),
+  otf: hexOf(),
+  ttc: hexOf(),
+  woff: hexOf(),
+  woff2: hexOf(),
+  eot: hexOf(),
+  fon: hexOf(),
+  // ── 十六进制：数据库文件 ──────────────────────────────────────────────────
+  db: hexOf(),
+  sqlite: hexOf(),
+  sqlite3: hexOf(),
+  db3: hexOf(),
+  mdb: hexOf(),
+  accdb: hexOf(),
+  mdf: hexOf(),
+  // ── 十六进制：证书二进制 / 杂项 ───────────────────────────────────────────
+  der: hexOf(),
+  p12: hexOf(),
+  pfx: hexOf(),
+  jks: hexOf(),
+  keystore: hexOf(),
+  mobileprovision: hexOf(),
+  ds_store: hexOf(),
+  swf: hexOf(),
+  lnk: hexOf(),
+  // ── 十六进制：无解码器的图片格式（GIMP/EXR/HDR/netpbm） ────────────────────
+  xcf: hexOf(),
+  exr: hexOf(),
+  hdr: hexOf(),
+  pbm: hexOf(),
+  pgm: hexOf(),
+  ppm: hexOf(),
+  pam: hexOf()
+};
+new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "image").map(([e]) => e)
+);
+new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "image" && d.sips).map(([e]) => e)
+);
+new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "video").map(([e]) => e)
+);
+new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "audio").map(([e]) => e)
+);
 const LOG_PREFIX$1 = "[ThumbnailService]";
 function log$g(message, ...args) {
   console.log(`${LOG_PREFIX$1} ${message}`, ...args);
@@ -3514,40 +4039,12 @@ const THUMBNAIL_SIZES = {
   small: { width: 64, height: 64 },
   large: { width: 256, height: 256 }
 };
-const SUPPORTED_IMAGE_FORMATS = /* @__PURE__ */ new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
-  "avif",
-  "bmp",
-  "tiff",
-  "ico",
-  "heic",
-  "heif",
-  "dng",
-  "raw",
-  "arw",
-  "cr2",
-  "nef",
-  "orf",
-  "raf",
-  "sr2"
-]);
-const SUPPORTED_VIDEO_FORMATS = /* @__PURE__ */ new Set([
-  "mp4",
-  "mov",
-  "avi",
-  "mkv",
-  "webm",
-  "flv",
-  "wmv",
-  "3gp",
-  "ts",
-  "mts",
-  "m2ts"
-]);
+const SUPPORTED_IMAGE_FORMATS = new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "image").map(([ext]) => ext)
+);
+const SUPPORTED_VIDEO_FORMATS = new Set(
+  Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "video").map(([ext]) => ext)
+);
 class ThumbnailService {
   cacheDir;
   maxDiskCacheSize = 500 * 1024 * 1024;
@@ -4253,6 +4750,27 @@ end tell`;
     });
   }
   /**
+   * 用系统默认应用打开本地文件/目录（macOS：`open <target>`）。
+   * 与 openWith 同构：execFile 参数组，不经 shell。
+   */
+  openDefault(targetPath) {
+    return new Promise((resolve, reject) => {
+      const normalized = path__default.resolve(targetPath);
+      execFile("open", [normalized], (err, _stdout, stderr) => {
+        if (err) {
+          console.error(`[HostShellService] openDefault failed for "${normalized}":`, err.message);
+          reject(new Error(`Failed to open "${normalized}" with default app: ${err.message}`));
+          return;
+        }
+        if (stderr && stderr.trim()) {
+          console.warn(`[HostShellService] open stderr for "${normalized}":`, stderr.trim());
+        }
+        console.log(`[HostShellService] Opened "${normalized}" with default app`);
+        resolve();
+      });
+    });
+  }
+  /**
    * 探测本机已安装的开发者应用（/Applications 与 ~/Applications）。
    * 结果 memoize（应用安装是罕见事件；重探经重启或后续显式刷新）。
    */
@@ -4728,31 +5246,31 @@ class MediaInfoService {
     const tracks = result?.media?.track;
     if (!tracks || tracks.length === 0) return null;
     const general = tracks.find((t) => t["@type"] === "General");
-    const video = tracks.find((t) => t["@type"] === "Video");
-    const audio = tracks.find((t) => t["@type"] === "Audio");
-    if (!general && !video && !audio) return null;
+    const video2 = tracks.find((t) => t["@type"] === "Video");
+    const audio2 = tracks.find((t) => t["@type"] === "Audio");
+    if (!general && !video2 && !audio2) return null;
     const summary = {};
     if (general) {
       summary.format = typeof general.Format === "string" ? general.Format : void 0;
       summary.durationSeconds = num(general.Duration);
       summary.overallBitrate = num(general.OverallBitRate);
     }
-    if (video) {
+    if (video2) {
       summary.video = {
-        codec: typeof video.Format === "string" ? video.Format : void 0,
-        width: num(video.Width),
-        height: num(video.Height),
-        frameRate: num(video.FrameRate),
-        bitrate: num(video.BitRate) ?? num(video.BitRate_Nominal),
-        bitDepth: num(video.BitDepth)
+        codec: typeof video2.Format === "string" ? video2.Format : void 0,
+        width: num(video2.Width),
+        height: num(video2.Height),
+        frameRate: num(video2.FrameRate),
+        bitrate: num(video2.BitRate) ?? num(video2.BitRate_Nominal),
+        bitDepth: num(video2.BitDepth)
       };
     }
-    if (audio) {
+    if (audio2) {
       summary.audio = {
-        codec: typeof audio.Format === "string" ? audio.Format : void 0,
-        sampleRate: num(audio.SamplingRate),
-        channels: num(audio.Channels),
-        bitrate: num(audio.BitRate) ?? num(audio.BitRate_Nominal)
+        codec: typeof audio2.Format === "string" ? audio2.Format : void 0,
+        sampleRate: num(audio2.SamplingRate),
+        channels: num(audio2.Channels),
+        bitrate: num(audio2.BitRate) ?? num(audio2.BitRate_Nominal)
       };
     }
     return summary;
@@ -5398,8 +5916,8 @@ function normalizeResultPath(path2, rootPath) {
   const base = rootPath.endsWith("/") ? rootPath : rootPath + "/";
   return base + rel;
 }
-function truncateLine(text) {
-  return text.length > LINE_TEXT_MAX_CHARS ? text.slice(0, LINE_TEXT_MAX_CHARS) + "…" : text;
+function truncateLine(text2) {
+  return text2.length > LINE_TEXT_MAX_CHARS ? text2.slice(0, LINE_TEXT_MAX_CHARS) + "…" : text2;
 }
 function globsToRgArgs(includeGlob, excludeGlob) {
   const args = [];
@@ -5596,8 +6114,8 @@ class GrepService {
         }
       });
       child.stderr.on("data", (chunk) => {
-        const text = chunk.toString("utf-8").trim();
-        if (text && !task.cancelled) log$2.warn("[Grep] rg stderr", { text: text.slice(0, 200) });
+        const text2 = chunk.toString("utf-8").trim();
+        if (text2 && !task.cancelled) log$2.warn("[Grep] rg stderr", { text: text2.slice(0, 200) });
       });
       child.on("error", reject);
       child.on("close", (code) => {
@@ -5787,6 +6305,7 @@ class CancelledError3 extends Error {
 const isDev = !app.isPackaged;
 const log = console;
 let mainWindow = null;
+const fileInfoWindowContexts = /* @__PURE__ */ new Map();
 const configService = new ConfigService();
 const credentialService = new CredentialService();
 const deviceManager = new DeviceManager(configService, credentialService);
@@ -5853,14 +6372,61 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
 }
+function createFileInfoWindow(parent, context) {
+  const isSingle = context.files.length === 1;
+  const title = isSingle ? `“${context.files[0].name}”简介` : `${context.files.length} 个项目简介`;
+  const infoWindow = new BrowserWindow({
+    width: 560,
+    height: 720,
+    minWidth: 460,
+    minHeight: 440,
+    title,
+    parent: parent && !parent.isDestroyed() ? parent : void 0,
+    modal: false,
+    show: false,
+    backgroundColor: "#f5f5f7",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 16, y: 14 },
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  fileInfoWindowContexts.set(infoWindow.webContents.id, context);
+  infoWindow.once("ready-to-show", () => infoWindow.show());
+  infoWindow.on("closed", () => fileInfoWindowContexts.delete(infoWindow.webContents.id));
+  if (isDev) {
+    const devServerUrl = process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
+    const separator = devServerUrl.includes("?") ? "&" : "?";
+    void infoWindow.loadURL(`${devServerUrl}${separator}file-info-window=1`);
+  } else {
+    void infoWindow.loadFile(join(__dirname, "../renderer/index.html"), { query: { "file-info-window": "1" } });
+  }
+}
 ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
   return os.homedir();
+});
+ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context) => {
+  if (!context || !Array.isArray(context.files) || context.files.length === 0) {
+    throw new Error("无法为未选择的项目打开简介窗口");
+  }
+  const parent = BrowserWindow.fromWebContents(event.sender);
+  createFileInfoWindow(parent, context);
+});
+ipcMain.handle(CH.invoke.fileInfoWindowGetContext, (event) => {
+  const context = fileInfoWindowContexts.get(event.sender.id);
+  if (!context) throw new Error("此窗口没有可用的简介上下文");
+  return context;
 });
 ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath) => {
   return hostShellService.openInTerminal(dirPath);
 });
 ipcMain.handle(CH.invoke.shellOpenWith, async (_, appPath, targetPath) => {
   return hostShellService.openWith(appPath, targetPath);
+});
+ipcMain.handle(CH.invoke.shellOpenDefault, async (_, targetPath) => {
+  return hostShellService.openDefault(targetPath);
 });
 ipcMain.handle(CH.invoke.shellDetectOpenWithApps, () => {
   return hostShellService.detectDevApps();
