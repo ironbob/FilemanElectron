@@ -1,0 +1,149 @@
+{
+  "feature": "double-click-open-map",
+  "title": "双击打开方式全类型映射（单一注册表 + 嗅探兜底）",
+  "stack": "Electron29+Vue3",
+  "analyzed_at": "2026-08-16",
+  "design_doc": "docs/architecture/2026-08-16-double-click-open-map-arch.md",
+  "existing_alignment": {
+    "recognized_style": "预览路由单一咽喉 PreviewContentRouter（tab/QuickLook/inline 三面共用）；@shared/* 跨进程单一事实源（types.ts 先例）；IPC 四处同步（@shared/types → channels.ts → main.ts → preload.ts → env.d.ts）；HostShellService execFile 参数组不经 shell；纯函数 esbuild 最小 harness 单测先例。",
+    "new_code_follows": "fileKinds.ts 沿 @shared 模式（主/渲染进程共用，无进程 API 依赖）；HostShellService 原地扩展 openDefault（与 openWith 同构）；错误面板动作按钮沿用 openPreview(path+deviceId 去重 + forceType 就地更新) 语义。"
+  },
+  "interaction_confirmation": {
+    "profile_selected": "standard（随穷举文档 §6 推荐方案，用户未提异议即视为采纳）",
+    "proposal_revision": 1,
+    "candidate_confirmed": "单一注册表 + 内容嗅探兜底（消灭 Cannot preview）",
+    "source": "用户阅读 2026-08-16-double-click-open-map-arch.md 后指示「现在开始实施」",
+    "quoted_evidence": "决策点①②③④⑤均按文档推荐落地（md 默认 rendered 维持现状，未改动）"
+  },
+  "design_decision": {
+    "profile": "standard",
+    "quality_attributes": [
+      { "id": "QA-1", "name": "类型全覆盖", "priority": "P0", "scenario": "任意文件双击必有内容呈现（text/image/video/audio/pdf/zip/hex 之一）" },
+      { "id": "QA-2", "name": "单一事实源", "priority": "P0", "scenario": "扩展名→打开方式只存在一份清单，改一处全局生效" },
+      { "id": "QA-3", "name": "即时打开", "priority": "P0", "scenario": "嗅探只读头部 8KB，不阻塞 tab 创建；结果按 path+size+mtime 记忆" },
+      { "id": "QA-4", "name": "显式覆盖优先", "priority": "P0", "scenario": "forceType（右键 hex 等）与 initialLine（grep 跳入）不被嗅探覆盖" },
+      { "id": "QA-5", "name": "冲突裁决确定", "priority": "P1", "scenario": ".ts/.mts=TypeScript、.wav=audio、.m3u=text、.key=嗅探" }
+    ],
+    "candidates": [
+      { "id": "ALT-1", "summary": "shared/fileKinds.ts 注册表 + 名称规则 + 魔数嗅探兜底（openPreview 异步细化 tab 类型）", "selected": true },
+      { "id": "ALT-2", "summary": "仅扩表不嗅探（未注册类型仍落占位符，否决——无法覆盖无扩展名/陌生扩展）", "selected": false },
+      { "id": "ALT-3", "summary": "主进程 file(1) 命令探测（仅本地可用，远程设备不可达，否决）", "selected": false }
+    ],
+    "selected_id": "ALT-1",
+    "selection_reason": "注册表覆盖已知类型、嗅探覆盖长尾、hex 兜底保证「必有呈现」；全部走 adapter 读字节，五种设备一致。",
+    "top_down_check": "§4 决策管线 P0-P6 全部落地（P0 目录/P1 zip 导航维持 FileList 原逻辑；P2-P3 注册表；P4 冲突内嵌注册表优先级；P5 sniffPreviewKind+refineUnknownType；P6 hex）",
+    "bottom_up_check": "10 处旧清单中 8 处改为派生/委托；2 处死代码删除（preview.ts getTextFileType/canRenderTextFile/getLanguageFromExtension）",
+    "risk_spikes": [
+      "TS1117 重复键（cl/asc/mts/key）——cl/asc 语义相同去重；mts 裁决为 TypeScript；key 移出注册表交嗅探（PEM→text / Keynote→zip）",
+      "UTF-16LE BOM(FF FE) 与 MP3 帧同步(FF Ex) 撞车——BOM 判定前置",
+      "点文件族门控：.env.production 的 lastIndexOf('.') 不在首位——改为「无点 OR 以点开头」双条件"
+    ],
+    "review": "esbuild harness 单测：34+ 用例全过（kind/语言/嗅探/真实文件头）；vue-tsc 0 错误；tsc -p tsconfig.node.json 维持基线 16 错误（全部既有，非本次引入）"
+  },
+  "ui_architecture": {
+    "framework": "Vue 3 + Pinia（setup style）",
+    "current_patterns": "PreviewContentRouter v-if 分派；错误面板居中图标+文案；右键菜单 items 数组 + children 子菜单",
+    "target_patterns": "同左；unknown 分支从终态改为「嗅探中」瞬态 + 动作按钮；video/audio 错误面板加 hex/系统打开按钮",
+    "state_management": "preview store 增 sniffCache（Map，非持久化）+ refineUnknownType；tab.preview.type 就地更新驱动 router 切换",
+    "view_model_policy": "无新 store；嗅探缓存归属 preview store（会话级）",
+    "mvvm_suitability": "沿用现状，不适用 MVVM 改造",
+    "migration_impact": "无 UI 迁移",
+    "impact_scope": [
+      "shared/fileKinds.ts（新增，唯一注册表）",
+      "src/types/preview.ts（getPreviewType 委托 + 死代码删除）",
+      "src/utils/fileTypes.ts（类别派生）",
+      "src/utils/media.ts（委托）",
+      "src/stores/preview.ts（嗅探细化）",
+      "src/components/preview/{PreviewContentRouter,PreviewImageContent,PreviewVideoContent,PreviewAudioContent,PreviewTextContent}.vue",
+      "src/components/compare/FileDiffView.vue（语言委托）",
+      "src/components/FileList.vue（打开方式子菜单首项「默认应用」+ open-default 分发）",
+      "electron/src/ipc/channels.ts + electron/main.ts + electron/preload.ts + src/env.d.ts（shell:openDefault 四处同步）",
+      "electron/src/services/{HostShellService,ThumbnailService}.ts"
+    ],
+    "migration_confirmation": "无 UI 迁移",
+    "decision_reason": "路由咽喉已在 Router 收敛，仅替换其数据源；改动面集中且每处可独立回退"
+  },
+  "roles": [
+    {
+      "id": "R1",
+      "name": "shared/fileKinds.ts",
+      "responsibility": "扩展名注册表 + 文件名规则 + 魔数嗅探 + 语言映射 + 派生集合（IMAGE/VIDEO/SIPS）",
+      "interfaces": ["resolveFileKindDef(name, ext)", "resolveFileKind(name, ext)", "getLanguageForFile(name, ext)", "getFileCategoryFor(name, ext)", "sniffPreviewKind(bytes)", "EXTENSION_KINDS / EXACT_FILENAMES / FILENAME_PREFIXES / SIPS_IMAGE_EXTS / VIDEO_EXTS / IMAGE_EXTS / SNIFF_HEADER_BYTES"],
+      "invariants": [
+        "纯数据+纯函数，无 Node/DOM API（主/渲染进程共用）",
+        "注册表优先级：扩展名 > 精确文件名 > 前缀文件名（仅无扩展名/点文件族）",
+        "嗅探终态不返回 null 时必为 hex/text 之一（必有呈现）"
+      ],
+      "verification": "esbuild harness：kind 27 例 / 语言 8 例 / 嗅探 13 例全过"
+    },
+    {
+      "id": "R2",
+      "name": "preview store（refineUnknownType）",
+      "responsibility": "unknown 类型 tab 的异步嗅探细化：readChunk 头 8KB → sniffPreviewKind → 就地更新 tab.preview.type",
+      "interfaces": ["openPreview(file, deviceId, initialLine?, forceType?)（内部触发）"],
+      "invariants": [
+        "sniffCache 键 = deviceId|path|size|modifiedTime",
+        "仅 tab.preview.type==='unknown' 且无 forceType 时写入",
+        "读取失败兜底 hex，不抛错"
+      ],
+      "verification": "vue-tsc + 手测（未注册扩展名双击 → tab 先占位后切换）"
+    },
+    {
+      "id": "R3",
+      "name": "HostShellService.openDefault + shell:openDefault IPC",
+      "responsibility": "系统默认应用打开本地文件/目录（execFile('open', [path])）",
+      "interfaces": ["window.fileman.openDefault(path)"],
+      "invariants": ["本地绝对路径 only（调用侧 isHostShellAvailable / isLocal 门控）", "与 openWith 同构，不经 shell 拼接"],
+      "verification": "右键「打开方式 ▸ 默认应用」 Finder/关联应用拉起"
+    },
+    {
+      "id": "R4",
+      "name": "PreviewImageContent sips 路径",
+      "responsibility": "NATIVE_DECODE_EXTS（SIPS_IMAGE_EXTS 派生：heic/heif/tiff/tif/psd/tga/sgi/jp2/pict/qtif/icns + 相机 RAW）→ decodeNativeImage 转 JPEG",
+      "interfaces": ["window.fileman.decodeNativeImage(deviceId, path, { maxDim: 4096 })"],
+      "invariants": ["非 sips 格式维持 Blob 路径不变", "sips 失败进入既有错误面板"],
+      "verification": "手测 .heic/.psd 双击出图（原先必然破图）"
+    },
+    {
+      "id": "R5",
+      "name": "媒体守卫与错误面板动作",
+      "responsibility": "video/audio >200MB 拒载提示；解码失败文案指明容器支持范围；面板内「以十六进制查看 / 用系统默认应用打开(仅本地)」",
+      "interfaces": ["openAsHex()（openPreview forceType 就地切换）", "openWithSystem()"],
+      "invariants": ["按钮动作不新开 tab（path+deviceId 去重语义）"],
+      "verification": "avi 双击 → 明确报错 + 一键 hex"
+    },
+    {
+      "id": "R6",
+      "name": "文本 8MB 截断",
+      "responsibility": "PreviewTextContent >8MB 走 readChunk 载入前 8MB + 截断横幅",
+      "interfaces": ["TEXT_PREVIEW_BYTE_CAP = 8MB"],
+      "invariants": ["≤8MB 行为与原先完全一致（整读）"],
+      "verification": "大日志文件双击不再卡顿/内存暴涨"
+    }
+  ],
+  "acceptance_cases": [
+    { "id": "AC-1", "given": "xxx.cmake 双击", "then": "Monaco 文本预览（plaintext 高亮）而非 Cannot preview" },
+    { "id": "AC-2", "given": "Makefile / Dockerfile / .gitignore / .env.production / LICENSE 双击", "then": "文本预览（名称规则，原先全部占位符）" },
+    { "id": "AC-3", "given": "main.ts（TypeScript）双击", "then": "文本预览（原先误入视频播放器）" },
+    { "id": "AC-4", "given": "photo.heic / logo.psd 双击", "then": "sips 解码出图（原先破图）" },
+    { "id": "AC-5", "given": "movie.avi 双击", "then": "播放器明确报错 + 一键「以十六进制查看」/「系统打开」" },
+    { "id": "AC-6", "given": "未知扩展名/无扩展名二进制 双击", "then": "先短暂识别提示，嗅探后落 hex（永无稳态 Cannot preview）" },
+    { "id": "AC-7", "given": "server.key（PEM）双击", "then": "嗅探 → 文本；keynote 演示.key → 嗅探 → zip 浏览" },
+    { "id": "AC-8", "given": "右键本地文件 → 打开方式", "then": "首项「默认应用」恒在，其余为探测到的本地应用" },
+    { "id": "AC-9", "given": "noise.wav / playlist.m3u", "then": "分别为音频播放 / 文本（原先 wav 被分类为视频、m3u 占位符）" },
+    { "id": "AC-10", "given": ">8MB 文本文件双击", "then": "载入前 8MB + 顶部横幅提示总量" }
+  ],
+  "conflict_records": [
+    { "conflict": ".ts/.mts TypeScript vs MPEG-TS", "resolution": "TypeScript 优先（程序员工作台定位；MPEG-TS 仍可右键 hex/系统打开）" },
+    { "conflict": ".key PEM 私钥 vs Keynote", "resolution": "移出注册表，嗅探裁决（-----BEGIN→text / PK 头→zip）" },
+    { "conflict": ".cl Common Lisp vs OpenCL", "resolution": "语义相同（text/plaintext），保留 Lisp 侧单条" },
+    { "conflict": ".wav 曾被归入 video 分类集", "resolution": "注册表归 audio（图标映射 ic_wave 不受影响）" },
+    { "conflict": "UTF-16 BOM 与 MP3 帧同步魔数重叠", "resolution": "BOM 判定前置" }
+  ],
+  "open_questions": [
+    "QuickLook（空格）不接嗅探——unknown 瞬态在 overlay 中显示「正在识别+动作按钮」，后续按需接 refineUnknownType",
+    ".cr3/.jxl 等 sips 支持性未实测，暂未注册（落嗅探 hex；实测支持后加入 sips 集合即可）",
+    "mkv/avi 等容器的 ffmpeg-static 转码预览（远期，当前以明确报错+替代动作兜底）",
+    "远程设备 openDefault 不可用（系统打开仅本地；按钮按 isLocal 显隐）"
+  ]
+}
