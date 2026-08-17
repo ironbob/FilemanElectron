@@ -181,6 +181,8 @@ interface Window {
     cancelFileOperation: (taskId: string) => void
     retryFileOperation: (taskId: string) => Promise<FileOperationTask | null>
     clearFileOperationHistory: () => void
+    setFileOperationQueuePaused: (paused: boolean) => Promise<boolean>
+    getFileOperationQueuePaused: () => Promise<boolean>
 
     // File browser metadata, ZIP actions and capability-gated mobile capture
     getFileMetadata: (deviceId: string, filePath: string) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>

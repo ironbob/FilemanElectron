@@ -108,13 +108,15 @@ const zhCN = {
       toggleHidden: '显示/隐藏隐藏文件',
       toggleTheme: '切换深/浅色主题',
       openSettings: '打开设置',
-      refresh: '刷新当前目录'
+      refresh: '刷新当前目录',
+      toggleTaskDrawer: '打开/关闭任务抽屉'
     },
     group: {
       tabs: '标签页',
       view: '视图',
       appearance: '外观',
-      files: '文件'
+      files: '文件',
+      tasks: '任务'
     }
   },
   sidebar: {
@@ -148,8 +150,6 @@ const zhCN = {
     toolsAria: '应用工具',
     switchToLight: '切换到浅色模式',
     switchToDark: '切换到深色模式',
-    fileOperations: '文件操作',
-    fileOperationsActive: '文件操作，{count} 个任务进行中',
     toggleDualPane: '切换双面板',
     settings: '设置',
     connectFailed: '无法连接 {name}: {message}',
@@ -778,7 +778,90 @@ const zhCN = {
     noHistory: '暂无历史记录',
     transfersTitle: '传输',
     noActiveTransfers: '暂无进行中的传输',
-    completedCount: '{count} 已完成'
+    completedCount: '{count} 已完成',
+    /** 任务抽屉（右侧）新增段。动词形态：中文干净动词（正在{action}/已{action}）。 */
+    verb: {
+      copy: '复制',
+      move: '移动',
+      delete: '删除',
+      rename: '重命名',
+      mkdir: '创建文件夹',
+      touch: '创建文件',
+      batchRename: '批量重命名',
+      recycle: '移入废纸篓',
+      restore: '恢复'
+    },
+    drawer: {
+      title: '任务',
+      openTip: '任务 (⌘⇧T)',
+      closeTip: '关闭任务抽屉 (Esc)',
+      more: '更多操作',
+      pauseQueue: '暂停队列',
+      resumeQueue: '恢复队列',
+      queuePausedHint: '队列已暂停，当前任务完成后不再派发新任务',
+      cancelAll: '取消全部',
+      cancelAllTitle: '取消所有任务',
+      cancelAllMessage: '确定取消 {count} 个进行中的任务？已传输的部分将保留。',
+      clearHistory: '清除历史',
+      copyPath: '拷贝完整路径',
+      removeEntry: '从历史移除'
+    },
+    sentence: {
+      runningSingle: '正在{action}“{name}”',
+      runningMultiple: '正在{action} {count} 个项目',
+      doneSingle: '已{action}“{name}”',
+      doneMultiple: '已{action} {count} 个项目',
+      failedSingle: '{action}“{name}”失败',
+      failedMultiple: '{action} {count} 个项目失败',
+      cancelled: '已取消{action} {count} 个项目'
+    },
+    line: {
+      running: '{percent}% · {speed} · {eta}',
+      waiting: '等待中',
+      soon: '即将完成',
+      eta: '预计 {duration}',
+      etaUnknown: '计算中…',
+      pending: '等待开始 · 排队第 {position} 位',
+      completed: '已完成 · 用时 {duration}',
+      completedMultiple: '{count} 个项目 · 用时 {duration}',
+      items: '{done} / {total} 项',
+      cancelled: '已取消 · 已传输 {size}'
+    },
+    time: {
+      seconds: '{count} 秒',
+      minutes: '{count} 分钟',
+      hours: '{count} 小时'
+    },
+    row: {
+      cancel: '取消',
+      retry: '重试',
+      reexecute: '重新执行',
+      showInFinder: '显示于 Finder'
+    },
+    group: {
+      today: '今天',
+      yesterday: '昨天',
+      week: '过去 7 天',
+      earlier: '更早',
+      cap: '仅保留最近 100 条'
+    },
+    toast: {
+      show: '显示',
+      undo: '撤销'
+    },
+    badge: {
+      failure: '{count} 个任务失败',
+      count: '{count} 个任务进行中',
+      progress: '任务进行中 · {percent}%'
+    },
+    detail: {
+      size: '大小',
+      duration: '用时',
+      viewAll: '查看全部 {count} 项'
+    },
+    statusbar: {
+      processing: '正在{action} {count} 个项目 · {percent}%'
+    }
   },
   mobile: {
     /** 移动设备工具组件（src/components/mobile/）。 */

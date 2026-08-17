@@ -102,13 +102,15 @@ const enUS: MessageSchema = {
       toggleHidden: 'Show/Hide Hidden Files',
       toggleTheme: 'Toggle Light/Dark Theme',
       openSettings: 'Open Settings',
-      refresh: 'Refresh Current Directory'
+      refresh: 'Refresh Current Directory',
+      toggleTaskDrawer: 'Toggle Task Drawer'
     },
     group: {
       tabs: 'Tabs',
       view: 'View',
       appearance: 'Appearance',
-      files: 'Files'
+      files: 'Files',
+      tasks: 'Tasks'
     }
   },
   sidebar: {
@@ -142,8 +144,6 @@ const enUS: MessageSchema = {
     toolsAria: 'Application tools',
     switchToLight: 'Switch to Light Mode',
     switchToDark: 'Switch to Dark Mode',
-    fileOperations: 'File Operations',
-    fileOperationsActive: 'File Operations, {count} active task | File Operations, {count} active tasks',
     toggleDualPane: 'Toggle Dual Pane',
     settings: 'Settings',
     connectFailed: 'Cannot connect to {name}: {message}',
@@ -767,7 +767,90 @@ const enUS: MessageSchema = {
     noHistory: 'No history yet',
     transfersTitle: 'Transfers',
     noActiveTransfers: 'No active transfers',
-    completedCount: '{count} completed'
+    completedCount: '{count} completed',
+    /** Task drawer (right side). EN verbs are gerunds ("Copying") so sentence templates need no inflection. */
+    verb: {
+      copy: 'Copying',
+      move: 'Moving',
+      delete: 'Deleting',
+      rename: 'Renaming',
+      mkdir: 'Creating Folder',
+      touch: 'Creating File',
+      batchRename: 'Batch Renaming',
+      recycle: 'Moving to Trash',
+      restore: 'Restoring'
+    },
+    drawer: {
+      title: 'Tasks',
+      openTip: 'Tasks (⌘⇧T)',
+      closeTip: 'Close task drawer (Esc)',
+      more: 'More Actions',
+      pauseQueue: 'Pause Queue',
+      resumeQueue: 'Resume Queue',
+      queuePausedHint: 'Queue paused; no new task starts until resumed',
+      cancelAll: 'Cancel All',
+      cancelAllTitle: 'Cancel All Tasks',
+      cancelAllMessage: 'Cancel {count} active task? Partially transferred files will be kept. | Cancel {count} active tasks? Partially transferred files will be kept.',
+      clearHistory: 'Clear History',
+      copyPath: 'Copy Full Path',
+      removeEntry: 'Remove from History'
+    },
+    sentence: {
+      runningSingle: '{action} "{name}"',
+      runningMultiple: '{action} {count} item | {action} {count} items',
+      doneSingle: '{action} "{name}"',
+      doneMultiple: '{action} {count} item | {action} {count} items',
+      failedSingle: '{action} failed: "{name}"',
+      failedMultiple: '{action} failed: {count} item | {action} failed: {count} items',
+      cancelled: '{action} cancelled: {count} item | {action} cancelled: {count} items'
+    },
+    line: {
+      running: '{percent}% · {speed} · {eta}',
+      waiting: 'Waiting',
+      soon: 'Finishing…',
+      eta: '{duration} left',
+      etaUnknown: 'Estimating…',
+      pending: 'Waiting · #{position} in queue',
+      completed: 'Completed · {duration}',
+      completedMultiple: '{count} item · {duration} | {count} items · {duration}',
+      items: '{done} / {total}',
+      cancelled: 'Cancelled · {size} transferred'
+    },
+    time: {
+      seconds: '{count}s',
+      minutes: '{count}m',
+      hours: '{count}h'
+    },
+    row: {
+      cancel: 'Cancel',
+      retry: 'Retry',
+      reexecute: 'Run Again',
+      showInFinder: 'Show in Finder'
+    },
+    group: {
+      today: 'Today',
+      yesterday: 'Yesterday',
+      week: 'Previous 7 Days',
+      earlier: 'Earlier',
+      cap: 'Only the most recent 100 items are kept'
+    },
+    toast: {
+      show: 'Show',
+      undo: 'Undo'
+    },
+    badge: {
+      failure: '{count} task failed | {count} tasks failed',
+      count: '{count} task active | {count} tasks active',
+      progress: 'Tasks in progress · {percent}%'
+    },
+    detail: {
+      size: 'Size',
+      duration: 'Time',
+      viewAll: 'View all {count} item | View all {count} items'
+    },
+    statusbar: {
+      processing: '{action} {count} item · {percent}% | {action} {count} items · {percent}%'
+    }
   },
   mobile: {
     screenshot: {

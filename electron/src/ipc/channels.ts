@@ -96,6 +96,8 @@ export const CH = {
     fileOperationGetQueue: 'file-operation:getQueue',
     fileOperationGetHistory: 'file-operation:getHistory',
     fileOperationClearHistory: 'file-operation:clearHistory',
+    fileOperationSetQueuePaused: 'file-operation:setQueuePaused',
+    fileOperationGetQueuePaused: 'file-operation:getQueuePaused',
     // file-metadata:
     fileMetadataGet: 'file-metadata:get',
     fileMetadataSetTags: 'file-metadata:setTags',

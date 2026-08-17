@@ -99,6 +99,9 @@ class TransferTask implements FileOperationTask {
   startedAt?: number
   completedAt?: number
   error?: string
+  conflictStrategy?: ConflictStrategy
+  renameItems?: Array<{ sourcePath: string; newName: string }>
+  restoreItems?: Array<{ trashPath: string; originalPath: string }>
 
   constructor(params: CreateTaskParams) {
     this.id = generateTaskId()
@@ -170,6 +173,8 @@ export class FileOperationManager {
   private currentTask: TransferTask | null = null
   private isRunning = false
   private cancelled = false
+  /** 队列挂起：当前任务照常跑完，不再派发下一个 pending（抽屉「暂停队列」）。 */
+  private queuePaused = false
   private adapters: Map<string, IFileSystemAdapter> = new Map()
   private mainWindow: BrowserWindow | null = null
   private maxHistorySize = 100
@@ -219,7 +224,7 @@ export class FileOperationManager {
   }
 
   private async processQueue(): Promise<void> {
-    if (this.isRunning || this.queue.length === 0) return
+    if (this.isRunning || this.queuePaused || this.queue.length === 0) return
 
     this.isRunning = true
     this.currentTask = this.queue.shift()!
@@ -745,6 +750,17 @@ export class FileOperationManager {
 
   // ============ 队列管理 ============
 
+  /** 暂停/恢复队列派发（不中断当前任务）。恢复时若空闲则立即续跑。 */
+  setQueuePaused(paused: boolean): boolean {
+    this.queuePaused = paused
+    if (!paused) this.processQueue()
+    return this.queuePaused
+  }
+
+  isQueuePaused(): boolean {
+    return this.queuePaused
+  }
+
   cancelTask(taskId: string): void {
     if (this.currentTask?.id === taskId) {
       this.cancelled = true
@@ -774,7 +790,11 @@ export class FileOperationManager {
       sourcePaths: historyTask.sourcePaths,
       targetDeviceId: historyTask.targetDeviceId,
       targetPath: historyTask.targetPath,
-      newName: historyTask.newName
+      newName: historyTask.newName,
+      // 重建必须携带完整参数，否则 batch-rename/restore 的重试必失败
+      conflictStrategy: historyTask.conflictStrategy,
+      renameItems: historyTask.renameItems,
+      restoreItems: historyTask.restoreItems
     })
     this.history = this.history.filter(t => t.id !== taskId)
     return newTask

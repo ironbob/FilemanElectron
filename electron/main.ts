@@ -789,6 +789,14 @@ ipcMain.handle(CH.invoke.fileOperationClearHistory, async (): Promise<void> => {
   fileOperationManager.clearHistory()
 })
 
+ipcMain.handle(CH.invoke.fileOperationSetQueuePaused, async (_, paused: boolean): Promise<boolean> => {
+  return fileOperationManager.setQueuePaused(paused)
+})
+
+ipcMain.handle(CH.invoke.fileOperationGetQueuePaused, async (): Promise<boolean> => {
+  return fileOperationManager.isQueuePaused()
+})
+
 // ============ Mobile Device IPC Handlers ============
 
 /**

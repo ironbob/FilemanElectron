@@ -270,6 +270,10 @@ const filemanAPI = {
     ipcRenderer.invoke(CH.invoke.fileOperationGetHistory),
   clearFileOperationHistory: () =>
     ipcRenderer.invoke(CH.invoke.fileOperationClearHistory),
+  setFileOperationQueuePaused: (paused: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.fileOperationSetQueuePaused, paused),
+  getFileOperationQueuePaused: (): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.fileOperationGetQueuePaused),
 
   // ============ File Browser Metadata / Archive / Mobile Capture ============
   getFileMetadata: (deviceId: string, filePath: string) =>

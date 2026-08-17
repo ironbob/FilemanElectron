@@ -1,5 +1,9 @@
 <template>
-  <div class="h-screen flex flex-col bg-bg-primary finder-shell" :data-theme="theme">
+  <div
+    class="h-screen flex flex-col bg-bg-primary finder-shell"
+    :data-theme="theme"
+    :style="{ '--task-drawer-width': (fileOpsStore.isDrawerOpen ? taskDrawerWidth : 0) + 'px' }"
+  >
     <!-- Title bar: tabs share this row with the native window controls. -->
     <div class="finder-window-titlebar h-12 bg-bg-toolbar flex items-center px-4 border-b border-border app-drag overflow-visible">
       <!-- Left spacer for macOS traffic lights (native buttons via hiddenInset) -->
@@ -9,76 +13,20 @@
            标签栏本身可拖动窗口（Finder 语义）；tab 与按钮在组件内标记 app-no-drag。 -->
       <AppTabBar class="flex-1 min-w-0" />
 
-      <!-- Global actions moved to the fixed sidebar utility area. -->
-      <div v-if="false" class="flex items-center gap-1.5 app-no-drag bg-bg-secondary/30 rounded-lg p-0.5 overflow-visible">
-        <button
-          class="toolbar-btn-enhanced"
-          @click="toggleTheme"
-          :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-          :aria-label="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-        >
-          <!-- Sun icon for dark mode -->
-          <svg v-if="theme === 'dark'" class="w-4 h-4 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-          <!-- Moon icon for light mode -->
-          <svg v-else class="w-4 h-4 text-accent-indigo" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-          </svg>
-        </button>
-        <button
-          class="toolbar-btn-enhanced"
-          @click="fileOpsStore.togglePanel()"
-          :class="{ 'active': fileOpsStore.isPanelVisible }"
-          title="File Operations"
-          aria-label="File Operations"
-        >
-          <svg class="w-4 h-4" :class="fileOpsStore.isPanelVisible ? 'text-accent-blue' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-        </button>
-
-        <button
-          class="toolbar-btn-enhanced"
-          :class="{ active: activePanes.length === 2 }"
-          :disabled="!!activeTab?.compareSession || !!activeTab?.fileDiffSession"
-          @click="tabsStore.toggleActiveSplit()"
-          title="Toggle Dual Pane"
-          aria-label="Toggle Dual Pane"
-        >
-          <svg class="w-4 h-4" :class="activePanes.length === 2 ? 'text-accent-blue' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 012-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-          </svg>
-        </button>
-        
-        <!-- Settings Button -->
-        <button
-          class="toolbar-btn-enhanced"
-          @click="showSettingsDialog = true"
-          title="Settings"
-          aria-label="Settings"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
-      </div>
+      <!-- 任务抽屉唯一入口：Badge 三态（进度环/数字/红数字） -->
+      <TaskTitlebarButton class="app-no-drag" />
     </div>
 
-    <!-- Main Content -->
-    <div class="flex-1 flex overflow-hidden">
+    <!-- Main Content（relative：窄窗时任务抽屉 overlay 模式的定位锚） -->
+    <div ref="mainRowRef" class="flex-1 flex overflow-hidden relative">
       <!-- Sidebar -->
       <AppSidebar
         class="flex-shrink-0 overflow-hidden"
         :style="{ width: sidebarWidth + 'px' }"
         :theme="theme"
-        :is-file-operations-visible="fileOpsStore.isPanelVisible"
-        :active-task-count="fileOpsStore.activeTaskCount"
         :is-dual-pane-active="activePanes.length === 2"
         :is-split-toggle-disabled="!!activeTab?.compareSession || !!activeTab?.fileDiffSession"
         @toggle-theme="toggleTheme"
-        @toggle-file-operations="fileOpsStore.togglePanel()"
         @toggle-dual-pane="tabsStore.toggleActiveSplit()"
         @open-settings="showSettingsDialog = true"
       />
@@ -162,7 +110,42 @@
         <!-- Quick Look overlay (space-key transient preview; single file, ↑↓ to step) -->
         <QuickLookOverlay />
       </div>
+
+      <!-- 抽屉拖拽把手（抽屉左缘；方向与侧边栏相反：向左拖变宽，双击复位） -->
+      <div
+        v-if="fileOpsStore.isDrawerOpen && !taskDrawerOverlay"
+        class="w-1 bg-border hover:bg-accent-blue cursor-col-resize flex-shrink-0 transition-colors"
+        :class="{ 'bg-accent-blue': isTaskDrawerResizing }"
+        title="Drag to resize task drawer"
+        data-testid="task-drawer-resize-handle"
+        @mousedown="startTaskDrawerResize"
+        @dblclick="resetTaskDrawerWidth"
+      ></div>
+
+      <!-- 任务抽屉（push 模式）：常挂载宽度动画容器，内容 v-if 控制挂载，
+           使 Esc 拦截器（useKeyInterceptor）仅在打开时注册。
+           窄窗（taskDrawerOverlay）时切 absolute 覆盖 + 投影，panes 保持全宽。 -->
+      <div
+        v-if="!taskDrawerOverlay"
+        class="h-full min-h-0 flex-shrink-0 overflow-hidden task-drawer-wrap"
+        :style="{ width: (fileOpsStore.isDrawerOpen ? taskDrawerWidth : 0) + 'px' }"
+      >
+        <TaskDrawer
+          v-if="fileOpsStore.isDrawerOpen"
+          :style="{ width: taskDrawerWidth + 'px' }"
+          @locate="handleTaskEndpointLocate"
+        />
+      </div>
+      <TaskDrawer
+        v-else-if="fileOpsStore.isDrawerOpen"
+        overlay
+        :style="{ width: taskDrawerWidth + 'px' }"
+        @locate="handleTaskEndpointLocate"
+      />
     </div>
+
+    <!-- 完成通知（右上角轻量横幅；绝不自动展开抽屉） -->
+    <TaskToastLayer />
 
     <!-- 移动设备截图结果浮层(全窗口覆盖,不随内容区裁剪;Esc 关闭,保存走原生另存为) -->
     <ScreenshotOverlay />
@@ -180,13 +163,6 @@
         </span>
       </div>
     </div>
-
-    <!-- File Operation Panel -->
-    <FileOperationPanel
-      :visible="fileOpsStore.isPanelVisible"
-      @close="fileOpsStore.hidePanel()"
-      @locate="handleTaskEndpointLocate"
-    />
 
     <!-- Settings Dialog -->
     <SettingsDialog
@@ -209,7 +185,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AppTabBar from './components/AppTabBar.vue'
 import FilePane from './components/FilePane.vue'
-import FileOperationPanel from './components/FileOperationPanel.vue'
+import TaskTitlebarButton from './components/tasks/TaskTitlebarButton.vue'
+import TaskDrawer from './components/tasks/TaskDrawer.vue'
+import TaskToastLayer from './components/tasks/TaskToastLayer.vue'
 import PreviewView from './components/preview/PreviewView.vue'
 import QuickLookOverlay from './components/preview/QuickLookOverlay.vue'
 import ScreenshotOverlay from './components/mobile/ScreenshotOverlay.vue'
@@ -231,7 +209,7 @@ import { useGitStatusStore } from './stores/gitStatus'
 import { useDragSessionStore } from './stores/dragSession'
 import { getParentPath } from './utils/path'
 import { resolveInitialTheme, persistTheme } from './utils/theme'
-import { isAppLocale, LOCALE_STORAGE_KEY, setLocale } from './i18n'
+import { isAppLocale, LOCALE_STORAGE_KEY, setLocale, t } from './i18n'
 import { isZipVirtualPath } from '@shared/zipPath'
 import {
   extractDragSource,
@@ -265,6 +243,20 @@ const SIDEBAR_WIDTH_KEY = 'fileman-finder-sidebar-width'
 const sidebarWidth = ref(SIDEBAR_DEFAULT_WIDTH)
 const isSidebarResizing = ref(false)
 
+// 任务抽屉宽度（照抄 sidebar 的 localStorage 持久化模式）
+const TASK_DRAWER_DEFAULT_WIDTH = 340
+const TASK_DRAWER_MIN_WIDTH = 280
+const TASK_DRAWER_MAX_WIDTH = 440
+const TASK_DRAWER_WIDTH_KEY = 'fileman-task-drawer-width'
+const taskDrawerWidth = ref(TASK_DRAWER_DEFAULT_WIDTH)
+const isTaskDrawerResizing = ref(false)
+
+// 窄窗 overlay 降级判定：观察主内容行总宽（不随抽屉开合变化，无反馈振荡），
+// 侧边栏 + 抽屉挤掉 panes 最小内容宽度时切覆盖模式。
+const mainRowRef = ref<HTMLElement | null>(null)
+const mainRowWidth = ref(Number.MAX_SAFE_INTEGER)
+let mainRowObserver: ResizeObserver | null = null
+
 // Load theme from storage
 onMounted(() => {
   theme.value = resolveInitialTheme()
@@ -292,6 +284,20 @@ onMounted(() => {
   const savedSidebarWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
   if (savedSidebarWidth >= SIDEBAR_MIN_WIDTH) {
     sidebarWidth.value = Math.min(SIDEBAR_MAX_WIDTH, savedSidebarWidth)
+  }
+
+  // Restore task drawer width
+  const savedDrawerWidth = Number(localStorage.getItem(TASK_DRAWER_WIDTH_KEY))
+  if (savedDrawerWidth >= TASK_DRAWER_MIN_WIDTH) {
+    taskDrawerWidth.value = Math.min(TASK_DRAWER_MAX_WIDTH, savedDrawerWidth)
+  }
+
+  // 窄窗 overlay 降级：观察主内容行宽（不随抽屉开合变化）
+  if (mainRowRef.value) {
+    mainRowObserver = new ResizeObserver(entries => {
+      for (const entry of entries) mainRowWidth.value = entry.contentRect.width
+    })
+    mainRowObserver.observe(mainRowRef.value)
   }
 
   // 拖拽会话防陈旧清理：应用内任何新拖拽必先经过 pointerdown；
@@ -335,6 +341,8 @@ onUnmounted(() => {
   window.removeEventListener('dragend', clearDragSession, true)
   window.removeEventListener('drop', clearDragSession)
   document.removeEventListener('dragleave', convertToNativeDragOnWindowExit)
+  mainRowObserver?.disconnect()
+  mainRowObserver = null
 })
 
 function toggleTheme() {
@@ -369,6 +377,12 @@ useKeyInterceptor(event => {
   if (!event.shiftKey && lower === 't') {
     event.preventDefault()
     tabsStore.newTabFromActiveContext()
+    return true
+  }
+  // ⌘⇧T：任务抽屉开关（⌘T 已被"新建标签页"占用）
+  if (event.shiftKey && lower === 't') {
+    event.preventDefault()
+    fileOpsStore.toggleDrawer()
     return true
   }
   if (!event.shiftKey && lower === 'w') {
@@ -480,6 +494,12 @@ function seedBuiltinCommands(): void {
       titleKey: 'palette.cmd.refresh', groupKey: 'palette.group.files',
       keywords: ['refresh', 'reload'],
       run: () => { window.dispatchEvent(new CustomEvent('fileman:refresh-active-pane')) }
+    },
+    {
+      id: 'app.toggle-task-drawer', title: '打开/关闭任务抽屉', group: '任务', shortcut: '⌘⇧T',
+      titleKey: 'palette.cmd.toggleTaskDrawer', groupKey: 'palette.group.tasks',
+      keywords: ['tasks', 'transfers', 'drawer'],
+      run: () => { fileOpsStore.toggleDrawer() }
     }
   ])
 }
@@ -510,6 +530,42 @@ function startSidebarResize(event: MouseEvent) {
   document.addEventListener('mouseup', onMouseUp)
 }
 
+// 任务抽屉宽度拖拽（与侧边栏同模式，方向相反：向左拖 clientX 减小 = 变宽）
+function startTaskDrawerResize(event: MouseEvent) {
+  isTaskDrawerResizing.value = true
+  event.preventDefault()
+
+  const startX = event.clientX
+  const startWidth = taskDrawerWidth.value
+
+  function onMouseMove(e: MouseEvent) {
+    if (!isTaskDrawerResizing.value) return
+    const diff = startX - e.clientX
+    taskDrawerWidth.value = Math.max(TASK_DRAWER_MIN_WIDTH, Math.min(TASK_DRAWER_MAX_WIDTH, startWidth + diff))
+  }
+
+  function onMouseUp() {
+    isTaskDrawerResizing.value = false
+    localStorage.setItem(TASK_DRAWER_WIDTH_KEY, String(taskDrawerWidth.value))
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+function resetTaskDrawerWidth() {
+  taskDrawerWidth.value = TASK_DRAWER_DEFAULT_WIDTH
+  localStorage.setItem(TASK_DRAWER_WIDTH_KEY, String(taskDrawerWidth.value))
+}
+
+/** 窄窗降级：panes 剩余宽度低于内容最小值（双面板 640 / 单面板 360）时 overlay。 */
+const taskDrawerOverlay = computed(() => {
+  const minPanesWidth = activePanes.value.length === 2 ? 640 : 360
+  return mainRowWidth.value - sidebarWidth.value - taskDrawerWidth.value < minPanesWidth
+})
+
 const activeTab = computed(() => tabsStore.activeTab)
 
 const activePanes = computed(() => {
@@ -530,9 +586,14 @@ const statusText = computed(() => {
     return `${selectedCount} item${selectedCount > 1 ? 's' : ''} selected`
   }
 
-  const activeCount = fileOpsStore.activeTaskCount
-  if (activeCount > 0) {
-    return `Processing ${activeCount} task${activeCount > 1 ? 's' : ''}...`
+  // 任务聚合行：仅抽屉关闭时显示（打开时信息已在场）
+  const summary = fileOpsStore.statusSummary
+  if (summary && !fileOpsStore.isDrawerOpen) {
+    return t('tasks.statusbar.processing', {
+      action: t(summary.verbKey),
+      count: summary.count,
+      percent: summary.percent
+    })
   }
 
   return 'Ready'
@@ -728,4 +789,10 @@ onUnmounted(() => {
 <style scoped>
 /* macOS traffic light positioning */
 /* .app-drag / .app-no-drag 已移至 style.css 全局定义 */
+
+/* 任务抽屉 push 模式的宽度动画容器（macOS 标准材质曲线）。
+   内容固定像素宽 + overflow hidden，随容器宽度伸缩实现滑入/滑出。 */
+.task-drawer-wrap {
+  transition: width 220ms cubic-bezier(0.2, 0, 0, 1);
+}
 </style>

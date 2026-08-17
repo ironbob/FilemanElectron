@@ -255,20 +255,6 @@
       >
         <component :is="theme === 'dark' ? SunIcon : MoonIcon" class="w-4 h-4" :class="theme === 'dark' ? 'text-accent-orange' : 'text-accent-indigo'" />
       </button>
-      <button
-        class="sidebar-utility-button relative"
-        :class="{ active: isFileOperationsVisible }"
-        @click="emit('toggle-file-operations')"
-        :title="$t('sidebar.fileOperations')"
-        :aria-label="activeTaskCount > 0 ? $t('sidebar.fileOperationsActive', activeTaskCount) : $t('sidebar.fileOperations')"
-      >
-        <component :is="TransferIcon" class="w-4 h-4" />
-        <span
-          v-if="activeTaskCount > 0"
-          class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 font-semibold text-center ring-2 ring-bg-sidebar"
-          aria-hidden="true"
-        >{{ activeTaskCount }}</span>
-      </button>
       <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" :title="$t('sidebar.toggleDualPane')" :aria-label="$t('sidebar.toggleDualPane')">
         <component :is="DualPaneIcon" class="w-4 h-4" />
       </button>
@@ -297,7 +283,7 @@ import DeviceDialog from './dialogs/DeviceDialog.vue'
 import {
   HomeIcon, DesktopIcon, DocumentIcon, DownloadIcon, ApplicationIcon, BookmarkIcon,
   LocalIcon, AndroidIcon, SmbIcon, SshIcon, WebDavIcon, IosIcon, VolumeDriveIcon,
-  SunIcon, MoonIcon, TransferIcon, DualPaneIcon, SettingsIcon, CameraIcon, OhosIcon
+  SunIcon, MoonIcon, DualPaneIcon, SettingsIcon, CameraIcon, OhosIcon
 } from './icons/sidebarIcons'
 import { useDeviceScreenshot } from '@/composables/useDeviceScreenshot'
 import { t } from '@/i18n'
@@ -313,15 +299,12 @@ const favoritesStore = useFavoritesStore()
 
 defineProps<{
   theme: 'light' | 'dark'
-  isFileOperationsVisible: boolean
-  activeTaskCount: number
   isDualPaneActive: boolean
   isSplitToggleDisabled: boolean
 }>()
 
 const emit = defineEmits<{
   'toggle-theme': []
-  'toggle-file-operations': []
   'toggle-dual-pane': []
   'open-settings': []
 }>()
