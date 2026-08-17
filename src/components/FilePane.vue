@@ -154,6 +154,16 @@
         </FinderToolbarButton>
       </FinderToolbarGroup>
 
+      <!-- Dual Pane Toggle：开启=克隆当前路径出第二面板；已开启（蓝激活态）=点击收起 -->
+      <FinderToolbarButton
+        class="file-pane-toolbar-split flex-shrink-0"
+        :active="isDualPane"
+        :label="isDualPane ? $t('filePane.toolbar.closeDualPane') : $t('filePane.toolbar.openDualPane')"
+        @click="toggleDualPane"
+      >
+        <DualPaneIcon class="w-4 h-4" />
+      </FinderToolbarButton>
+
       <FinderToolbarButton
         class="file-pane-toolbar-optional flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
@@ -363,6 +373,7 @@ import { useDevicesStore } from '@/stores/devices'
 import { useFileBrowserStore } from '@/stores/fileBrowser'
 import FileList from './FileList.vue'
 import InlinePreview from './preview/InlinePreview.vue'
+import { DualPaneIcon } from './icons/sidebarIcons'
 import RenameDialog from './dialogs/RenameDialog.vue'
 import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
@@ -398,6 +409,15 @@ const browserState = computed(() => browserStore.stateFor(props.paneId))
 const currentDevice = computed(() => devicesStore.devices.find(device => device.id === pane.value?.deviceId))
 const currentDeviceName = computed(() => currentDevice.value?.name || pane.value?.deviceId || t('devices.localName'))
 const canCaptureScreenshot = computed(() => ['android', 'ohos', 'ios'].includes(currentDevice.value?.type ?? ''))
+
+// 本面板所属标签是否已开启双面板（按 paneId 反查所属标签，不依赖「只渲染活动标签」的现状）
+const ownerTab = computed(() => tabsStore.tabs.find(tab => tab.panes.some(p => p.id === props.paneId)))
+const isDualPane = computed(() => (ownerTab.value?.panes.length ?? 0) === 2)
+
+/** 工具栏双面板切换：开=以本面板当前路径克隆出第二面板；关=收起第二面板。 */
+function toggleDualPane() {
+  tabsStore.toggleActiveSplit(props.paneId)
+}
 
 const searchQuery = ref('')
 // ── 搜索历史下拉 ─────────────────────────────────────────────────────────────

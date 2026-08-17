@@ -298,19 +298,21 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  /** Toggles a second directory pane for the active regular tab. */
-  function toggleActiveSplit(): boolean {
+  /** Toggles a second directory pane for the active regular tab.
+   *  fromPaneId：打开时以该面板（须属于活动标签）的设备与路径克隆出第二面板；
+   *  省略时回退 panes[0]（命令面板等无面板上下文的调用方）。 */
+  function toggleActiveSplit(fromPaneId?: string): boolean {
     const tab = activeTab.value
     if (!tab || tab.compareSession || tab.fileDiffSession || tab.panes.length < 1 || tab.panes.length > 2) {
       return false
     }
 
     if (tab.panes.length === 1) {
-      const sourcePane = tab.panes[0]
-      const secondPane = createDefaultPane('/', sourcePane.deviceId)
+      const sourcePane = tab.panes.find(p => p.id === fromPaneId) ?? tab.panes[0]
+      const secondPane = createDefaultPane(sourcePane.path, sourcePane.deviceId)
       tab.panes.push(secondPane)
       tab.activePaneId = secondPane.id
-      log.info('[TabsStore] opened dual-pane workspace', { tabId: tab.id, deviceId: sourcePane.deviceId })
+      log.info('[TabsStore] opened dual-pane workspace', { tabId: tab.id, deviceId: sourcePane.deviceId, path: sourcePane.path })
       return true
     }
 

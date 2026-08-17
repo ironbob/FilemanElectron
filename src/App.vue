@@ -24,10 +24,7 @@
         class="flex-shrink-0 overflow-hidden"
         :style="{ width: sidebarWidth + 'px' }"
         :theme="theme"
-        :is-dual-pane-active="activePanes.length === 2"
-        :is-split-toggle-disabled="!!activeTab?.compareSession || !!activeTab?.fileDiffSession"
         @toggle-theme="toggleTheme"
-        @toggle-dual-pane="tabsStore.toggleActiveSplit()"
         @open-settings="showSettingsDialog = true"
       />
 

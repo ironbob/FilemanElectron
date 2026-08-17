@@ -490,6 +490,6 @@ test('窄窗双面板下抽屉降级为 overlay 覆盖（panes 宽度不变）',
   expect(Math.abs(paneBoxAfter!.width - paneBoxBefore!.width)).toBeLessThan(2)
 })
 
-test('侧边栏旧任务入口已移除（工具区仅 3 个按钮）', async ({ page }) => {
-  await expect(page.locator('.sidebar-utility-bar .sidebar-utility-button')).toHaveCount(3)
+test('侧边栏旧任务入口已移除（工具区仅 2 个按钮）', async ({ page }) => {
+  await expect(page.locator('.sidebar-utility-bar .sidebar-utility-button')).toHaveCount(2)
 })

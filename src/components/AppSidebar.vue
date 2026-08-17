@@ -255,9 +255,6 @@
       >
         <component :is="theme === 'dark' ? SunIcon : MoonIcon" class="w-4 h-4" :class="theme === 'dark' ? 'text-accent-orange' : 'text-accent-indigo'" />
       </button>
-      <button class="sidebar-utility-button" :class="{ active: isDualPaneActive }" :disabled="isSplitToggleDisabled" @click="emit('toggle-dual-pane')" :title="$t('sidebar.toggleDualPane')" :aria-label="$t('sidebar.toggleDualPane')">
-        <component :is="DualPaneIcon" class="w-4 h-4" />
-      </button>
       <button class="sidebar-utility-button" @click="emit('open-settings')" :title="$t('sidebar.settings')" :aria-label="$t('sidebar.settings')">
         <component :is="SettingsIcon" class="w-4 h-4" />
       </button>
@@ -283,7 +280,7 @@ import DeviceDialog from './dialogs/DeviceDialog.vue'
 import {
   HomeIcon, DesktopIcon, DocumentIcon, DownloadIcon, ApplicationIcon, BookmarkIcon,
   LocalIcon, AndroidIcon, SmbIcon, SshIcon, WebDavIcon, IosIcon, VolumeDriveIcon,
-  SunIcon, MoonIcon, DualPaneIcon, SettingsIcon, CameraIcon, OhosIcon
+  SunIcon, MoonIcon, SettingsIcon, CameraIcon, OhosIcon
 } from './icons/sidebarIcons'
 import { useDeviceScreenshot } from '@/composables/useDeviceScreenshot'
 import { t } from '@/i18n'
@@ -299,13 +296,10 @@ const favoritesStore = useFavoritesStore()
 
 defineProps<{
   theme: 'light' | 'dark'
-  isDualPaneActive: boolean
-  isSplitToggleDisabled: boolean
 }>()
 
 const emit = defineEmits<{
   'toggle-theme': []
-  'toggle-dual-pane': []
   'open-settings': []
 }>()
 
