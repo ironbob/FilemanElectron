@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Tab, Pane, DirCompareSession, FileDiffSession, FileInfo, CompareStatus, DuplicateSession, GrepSession, SpaceSession } from '@/types'
+import type { Tab, Pane, DirCompareSession, FileDiffSession, FileInfo, CompareStatus, DuplicateSession, GrepSession, SpaceSession, PaneLoadError } from '@/types'
 import { isZipVirtualPath, zipVirtualParent } from '@shared/zipPath'
 
 const log = console
@@ -72,7 +72,9 @@ function saveToStorage(state: PersistedTabState) {
         ...tab,
         panes: tab.panes.map(pane => ({
           ...pane,
-          selectedFiles: []
+          selectedFiles: [],
+          // loadError 是瞬态加载状态，重启后由 FileList 重新判定
+          loadError: null
         }))
       }))
     }
@@ -373,6 +375,13 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  /** 设置面板目录加载错误状态（FileList 判定写入；null 清除）。tab 栏据此打 ⚠。 */
+  function setPaneLoadError(paneId: string, error: PaneLoadError | null) {
+    const pane = findPane(paneId)
+    if (!pane) return
+    pane.loadError = error
+  }
+
   function goBack(paneId: string) {
     const pane = findPane(paneId)
     if (!pane || pane.historyIndex <= 0) return
@@ -626,6 +635,7 @@ export const useTabsStore = defineStore('tabs', () => {
     openPathInNewTab,
     openPathInSplitTab,
     navigatePane,
+    setPaneLoadError,
     goBack,
     goForward,
     goUp,

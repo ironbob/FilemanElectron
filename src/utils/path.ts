@@ -10,6 +10,7 @@
  */
 
 import { t } from '@/i18n'
+import { isZipVirtualPath, zipVirtualParent } from '@shared/zipPath'
 
 /**
  * Convert deviceId + path to URI format for display
@@ -102,6 +103,16 @@ export function getParentPath(path: string): string {
   }
   parts.pop()
   return parts.length === 0 ? '/' : '/' + parts.join('/')
+}
+
+/**
+ * 面板路径的「上一级」（goUp 语义，ZIP 虚拟路径感知）：
+ * - 普通路径 → getParentPath（'/' 自身兜底 '/'，终止条件 paneParentPath(p) === p）
+ * - ZIP 虚拟路径（"<zip>::<inner>"）→ zipVirtualParent（inner 非根去末段，
+ *   已在 ZIP 根则退到 ZIP 文件所在的文件系统父目录）
+ */
+export function paneParentPath(p: string): string {
+  return isZipVirtualPath(p) ? zipVirtualParent(p) : getParentPath(p)
 }
 
 /**

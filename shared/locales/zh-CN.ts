@@ -227,6 +227,13 @@ const zhCN = {
   fileList: {
     loading: '加载中…',
     emptyFolder: '该文件夹为空',
+    loadError: {
+      missingTitle: '文件夹已不存在',
+      missingHint: '该文件夹可能已被移动、重命名或删除：{path}',
+      failedTitle: '无法加载文件夹',
+      retry: '重试',
+      goParent: '转到上级文件夹'
+    },
     columns: {
       name: '名称',
       dateModified: '修改日期',
@@ -294,7 +301,8 @@ const zhCN = {
       copyPathName: '文件名',
       copyPathRelative: '相对另一面板',
       openWith: '打开方式',
-      openWithDefault: '默认应用'
+      openWithDefault: '默认应用',
+      openWithDefaultSuffix: '（默认）'
     },
     confirmDelete: '删除 {count} 项？'
   },

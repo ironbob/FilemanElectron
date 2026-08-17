@@ -172,7 +172,9 @@ interface Window {
       targetDeviceId: string,
       targetPath: string
     ) => Promise<FileOperationTask>
-    startNativeDrag: (sourcePaths: string[]) => void
+    startNativeDrag: (sourcePaths: string[], iconDataUrl?: string) => void
+    /** 真实 preload 桥接才为 true；e2e mock（Proxy 兜底返回函数）必须 === true 严格判定。 */
+    supportsNativeDrag: boolean
 
     // File Operations Queue
     getFileOperationQueue: () => Promise<FileOperationTask[]>
@@ -207,8 +209,9 @@ interface Window {
     // Open a local file/directory with a chosen app (macOS: open -a).
     openWith: (appPath: string, targetPath: string) => Promise<void>
     openDefault: (path: string) => Promise<void>
-    // Detect installed developer apps (VS Code / iTerm2 / …; memoized in main).
-    detectOpenWithApps: () => Promise<OpenWithApp[]>
+    // Apps registered in LaunchServices as able to open the target file
+    // (macOS only; memoized per extension in main; default app flagged).
+    getOpenWithApps: (targetPath: string) => Promise<OpenWithApp[]>
 
     // Events
     onDeviceChange: (callback: (devices: Device[]) => void) => () => void

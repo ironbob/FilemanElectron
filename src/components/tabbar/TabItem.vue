@@ -25,6 +25,17 @@
       :class="active && icon === 'folder' ? 'text-accent-blue' : 'text-text-secondary'"
     />
 
+    <!-- 目录失效标记（pane.loadError）：常驻显示，hover 不让位（与脏点不同，
+         错误需要持续可见）；pinned 紧凑态改走角标 -->
+    <svg
+      v-if="error && !tab.pinned"
+      class="tab-error-icon w-3 h-3 shrink-0 text-accent-red"
+      :title="$t('fileList.loadError.missingTitle')"
+      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+
     <template v-if="!tab.pinned">
       <!-- 别名重命名（本地显示名，Enter/失焦保存，Esc 取消；绝不改磁盘文件） -->
       <input
@@ -68,8 +79,13 @@
       </span>
     </template>
 
-    <!-- pinned 紧凑态：脏点角标 -->
+    <!-- pinned 紧凑态：脏点角标 + 目录失效角标 -->
     <span v-if="tab.pinned && dirty" class="tab-dirty-dot tab-dirty-badge" />
+    <span v-if="tab.pinned && error" class="tab-error-badge" :title="$t('fileList.loadError.missingTitle')">
+      <svg class="tab-error-icon w-3 h-3 text-accent-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+    </span>
   </div>
 </template>
 
@@ -90,6 +106,8 @@ const props = defineProps<{
   tab: Tab
   active: boolean
   dirty: boolean
+  /** 目录失效（任一 pane.loadError 非空）→ ⚠ 标记。 */
+  error: boolean
   /** 唯一标签不可关（never-empty 规则）。 */
   closable: boolean
   label: TabLabel
@@ -215,6 +233,14 @@ const hovered = ref(false)
   position: absolute;
   top: 3px;
   right: 3px;
+}
+
+.tab-error-badge {
+  @apply flex items-center justify-center;
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: none;
 }
 
 .tab-rename-input {

@@ -281,13 +281,14 @@ export interface WatchChangeEvent {
   dirPath: string
 }
 
-// ============ Open-With (宿主开发者应用) ============
+// ============ Open-With (LaunchServices 适用应用) ============
 
-/** 探测到的「打开方式」开发者应用（HostShellService.detectDevApps 产物）。 */
+/** 「打开方式」候选应用（HostShellService.getOpenWithApps 产物，按目标文件查询）。 */
 export interface OpenWithApp {
-  id: string          // 稳定标识（bundle 目录名）
-  name: string        // 展示名
+  id: string          // 稳定标识（.app 包绝对路径）
+  name: string        // 展示名（bundle 目录名去掉 .app）
   bundlePath: string  // .app 包绝对路径
+  isDefault?: boolean // 是否为该文件类型的系统默认应用（排序置顶）
 }
 
 // ============ Git Status (只读徽标, 仅本地) ============

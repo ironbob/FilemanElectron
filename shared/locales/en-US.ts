@@ -221,6 +221,13 @@ const enUS: MessageSchema = {
   fileList: {
     loading: 'Loading...',
     emptyFolder: 'This folder is empty',
+    loadError: {
+      missingTitle: 'Folder no longer exists',
+      missingHint: 'It may have been moved, renamed, or deleted: {path}',
+      failedTitle: 'Could not load folder',
+      retry: 'Retry',
+      goParent: 'Go to Parent Folder'
+    },
     columns: {
       name: 'Name',
       dateModified: 'Date Modified',
@@ -288,7 +295,8 @@ const enUS: MessageSchema = {
       copyPathName: 'File Name',
       copyPathRelative: 'Relative to Other Pane',
       openWith: 'Open With',
-      openWithDefault: 'Default Application'
+      openWithDefault: 'Default Application',
+      openWithDefaultSuffix: ' (default)'
     },
     confirmDelete: 'Delete {count} item? | Delete {count} items?'
   },

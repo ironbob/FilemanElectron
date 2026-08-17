@@ -324,7 +324,7 @@ const zhCN = {
       clearHistory: "清除搜索历史",
       clear: "清除",
       recursiveSearch: "递归搜索",
-      copyPaths: "复制所选路径用于分享",
+      copyCurrentPath: "复制当前目录路径",
       editTags: "编辑所选条目标签",
       inlinePreviewTip: "切换内联预览（单击即预览）",
       inlinePreview: "切换内联预览",
@@ -377,6 +377,13 @@ const zhCN = {
   fileList: {
     loading: "加载中…",
     emptyFolder: "该文件夹为空",
+    loadError: {
+      missingTitle: "文件夹已不存在",
+      missingHint: "该文件夹可能已被移动、重命名或删除：{path}",
+      failedTitle: "无法加载文件夹",
+      retry: "重试",
+      goParent: "转到上级文件夹"
+    },
     columns: {
       name: "名称",
       dateModified: "修改日期",
@@ -1737,7 +1744,7 @@ const enUS = {
       clearHistory: "Clear search history",
       clear: "Clear",
       recursiveSearch: "Search recursively",
-      copyPaths: "Copy selected paths for sharing",
+      copyCurrentPath: "Copy current folder path",
       editTags: "Edit selected item tags",
       inlinePreviewTip: "Toggle inline preview (single-click preview)",
       inlinePreview: "Toggle inline preview",
@@ -1790,6 +1797,13 @@ const enUS = {
   fileList: {
     loading: "Loading...",
     emptyFolder: "This folder is empty",
+    loadError: {
+      missingTitle: "Folder no longer exists",
+      missingHint: "It may have been moved, renamed, or deleted: {path}",
+      failedTitle: "Could not load folder",
+      retry: "Retry",
+      goParent: "Go to Parent Folder"
+    },
     columns: {
       name: "Name",
       dateModified: "Date Modified",
@@ -8903,6 +8917,7 @@ class WatchService {
           watcher.close();
         } catch {
         }
+        this.options.emit({ deviceId, dirPath });
         if (this.localWatches.get(WatchService.key(deviceId, dirPath)) === entry) {
           this.localWatches.delete(WatchService.key(deviceId, dirPath));
           this.refCounts.delete(WatchService.key(deviceId, dirPath));
@@ -8912,6 +8927,8 @@ class WatchService {
       log$9.info("[WatchService] local watch started", { deviceId, dirPath });
     } catch (error) {
       log$9.warn("[WatchService] local watch failed to start", { dirPath, message: error instanceof Error ? error.message : String(error) });
+      this.refCounts.delete(WatchService.key(deviceId, dirPath));
+      this.options.emit({ deviceId, dirPath });
     }
   }
   /** 事件风暴合并：窗口内首个事件起 300ms 后统一推送一次。 */
@@ -8967,9 +8984,13 @@ class WatchService {
           consecutiveFailures: entry.consecutiveFailures,
           message: error instanceof Error ? error.message : String(error)
         });
+        if (entry.consecutiveFailures === 1) {
+          this.options.emit({ deviceId: entry.deviceId, dirPath: entry.dirPath });
+        }
         if (entry.consecutiveFailures >= MAX_REMOTE_CONSECUTIVE_FAILURES) {
           this.remoteWatches.delete(WatchService.key(entry.deviceId, entry.dirPath));
           this.refCounts.delete(WatchService.key(entry.deviceId, entry.dirPath));
+          this.options.emit({ deviceId: entry.deviceId, dirPath: entry.dirPath });
           log$9.warn("[WatchService] remote watch dropped after repeated failures", { deviceId: entry.deviceId, dirPath: entry.dirPath });
         }
       } finally {
@@ -10622,7 +10643,7 @@ ipcMain.handle(CH.invoke.fsImportExternal, async (_, sourcePaths, targetDeviceId
 const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLvkAAAAABJRU5ErkJggg=="
 );
-ipcMain.on(CH.send.dragStartNative, (event, sourcePaths) => {
+ipcMain.on(CH.send.dragStartNative, (event, sourcePaths, iconDataUrl) => {
   if (!Array.isArray(sourcePaths)) {
     console.warn("[DnD][main] dragStartNative rejected: payload is not an array", { sourcePaths });
     return;
@@ -10636,9 +10657,11 @@ ipcMain.on(CH.send.dragStartNative, (event, sourcePaths) => {
     rejected: sourcePaths.filter((p) => !files.includes(p))
   });
   if (files.length === 0) return;
+  const customIcon = typeof iconDataUrl === "string" && iconDataUrl.startsWith("data:image/") ? nativeImage.createFromDataURL(iconDataUrl) : nativeImage.createEmpty();
+  const icon = customIcon.isEmpty() ? NATIVE_DRAG_ICON : customIcon;
   try {
-    event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON });
-    console.info("[DnD][main] startDrag invoked", { fileCount: files.length });
+    event.sender.startDrag({ files, icon });
+    console.info("[DnD][main] startDrag invoked", { fileCount: files.length, customIcon: !customIcon.isEmpty() });
   } catch (error) {
     console.error("[DnD][main] startDrag failed", { files, error });
   }

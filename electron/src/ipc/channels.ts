@@ -28,7 +28,7 @@ export const CH = {
     shellOpenInTerminal: 'shell:openInTerminal',
     shellOpenWith: 'shell:openWith',
     shellOpenDefault: 'shell:openDefault',
-    shellDetectOpenWithApps: 'shell:detectOpenWithApps',
+    shellGetOpenWithApps: 'shell:getOpenWithApps',
     // git (只读徽标):
     gitStatus: 'git:status',
     // checksum (哈希校验):

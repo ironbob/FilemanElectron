@@ -25,6 +25,7 @@
           :tab="tab"
           :active="tab.id === tabsStore.activeTabId"
           :dirty="dirtyIds.has(tab.id)"
+          :error="errorIds.has(tab.id)"
           :closable="tabsStore.tabs.length > 1"
           :label="labelFor(tab)"
           :tooltip="tooltipFor(tab)"
@@ -164,6 +165,15 @@ const dirtyIds = computed(() => {
   const set = new Set<string>()
   for (const tab of tabsStore.tabs) {
     if (tabsStore.isTabDirty(tab)) set.add(tab.id)
+  }
+  return set
+})
+
+// ── 目录失效（任一 pane.loadError 非空 → ⚠）──────────────────────────────────
+const errorIds = computed(() => {
+  const set = new Set<string>()
+  for (const tab of tabsStore.tabs) {
+    if (tab.panes.some(p => p.loadError)) set.add(tab.id)
   }
   return set
 })

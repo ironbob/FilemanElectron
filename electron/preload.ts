@@ -137,9 +137,12 @@ const filemanAPI = {
       .filter((filePath): filePath is string => filePath.length > 0)
     return ipcRenderer.invoke(CH.invoke.fsImportExternal, sourcePaths, targetDeviceId, targetPath)
   },
-  startNativeDrag: (sourcePaths: string[]): void => {
-    ipcRenderer.send(CH.send.dragStartNative, sourcePaths)
+  startNativeDrag: (sourcePaths: string[], iconDataUrl?: string): void => {
+    ipcRenderer.send(CH.send.dragStartNative, sourcePaths, iconDataUrl)
   },
+  // 标记真实桥接存在（e2e mock 的 Proxy 对缺失属性返回 truthy 的 async 函数），
+  // renderer 必须用 === true 严格判定才能在 mock 环境下关闭原生拖拽分支。
+  supportsNativeDrag: true,
 
   // ============ Events ============
   onDeviceChange: (callback: (devices: Device[]) => void) => {
@@ -250,9 +253,10 @@ const filemanAPI = {
   // Open a local file/directory with a chosen app (macOS: open -a).
   openWith: (appPath: string, targetPath: string): Promise<void> =>
     ipcRenderer.invoke(CH.invoke.shellOpenWith, appPath, targetPath),
-  // Detect installed developer apps (memoized in main; VS Code / iTerm / …).
-  detectOpenWithApps: (): Promise<OpenWithApp[]> =>
-    ipcRenderer.invoke(CH.invoke.shellDetectOpenWithApps),
+  // Apps registered in LaunchServices as able to open the target file
+  // (memoized in main per extension; default app flagged, Finder-equivalent).
+  getOpenWithApps: (targetPath: string): Promise<OpenWithApp[]> =>
+    ipcRenderer.invoke(CH.invoke.shellGetOpenWithApps, targetPath),
   openDefault: (path: string): Promise<void> =>
     ipcRenderer.invoke(CH.invoke.shellOpenDefault, path),
 

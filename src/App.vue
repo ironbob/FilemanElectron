@@ -300,33 +300,16 @@ onMounted(() => {
   // 拖拽会话防陈旧清理：应用内任何新拖拽必先经过 pointerdown；
   // HTML5 拖拽结束（含取消/拖出窗口）触发 dragend；drop 用冒泡阶段挂载，
   // 在所有落点处理器之后运行，覆盖「落到标签栏等未消费会话的区域」的情况。
-  // 原生拖拽拖出到 Finder 后无 App 内事件，由落点侧的文件名匹配兜底（dragTransfer.ts）。
+  // 原生拖拽拖出到 Finder 后无 App 内事件，由落点侧的文件名匹配兜底（dragTransfer.ts）；
+  // blur 兜底堵「会话存活期间从 Finder 拖入同名文件」的误判——原生拖拽进行中
+  // 本窗口保持焦点（blur 不触发），而从 Finder 发起拖入前本窗口必已失焦。
   window.addEventListener('pointerdown', clearDragSession, true)
   window.addEventListener('dragend', clearDragSession, true)
   window.addEventListener('drop', clearDragSession)
-  document.addEventListener('dragleave', convertToNativeDragOnWindowExit)
+  window.addEventListener('blur', clearDragSession)
 
   log.info('[FinderShell] initialized', { theme: theme.value, sidebarWidth: sidebarWidth.value })
 })
-
-/**
- * HTML5 拖拽拖出窗口边界时转原生拖拽（webContents.startDrag），
- * 使文件可以拖到 Finder / 其他应用。Electron 的原生拖拽不会向源窗口派发
- * dragover/drop（electron#7118），因此不能在 dragstart 时直接劫持，
- * 只能在光标已经离开窗口、应用内放置不可能发生时再转换。
- */
-function convertToNativeDragOnWindowExit(event: DragEvent) {
-  if (event.relatedTarget) return // 仍在文档内移动
-  const payload = dragSessionStore.peek()
-  if (!payload) return
-  if (payload.deviceId !== 'local' || payload.files.some(filePath => isZipVirtualPath(filePath))) return
-
-  log.info('[DnD][App] drag left window → converting to native drag', {
-    paneId: payload.paneId,
-    fileCount: payload.files.length
-  })
-  window.fileman.startNativeDrag(payload.files)
-}
 
 function clearDragSession() {
   dragSessionStore.clear()
@@ -337,7 +320,7 @@ onUnmounted(() => {
   window.removeEventListener('pointerdown', clearDragSession, true)
   window.removeEventListener('dragend', clearDragSession, true)
   window.removeEventListener('drop', clearDragSession)
-  document.removeEventListener('dragleave', convertToNativeDragOnWindowExit)
+  window.removeEventListener('blur', clearDragSession)
   mainRowObserver?.disconnect()
   mainRowObserver = null
 })

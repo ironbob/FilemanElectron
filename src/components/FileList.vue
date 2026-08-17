@@ -8,6 +8,38 @@
       </div>
     </div>
 
+    <!-- Error State (directory moved/renamed/deleted externally, or load failure) -->
+    <div v-else-if="loadError" class="flex-1 flex items-center justify-center">
+      <div class="text-center max-w-md px-6">
+        <svg
+          class="w-12 h-12 mx-auto mb-3"
+          :class="loadError.pathMissing ? 'text-accent-red' : 'text-accent-yellow'"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <div class="text-sm font-medium text-text-primary mb-1">
+          {{ loadError.pathMissing ? $t('fileList.loadError.missingTitle') : $t('fileList.loadError.failedTitle') }}
+        </div>
+        <div class="text-xs text-text-tertiary mb-4 break-all">
+          {{ loadError.pathMissing ? $t('fileList.loadError.missingHint', { path }) : loadError.message }}
+        </div>
+        <div class="flex items-center justify-center gap-2">
+          <button type="button" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover" @click="retryFromLoadError">
+            {{ $t('fileList.loadError.retry') }}
+          </button>
+          <button
+            type="button"
+            class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="!nearestExistingAncestor"
+            @click="goToExistingAncestor"
+          >
+            {{ $t('fileList.loadError.goParent') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Empty State -->
     <div v-else-if="displayedFiles.length === 0" class="flex-1 flex items-center justify-center">
       <div class="text-center text-text-tertiary">
@@ -328,7 +360,7 @@ import { extensionCategories, extensionIconMap, isThumbnailable, isImageFile, IM
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
 import { listingDiffers } from '@/utils/listingDiff'
-import { toRelativePath, toFileUri, getBaseName } from '@/utils/path'
+import { toRelativePath, toFileUri, getBaseName, paneParentPath } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
 import { formatPermissions } from '@/utils/permissions'
 import { formatDateTime } from '@/utils/formatDate'
@@ -399,6 +431,54 @@ const dropTargetPath = ref<string | null>(null)
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
 const showPermissions = computed(() => settingsStore.settings.showPermissions)
+
+// ── 目录加载错误状态（pane.loadError 上提至 tabs store：tab 栏据此打 ⚠）──────
+const loadError = computed(() => pane.value?.loadError ?? null)
+/** 错误判定后探测出的最近存在的祖先目录（「转到上级文件夹」按钮目标）。 */
+const nearestExistingAncestor = ref<string | null>(null)
+
+function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * 失败判别：exists 确认不存在 → pathMissing（文案「文件夹已不存在」）；
+ * exists 抛错或返回 true → 视为瞬态/未知失败（通用失败文案 + 原始错误消息）。
+ * 成功恢复（目录回来了）的情况由 loadFiles 成功路径自然清除。
+ */
+async function classifyLoadError(deviceId: string, path: string, raw: unknown): Promise<{ message: string; pathMissing: boolean }> {
+  try {
+    const stillExists = await window.fileman.exists(deviceId, path)
+    return { message: errorMessageOf(raw), pathMissing: !stillExists }
+  } catch {
+    return { message: errorMessageOf(raw), pathMissing: false }
+  }
+}
+
+/**
+ * 逐级向上探测最近的存在祖先（zip-aware；上限 20 级防御病态路径）。
+ * 全部不存在（或 IPC 失败）→ null（按钮禁用）。仅当最终结果仍属于当前
+ * (deviceId, path) 会话时写入 ref，避免竞态污染新目录的错误态。
+ */
+async function probeNearestAncestor(deviceId: string, path: string): Promise<void> {
+  let current = path
+  for (let depth = 0; depth < 20; depth++) {
+    const parent = paneParentPath(current)
+    if (parent === current) break
+    current = parent
+    try {
+      if (await window.fileman.exists(deviceId, current)) {
+        if (props.deviceId === deviceId && props.path === path) {
+          nearestExistingAncestor.value = current
+        }
+        return
+      }
+    } catch {
+      // exists 本身失败（设备瞬断等）：探测作罢，按钮禁用
+      return
+    }
+  }
+}
 
 /** 隐藏文件开关关闭时过滤 dotfile（'..' 是 ZIP 视图的父目录项，始终保留） */
 function filterHiddenFiles(list: FileInfo[]): FileInfo[] {
@@ -683,8 +763,11 @@ async function loadDeviceCapabilities(deviceId: string) {
 
 async function loadFiles() {
   const pathSnapshot = props.path
+  const deviceSnapshot = props.deviceId
 
   loading.value = true
+  tabsStore.setPaneLoadError(props.paneId, null)
+  nearestExistingAncestor.value = null
   try {
     // ── Virtual ZIP path ──────────────────────────────────────────────────────
     if (isZipVirtualPath(pathSnapshot)) {
@@ -727,9 +810,31 @@ async function loadFiles() {
     console.error('[FileList] Failed to load directory', { deviceId: props.deviceId, path: pathSnapshot, error })
     files.value = []
     emit('loaded', [])
+    // 双快照守卫：导航/切设备竞态下不把旧目录的错误写到新会话上
+    if (props.path === pathSnapshot && props.deviceId === deviceSnapshot) {
+      const classified = await classifyLoadError(deviceSnapshot, pathSnapshot, error)
+      if (props.path === pathSnapshot && props.deviceId === deviceSnapshot) {
+        tabsStore.setPaneLoadError(props.paneId, classified)
+        if (classified.pathMissing) {
+          void probeNearestAncestor(deviceSnapshot, pathSnapshot)
+        }
+      }
+    }
   } finally {
     loading.value = false
   }
+}
+
+/** 错误态「重试」按钮：等价手动刷新。 */
+function retryFromLoadError() {
+  void loadFiles()
+}
+
+/** 错误态「转到上级文件夹」按钮：导航到探测到的最近存在祖先。 */
+function goToExistingAncestor() {
+  const target = nearestExistingAncestor.value
+  if (!target) return
+  emit('navigate', target)
 }
 
 async function loadMissingColumnFiles(cols: Column[]) {
@@ -781,10 +886,21 @@ async function refreshAfterWatchEvent(): Promise<void> {
   try {
     const fresh = await window.fileman.listFiles(deviceSnapshot, pathSnapshot)
     if (props.path !== pathSnapshot || props.deviceId !== deviceSnapshot) return
+    // autoRefresh=false：内容不自动重载（不打扰选区/滚动）；目录消失检测仍生效
+    if (settingsStore.settings.autoRefresh === false) return
     if (!listingDiffers(files.value, fresh)) return
     await loadFiles()
-  } catch {
-    // 设备瞬断等：忽略，下一事件或手动刷新再试
+  } catch (error) {
+    // 设备瞬断容忍：仅在 exists 确认目录已消失时才翻转错误态，其余保持静默
+    try {
+      const stillExists = await window.fileman.exists(deviceSnapshot, pathSnapshot)
+      if (!stillExists && props.path === pathSnapshot && props.deviceId === deviceSnapshot) {
+        files.value = []
+        emit('loaded', [])
+        tabsStore.setPaneLoadError(props.paneId, { message: errorMessageOf(error), pathMissing: true })
+        void probeNearestAncestor(deviceSnapshot, pathSnapshot)
+      }
+    } catch { /* exists 也失败：瞬断，静默 */ }
   }
 }
 
@@ -833,20 +949,14 @@ onMounted(() => {
   document.addEventListener('keydown', handleKeyDown)
   document.addEventListener('compositionend', handleCompositionEnd)
   unsubscribeWatchChanged = window.fileman.onWatchChanged(event => {
-    if (settingsStore.settings.autoRefresh === false) return
+    // autoRefresh 开关的裁决移入 refreshAfterWatchEvent：目录失效检测不受开关影响
     if (event.deviceId !== props.deviceId || event.dirPath !== props.path) return
     if (watchRefreshTimer) clearTimeout(watchRefreshTimer)
     watchRefreshTimer = setTimeout(() => { void refreshAfterWatchEvent() }, 300)
   })
-  // 「打开方式」应用列表仅本地设备需要；主进程 memoize，多面板重复调用无害。
-  // Array.isArray 守卫：桥接异常/返回异常值时保持空列表（菜单直接隐藏该项）
-  if (props.deviceId === 'local') {
-    window.fileman.detectOpenWithApps().then(apps => {
-      if (Array.isArray(apps)) openWithApps.value = apps
-    }).catch(err => {
-      console.warn('[FileList] detectOpenWithApps failed', err)
-    })
-  }
+  // 预热「打开方式」：挂载即查当前目录（主进程 '<dir>' 缓存键），右键空白菜单即时可用；
+  // 文件菜单在右键时按命中条目再查（主进程按扩展名 memoize，多面板重复调用无害）
+  if (isHostShellAvailable()) refreshOpenWithApps(props.path)
 })
 
 onUnmounted(() => {
@@ -1622,21 +1732,42 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
     event.preventDefault()
     return
   }
-  if (event.dataTransfer) {
-    const dragData: InternalFileDragPayload = {
+  const dragData: InternalFileDragPayload = {
+    paneId: props.paneId,
+    deviceId: props.deviceId,
+    files: isSelected(file.path) ? props.selectedFiles : [file.path]
+  }
+
+  // 本地实体文件（非 ZIP 虚拟路径）→ 原生拖拽接管，可拖出到 Finder / VSCode 等
+  // 外部应用。官方模式要求在 dragstart 内 preventDefault 取消 HTML5 拖拽、同一
+  // 手势内立即 IPC——HTML5 会话进行中无法开启第二个原生会话（electron#13083，
+  // 「拖出窗口再转换」不可行）。应用内回落：原生拖拽落回本窗口时表现为
+  // dataTransfer.files，dragSession + 文件名匹配识别源（见 dragTransfer.ts）。
+  // supportsNativeDrag === true 严格判定：e2e mock 的 Proxy 对缺失属性返回
+  // truthy 的 async 函数，宽松判定会让合成拖拽走进死路。
+  if (
+    window.fileman.supportsNativeDrag === true &&
+    props.deviceId === 'local' &&
+    dragData.files.every(filePath => !isZipVirtualPath(filePath))
+  ) {
+    dragSessionStore.begin(dragData)
+    event.preventDefault()
+    window.fileman.startNativeDrag(dragData.files, buildNativeDragIcon(event, dragData.files.length))
+    log.info('[DnD][FileList] dragstart (native takeover)', {
       paneId: props.paneId,
-      deviceId: props.deviceId,
-      files: isSelected(file.path) ? props.selectedFiles : [file.path]
-    }
+      fileCount: dragData.files.length,
+      files: dragData.files
+    })
+    return
+  }
+
+  // 远程设备 / ZIP 内部 / e2e mock：维持 HTML5 拖拽（应用内链路）
+  if (event.dataTransfer) {
     event.dataTransfer.setData('application/json', JSON.stringify(dragData))
     event.dataTransfer.effectAllowed = 'copyMove'
     // 原生拖拽的 payload 在落点不可读，会话记录是应用内识别源的唯一途径
     dragSessionStore.begin(dragData)
     applyFinderDragImage(event, dragData.files.length)
-
-    // 注意：这里不能立即 webContents.startDrag 劫持。Electron 的原生拖拽不会向
-    // 源窗口派发 dragover/drop（electron#7118），应用内双面板拖放会完全失效。
-    // 保持 HTML5 拖拽；拖出窗口边界时由 App.vue 的 dragleave 监听转原生拖拽。
     log.info('[DnD][FileList] dragstart (html5)', {
       paneId: props.paneId,
       deviceId: props.deviceId,
@@ -1715,6 +1846,78 @@ function applyFinderDragImage(event: DragEvent, fileCount: number) {
   }
   window.addEventListener('dragend', remove)
   dragImageCleanupTimer = setTimeout(remove, 10_000)
+}
+
+// ── 原生拖拽图标 ──────────────────────────────────────────────────────────────
+// startDrag 只接受 NativeImage（DOM 快照/setDragImage 不可用），用 canvas 同步
+// 合成 Finder 式「图标 + 多选数量角标」。不能异步——await 图片解码会错过
+// dragstart 手势窗口：缩略图仅在已解码（img.complete）时绘制，SVG 类型图标
+// 退化为通用文档图形（预热缓存列为后续打磨项）。
+
+function cssVar(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+function buildNativeDragIcon(event: DragEvent, fileCount: number): string {
+  const iconSize = 64
+  const pad = 8
+  const total = iconSize + pad * 2
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = Math.round(total * dpr)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return ''
+  ctx.scale(dpr, dpr)
+
+  const row = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const iconEl = row?.querySelector('img, svg')
+  if (iconEl instanceof HTMLImageElement && iconEl.complete && iconEl.naturalWidth > 0) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(pad, pad, iconSize, iconSize, 10)
+    ctx.clip()
+    ctx.drawImage(iconEl, pad, pad, iconSize, iconSize)
+    ctx.restore()
+  } else {
+    // 通用文档图形：圆角底 + 三条示意文本线
+    ctx.beginPath()
+    ctx.roundRect(pad, pad, iconSize, iconSize, 10)
+    ctx.fillStyle = cssVar('--bg-tertiary', '#3a3a3c')
+    ctx.fill()
+    ctx.strokeStyle = cssVar('--border', '#5a5a5e')
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+    ctx.strokeStyle = cssVar('--text-tertiary', '#9a9a9e')
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    for (let i = 0; i < 3; i++) {
+      const y = pad + 26 + i * 10
+      ctx.beginPath()
+      ctx.moveTo(pad + 16, y)
+      ctx.lineTo(pad + iconSize - 16, y)
+      ctx.stroke()
+    }
+  }
+
+  // 多选角标：右下 --accent-blue 圆 + 白字计数（对齐 applyFinderDragImage 观感）
+  if (fileCount > 1) {
+    const badgeR = 11
+    const cx = total - badgeR - 1
+    const cy = total - badgeR - 1
+    ctx.beginPath()
+    ctx.arc(cx, cy, badgeR, 0, Math.PI * 2)
+    ctx.fillStyle = cssVar('--accent-blue', '#2f6fed')
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = '600 13px system-ui, -apple-system, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(fileCount), cx, cy + 0.5)
+  }
+
+  return canvas.toDataURL('image/png')
 }
 
 function clearDropTargetHighlight() {
@@ -2065,8 +2268,28 @@ const contextMenuSelectedFiles = ref<string[]>([])
 const contextMenuTargetFile = ref<FileInfo | null>(null)
 // 菜单打开时「另一面板」路径快照（同设备才有相对路径语义），供「相对另一面板复制」
 const contextMenuOtherPanePath = ref<string | null>(null)
-// 本机开发者应用（VS Code / iTerm2…，仅本地设备加载一次）
+// 右键目标的 LaunchServices 适用应用（含默认应用标记）；按目标文件异步拉取
 const openWithApps = ref<OpenWithApp[]>([])
+// 最近一次菜单构建是否为空白菜单（应用列表异步回填后重建 items 时复用）
+const contextMenuLastIsBackground = ref(true)
+
+/** 按目标文件拉取「打开方式」应用列表（主进程按目录/扩展名 memoize）。 */
+function refreshOpenWithApps(targetPath: string): void {
+  // Array.isArray 守卫：桥接异常/返回异常值时保持原列表（子菜单保底默认应用入口）
+  window.fileman.getOpenWithApps(targetPath).then(apps => {
+    if (Array.isArray(apps)) openWithApps.value = apps
+  }).catch(err => {
+    console.warn('[FileList] getOpenWithApps failed for', targetPath, err)
+  })
+}
+
+// 菜单 items 是打开瞬间的快照；应用列表异步回填后若菜单仍开着则按原菜单类型重建，
+// 让「打开方式」子菜单从「保底默认应用」补全为完整列表
+watch(openWithApps, () => {
+  if (contextMenu.visible) {
+    contextMenu.items = buildContextMenuItems(contextMenuLastIsBackground.value)
+  }
+})
 
 /** 复制路径子菜单（本地/远程通用——路径字符串无宿主依赖）。 */
 function buildCopyPathMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
@@ -2081,12 +2304,17 @@ function buildCopyPathMenuItems(): Array<{ label: string; action: string; childr
   return [{ label: t('fileList.menu.copyPath'), action: 'copy-path-menu', children }]
 }
 
-/** 「打开方式」子菜单（仅本地非 ZIP；app 检测在挂载时异步加载）。 */
+/** 「打开方式」子菜单（仅本地非 ZIP；列表 = 右键目标的 LaunchServices 适用应用）。 */
 function buildOpenWithMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
-  // 首项固定为系统默认应用（open <path>）；其余为探测到的本地应用。
-  // 无可探测应用时子菜单仍保留（默认应用始终可用）。
-  const children: Array<{ label: string; action: string }> = [{ label: t('fileList.menu.openWithDefault'), action: 'open-default' }]
-  children.push(...openWithApps.value.map(app => ({ label: app.name, action: `open-with:${app.bundlePath}` })))
+  const apps = openWithApps.value
+  // 列表为空（查询失败/首查回填前）：保底提供默认应用入口（open <path>）
+  const children: Array<{ label: string; action: string }> = apps.length > 0
+    ? apps.map(app => ({
+        // 默认应用置顶展示并标注，其余为备选（主进程已排序：默认 → 名称序）
+        label: app.isDefault ? `${app.name}${t('fileList.menu.openWithDefaultSuffix')}` : app.name,
+        action: `open-with:${app.bundlePath}`
+      }))
+    : [{ label: t('fileList.menu.openWithDefault'), action: 'open-default' }]
   return [{ label: t('fileList.menu.openWith'), action: 'open-with-menu', children }]
 }
 
@@ -2155,10 +2383,13 @@ function showContextMenu(event: MouseEvent) {
   contextMenuSelectedFiles.value = [...props.selectedFiles]
   // 空白右键：terminal 目标为当前目录
   contextMenuTargetFile.value = null
+  contextMenuLastIsBackground.value = true
   contextMenu.visible = true
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
   contextMenu.items = buildContextMenuItems(true)
+  // 「打开方式」按当前目录拉取（异步回填，菜单可见期间由 watch 重建补全）
+  if (isHostShellAvailable()) refreshOpenWithApps(props.path)
   void clampContextMenuToViewport()
 }
 
@@ -2171,11 +2402,14 @@ function showFileContextMenu(event: MouseEvent, file: FileInfo) {
   }
   // 文件/文件夹右键：reveal/terminal 针对命中的这一项
   contextMenuTargetFile.value = file
+  contextMenuLastIsBackground.value = false
 
   contextMenu.visible = true
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
   contextMenu.items = buildContextMenuItems(false)
+  // 「打开方式」按命中条目拉取（不同扩展名列表不同；主进程按扩展名 memoize）
+  if (isHostShellAvailable()) refreshOpenWithApps(file.path)
   void clampContextMenuToViewport()
 }
 

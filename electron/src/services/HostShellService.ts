@@ -1,6 +1,5 @@
 import { execFile } from 'child_process'
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 import type { OpenWithApp } from '@shared/types'
 
@@ -8,7 +7,7 @@ import type { OpenWithApp } from '@shared/types'
  * HostShellService
  *
  * 平台相关的「宿主集成」执行：用系统终端打开一个本地目录、用指定应用
- * 打开文件/目录、探测已安装的开发者应用。
+ * 打开文件/目录、按目标文件查询 LaunchServices 适用应用（「打开方式」菜单数据源）。
  * 唯一封装『如何在本平台与宿主 shell/应用交互』；上层 IPC controller
  * 只依赖此抽象，不感知 osascript / open / 平台命令细节。
  *
@@ -20,20 +19,53 @@ import type { OpenWithApp } from '@shared/types'
  * separation_of_concerns（OS 细节隔离在 main，不漏到 controller/renderer）。
  */
 
-/** 已知开发者应用探测表（bundle 目录名 → 展示名）。 */
-const DEV_APP_CANDIDATES: Array<{ bundle: string; name: string }> = [
-  { bundle: 'Visual Studio Code.app', name: 'VS Code' },
-  { bundle: 'VSCodium.app', name: 'VSCodium' },
-  { bundle: 'Cursor.app', name: 'Cursor' },
-  { bundle: 'Sublime Text.app', name: 'Sublime Text' },
-  { bundle: 'iTerm.app', name: 'iTerm2' },
-  { bundle: 'Zed.app', name: 'Zed' },
-  { bundle: 'JetBrains Toolbox.app', name: 'JetBrains Toolbox' },
-  { bundle: 'Xcode.app', name: 'Xcode' }
+/**
+ * JXA 查询脚本：问 LaunchServices「哪些应用能打开这个文件」。
+ * 数据源与 Finder「打开方式」菜单一致（NSWorkspace → LaunchServices），
+ * 天然完成 UTI/conformance 判定，无需手工解析各 app 的 Info.plist。
+ * 目标路径经 argv 传入（NSProcessInfo 取末参），彻底绕开字符串转义。
+ * 返回 JSON：{ apps: string[]（bundle 绝对路径，LS 排序）, default: string | null }。
+ * 任何异常都捕获为 { error }，Node 侧据此走「仅默认应用」降级。
+ */
+const LS_QUERY_SCRIPT = `
+function runSafe() {
+  try {
+    ObjC.import('AppKit')
+    const argv = ObjC.deepUnwrap($.NSProcessInfo.processInfo.arguments)
+    const target = argv[argv.length - 1]
+    const url = $.NSURL.fileURLWithPath(target)
+    const ws = $.NSWorkspace.sharedWorkspace
+    const nsArr = ws.URLsForApplicationsToOpenURL(url)
+    const out = []
+    const n = Number(nsArr.count)
+    for (let i = 0; i < n; i++) out.push(nsArr.objectAtIndex(i).path.js)
+    const def = ws.URLForApplicationToOpenURL(url)
+    const defPath = (def && !def.isNil() && def.path) ? def.path.js : null
+    return JSON.stringify({ apps: out, default: defPath })
+  } catch (e) { return JSON.stringify({ error: String(e) }) }
+}
+runSafe()
+`
+
+/**
+ * LaunchServices 结果里的「非用户软件」路径（包管理器缓存、编辑器插件目录等
+ * 塞进去的 .app，如 puppeteer 的 Chromium、TRAE 虚拟机里的 LibreOffice）。
+ * 命中即过滤——这些不是用户认知里的已安装软件。
+ */
+const JUNK_APP_PATH_PATTERNS: RegExp[] = [
+  /\/node_modules\//i,
+  /\/\.cache\//i,
+  /\/Library\/Application Support\//i,
+  /\/Library\/Caches\//i,
+  /\/private\/var\//i
 ]
 
+/** 绝对路径 osascript：GUI 启动的打包应用拿不到用户 $PATH（见 CLAUDE.md 打包注意事项）。 */
+const OSASCRIPT_BIN = '/usr/bin/osascript'
+
 export class HostShellService {
-  private detectedAppsCache: OpenWithApp[] | null = null
+  /** 「打开方式」查询缓存：目录 → '<dir>'，文件 → 小写扩展名；无扩展名不缓存（内容嗅探结果可能逐文件不同）。 */
+  private openWithCache = new Map<string, OpenWithApp[]>()
 
   /**
    * 在系统终端中打开目录（macOS：新开 Terminal 窗口并 cd 进 dirPath）。
@@ -128,28 +160,100 @@ export class HostShellService {
   }
 
   /**
-   * 探测本机已安装的开发者应用（/Applications 与 ~/Applications）。
-   * 结果 memoize（应用安装是罕见事件；重探经重启或后续显式刷新）。
+   * 查询「能用哪个已安装应用打开 targetPath」（macOS：LaunchServices，与
+   * Finder「打开方式」同源）。 suitability 判定完全交给系统：UTI 声明、
+   * 扩展名、conformance 都由 LS 解析，本方法只做展示层加工——
+   * 过滤垃圾路径 → 按包名去重（保留 LS 排序靠前者）→ 默认应用置顶、
+   * 其余按名称排序。
+   * 结果按（目录/小写扩展名）memoize：osascript 冷启约百毫秒，而右键高频。
+   * 非 darwin 平台 / 查询失败 → []（渲染端保底只显示「默认应用」入口）。
    */
-  detectDevApps(): OpenWithApp[] {
-    if (this.detectedAppsCache) return this.detectedAppsCache
-    const roots = ['/Applications', path.join(os.homedir(), 'Applications')]
-    const found: OpenWithApp[] = []
-    for (const candidate of DEV_APP_CANDIDATES) {
-      for (const root of roots) {
-        const bundlePath = path.join(root, candidate.bundle)
-        try {
-          if (fs.existsSync(bundlePath)) {
-            found.push({ id: candidate.bundle, name: candidate.name, bundlePath })
-            break
-          }
-        } catch {
-          // 探测异常按未安装处理
-        }
-      }
+  async getOpenWithApps(targetPath: string): Promise<OpenWithApp[]> {
+    if (process.platform !== 'darwin') return []
+
+    const normalized = path.resolve(targetPath)
+    let isDir = false
+    try {
+      isDir = fs.statSync(normalized, { throwIfNoEntry: false })?.isDirectory() ?? false
+    } catch {
+      // stat 失败（权限等）按文件处理，查询本身仍可尝试
     }
-    this.detectedAppsCache = found
-    console.log(`[HostShellService] detected dev apps: ${found.map(app => app.name).join(', ') || '(none)'}`)
-    return found
+    const ext = path.extname(normalized).toLowerCase()
+    const cacheKey = isDir ? '<dir>' : (ext || null)
+    if (cacheKey && this.openWithCache.has(cacheKey)) {
+      return this.openWithCache.get(cacheKey)!
+    }
+
+    const raw = await this.queryLaunchServices(normalized)
+    if (!raw) return []
+
+    // 垃圾路径过滤 + 按包名去重（LS 已按匹配度排序，保留首个）
+    const seenBundles = new Set<string>()
+    const apps: OpenWithApp[] = []
+    for (const bundlePath of raw.apps) {
+      if (JUNK_APP_PATH_PATTERNS.some(re => re.test(bundlePath))) continue
+      const base = path.basename(bundlePath)
+      const dedupeKey = base.toLowerCase()
+      if (seenBundles.has(dedupeKey)) continue
+      seenBundles.add(dedupeKey)
+      apps.push({
+        id: bundlePath,
+        name: base.replace(/\.app$/i, ''),
+        bundlePath,
+        isDefault: bundlePath === raw.default
+      })
+    }
+
+    // 默认应用置顶，其余按名称排序（Finder 呈现习惯）
+    apps.sort((a, b) => {
+      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    })
+
+    if (cacheKey) this.openWithCache.set(cacheKey, apps)
+    console.log(`[HostShellService] open-with for "${normalized}": ${apps.length} app(s)${apps[0]?.isDefault ? `, default=${apps[0].name}` : ''}`)
+    return apps
+  }
+
+  /**
+   * 执行 JXA 查询并解析 JSON 结果。
+   * 返回 null 表示不可用（脚本失败 / JSON 异常 / error 字段），
+   * 让调用方走空列表降级而非抛错——「打开方式」是增强入口，不该炸菜单。
+   */
+  private queryLaunchServices(normalizedPath: string): Promise<{ apps: string[]; default: string | null } | null> {
+    return new Promise(resolve => {
+      execFile(
+        OSASCRIPT_BIN,
+        ['-l', 'JavaScript', '-e', LS_QUERY_SCRIPT, '--', normalizedPath],
+        { timeout: 10_000 },
+        (err, stdout, stderr) => {
+          if (err) {
+            console.error('[HostShellService] LS query failed:', err.message, stderr?.trim())
+            resolve(null)
+            return
+          }
+          try {
+            const parsed = JSON.parse(stdout.trim())
+            if (typeof parsed.error === 'string') {
+              console.error('[HostShellService] LS query script error:', parsed.error)
+              resolve(null)
+              return
+            }
+            if (!Array.isArray(parsed.apps)) {
+              console.error('[HostShellService] LS query unexpected payload:', stdout.trim().slice(0, 200))
+              resolve(null)
+              return
+            }
+            resolve({
+              apps: parsed.apps.filter((p: unknown): p is string => typeof p === 'string'),
+              default: typeof parsed.default === 'string' ? parsed.default : null
+            })
+          } catch (e) {
+            console.error('[HostShellService] LS query JSON parse failed:', (e as Error).message)
+            resolve(null)
+          }
+        }
+      )
+    })
   }
 }

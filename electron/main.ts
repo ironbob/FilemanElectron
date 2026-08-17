@@ -29,7 +29,7 @@ import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisR
 import { CH } from './src/ipc/channels'
 import { setMainLocale, t } from './src/i18n'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
-import type { DirectoryStatsRequest } from '@shared/types'
+import type { DirectoryStatsRequest, OpenWithApp } from '@shared/types'
 
 const isDev = !app.isPackaged
 const log = console
@@ -199,8 +199,9 @@ ipcMain.handle(CH.invoke.shellOpenWith, async (_, appPath: string, targetPath: s
 ipcMain.handle(CH.invoke.shellOpenDefault, async (_, targetPath: string): Promise<void> => {
   return hostShellService.openDefault(targetPath)
 })
-ipcMain.handle(CH.invoke.shellDetectOpenWithApps, () => {
-  return hostShellService.detectDevApps()
+// 「打开方式」应用列表：按目标文件查 LaunchServices（含适用性判定与默认应用）
+ipcMain.handle(CH.invoke.shellGetOpenWithApps, async (_, targetPath: string): Promise<OpenWithApp[]> => {
+  return hostShellService.getOpenWithApps(targetPath)
 })
 
 // ============ Directory Watch IPC Handlers ============
@@ -771,7 +772,7 @@ const NATIVE_DRAG_ICON = nativeImage.createFromDataURL(
 )
 
 /** Start a native macOS drag for local files so Finder can receive them. */
-ipcMain.on(CH.send.dragStartNative, (event, sourcePaths: unknown) => {
+ipcMain.on(CH.send.dragStartNative, (event, sourcePaths: unknown, iconDataUrl?: unknown) => {
   if (!Array.isArray(sourcePaths)) {
     console.warn('[DnD][main] dragStartNative rejected: payload is not an array', { sourcePaths })
     return
@@ -786,9 +787,16 @@ ipcMain.on(CH.send.dragStartNative, (event, sourcePaths: unknown) => {
   })
   if (files.length === 0) return
 
+  // Renderer 生成的 Finder 式拖拽图标（canvas PNG dataURL）；解码失败回退 1×1 兜底图
+  const customIcon =
+    typeof iconDataUrl === 'string' && iconDataUrl.startsWith('data:image/')
+      ? nativeImage.createFromDataURL(iconDataUrl)
+      : nativeImage.createEmpty()
+  const icon = customIcon.isEmpty() ? NATIVE_DRAG_ICON : customIcon
+
   try {
-    event.sender.startDrag({ files, icon: NATIVE_DRAG_ICON })
-    console.info('[DnD][main] startDrag invoked', { fileCount: files.length })
+    event.sender.startDrag({ files, icon })
+    console.info('[DnD][main] startDrag invoked', { fileCount: files.length, customIcon: !customIcon.isEmpty() })
   } catch (error) {
     console.error('[DnD][main] startDrag failed', { files, error })
   }

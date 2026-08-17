@@ -63,6 +63,14 @@ export interface Column {
   selectedPath?: string
 }
 
+/** 面板目录加载失败信息（瞬态，不持久化；FileList 判定写入，tab 栏据此打 ⚠）。 */
+export interface PaneLoadError {
+  /** 原始错误消息（展示用）。 */
+  message: string
+  /** true = 路径已确认不存在（exists 检查为 false）；false = 瞬态/未知失败。 */
+  pathMissing: boolean
+}
+
 export interface Pane {
   id: string
   deviceId: string
@@ -74,6 +82,8 @@ export interface Pane {
   columns?: Column[]
   /** Grid icon size (only applies when viewMode === 'grid'). */
   gridSize?: 'xlarge' | 'large' | 'medium' | 'small'
+  /** 目录加载错误状态；null/undefined = 正常。瞬态字段，持久化时剥离。 */
+  loadError?: PaneLoadError | null
 }
 
 export interface AppConfig {
