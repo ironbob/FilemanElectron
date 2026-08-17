@@ -175,6 +175,8 @@ const zhCN = {
       clear: '清除',
       recursiveSearch: '递归搜索',
       copyCurrentPath: '复制当前目录路径',
+      editPath: '输入路径前往',
+      editPathPlaceholder: '粘贴路径，回车前往',
       editTags: '编辑所选条目标签',
       inlinePreviewTip: '切换内联预览（单击即预览）',
       inlinePreview: '切换内联预览',

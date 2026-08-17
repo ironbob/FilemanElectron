@@ -53,33 +53,80 @@
         </FinderToolbarButton>
       </FinderToolbarGroup>
 
-      <!-- Path Breadcrumb -->
+      <!-- Path Breadcrumb：浏览态（分段面包屑）⇄ 输入态（粘贴路径回车前往） -->
       <div class="file-pane-toolbar-breadcrumb min-w-0 flex-1 mx-2 flex items-center">
-        <div class="file-pane-toolbar-breadcrumb-content min-w-0 w-full flex items-center gap-1 px-3 py-1.5 bg-bg-secondary/50 rounded-lg border border-border/50 hover:border-border transition-colors overflow-hidden">
-          <!-- ZIP badge shown when browsing inside an archive -->
-          <span
-            v-if="isInsideZip"
-            class="flex-shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-accent-orange/20 text-accent-orange dark:text-orange-300 border border-accent-orange/30 mr-1"
-          >ZIP</span>
-          <!-- Git 分支 chip（本地仓库目录，只读） -->
-          <span
-            v-if="gitBranchInfo"
-            class="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent-indigo/15 text-accent-indigo border border-accent-indigo/30 mr-1 max-w-40 truncate"
-            :title="gitBranchInfo.title"
-          >
-            <svg class="w-2.5 h-2.5 inline-block mr-0.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 3v12m0 0a3 3 0 100 6 3 3 0 000-6zm12-6a3 3 0 100-6 3 3 0 000 6zm0 0a9 9 0 01-9 9" />
-            </svg>{{ gitBranchInfo.label }}
-          </span>
-          <template v-for="(segment, index) in pathSegments" :key="index">
+        <div
+          class="file-pane-toolbar-breadcrumb-content relative min-w-0 w-full flex items-center gap-1 px-3 py-1.5 bg-bg-secondary/50 rounded-lg border transition-colors"
+          :class="breadcrumbEditing
+            ? (breadcrumbError ? 'border-accent-red' : 'border-accent-blue')
+            : 'border-border/50 hover:border-border'"
+        >
+          <!-- 浏览态：长路径在内层裁剪，尾部按钮常驻可见 -->
+          <template v-if="!breadcrumbEditing">
+            <div class="min-w-0 flex-1 flex items-center gap-1 overflow-hidden">
+              <!-- ZIP badge shown when browsing inside an archive -->
+              <span
+                v-if="isInsideZip"
+                class="flex-shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-accent-orange/20 text-accent-orange dark:text-orange-300 border border-accent-orange/30 mr-1"
+              >ZIP</span>
+              <!-- Git 分支 chip（本地仓库目录，只读） -->
+              <span
+                v-if="gitBranchInfo"
+                class="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent-indigo/15 text-accent-indigo border border-accent-indigo/30 mr-1 max-w-40 truncate"
+                :title="gitBranchInfo.title"
+              >
+                <svg class="w-2.5 h-2.5 inline-block mr-0.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 3v12m0 0a3 3 0 100 6 3 3 0 000-6zm12-6a3 3 0 100-6 3 3 0 000 6zm0 0a9 9 0 01-9 9" />
+                </svg>{{ gitBranchInfo.label }}
+              </span>
+              <template v-for="(segment, index) in pathSegments" :key="index">
+                <button
+                  class="max-w-32 truncate text-[13px] transition-colors font-medium flex-shrink-0"
+                  :class="isZipBoundarySegment(index) ? 'text-orange-400 hover:text-orange-300' : 'text-text-secondary hover:text-accent-blue'"
+                  @click="navigateToSegment(index)"
+                >
+                  {{ segment }}
+                </button>
+                <span v-if="index < pathSegments.length - 1" class="text-text-tertiary mx-0.5 flex-shrink-0">/</span>
+              </template>
+            </div>
+            <!-- 尾部按钮：切换为路径输入框 -->
             <button
-              class="max-w-32 truncate text-[13px] transition-colors font-medium flex-shrink-0"
-              :class="isZipBoundarySegment(index) ? 'text-orange-400 hover:text-orange-300' : 'text-text-secondary hover:text-accent-blue'"
-              @click="navigateToSegment(index)"
+              class="flex-shrink-0 flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+              :title="$t('filePane.toolbar.editPath')"
+              :aria-label="$t('filePane.toolbar.editPath')"
+              @click="startBreadcrumbEdit"
             >
-              {{ segment }}
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 20h4L19 9a2.5 2.5 0 10-3.5-3.5L4 16.5V20z"/></svg>
             </button>
-            <span v-if="index < pathSegments.length - 1" class="text-text-tertiary mx-0.5 flex-shrink-0">/</span>
+          </template>
+          <!-- 输入态：粘贴地址回车前往（先校验有效性，失败红框+气泡提示） -->
+          <template v-else>
+            <input
+              ref="breadcrumbInputRef"
+              v-model="breadcrumbInput"
+              class="min-w-0 flex-1 bg-transparent text-[13px] font-mono text-text-primary outline-none"
+              :placeholder="$t('filePane.toolbar.editPathPlaceholder')"
+              spellcheck="false"
+              @keydown.enter="onBreadcrumbEnter"
+              @keydown.escape.stop.prevent="cancelBreadcrumbEdit"
+              @blur="onBreadcrumbInputBlur"
+            />
+            <!-- mousedown.prevent：避免点击瞬间失焦触发「失焦即放弃」 -->
+            <button
+              class="flex-shrink-0 flex h-5 w-5 items-center justify-center rounded text-text-tertiary hover:text-accent-blue hover:bg-bg-hover"
+              :title="$t('filePane.goToDialog.go')"
+              :aria-label="$t('filePane.goToDialog.go')"
+              @mousedown.prevent
+              @click="commitBreadcrumbEdit"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m0 0l-6-6m6 6l-6 6"/></svg>
+            </button>
+            <div
+              v-if="breadcrumbError"
+              class="breadcrumb-path-error absolute left-0 top-full mt-1 z-50 max-w-full rounded-md border border-accent-red/40 px-2 py-1 text-xs text-accent-red shadow-lg"
+              role="alert"
+            >{{ breadcrumbError }}</div>
           </template>
         </div>
       </div>
@@ -806,45 +853,104 @@ function closeGoToDialog() {
   goToDialog.error = ''
 }
 
-async function confirmGoToDialog() {
-  const raw = goToDialog.path.trim()
-  if (!raw) {
-    goToDialog.error = t('filePane.goToDialog.emptyPath')
-    return
-  }
+/**
+ * 校验路径并跳转（⇧⌘G 对话框与面包屑输入态共用）：
+ * 返回 null 表示已跳转，否则返回错误文案。
+ * ZIP 虚拟路径内：同一压缩包内跳转，无法用 exists 校验（inner 条目不是文件系统路径），
+ * 仅当面板当前已在 ZIP 内时放行。
+ */
+async function validateAndGo(raw: string): Promise<string | null> {
+  const trimmed = raw.trim()
+  if (!trimmed) return t('filePane.goToDialog.emptyPath')
   // 规范化：去尾部斜杠（根目录除外）
-  const path = raw === '/' ? '/' : raw.replace(/\/+$/, '')
+  const path = trimmed === '/' ? '/' : trimmed.replace(/\/+$/, '')
 
-  // ZIP 虚拟路径内：同一压缩包内跳转，无法用 exists 校验（inner 条目不是文件系统路径）
   if (isZipVirtualPath(path)) {
     if (!isZipVirtualPath(pane.value?.path ?? '')) {
-      goToDialog.error = t('filePane.goToDialog.needFilesystemPath')
-      return
+      return t('filePane.goToDialog.needFilesystemPath')
     }
     tabsStore.navigatePane(props.paneId, path)
-    closeGoToDialog()
-    return
+    return null
   }
   if (!path.startsWith('/')) {
-    goToDialog.error = t('filePane.goToDialog.needAbsolutePath')
-    return
+    return t('filePane.goToDialog.needAbsolutePath')
   }
 
   const deviceId = pane.value?.deviceId || 'local'
   try {
     const stats = await window.fileman.getStats(deviceId, path)
     if (!stats.isDirectory) {
-      goToDialog.error = t('filePane.goToDialog.notFolder')
-      return
+      return t('filePane.goToDialog.notFolder')
     }
   } catch (e) {
-    goToDialog.error = t('filePane.goToDialog.notFound', { path })
-    return
+    return t('filePane.goToDialog.notFound', { path })
   }
 
   tabsStore.navigatePane(props.paneId, path)
   if (pane.value) browserStore.rememberLocation(pane.value.deviceId, path)
+  return null
+}
+
+async function confirmGoToDialog() {
+  const error = await validateAndGo(goToDialog.path)
+  if (error) {
+    goToDialog.error = error
+    return
+  }
   closeGoToDialog()
+}
+
+// ── 面包屑尾部路径输入（点击铅笔按钮进入输入态，粘贴地址回车前往） ────────────
+const breadcrumbEditing = ref(false)
+const breadcrumbInput = ref('')
+const breadcrumbError = ref('')
+const breadcrumbInputRef = ref<HTMLInputElement | null>(null)
+// 提交校验是异步的：await 期间的失焦不当作「放弃输入」
+let breadcrumbCommitting = false
+
+function startBreadcrumbEdit() {
+  if (!pane.value) return
+  // Finder ⇧⌘G 习惯：预填当前路径并全选，直接粘贴/输入即整体替换
+  breadcrumbInput.value = pane.value.path
+  breadcrumbError.value = ''
+  breadcrumbEditing.value = true
+  void nextTick(() => {
+    breadcrumbInputRef.value?.focus()
+    breadcrumbInputRef.value?.select()
+  })
+}
+
+function cancelBreadcrumbEdit() {
+  breadcrumbEditing.value = false
+  breadcrumbError.value = ''
+}
+
+/** 失焦即放弃本次输入（校验进行中除外）；无效路径的报错在回车后已即时可见。 */
+function onBreadcrumbInputBlur() {
+  if (breadcrumbCommitting) return
+  breadcrumbEditing.value = false
+  breadcrumbError.value = ''
+}
+
+function onBreadcrumbEnter(event: KeyboardEvent) {
+  // 中文输入法组合确认的 Enter 不当作提交
+  if (event.isComposing) return
+  void commitBreadcrumbEdit()
+}
+
+async function commitBreadcrumbEdit() {
+  if (!breadcrumbEditing.value || breadcrumbCommitting) return
+  breadcrumbCommitting = true
+  const error = await validateAndGo(breadcrumbInput.value)
+  breadcrumbCommitting = false
+  if (error) {
+    // 保留输入现场并回焦：改对后回车重试，Esc / 点别处放弃
+    breadcrumbError.value = error
+    breadcrumbInputRef.value?.focus()
+    return
+  }
+  breadcrumbError.value = ''
+  breadcrumbEditing.value = false
 }
 
 function joinChildPath(directory: string, name: string): string {
@@ -1313,6 +1419,13 @@ function handleDrop() {
   /* 浮层必须与底层列表完全隔离；工具栏控件可以半透明，菜单不可以。 */
   background-color: var(--finder-canvas, var(--bg-secondary)) !important;
   color: var(--finder-label, var(--text-primary));
+  opacity: 1;
+  isolation: isolate;
+}
+
+.breadcrumb-path-error {
+  /* 同上：浮层不透明。注意不要覆盖 color（气泡文字用 text-accent-red）。 */
+  background-color: var(--finder-canvas, var(--bg-secondary)) !important;
   opacity: 1;
   isolation: isolate;
 }

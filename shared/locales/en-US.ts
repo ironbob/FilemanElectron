@@ -169,6 +169,8 @@ const enUS: MessageSchema = {
       clear: 'Clear',
       recursiveSearch: 'Search recursively',
       copyCurrentPath: 'Copy current folder path',
+      editPath: 'Go to path',
+      editPathPlaceholder: 'Paste a path, Enter to go',
       editTags: 'Edit selected item tags',
       inlinePreviewTip: 'Toggle inline preview (single-click preview)',
       inlinePreview: 'Toggle inline preview',

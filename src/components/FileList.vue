@@ -86,7 +86,7 @@
           @drop="handleRowDrop(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
-          <div class="finder-drag-hotspot w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
+          <div class="w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
             <img
               v-if="getThumbnailUrl(file, 'small')"
               :src="getThumbnailUrl(file, 'small')!"
@@ -96,7 +96,7 @@
             <component v-else :is="getFileIconComponent(file)" class="w-6 h-6" />
           </div>
           <FileNameMatchLabel
-            class="finder-drag-hotspot flex-1 truncate text-base"
+            class="flex-1 truncate text-base"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
@@ -126,6 +126,11 @@
           >
             {{ formatPermissions(file.mode) }}
           </span>
+          <!-- 行尾框选留白（Finder 的「行后空白区」）：行内其余区域（图标/文件名/
+               元数据列/行内间隙）按下拖动即拖拽文件，框选仅从本留白或行外空白
+               （表头/列表下方/grid 空轨）发起。固定宽度保证行填满视口时框选
+               仍有起点。 -->
+          <span class="finder-rubber-tail self-stretch w-12 flex-shrink-0" aria-hidden="true"></span>
         </div>
       </RecycleScroller>
     </template>
@@ -1614,14 +1619,17 @@ function handleContainerMouseDown(e: MouseEvent) {
   // 上下文菜单打开时，不触发框选（否则 mouseup 会因距离 < 4px 而清空选中）
   if (contextMenu.visible) return
   const target = e.target as Element
-  // list 行是全宽且无行距的 .file-item：文件数填满视口后内容区不存在任何空白
-  // 落点，框选必须能从行上发起（grid 格子间有 gap/空轨道，无此问题）。
-  // Finder 语义：仅图标 + 文件名是拖拽热点（finder-drag-hotspot），行的元数据
-  // 列（日期/大小/种类/权限）视为背景 —— 从那里按下并拖动即框选。
-  // startRubberBand 的 preventDefault 会抑制该按势触发的原生 dragstart。
+  // Finder 语义：行内任意内容（图标/文件名/元数据列/行内间隙）按下拖动 =
+  // 拖拽该文件——行本身 draggable，mousedown 不 preventDefault 即自然发起
+  // dragstart。框选仅从「行尾留白（finder-rubber-tail）」或行外空白（表头/
+  // 列表下方/grid 空轨）发起；startRubberBand 的 preventDefault 会抑制留白
+  // 按势触发的原生 dragstart。
+  // （ae16fc2 曾把元数据列划为框选背景，但 Finder 从元数据列同样能拖动文件，
+  //   且双面板窄行下图标+文件名热点仅占行宽约三成，大量落点拖拽无反应；
+  //   行尾留白取代元数据列承担「行填满视口时的框选起点」。）
   const onFileItem = target.closest('.file-item')
-  const onDragHotspot = target.closest('.finder-drag-hotspot')
-  if (!onFileItem || (props.viewMode === 'list' && !onDragHotspot)) {
+  const onRubberTail = target.closest('.finder-rubber-tail')
+  if (!onFileItem || onRubberTail) {
     startRubberBand(e)
   }
 }
