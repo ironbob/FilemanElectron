@@ -22,6 +22,7 @@ export type TaskVerbKey =
   | 'tasks.verb.batchRename'
   | 'tasks.verb.recycle'
   | 'tasks.verb.restore'
+  | 'tasks.verb.archive'
 
 const VERB_KEYS: Record<FileOperationType, TaskVerbKey> = {
   copy: 'tasks.verb.copy',
@@ -32,7 +33,8 @@ const VERB_KEYS: Record<FileOperationType, TaskVerbKey> = {
   touch: 'tasks.verb.touch',
   'batch-rename': 'tasks.verb.batchRename',
   recycle: 'tasks.verb.recycle',
-  restore: 'tasks.verb.restore'
+  restore: 'tasks.verb.restore',
+  archive: 'tasks.verb.archive'
 }
 
 export function taskVerbKey(type: FileOperationType): TaskVerbKey {
@@ -44,7 +46,7 @@ export type TaskIconGroup = 'transfer' | 'delete' | 'create'
 
 export function taskIconGroup(type: FileOperationType): TaskIconGroup {
   if (type === 'delete' || type === 'recycle') return 'delete'
-  if (type === 'rename' || type === 'batch-rename' || type === 'mkdir' || type === 'touch') return 'create'
+  if (type === 'rename' || type === 'batch-rename' || type === 'mkdir' || type === 'touch' || type === 'archive') return 'create'
   return 'transfer'
 }
 
@@ -80,6 +82,12 @@ export function actionSentenceParts(task: FileOperationTask): SentenceParts {
   const verbKey = taskVerbKey(task.type)
   if (task.type === 'rename') {
     return { verbKey, name: task.newName ?? basename(task.sourcePaths[0] ?? ''), count: 1 }
+  }
+  if (task.type === 'archive') {
+    // 单项压缩显示目标 zip 名（a.txt → a.zip），多项显示计数。
+    const count = task.sourcePaths.length
+    if (count === 1) return { verbKey, name: task.newName ?? basename(task.sourcePaths[0]), count }
+    return { verbKey, name: null, count: Math.max(count, 1) }
   }
   if (task.type === 'mkdir' || task.type === 'touch') {
     return { verbKey, name: task.targetPath ? basename(task.targetPath) : null, count: 1 }
@@ -140,11 +148,11 @@ export function pathSummary(
     return deviceNames[deviceId] ?? deviceId
   }
 
-  // copy/move/restore 有双向；mkdir/touch 只有目标侧（新建位置）；
+  // copy/move/restore 有双向；mkdir/touch/archive 只有目标侧（新建/输出位置）；
   // delete/recycle/rename 无目标侧。
   const hasTarget =
     task.type === 'copy' || task.type === 'move' || task.type === 'restore' ||
-    task.type === 'mkdir' || task.type === 'touch'
+    task.type === 'mkdir' || task.type === 'touch' || task.type === 'archive'
   return {
     source: label(task.sourceDeviceId, task.sourcePaths[0], 'parent'),
     target: hasTarget ? label(task.targetDeviceId ?? task.sourceDeviceId, task.targetPath, 'self') : null

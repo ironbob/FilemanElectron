@@ -1,6 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import type { IFileSystemAdapter } from '../adapters/types'
 import { StreamTransfer, CancelledError } from './StreamTransfer'
+import { ArchiveService } from './ArchiveService'
 import { CH } from '../ipc/channels'
 import { t } from '../i18n'
 const log = console
@@ -21,7 +22,7 @@ const log = console
  */
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -180,6 +181,8 @@ export class FileOperationManager {
   private maxHistorySize = 100
   private lastProgressNotifyAt = 0
   private completionWaiters = new Map<string, (task: FileOperationTask) => void>()
+  /** 压缩执行器（组合根注入；archive 任务的实际打包容逻辑在 ArchiveService）。 */
+  private archiveService: ArchiveService | null = null
 
   registerAdapter(deviceId: string, adapter: IFileSystemAdapter): void {
     this.adapters.set(deviceId, adapter)
@@ -191,6 +194,10 @@ export class FileOperationManager {
 
   setMainWindow(window: BrowserWindow): void {
     this.mainWindow = window
+  }
+
+  setArchiveService(archiveService: ArchiveService): void {
+    this.archiveService = archiveService
   }
 
   private notifyTaskUpdate(task: TransferTask): void {
@@ -278,6 +285,9 @@ export class FileOperationManager {
           break
         case 'restore':
           await this.executeRestore(task)
+          break
+        case 'archive':
+          await this.executeArchive(task)
           break
       }
 
@@ -531,13 +541,16 @@ export class FileOperationManager {
       await target.delete(destination)
       return destination
     }
+    // Finder 副本命名：a.txt → a 副本.txt → a 副本 2.txt（词表后缀词按语言取 副本/copy）。
     const extensionIndex = posixBaseName(destination).lastIndexOf('.')
     const parent = destination.slice(0, Math.max(0, destination.length - posixBaseName(destination).length)).replace(/\/$/, '') || '/'
     const name = posixBaseName(destination)
     const stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name
     const extension = extensionIndex > 0 ? name.slice(extensionIndex) : ''
+    const duplicateWord = t('tasks.duplicateWord')
     for (let suffix = 1; suffix < 10_000; suffix++) {
-      const candidate = joinPosix(parent, `${stem} ${suffix}${extension}`)
+      const label = suffix === 1 ? `${stem} ${duplicateWord}` : `${stem} ${duplicateWord} ${suffix}`
+      const candidate = joinPosix(parent, `${label}${extension}`)
       if (!(await target.exists(candidate))) return candidate
     }
     throw new Error(t('errors.main.conflictNameExhausted', { path: destination }))
@@ -583,6 +596,54 @@ export class FileOperationManager {
     if (!source) throw new Error(`Source adapter not found: ${task.sourceDeviceId}`)
     if (!target) throw new Error(`Target adapter not found: ${targetDeviceId}`)
     return { source, target, targetPath: task.targetPath || '/' }
+  }
+
+  // ============ 压缩成 ZIP ============
+
+  /**
+   * archive 任务：源 → 同设备目标目录下的一个 zip。
+   * targetPath 为目标目录，newName 为压缩包名（渲染层按 Finder 规则生成：
+   * 单选「a.txt → a.zip」，多选「Archive.zip」）。
+   * 打包只在最后一次性写盘，取消/失败不会留下半成品 zip。
+   */
+  private async executeArchive(task: TransferTask): Promise<void> {
+    if (!this.archiveService) throw new Error('ArchiveService not configured')
+    const adapter = this.adapters.get(task.sourceDeviceId)
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
+
+    const targetDir = task.targetPath || '/'
+    const rawName = task.newName || 'Archive.zip'
+    const safeName = rawName.toLowerCase().endsWith('.zip') ? rawName : `${rawName}.zip`
+    const zipPath = await this.resolveTargetPath(adapter, joinPosix(targetDir, safeName), 'rename')
+    // rename 策略不返回 null；守卫仅为收窄类型。
+    if (zipPath === null) throw new Error(`Destination conflict: ${safeName}`)
+
+    const { bytes, files } = await this.computeTotals(adapter, task.sourcePaths)
+    task.setTotals(bytes, files)
+
+    let fileIndex = 0
+    try {
+      await this.archiveService.runCreateZip(adapter, task.sourcePaths, zipPath, {
+        onFileRead: (name, readBytes) => {
+          task.setCurrentFile(name, fileIndex++)
+          task.addBytes(readBytes)
+          this.notifyProgress(task)
+        },
+        onCompressing: () => {
+          // 打包/写盘阶段：进度条停在读取完成处，当前文件切到压缩包名。
+          task.setCurrentFile(safeName, task.progress.totalFiles)
+          this.notifyProgress(task, true)
+        },
+        shouldCancel: () => this.cancelled
+      })
+    } catch (error) {
+      if (error instanceof CancelledError) return
+      throw error
+    }
+
+    for (const sourcePath of task.sourcePaths) {
+      task.recordItem({ sourcePath, targetPath: zipPath, status: 'success' })
+    }
   }
 
   // ============ 单设备操作 ============

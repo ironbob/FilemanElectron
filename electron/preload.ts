@@ -285,7 +285,7 @@ const filemanAPI = {
   setFileTags: (deviceId: string, filePath: string, tags: string[]) =>
     ipcRenderer.invoke(CH.invoke.fileMetadataSetTags, deviceId, filePath, tags),
   findFilesByTags: (tags: string[]) => ipcRenderer.invoke(CH.invoke.fileMetadataFindByTags, tags),
-  createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
+  createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string): Promise<FileOperationTask> =>
     ipcRenderer.invoke(CH.invoke.archiveCreate, deviceId, sourcePaths, targetDirectory, archiveName),
   extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) =>
     ipcRenderer.invoke(CH.invoke.archiveExtract, deviceId, archivePath, targetDirectory),

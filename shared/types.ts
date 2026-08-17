@@ -197,7 +197,7 @@ export interface MediaInfoSummary {
 // ============ File Operation Types ============
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {

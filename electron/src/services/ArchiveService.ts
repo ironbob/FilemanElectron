@@ -1,5 +1,6 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
-import { DeviceManager } from './DeviceManager'
+import type { IFileSystemAdapter } from '../adapters/types'
+import { CancelledError } from './StreamTransfer'
 import { t } from '../i18n'
 const log = console
 
@@ -11,20 +12,40 @@ function basename(filePath: string): string {
   return filePath.replace(/\/+$/, '').split('/').pop() || 'archive'
 }
 
+/** runCreateZip 的进度/取消回调（由 FileOperationManager 提供，驱动任务面板）。 */
+export interface ArchiveRunHooks {
+  /** 每读入一个源文件回调（name = 显示名，bytes = 该文件字节数）。 */
+  onFileRead: (name: string, bytes: number) => void
+  /** 读取完成、开始打包写盘前回调一次。 */
+  onCompressing: () => void
+  /** 取消轮询：true 时抛 CancelledError（此时尚未写任何目标文件）。 */
+  shouldCancel: () => boolean
+}
+
 /** Buffer-based ZIP creation/extraction for files selected from any adapter. */
 export class ArchiveService {
-  constructor(private readonly deviceManager: DeviceManager) {}
+  constructor(private readonly deviceManager: DeviceManagerLike) {}
 
-  async createZip(deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string): Promise<{ path: string }> {
+  /**
+   * 任务化打包：递归收集源文件 → zipSync → 一次性写 zipPath。
+   * 只在最后写盘，中途取消/失败不留半成品。
+   * 注：整包在内存中构建（与既有行为一致），超大目录会吃内存——
+   * 流式 zip 为后续优化项。
+   */
+  async runCreateZip(
+    adapter: IFileSystemAdapter,
+    sourcePaths: string[],
+    zipPath: string,
+    hooks: ArchiveRunHooks
+  ): Promise<void> {
     const entries: Record<string, Uint8Array> = {}
     for (const sourcePath of sourcePaths) {
-      await this.collect(deviceId, sourcePath, basename(sourcePath), entries)
+      await this.collect(adapter, sourcePath, basename(sourcePath), entries, hooks)
     }
-    const safeName = archiveName.toLowerCase().endsWith('.zip') ? archiveName : `${archiveName}.zip`
-    const targetPath = joinPath(targetDirectory, safeName)
-    await this.deviceManager.writeFile(deviceId, targetPath, Buffer.from(zipSync(entries, { level: 6 })))
-    log.info('[ArchiveService] archive created', { deviceId, targetPath, entryCount: Object.keys(entries).length })
-    return { path: targetPath }
+    hooks.onCompressing()
+    if (hooks.shouldCancel()) throw new CancelledError()
+    await adapter.writeFile(zipPath, Buffer.from(zipSync(entries, { level: 6 })))
+    log.info('[ArchiveService] archive created', { zipPath, entryCount: Object.keys(entries).length })
   }
 
   async extractZip(deviceId: string, archivePath: string, targetDirectory: string): Promise<{ count: number }> {
@@ -41,14 +62,23 @@ export class ArchiveService {
     return { count }
   }
 
-  private async collect(deviceId: string, sourcePath: string, relativePath: string, entries: Record<string, Uint8Array>): Promise<void> {
-    const stat = await this.deviceManager.getStats(deviceId, sourcePath)
+  private async collect(
+    adapter: IFileSystemAdapter,
+    sourcePath: string,
+    relativePath: string,
+    entries: Record<string, Uint8Array>,
+    hooks: ArchiveRunHooks
+  ): Promise<void> {
+    if (hooks.shouldCancel()) throw new CancelledError()
+    const stat = await adapter.stat(sourcePath)
     if (stat.isFile) {
-      entries[relativePath] = await this.deviceManager.readFile(deviceId, sourcePath)
+      const data = await adapter.readFile(sourcePath)
+      entries[relativePath] = data
+      hooks.onFileRead(basename(sourcePath), stat.size)
       return
     }
-    const children = await this.deviceManager.listFiles(deviceId, sourcePath)
-    for (const child of children) await this.collect(deviceId, child.path, `${relativePath}/${child.name}`, entries)
+    const children = await adapter.list(sourcePath)
+    for (const child of children) await this.collect(adapter, child.path, `${relativePath}/${child.name}`, entries, hooks)
     if (children.length === 0) entries[`${relativePath}/.keep`] = strToU8('')
   }
 
@@ -60,4 +90,12 @@ export class ArchiveService {
       if (!(await this.deviceManager.exists(deviceId, current))) await this.deviceManager.mkdir(deviceId, current)
     }
   }
+}
+
+/** extractZip 仍走 DeviceManager 代理；仅声明用到的子集。 */
+export interface DeviceManagerLike {
+  readFile(deviceId: string, path: string): Promise<Buffer>
+  writeFile(deviceId: string, path: string, data: Buffer): Promise<void>
+  exists(deviceId: string, path: string): Promise<boolean>
+  mkdir(deviceId: string, path: string): Promise<void>
 }

@@ -50,6 +50,7 @@ const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
 const hostShellService = new HostShellService()
 const fileMetadataService = new FileMetadataService(configService)
 const archiveService = new ArchiveService(deviceManager)
+fileOperationManager.setArchiveService(archiveService)
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService)
@@ -659,8 +660,16 @@ ipcMain.handle(CH.invoke.fileMetadataSetTags, (_, deviceId: string, filePath: st
 
 ipcMain.handle(CH.invoke.fileMetadataFindByTags, (_, tags: string[]) => fileMetadataService.findByTags(tags))
 
+// 压缩走任务队列（右侧任务抽屉可见进度/可取消）；zip 名冲突自动「副本」重命名。
 ipcMain.handle(CH.invoke.archiveCreate, (_, deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
-  archiveService.createZip(deviceId, sourcePaths, targetDirectory, archiveName)
+  fileOperationManager.addTask({
+    type: 'archive',
+    sourceDeviceId: deviceId,
+    sourcePaths,
+    targetDeviceId: deviceId,
+    targetPath: targetDirectory,
+    newName: archiveName
+  })
 )
 
 ipcMain.handle(CH.invoke.archiveExtract, (_, deviceId: string, archivePath: string, targetDirectory: string) =>

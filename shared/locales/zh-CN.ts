@@ -221,7 +221,6 @@ const zhCN = {
     },
     gitChipTitle: 'Git 仓库：{repoRoot}（领先/落后 {arrows}）',
     gitChipTitlePlain: 'Git 仓库：{repoRoot}',
-    archivePrompt: '压缩包名称：',
     screenshotFailed: '截图失败'
   },
   fileList: {
@@ -785,8 +784,11 @@ const zhCN = {
       touch: '创建文件',
       batchRename: '批量重命名',
       recycle: '移入废纸篓',
-      restore: '恢复'
+      restore: '恢复',
+      archive: '压缩'
     },
+    /** 冲突重命名后缀词（Finder 副本命名：a.txt → a 副本.txt → a 副本 2.txt）。 */
+    duplicateWord: '副本',
     drawer: {
       title: '任务',
       openTip: '任务 (⌘⇧T)',

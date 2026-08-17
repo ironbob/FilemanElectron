@@ -190,7 +190,7 @@ interface Window {
     getFileMetadata: (deviceId: string, filePath: string) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>
     setFileTags: (deviceId: string, filePath: string, tags: string[]) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>
     findFilesByTags: (tags: string[]) => Promise<Array<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>>
-    createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) => Promise<{ path: string }>
+    createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) => Promise<FileOperationTask>
     extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) => Promise<{ count: number }>
     captureMobileScreenshot: (deviceId: string, targetDirectory: string) => Promise<{ path: string }>
     /** 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。 */

@@ -371,7 +371,6 @@ const zhCN = {
     },
     gitChipTitle: "Git 仓库：{repoRoot}（领先/落后 {arrows}）",
     gitChipTitlePlain: "Git 仓库：{repoRoot}",
-    archivePrompt: "压缩包名称：",
     screenshotFailed: "截图失败"
   },
   fileList: {
@@ -430,8 +429,6 @@ const zhCN = {
       previewImagesRecursive: "预览图片（递归）",
       copy: "复制",
       cut: "剪切",
-      copyToDevice: "复制到设备",
-      moveToDevice: "移动到设备",
       rename: "重命名",
       info: "属性",
       openAsHex: "以十六进制查看",
@@ -451,7 +448,8 @@ const zhCN = {
       copyPathName: "文件名",
       copyPathRelative: "相对另一面板",
       openWith: "打开方式",
-      openWithDefault: "默认应用"
+      openWithDefault: "默认应用",
+      openWithDefaultSuffix: "（默认）"
     },
     confirmDelete: "删除 {count} 项？"
   },
@@ -475,20 +473,6 @@ const zhCN = {
       conflictError: "规则产生 {count} 个重名，请调整后重试",
       cancel: "取消",
       submit: "重命名 {count} 项"
-    },
-    targetOperation: {
-      titleCopy: "复制 {count} 项",
-      titleMove: "移动 {count} 项",
-      desc: "选择一个已连接的目标设备及确切的文件夹路径。",
-      deviceLabel: "目标设备",
-      folderLabel: "目标文件夹",
-      conflictLabel: "若同名文件已存在",
-      conflictSkip: "跳过已有文件",
-      conflictOverwrite: "替换已有文件",
-      conflictRename: "两者保留（重命名新文件）",
-      cancel: "取消",
-      confirmCopy: "复制",
-      confirmMove: "移动"
     },
     fileInfo: {
       previewAlt: "预览",
@@ -950,8 +934,11 @@ const zhCN = {
       touch: "创建文件",
       batchRename: "批量重命名",
       recycle: "移入废纸篓",
-      restore: "恢复"
+      restore: "恢复",
+      archive: "压缩"
     },
+    /** 冲突重命名后缀词（Finder 副本命名：a.txt → a 副本.txt → a 副本 2.txt）。 */
+    duplicateWord: "副本",
     drawer: {
       title: "任务",
       openTip: "任务 (⌘⇧T)",
@@ -1791,7 +1778,6 @@ const enUS = {
     },
     gitChipTitle: "Git repository: {repoRoot} (ahead/behind {arrows})",
     gitChipTitlePlain: "Git repository: {repoRoot}",
-    archivePrompt: "Archive name:",
     screenshotFailed: "Screenshot failed"
   },
   fileList: {
@@ -1850,8 +1836,6 @@ const enUS = {
       previewImagesRecursive: "Preview Images (Recursive)",
       copy: "Copy",
       cut: "Cut",
-      copyToDevice: "Copy to Device",
-      moveToDevice: "Move to Device",
       rename: "Rename",
       info: "Properties",
       openAsHex: "View as Hex",
@@ -1871,7 +1855,8 @@ const enUS = {
       copyPathName: "File Name",
       copyPathRelative: "Relative to Other Pane",
       openWith: "Open With",
-      openWithDefault: "Default Application"
+      openWithDefault: "Default Application",
+      openWithDefaultSuffix: " (default)"
     },
     confirmDelete: "Delete {count} item? | Delete {count} items?"
   },
@@ -1895,20 +1880,6 @@ const enUS = {
       conflictError: "The rules produce {count} name conflict. Adjust and try again. | The rules produce {count} name conflicts. Adjust and try again.",
       cancel: "Cancel",
       submit: "Rename {count} item | Rename {count} items"
-    },
-    targetOperation: {
-      titleCopy: "Copy {count} item | Copy {count} items",
-      titleMove: "Move {count} item | Move {count} items",
-      desc: "Choose a connected destination and the exact folder path.",
-      deviceLabel: "Destination device",
-      folderLabel: "Destination folder",
-      conflictLabel: "If a file already exists",
-      conflictSkip: "Skip existing files",
-      conflictOverwrite: "Replace existing files",
-      conflictRename: "Keep both (rename new file)",
-      cancel: "Cancel",
-      confirmCopy: "Copy",
-      confirmMove: "Move"
     },
     fileInfo: {
       previewAlt: "preview",
@@ -2365,8 +2336,11 @@ const enUS = {
       touch: "Creating File",
       batchRename: "Batch Renaming",
       recycle: "Moving to Trash",
-      restore: "Restoring"
+      restore: "Restoring",
+      archive: "Compressing"
     },
+    /** Conflict-rename suffix word (Finder duplicate naming: a.txt → a copy.txt → a copy 2.txt). */
+    duplicateWord: "copy",
     drawer: {
       title: "Tasks",
       openTip: "Tasks (⌘⇧T)",
@@ -6187,10 +6161,11 @@ const CH = {
     fileInfoWindowOpen: "window:fileInfo:open",
     fileInfoWindowGetContext: "window:fileInfo:getContext",
     // shell:
+    shellShowInFolder: "shell:showInFolder",
     shellOpenInTerminal: "shell:openInTerminal",
     shellOpenWith: "shell:openWith",
     shellOpenDefault: "shell:openDefault",
-    shellDetectOpenWithApps: "shell:detectOpenWithApps",
+    shellGetOpenWithApps: "shell:getOpenWithApps",
     // git (只读徽标):
     gitStatus: "git:status",
     // checksum (哈希校验):
@@ -6397,6 +6372,8 @@ class FileOperationManager {
   maxHistorySize = 100;
   lastProgressNotifyAt = 0;
   completionWaiters = /* @__PURE__ */ new Map();
+  /** 压缩执行器（组合根注入；archive 任务的实际打包容逻辑在 ArchiveService）。 */
+  archiveService = null;
   registerAdapter(deviceId, adapter) {
     this.adapters.set(deviceId, adapter);
   }
@@ -6405,6 +6382,9 @@ class FileOperationManager {
   }
   setMainWindow(window) {
     this.mainWindow = window;
+  }
+  setArchiveService(archiveService2) {
+    this.archiveService = archiveService2;
   }
   notifyTaskUpdate(task) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -6483,6 +6463,9 @@ class FileOperationManager {
           break;
         case "restore":
           await this.executeRestore(task);
+          break;
+        case "archive":
+          await this.executeArchive(task);
           break;
       }
       if (this.cancelled) {
@@ -6676,8 +6659,10 @@ class FileOperationManager {
     const name = posixBaseName(destination);
     const stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name;
     const extension = extensionIndex > 0 ? name.slice(extensionIndex) : "";
+    const duplicateWord = t("tasks.duplicateWord");
     for (let suffix = 1; suffix < 1e4; suffix++) {
-      const candidate = joinPosix$1(parent, `${stem} ${suffix}${extension}`);
+      const label = suffix === 1 ? `${stem} ${duplicateWord}` : `${stem} ${duplicateWord} ${suffix}`;
+      const candidate = joinPosix$1(parent, `${label}${extension}`);
       if (!await target.exists(candidate)) return candidate;
     }
     throw new Error(t("errors.main.conflictNameExhausted", { path: destination }));
@@ -6713,6 +6698,46 @@ class FileOperationManager {
     if (!source) throw new Error(`Source adapter not found: ${task.sourceDeviceId}`);
     if (!target) throw new Error(`Target adapter not found: ${targetDeviceId}`);
     return { source, target, targetPath: task.targetPath || "/" };
+  }
+  // ============ 压缩成 ZIP ============
+  /**
+   * archive 任务：源 → 同设备目标目录下的一个 zip。
+   * targetPath 为目标目录，newName 为压缩包名（渲染层按 Finder 规则生成：
+   * 单选「a.txt → a.zip」，多选「Archive.zip」）。
+   * 打包只在最后一次性写盘，取消/失败不会留下半成品 zip。
+   */
+  async executeArchive(task) {
+    if (!this.archiveService) throw new Error("ArchiveService not configured");
+    const adapter = this.adapters.get(task.sourceDeviceId);
+    if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
+    const targetDir = task.targetPath || "/";
+    const rawName = task.newName || "Archive.zip";
+    const safeName = rawName.toLowerCase().endsWith(".zip") ? rawName : `${rawName}.zip`;
+    const zipPath = await this.resolveTargetPath(adapter, joinPosix$1(targetDir, safeName), "rename");
+    if (zipPath === null) throw new Error(`Destination conflict: ${safeName}`);
+    const { bytes, files } = await this.computeTotals(adapter, task.sourcePaths);
+    task.setTotals(bytes, files);
+    let fileIndex = 0;
+    try {
+      await this.archiveService.runCreateZip(adapter, task.sourcePaths, zipPath, {
+        onFileRead: (name, readBytes) => {
+          task.setCurrentFile(name, fileIndex++);
+          task.addBytes(readBytes);
+          this.notifyProgress(task);
+        },
+        onCompressing: () => {
+          task.setCurrentFile(safeName, task.progress.totalFiles);
+          this.notifyProgress(task, true);
+        },
+        shouldCancel: () => this.cancelled
+      });
+    } catch (error) {
+      if (error instanceof CancelledError$2) return;
+      throw error;
+    }
+    for (const sourcePath of task.sourcePaths) {
+      task.recordItem({ sourcePath, targetPath: zipPath, status: "success" });
+    }
   }
   // ============ 单设备操作 ============
   async executeDelete(task) {
@@ -7356,11 +7381,12 @@ const EXTENSION_KINDS = {
   pcm: audio,
   // ── PDF ───────────────────────────────────────────────────────────────────
   pdf: { kind: "pdf" },
-  // ── ZIP 族（.zip 双击进虚拟目录；其余开 zip 浏览 tab） ─────────────────────
+  // ── ZIP 族（.zip 双击进虚拟目录；其余双击走系统默认应用，ZIP 子菜单可浏览） ──
   zip: zipOf(),
   jar: zipOf(),
   war: zipOf(),
   ear: zipOf(),
+  aar: zipOf(),
   apk: zipOf(),
   ipa: zipOf(),
   docx: zipOf("document"),
@@ -8157,18 +8183,36 @@ class VolumeScanner {
     }
   }
 }
-const DEV_APP_CANDIDATES = [
-  { bundle: "Visual Studio Code.app", name: "VS Code" },
-  { bundle: "VSCodium.app", name: "VSCodium" },
-  { bundle: "Cursor.app", name: "Cursor" },
-  { bundle: "Sublime Text.app", name: "Sublime Text" },
-  { bundle: "iTerm.app", name: "iTerm2" },
-  { bundle: "Zed.app", name: "Zed" },
-  { bundle: "JetBrains Toolbox.app", name: "JetBrains Toolbox" },
-  { bundle: "Xcode.app", name: "Xcode" }
+const LS_QUERY_SCRIPT = `
+function runSafe() {
+  try {
+    ObjC.import('AppKit')
+    const argv = ObjC.deepUnwrap($.NSProcessInfo.processInfo.arguments)
+    const target = argv[argv.length - 1]
+    const url = $.NSURL.fileURLWithPath(target)
+    const ws = $.NSWorkspace.sharedWorkspace
+    const nsArr = ws.URLsForApplicationsToOpenURL(url)
+    const out = []
+    const n = Number(nsArr.count)
+    for (let i = 0; i < n; i++) out.push(nsArr.objectAtIndex(i).path.js)
+    const def = ws.URLForApplicationToOpenURL(url)
+    const defPath = (def && !def.isNil() && def.path) ? def.path.js : null
+    return JSON.stringify({ apps: out, default: defPath })
+  } catch (e) { return JSON.stringify({ error: String(e) }) }
+}
+runSafe()
+`;
+const JUNK_APP_PATH_PATTERNS = [
+  /\/node_modules\//i,
+  /\/\.cache\//i,
+  /\/Library\/Application Support\//i,
+  /\/Library\/Caches\//i,
+  /\/private\/var\//i
 ];
+const OSASCRIPT_BIN = "/usr/bin/osascript";
 class HostShellService {
-  detectedAppsCache = null;
+  /** 「打开方式」查询缓存：目录 → '<dir>'，文件 → 小写扩展名；无扩展名不缓存（内容嗅探结果可能逐文件不同）。 */
+  openWithCache = /* @__PURE__ */ new Map();
   /**
    * 在系统终端中打开目录（macOS：新开 Terminal 窗口并 cd 进 dirPath）。
    *
@@ -8213,6 +8257,17 @@ end tell`;
     });
   }
   /**
+   * 在 Finder 中显示指定文件/目录（选中其所在层级并高亮）。
+   * 走主进程 shell.showItemInFolder——sandboxed preload 的 electron 模块
+   * 不含 shell，此前 preload 直调会静默抛错（详见 疑难问题解决记录）。
+   * 目标不存在时不抛错（与 Electron 语义一致，仅无操作）。
+   */
+  showInFolder(targetPath) {
+    const normalized = path__default.resolve(targetPath);
+    shell.showItemInFolder(normalized);
+    console.log(`[HostShellService] Revealed in Finder: "${normalized}"`);
+  }
+  /**
    * 用指定应用打开本地文件/目录（macOS：`open -a <app> <target>`）。
    * execFile 传参数组，不经 shell——沿用本服务的「无引号地狱」原则。
    */
@@ -8255,28 +8310,92 @@ end tell`;
     });
   }
   /**
-   * 探测本机已安装的开发者应用（/Applications 与 ~/Applications）。
-   * 结果 memoize（应用安装是罕见事件；重探经重启或后续显式刷新）。
+   * 查询「能用哪个已安装应用打开 targetPath」（macOS：LaunchServices，与
+   * Finder「打开方式」同源）。 suitability 判定完全交给系统：UTI 声明、
+   * 扩展名、conformance 都由 LS 解析，本方法只做展示层加工——
+   * 过滤垃圾路径 → 按包名去重（保留 LS 排序靠前者）→ 默认应用置顶、
+   * 其余按名称排序。
+   * 结果按（目录/小写扩展名）memoize：osascript 冷启约百毫秒，而右键高频。
+   * 非 darwin 平台 / 查询失败 → []（渲染端保底只显示「默认应用」入口）。
    */
-  detectDevApps() {
-    if (this.detectedAppsCache) return this.detectedAppsCache;
-    const roots = ["/Applications", path__default.join(os__default.homedir(), "Applications")];
-    const found = [];
-    for (const candidate of DEV_APP_CANDIDATES) {
-      for (const root of roots) {
-        const bundlePath = path__default.join(root, candidate.bundle);
-        try {
-          if (fs__default.existsSync(bundlePath)) {
-            found.push({ id: candidate.bundle, name: candidate.name, bundlePath });
-            break;
-          }
-        } catch {
-        }
-      }
+  async getOpenWithApps(targetPath) {
+    if (process.platform !== "darwin") return [];
+    const normalized = path__default.resolve(targetPath);
+    let isDir = false;
+    try {
+      isDir = fs__default.statSync(normalized, { throwIfNoEntry: false })?.isDirectory() ?? false;
+    } catch {
     }
-    this.detectedAppsCache = found;
-    console.log(`[HostShellService] detected dev apps: ${found.map((app2) => app2.name).join(", ") || "(none)"}`);
-    return found;
+    const ext = path__default.extname(normalized).toLowerCase();
+    const cacheKey = isDir ? "<dir>" : ext || null;
+    if (cacheKey && this.openWithCache.has(cacheKey)) {
+      return this.openWithCache.get(cacheKey);
+    }
+    const raw = await this.queryLaunchServices(normalized);
+    if (!raw) return [];
+    const seenBundles = /* @__PURE__ */ new Set();
+    const apps = [];
+    for (const bundlePath of raw.apps) {
+      if (JUNK_APP_PATH_PATTERNS.some((re) => re.test(bundlePath))) continue;
+      const base = path__default.basename(bundlePath);
+      const dedupeKey = base.toLowerCase();
+      if (seenBundles.has(dedupeKey)) continue;
+      seenBundles.add(dedupeKey);
+      apps.push({
+        id: bundlePath,
+        name: base.replace(/\.app$/i, ""),
+        bundlePath,
+        isDefault: bundlePath === raw.default
+      });
+    }
+    apps.sort((a, b) => {
+      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+      return a.name.localeCompare(b.name, void 0, { numeric: true, sensitivity: "base" });
+    });
+    if (cacheKey) this.openWithCache.set(cacheKey, apps);
+    console.log(`[HostShellService] open-with for "${normalized}": ${apps.length} app(s)${apps[0]?.isDefault ? `, default=${apps[0].name}` : ""}`);
+    return apps;
+  }
+  /**
+   * 执行 JXA 查询并解析 JSON 结果。
+   * 返回 null 表示不可用（脚本失败 / JSON 异常 / error 字段），
+   * 让调用方走空列表降级而非抛错——「打开方式」是增强入口，不该炸菜单。
+   */
+  queryLaunchServices(normalizedPath) {
+    return new Promise((resolve) => {
+      execFile(
+        OSASCRIPT_BIN,
+        ["-l", "JavaScript", "-e", LS_QUERY_SCRIPT, "--", normalizedPath],
+        { timeout: 1e4 },
+        (err, stdout, stderr) => {
+          if (err) {
+            console.error("[HostShellService] LS query failed:", err.message, stderr?.trim());
+            resolve(null);
+            return;
+          }
+          try {
+            const parsed = JSON.parse(stdout.trim());
+            if (typeof parsed.error === "string") {
+              console.error("[HostShellService] LS query script error:", parsed.error);
+              resolve(null);
+              return;
+            }
+            if (!Array.isArray(parsed.apps)) {
+              console.error("[HostShellService] LS query unexpected payload:", stdout.trim().slice(0, 200));
+              resolve(null);
+              return;
+            }
+            resolve({
+              apps: parsed.apps.filter((p) => typeof p === "string"),
+              default: typeof parsed.default === "string" ? parsed.default : null
+            });
+          } catch (e) {
+            console.error("[HostShellService] LS query JSON parse failed:", e.message);
+            resolve(null);
+          }
+        }
+      );
+    });
   }
 }
 const log$e = console;
@@ -8319,16 +8438,21 @@ class ArchiveService {
   constructor(deviceManager2) {
     this.deviceManager = deviceManager2;
   }
-  async createZip(deviceId, sourcePaths, targetDirectory, archiveName) {
+  /**
+   * 任务化打包：递归收集源文件 → zipSync → 一次性写 zipPath。
+   * 只在最后写盘，中途取消/失败不留半成品。
+   * 注：整包在内存中构建（与既有行为一致），超大目录会吃内存——
+   * 流式 zip 为后续优化项。
+   */
+  async runCreateZip(adapter, sourcePaths, zipPath, hooks) {
     const entries = {};
     for (const sourcePath of sourcePaths) {
-      await this.collect(deviceId, sourcePath, basename(sourcePath), entries);
+      await this.collect(adapter, sourcePath, basename(sourcePath), entries, hooks);
     }
-    const safeName = archiveName.toLowerCase().endsWith(".zip") ? archiveName : `${archiveName}.zip`;
-    const targetPath = joinPath(targetDirectory, safeName);
-    await this.deviceManager.writeFile(deviceId, targetPath, Buffer.from(zipSync(entries, { level: 6 })));
-    log$d.info("[ArchiveService] archive created", { deviceId, targetPath, entryCount: Object.keys(entries).length });
-    return { path: targetPath };
+    hooks.onCompressing();
+    if (hooks.shouldCancel()) throw new CancelledError$2();
+    await adapter.writeFile(zipPath, Buffer.from(zipSync(entries, { level: 6 })));
+    log$d.info("[ArchiveService] archive created", { zipPath, entryCount: Object.keys(entries).length });
   }
   async extractZip(deviceId, archivePath, targetDirectory) {
     const entries = unzipSync(await this.deviceManager.readFile(deviceId, archivePath));
@@ -8343,14 +8467,17 @@ class ArchiveService {
     log$d.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
     return { count };
   }
-  async collect(deviceId, sourcePath, relativePath, entries) {
-    const stat2 = await this.deviceManager.getStats(deviceId, sourcePath);
+  async collect(adapter, sourcePath, relativePath, entries, hooks) {
+    if (hooks.shouldCancel()) throw new CancelledError$2();
+    const stat2 = await adapter.stat(sourcePath);
     if (stat2.isFile) {
-      entries[relativePath] = await this.deviceManager.readFile(deviceId, sourcePath);
+      const data = await adapter.readFile(sourcePath);
+      entries[relativePath] = data;
+      hooks.onFileRead(basename(sourcePath), stat2.size);
       return;
     }
-    const children = await this.deviceManager.listFiles(deviceId, sourcePath);
-    for (const child of children) await this.collect(deviceId, child.path, `${relativePath}/${child.name}`, entries);
+    const children = await adapter.list(sourcePath);
+    for (const child of children) await this.collect(adapter, child.path, `${relativePath}/${child.name}`, entries, hooks);
     if (children.length === 0) entries[`${relativePath}/.keep`] = strToU8("");
   }
   async ensureParentDirectories(deviceId, outputPath) {
@@ -10118,6 +10245,7 @@ const volumeScanner = new VolumeScanner({ scanInterval: 4e3 });
 const hostShellService = new HostShellService();
 const fileMetadataService = new FileMetadataService(configService);
 const archiveService = new ArchiveService(deviceManager);
+fileOperationManager.setArchiveService(archiveService);
 const mobileScreenshotService = new MobileScreenshotService(deviceManager);
 const contentVerificationService = new ContentVerificationService(deviceManager);
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService);
@@ -10220,6 +10348,9 @@ ipcMain.handle(CH.invoke.fileInfoWindowGetContext, (event) => {
   if (!context) throw new Error(t("errors.main.fileInfoNoContext"));
   return context;
 });
+ipcMain.handle(CH.invoke.shellShowInFolder, (_, targetPath) => {
+  return hostShellService.showInFolder(targetPath);
+});
 ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath) => {
   return hostShellService.openInTerminal(dirPath);
 });
@@ -10229,8 +10360,8 @@ ipcMain.handle(CH.invoke.shellOpenWith, async (_, appPath, targetPath) => {
 ipcMain.handle(CH.invoke.shellOpenDefault, async (_, targetPath) => {
   return hostShellService.openDefault(targetPath);
 });
-ipcMain.handle(CH.invoke.shellDetectOpenWithApps, () => {
-  return hostShellService.detectDevApps();
+ipcMain.handle(CH.invoke.shellGetOpenWithApps, async (_, targetPath) => {
+  return hostShellService.getOpenWithApps(targetPath);
 });
 ipcMain.handle(CH.invoke.watchSubscribe, (_, deviceId, dirPath) => {
   return watchService.subscribe(deviceId, dirPath);
@@ -10582,7 +10713,14 @@ ipcMain.handle(
 ipcMain.handle(CH.invoke.fileMetadataFindByTags, (_, tags) => fileMetadataService.findByTags(tags));
 ipcMain.handle(
   CH.invoke.archiveCreate,
-  (_, deviceId, sourcePaths, targetDirectory, archiveName) => archiveService.createZip(deviceId, sourcePaths, targetDirectory, archiveName)
+  (_, deviceId, sourcePaths, targetDirectory, archiveName) => fileOperationManager.addTask({
+    type: "archive",
+    sourceDeviceId: deviceId,
+    sourcePaths,
+    targetDeviceId: deviceId,
+    targetPath: targetDirectory,
+    newName: archiveName
+  })
 );
 ipcMain.handle(
   CH.invoke.archiveExtract,

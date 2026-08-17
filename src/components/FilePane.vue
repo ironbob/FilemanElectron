@@ -854,11 +854,11 @@ function joinChildPath(directory: string, name: string): string {
 
 /**
  * 拖拽等非本面板排队的传输任务是否影响当前目录：
- * - copy/move 目标为本面板当前目录（含 App.vue 面板背景放置、其他面板排队）；
+ * - copy/move/archive 目标为本面板当前目录（含 App.vue 面板背景放置、其他面板排队）；
  * - move 源位于本面板当前目录（跨面板移动后源面板需要刷新）。
  */
 function taskTouchesThisDirectory(task: FileOperationTask): boolean {
-  if (task.type !== 'copy' && task.type !== 'move') return false
+  if (task.type !== 'copy' && task.type !== 'move' && task.type !== 'archive') return false
   const deviceId = pane.value?.deviceId
   const currentPath = pane.value?.path
   if (!deviceId || !currentPath) return false
@@ -1075,11 +1075,21 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
           clipboardStore.clearClipboard()
         } else {
           console.log('[FilePane] Paste as COPY operation')
+          // Finder 语义：在源目录内 Cmd+V = 复制出「xxx 副本」文件。
+          // 同目录时目标路径即源自身，默认 skip 策略会静默跳过 —— 强制走
+          // rename 策略（主进程按 Finder 命名生成「a 副本.txt / a 副本 2.txt」）。
+          // ZIP 虚拟路径（::）不走此逻辑（源在压缩包内，无同目录概念）。
+          const sameDirDuplicate =
+            clipboardStore.sourceDeviceId === deviceId &&
+            clipboardStore.files.length > 0 &&
+            !isZipVirtualPath(targetPath) &&
+            clipboardStore.files.every(p => !isZipVirtualPath(p) && parentDirectoryOf(p) === targetPath)
           await fileOpsStore.createCopyTask(
             clipboardStore.sourceDeviceId,
             clipboardStore.files,
             deviceId,
-            targetPath
+            targetPath,
+            sameDirDuplicate ? 'rename' : 'skip'
           )
         }
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
@@ -1137,10 +1147,23 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
 
     case 'archive': {
-      const name = prompt(t('filePane.archivePrompt'), 'Archive.zip')
-      if (name && op.files.length) {
-        await window.fileman.createArchive(deviceId, op.files, targetPath, name)
-        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+      // Finder 规则：单选 a.txt → a.zip（目录 dir → dir.zip），多选 → Archive.zip。
+      // 不再弹 prompt 询问名称 —— Electron 渲染进程不支持 window.prompt()
+      // （恒返回 null，此前该菜单项点了没有任何反应，见 疑难问题解决记录）。
+      // 压缩包名冲突由主进程 rename 策略自动「副本」递增；ZIP 虚拟目录不提供压缩。
+      if (op.files.length === 0 || isZipVirtualPath(targetPath)) break
+      const single = op.files.length === 1 ? op.files[0] : null
+      let baseName = 'Archive'
+      if (single) {
+        const leaf = single.slice(single.lastIndexOf('/') + 1)
+        const dot = leaf.lastIndexOf('.')
+        baseName = dot > 0 ? leaf.slice(0, dot) : leaf
+      }
+      try {
+        const task = await window.fileman.createArchive(deviceId, op.files, targetPath, `${baseName}.zip`)
+        trackDirectoryRefresh(task)
+      } catch (error) {
+        log.error('[FilePane] archive task failed to queue', { targetPath, error })
       }
       break
     }

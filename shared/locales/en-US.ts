@@ -215,7 +215,6 @@ const enUS: MessageSchema = {
     },
     gitChipTitle: 'Git repository: {repoRoot} (ahead/behind {arrows})',
     gitChipTitlePlain: 'Git repository: {repoRoot}',
-    archivePrompt: 'Archive name:',
     screenshotFailed: 'Screenshot failed'
   },
   fileList: {
@@ -774,8 +773,11 @@ const enUS: MessageSchema = {
       touch: 'Creating File',
       batchRename: 'Batch Renaming',
       recycle: 'Moving to Trash',
-      restore: 'Restoring'
+      restore: 'Restoring',
+      archive: 'Compressing'
     },
+    /** Conflict-rename suffix word (Finder duplicate naming: a.txt → a copy.txt → a copy 2.txt). */
+    duplicateWord: 'copy',
     drawer: {
       title: 'Tasks',
       openTip: 'Tasks (⌘⇧T)',
