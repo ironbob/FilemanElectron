@@ -168,7 +168,7 @@ const enUS: MessageSchema = {
       clearHistory: 'Clear search history',
       clear: 'Clear',
       recursiveSearch: 'Search recursively',
-      copyPaths: 'Copy selected paths for sharing',
+      copyCurrentPath: 'Copy current folder path',
       editTags: 'Edit selected item tags',
       inlinePreviewTip: 'Toggle inline preview (single-click preview)',
       inlinePreview: 'Toggle inline preview',

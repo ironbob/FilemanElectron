@@ -166,9 +166,8 @@
 
       <FinderToolbarButton
         class="file-pane-toolbar-optional flex-shrink-0"
-        :disabled="!pane?.selectedFiles.length"
-        :label="$t('filePane.toolbar.copyPaths')"
-        @click="copySelectedPaths"
+        :label="$t('filePane.toolbar.copyCurrentPath')"
+        @click="copyCurrentPath"
       >
         <FinderIcon name="share" />
       </FinderToolbarButton>
@@ -976,14 +975,14 @@ function handleFilesLoaded(files: FileInfo[]) {
   loadedFiles.value = files
 }
 
-async function copySelectedPaths() {
-  const selectedPaths = pane.value?.selectedFiles ?? []
-  if (!selectedPaths.length) return
+async function copyCurrentPath() {
+  const currentPath = pane.value?.path
+  if (!currentPath) return
   try {
-    await navigator.clipboard.writeText(selectedPaths.join('\n'))
-    log.info('[FinderFilePane] copied selected paths for sharing', { count: selectedPaths.length })
+    await navigator.clipboard.writeText(currentPath)
+    log.info('[FinderFilePane] copied current directory path', { currentPath })
   } catch (error) {
-    log.error('[FinderFilePane] failed to copy selected paths', { error })
+    log.error('[FinderFilePane] failed to copy current directory path', { error })
   }
 }
 
