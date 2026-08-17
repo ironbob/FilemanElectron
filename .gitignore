@@ -39,6 +39,9 @@ test-results/
 .env.local
 .env.*.local
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Superpowers
 .superpowers/
 .claude

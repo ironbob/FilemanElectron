@@ -969,9 +969,10 @@ function editSelectedTags() {
   void handleOperation({ action: 'info', files: [selectedPath] })
 }
 
-// Clear inline preview when pane changes
+// Clear inline preview and search when pane navigates to a new path
 watch(() => pane.value?.path, () => {
   inlinePreviewFile.value = null
+  searchQuery.value = ''
 })
 
 async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move'; checksumItems?: ChecksumItem[] }) {
