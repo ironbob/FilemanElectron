@@ -42,11 +42,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import type { PreviewTab } from '@/types/preview'
 import type { EditOps, EditSaveSpec } from '@shared/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
 import { usePreviewStore } from '@/stores/preview'
+import { useTabsStore } from '@/stores/tabs'
 import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useImageEdit } from '@/composables/useImageEdit'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
@@ -59,6 +60,7 @@ const props = defineProps<{
 }>()
 
 const previewStore = usePreviewStore()
+const tabsStore = useTabsStore()
 const fileOpsStore = useFileOperationsStore()
 
 // 编辑会话组合根：file 为响应式引用，集合步进时 VM 自动退出裁剪/清预估
@@ -97,15 +99,66 @@ useKeyInterceptor((e) => {
 
 function step(delta: number) {
   if (edit.mode.value === 'annotate' && edit.annoDirty.value) {
-    edit.requestAnnotateExit({
-      onDiscard: () => previewStore.stepImageCollection(props.session.id, delta),
-      // 选择「存储」→ 打开保存 Sheet；保存完成后停留在当前图（用户可再按 →）
-      onStore: () => undefined
-    })
+    requestGuardedExit({ type: 'step', delta })
     return
   }
   previewStore.stepImageCollection(props.session.id, delta)
 }
+
+// ── 未保存守卫的挂起后续（保存成功后执行；取消则清空） ────────────────────────
+type PendingAfterSave = { type: 'close' } | { type: 'step'; delta: number }
+const pendingAfterSave = ref<PendingAfterSave | null>(null)
+/** 本次未保存确认是否已由 discard/store 分支处理（cancel 清空挂起）。 */
+let guardResolved = false
+
+/** 统一守卫出口：dirty → 三键确认；「存储」→ 保存 Sheet（成功后执行 pending）。 */
+function requestGuardedExit(after: PendingAfterSave) {
+  pendingAfterSave.value = after
+  edit.requestAnnotateExit({
+    onDiscard: () => {
+      guardResolved = true
+      pendingAfterSave.value = null
+      if (after.type === 'step') previewStore.stepImageCollection(props.session.id, after.delta)
+      // close 路径：discardAnnotate 已退出标注 → 重新走 closeTab（守卫此刻放行）
+      if (after.type === 'close') tabsStore.closePreviewSession(props.session.id)
+    },
+    onStore: () => {
+      guardResolved = true
+      edit.requestAnnotateApply() // VM 自含导出 → 保存 Sheet；成功后 savedSeq 触发挂起动作
+    }
+  })
+}
+
+watch(() => edit.unsavedPrompt.value, open => {
+  if (open) {
+    guardResolved = false
+    return
+  }
+  if (!guardResolved) pendingAfterSave.value = null // 取消：清空挂起
+})
+
+// 保存成功 → 执行挂起的关闭/步进（「存储」分支的续接）
+watch(() => edit.savedSeq.value, () => {
+  const pending = pendingAfterSave.value
+  if (!pending) return
+  pendingAfterSave.value = null
+  if (pending.type === 'close') tabsStore.closePreviewSession(props.session.id)
+  else previewStore.stepImageCollection(props.session.id, pending.delta)
+})
+
+// 关闭守卫（AppTabBar ✕ / Esc / 命令面板关闭统一入口）：dirty 时拦截并弹确认
+const unregisterGuard = tabsStore.registerCloseGuard(props.session.id, () => {
+  if (edit.mode.value !== 'annotate' || !edit.annoDirty.value) return true
+  requestGuardedExit({ type: 'close' })
+  return false
+})
+// 脏探针（标签栏圆点）：标注模式且有形状 = 未保存
+const unregisterProbe = tabsStore.registerDirtyProbe(props.session.id, () =>
+  edit.mode.value === 'annotate' && edit.annoDirty.value)
+onUnmounted(() => {
+  unregisterGuard()
+  unregisterProbe()
+})
 
 /** 批量改名：入既有任务队列；完成后（成功）按映射同步会话 files/index（IFC-7）。 */
 async function queueBatchRename(items: BatchRenameItem[]) {

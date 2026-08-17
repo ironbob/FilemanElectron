@@ -11,6 +11,7 @@
  */
 
 import { ComposedExpression } from '../textFilter'
+import { MatchRange, MatchRangeExtractor } from './matchRanges'
 
 /** One visible line in the filtered view */
 export interface FilterEntry {
@@ -20,6 +21,13 @@ export interface FilterEntry {
   text: string
   /** 'match' = satisfied the expression; 'context' = shown only as context of a match */
   kind: 'match' | 'context'
+  /**
+   * Character ranges of the matched text on this line (0-based half-open),
+   * present only for match entries when a range extractor was supplied and it
+   * supports the expression (single text predicate). Absent → the view falls
+   * back to whole-line highlight.
+   */
+  ranges?: MatchRange[]
 }
 
 /** Result of a filter run */
@@ -65,7 +73,8 @@ const CHUNK_SIZE = 20000
 export function runFilterSync(
   lines: readonly string[],
   expr: ComposedExpression,
-  options: FilterOptions
+  options: FilterOptions,
+  rangeExtractor?: MatchRangeExtractor | null
 ): FilterResult {
   const lineCount = lines.length
   const matchFlags = new Uint8Array(lineCount)
@@ -75,7 +84,7 @@ export function runFilterSync(
     matchFlags[i] = (options.invert ? !raw : raw) ? 1 : 0
   }
 
-  return assembleResult(lines, matchFlags, options)
+  return assembleResult(lines, matchFlags, options, options.invert ? null : rangeExtractor)
 }
 
 /**
@@ -87,7 +96,8 @@ export async function runFilterAsync(
   expr: ComposedExpression,
   options: FilterOptions,
   control?: RunControl,
-  chunkSize: number = CHUNK_SIZE
+  chunkSize: number = CHUNK_SIZE,
+  rangeExtractor?: MatchRangeExtractor | null
 ): Promise<FilterResult | null> {
   const lineCount = lines.length
   const matchFlags = new Uint8Array(lineCount)
@@ -108,7 +118,7 @@ export async function runFilterAsync(
   if (control?.isCancelled()) return null
 
   // Phase 2: context expansion + entry assembly
-  return assembleResult(lines, matchFlags, options)
+  return assembleResult(lines, matchFlags, options, options.invert ? null : rangeExtractor)
 }
 
 /**
@@ -117,7 +127,8 @@ export async function runFilterAsync(
 function assembleResult(
   lines: readonly string[],
   matchFlags: Uint8Array,
-  options: FilterOptions
+  options: FilterOptions,
+  rangeExtractor?: MatchRangeExtractor | null
 ): FilterResult {
   const lineCount = lines.length
   const contextFlags = new Uint8Array(lineCount)
@@ -138,7 +149,12 @@ function assembleResult(
   const matchSourceLines: number[] = []
   for (let i = 0; i < lineCount; i++) {
     if (matchFlags[i] === 1) {
-      entries.push({ sourceLine: i + 1, text: lines[i], kind: 'match' })
+      const entry: FilterEntry = { sourceLine: i + 1, text: lines[i], kind: 'match' }
+      if (rangeExtractor !== undefined && rangeExtractor !== null) {
+        const ranges = rangeExtractor(lines[i])
+        if (ranges.length > 0) entry.ranges = ranges
+      }
+      entries.push(entry)
       matchSourceLines.push(i + 1)
     } else if (contextFlags[i] === 1) {
       entries.push({ sourceLine: i + 1, text: lines[i], kind: 'context' })

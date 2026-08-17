@@ -1,8 +1,8 @@
 <template>
-  <!-- 保存 Sheet（macOS 顶部吸附式实色面板，替换旧版半透明居中弹窗）：
+  <!-- 保存弹窗（居中实色面板 + 轻遮罩；2026-08-17 按用户反馈由顶部吸附改为居中）：
        意图 segmented（导出副本默认/替换原文件）→ 存储为/位置 → 摘要 → 折叠导出选项。
        遮罩不响应点击（防误触丢配置）；Esc=取消；替换需二次确认。 -->
-  <div class="save-sheet-scrim absolute inset-0 z-[80]" @pointerdown.self.prevent @wheel.prevent>
+  <div class="save-sheet-scrim absolute inset-0 z-[80] flex items-center justify-center" @pointerdown.self.prevent @wheel.prevent>
     <form
       class="save-sheet"
       role="dialog"
@@ -53,7 +53,6 @@
                 type="text"
                 spellcheck="false"
                 autocomplete="off"
-                @input="touchOptions"
               />
               <span class="ext-chip" :title="outputPath">{{ '.' + outputExt }}</span>
             </div>
@@ -273,6 +272,16 @@ watch([params, intent], () => {
   }, 300)
 }, { immediate: true })
 
+// 文件名/格式/目录变化 → 重探同名冲突（与预估 watcher 分离，改名不触发无谓重预估）
+let conflictTimer: ReturnType<typeof setTimeout> | null = null
+watch([nameInput, outputExt], () => {
+  if (conflictTimer) clearTimeout(conflictTimer)
+  conflictTimer = setTimeout(() => void checkConflict(), 300)
+})
+onUnmounted(() => {
+  if (conflictTimer) clearTimeout(conflictTimer)
+})
+
 async function checkConflict() {
   if (intent.value !== 'copy' || !nameInput.value.trim()) {
     conflictName.value = null
@@ -353,29 +362,27 @@ void nextTick(() => nameInputRef.value?.focus())
   background: var(--edit-scrim);
 }
 
-/* 顶部吸附实色面板：下圆角 10、240ms 下滑入场 */
+/* 居中实色面板：圆角 10、200ms 上浮淡入；小窗口内超高可滚动 */
 .save-sheet {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
   width: min(500px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
   padding: 20px;
   border: 1px solid var(--edit-hairline);
-  border-top: 0;
-  border-radius: 0 0 10px 10px;
+  border-radius: 10px;
   background: var(--edit-surface);
   box-shadow: var(--edit-shadow-sheet);
-  animation: sheet-in 240ms ease-out;
+  animation: sheet-in 200ms ease-out;
 }
 @keyframes sheet-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-10px);
+    transform: translateY(8px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -624,7 +631,7 @@ void nextTick(() => nameInputRef.value?.focus())
 }
 
 .confirm-overlay {
-  border-radius: 0 0 10px 10px;
+  border-radius: 10px;
 }
 .confirm-alert h3 {
   color: var(--finder-label);

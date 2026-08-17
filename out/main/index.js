@@ -1,4 +1,4 @@
-import { safeStorage, app, shell, ipcMain, BrowserWindow, dialog, nativeImage, screen } from "electron";
+import { safeStorage, app, shell, ipcMain, BrowserWindow, dialog, nativeImage, Menu, screen } from "electron";
 import * as os from "os";
 import os__default from "os";
 import * as path from "path";
@@ -205,10 +205,37 @@ const zhCN = {
   },
   tabs: {
     newTab: "新建标签页",
+    stripAriaLabel: "标签栏",
+    overviewButton: "标签总览",
+    renamePlaceholder: "重命名标签",
+    ariaTabLabel: "{name}，{type}标签，第 {index} 项，共 {total} 项",
+    tabType: {
+      browse: "浏览",
+      preview: "预览",
+      tool: "工具"
+    },
     title: {
       dupes: "重复文件 · {path}",
       grep: "搜索 · {pattern}",
       space: "空间 · {path}"
+    },
+    overview: {
+      title: "标签 · {count}",
+      searchPlaceholder: "搜索标签",
+      matchCount: "{count}/{total}",
+      noMatch: "无匹配标签",
+      unsaved: "未保存",
+      current: "当前标签",
+      closeRowAria: "关闭 {name}"
+    },
+    menu: {
+      close: "关闭标签",
+      closeOthers: "关闭其他标签",
+      closeRight: "关闭右侧标签",
+      pin: "固定标签",
+      unpin: "取消固定",
+      copyPath: "复制路径",
+      resetAlias: "还原默认名称"
     }
   },
   palette: {
@@ -584,22 +611,41 @@ const zhCN = {
       create: "创建"
     },
     saveImage: {
-      title: "保存图片",
-      overwrite: "覆盖原图",
-      saveCopy: "另存副本",
-      suffix: "后缀",
-      compressParams: "压缩参数",
-      estimating: "预估中…",
-      estimateAbout: "约 {size}",
-      quality: "质量 {value}",
-      maxEdge: "最长边",
-      noLimit: "不限制",
-      pxDownscaleOnly: "px（仅缩小）",
+      title: "保存标注后的图片",
+      modeAria: "保存方式",
+      modeCopy: "导出副本",
+      modeReplace: "替换原文件",
+      saveAs: "存储为",
+      nameEmpty: "文件名不能为空",
+      nameInvalid: "文件名不能包含 / 或 \\",
+      willSaveAs: "将存储为 {name}",
+      location: "位置",
+      sameFolder: "与原图相同文件夹",
+      choose: "选取…",
+      chooseFailed: "无法打开目录选择",
+      conflict: "“{name}”已存在，将自动存储为 “{finalName}”",
+      summary: "{format} · {width} × {height} · 预计 {size}",
+      estimating: "计算大小…",
+      estimateUnavailable: "无法预估",
+      options: "导出选项",
       format: "格式",
       formatKeep: "保持原格式",
+      quality: "质量 {value}%",
+      qualityDisabledPng: "PNG 为无损格式，没有质量选项",
+      scaleImage: "缩放图片",
+      maxEdge: "最大边长",
+      scaledTo: "→ {width} × {height}",
+      replaceWarn: "将覆盖原文件 {name}。此操作无法撤销。如需保留原图，请改用「导出副本」。",
+      replaceLockedFormat: "替换时保持原格式",
       cancel: "取消",
-      saving: "保存中…",
-      save: "保存"
+      saveCopy: "存储副本",
+      replaceSave: "替换并保存",
+      saving: "存储中…",
+      retry: "重试",
+      replaceConfirmTitle: "替换“{name}”?",
+      replaceConfirmBody: "原文件将被覆盖，此操作无法撤销。",
+      replaceAction: "替换",
+      replaceCancel: "取消"
     },
     batchCompress: {
       title: "批量压缩",
@@ -1018,28 +1064,63 @@ const zhCN = {
       textPlaceholder: "输入文字，回车确认"
     },
     editToolbar: {
-      expandTip: "展开编辑工具",
-      collapseTip: "收起编辑工具",
-      toolbarAria: "图片编辑",
-      annoToolsAria: "标注工具",
-      toolArrow: "箭头",
-      toolRect: "矩形",
-      toolEllipse: "椭圆",
-      toolFreehand: "画笔",
-      toolText: "文字",
-      colorTip: "颜色 {color}",
-      strokeWidthTip: "粗细 {width}px",
-      undoAnnoTip: "撤销上一个标注",
-      clearAnnoTip: "清空全部标注",
-      pickToolFirstTip: "先选择一个标注工具",
-      saveAnnotate: "保存标注",
-      cropTip: "裁剪",
+      /** 顶部工具栏（视图 + 编辑）与右侧标注轨道（Finder 式重设计 2026-08-16）。 */
+      toolbarAria: "图片视图与编辑",
+      railAria: "标注工具",
+      zoomMenuAria: "缩放选项",
+      zoomTo: "缩放到 {percent}%",
+      fitWindow: "适合窗口 (⌘0)",
+      actualSize: "实际大小 (⌘1)",
+      moreAria: "更多集合操作",
+      cropTip: "裁剪 (⌥⌘C)",
+      rotateDisabledInCrop: "裁剪时不可旋转",
       annotateTip: "标注",
-      compressTip: "压缩",
+      showAnnoTip: "隐藏标注 (⇧⌘A)",
+      hideAnnoTip: "显示标注 (⇧⌘A)",
+      showAnnoDisabledTip: "还没有标注",
+      done: "完成",
+      doneTip: "完成并保存标注 (⌘S)",
+      toolSelect: "选择 (V)",
+      toolArrow: "箭头 (A)",
+      toolRect: "矩形 (R)",
+      toolEllipse: "圆形 (O)",
+      toolFreehand: "画笔 (P)",
+      toolText: "文字 (T)",
+      undoTip: "撤销 (⌘Z)",
+      redoTip: "重做 (⇧⌘Z)",
+      nothingToUndo: "没有可撤销的操作",
+      nothingToRedo: "没有可重做的操作",
+      deleteTip: "删除选中标注 (⌫)",
+      deleteDisabledTip: "请先选择一个标注",
+      duplicateTip: "复制选中标注 (⌘D)",
+      paramAria: "标注参数",
+      paramColor: "颜色",
+      colorTip: "颜色 {color}",
+      paramCustomColor: "自定义颜色…",
+      paramWidth: "线宽",
+      strokeWidthTip: "粗细 {width}px",
+      paramFill: "填充",
+      paramFillNone: "仅描边",
+      paramFillOnly: "仅填充",
+      paramFillSolid: "描边+填充",
+      paramOpacity: "透明度",
+      paramHintPending: "调整将应用于后续绘制",
+      paramHintSelected: "正在修改选中的对象",
+      editedBadge: "已编辑",
+      selectedCount: "已选择 {n} 个对象",
+      flashSavedCopy: "已存储 {name}",
+      flashSavedReplace: "已替换原文件",
+      unsavedAria: "未保存确认",
+      unsavedTitle: "要存储对“{name}”的标注更改吗？",
+      unsavedBody: "如果不存储，您的标注将会丢失。",
+      unsavedDiscard: "不保存",
+      unsavedStore: "存储",
+      unsavedCancel: "取消",
       batchCompressTip: "批量压缩当前集合",
       batchCompress: "批量压缩",
       batchRenameTip: "批量改名当前集合",
-      batchRename: "批量改名"
+      batchRename: "批量改名",
+      compressTip: "压缩"
     },
     video: {
       loading: "正在加载视频…",
@@ -1069,8 +1150,13 @@ const zhCN = {
     text: {
       loading: "正在加载文件…",
       loadFailed: "无法加载文件",
+      unsavedAria: "存在未保存修改",
+      unsavedPrompt: "存在未保存修改，关闭前如何处理？",
+      saveAndClose: "保存并关闭",
+      discard: "放弃修改",
       truncatedBanner: "文件共 {size}，仅载入前 {limit} MB（大文件整读有卡顿/内存风险）",
       linesCount: "{n} 行",
+      metaLinesSize: "{n} 行 · {size}",
       csvRowsCols: "{rows} 行 · {cols} 列",
       showingRows: "仅显示前 {shown} 行，共 {total} 行",
       sortColumnTip: "按此列排序",
@@ -1084,10 +1170,72 @@ const zhCN = {
       diffLabel: "Diff",
       save: "保存",
       saveBlockedTip: "过滤视图激活时不可保存源文件",
+      saveBlockedPartialTip: "分片加载中，加载全部后才能编辑/保存",
       changesTitle: "更改：{name}",
       originalToModified: "原始 → 修改后",
       escToClose: "（按 Esc 关闭）",
-      saveFailed: "保存文件失败"
+      saveFailed: "保存文件失败",
+      // ── Finder 式工具栏（重设计 2026-08-17）──────────────────────────────
+      toolbarAriaLabel: "文本预览工具栏",
+      searchPlaceholder: "在本文中查找：文本或 co()/reg() 表达式",
+      searchTip: "查找 (⌘F)",
+      findOptionsTip: "查找选项",
+      matchCountTotal: "{n} 个匹配",
+      matchCountCurrent: "{i} / {n} 个匹配",
+      prevMatchTip: "上一个匹配 (⇧Enter)",
+      findNavDisabledTip: "先查找，再在匹配间跳转",
+      nextMatchTip: "下一个匹配 (Enter)",
+      clearSearchTip: "清除搜索 (Esc)",
+      syntaxMenuLabel: "语法：{lang}",
+      syntaxPlain: "纯文本",
+      syntaxAuto: "自动检测",
+      copyTip: "复制 (⌘C)",
+      copySelectionTip: "复制所选 (⌘C)",
+      copyAllTip: "复制全文 (⌘C)",
+      exportTip: "导出",
+      exportFull: "导出全文…",
+      exportMatches: "导出匹配结果…",
+      exportSelection: "导出所选…",
+      moreMenuTip: "更多选项",
+      encodingRow: "编码",
+      fontSizeRow: "字号",
+      showLineNumbersRow: "显示行号",
+      showMinimapRow: "显示迷你地图",
+      jumpToLineRow: "跳转到行…",
+      jumpToLineTip: "跳转到行 (⌘L)",
+      jumpPlaceholder: "行号 (1–{max})",
+      jumpInvalid: "请输入 1–{max} 之间的整数",
+      jumpGo: "跳转",
+      // 过滤状态条
+      statusQuerySummary: "“{query}”：{n} 个匹配",
+      statusContextDesc: "仅显示匹配行与前后 {n} 行",
+      statusContextOff: "仅显示匹配行",
+      showFullTextBtn: "显示全文",
+      showMatchLinesBtn: "仅显示匹配行",
+      fullHighlightNote: "全文已高亮",
+      escRestoreTip: "Esc 恢复全文",
+      loadedRangeNote: "（仅已加载范围）",
+      noMatchTitle: "没有匹配 “{query}”",
+      adjustFindOptions: "调整搜索选项",
+      gapLinesLabel: "⋯ {n} 行未显示 ⋯",
+      // 查找选项 Popover
+      findRulesSection: "匹配规则",
+      ruleCaseSensitive: "大小写敏感",
+      ruleWholeWord: "全字匹配",
+      ruleRegex: "正则表达式",
+      rulesUnavailableExpr: "表达式查询时规则不可用",
+      contextSection: "上下文行数",
+      contextDesc: "匹配行上、下各显示的行数",
+      advancedSection: "高级",
+      invalidRegex: "无效的正则表达式",
+      // 复制/导出反馈
+      copiedAll: "已复制全文",
+      copiedSelection: "已复制所选 {n} 行",
+      // 分片加载脚注
+      loadedProgress: "已加载 {loaded} / {size}",
+      loadMoreTip: "加载更多",
+      loadMoreChunk: "再加载 2 MB",
+      loadAll: "加载全部"
     },
     pdf: {
       loading: "正在加载 PDF…",
@@ -1304,6 +1452,8 @@ const zhCN = {
       imageEditUnsupportedFormat: "不支持的图片格式：.{ext}",
       imageEditCropAnnotateExclusive: "crop 与 annotate 互斥，请分别保存",
       imageEditNameExhausted: "无法生成唯一输出文件名（已尝试 100 个候选）：{path}",
+      imageEditInvalidName: "文件名「{name}」非法：不能为空，也不能包含 / 或 \\",
+      imageEditTargetDirMissing: "目标文件夹不存在或不可用：{dir}",
       verifyDeviceNotConnected: "设备未连接，无法校验内容",
       hashStreamUnsupported: "该设备不支持流式读取，无法处理超过 32 MB 的文件",
       // ── 移动设备截屏 ────────────────────────────────────────────────────
@@ -1381,10 +1531,37 @@ const enUS = {
   },
   tabs: {
     newTab: "New Tab",
+    stripAriaLabel: "Tab bar",
+    overviewButton: "Show tab overview",
+    renamePlaceholder: "Rename tab",
+    ariaTabLabel: "{name}, {type} tab, item {index} of {total}",
+    tabType: {
+      browse: "browse",
+      preview: "preview",
+      tool: "tool"
+    },
     title: {
       dupes: "Duplicates · {path}",
       grep: "Search · {pattern}",
       space: "Space · {path}"
+    },
+    overview: {
+      title: "Tabs · {count}",
+      searchPlaceholder: "Search tabs",
+      matchCount: "{count}/{total}",
+      noMatch: "No matching tabs",
+      unsaved: "Unsaved",
+      current: "Current tab",
+      closeRowAria: "Close {name}"
+    },
+    menu: {
+      close: "Close Tab",
+      closeOthers: "Close Other Tabs",
+      closeRight: "Close Tabs to the Right",
+      pin: "Pin Tab",
+      unpin: "Unpin Tab",
+      copyPath: "Copy Path",
+      resetAlias: "Restore Default Name"
     }
   },
   palette: {
@@ -1760,22 +1937,41 @@ const enUS = {
       create: "Create"
     },
     saveImage: {
-      title: "Save Image",
-      overwrite: "Overwrite Original",
-      saveCopy: "Save a Copy",
-      suffix: "Suffix",
-      compressParams: "Compression",
-      estimating: "Estimating…",
-      estimateAbout: "about {size}",
-      quality: "Quality {value}",
-      maxEdge: "Longest Edge",
-      noLimit: "Unlimited",
-      pxDownscaleOnly: "px (downscale only)",
+      title: "Save Annotated Image",
+      modeAria: "Save mode",
+      modeCopy: "Export a Copy",
+      modeReplace: "Replace Original",
+      saveAs: "Save As",
+      nameEmpty: "File name cannot be empty",
+      nameInvalid: "File name cannot contain / or \\",
+      willSaveAs: "Will save as {name}",
+      location: "Where",
+      sameFolder: "Same folder as original",
+      choose: "Choose…",
+      chooseFailed: "Could not open the directory picker",
+      conflict: "“{name}” already exists — will save as “{finalName}”",
+      summary: "{format} · {width} × {height} · est. {size}",
+      estimating: "Calculating…",
+      estimateUnavailable: "Estimate unavailable",
+      options: "Export Options",
       format: "Format",
       formatKeep: "Keep Original",
+      quality: "Quality {value}%",
+      qualityDisabledPng: "PNG is lossless — no quality option",
+      scaleImage: "Scale Image",
+      maxEdge: "Max Edge",
+      scaledTo: "→ {width} × {height}",
+      replaceWarn: "The original {name} will be overwritten and cannot be undone. Use “Export a Copy” to keep the original.",
+      replaceLockedFormat: "Format is locked to the original when replacing",
       cancel: "Cancel",
+      saveCopy: "Save a Copy",
+      replaceSave: "Replace & Save",
       saving: "Saving…",
-      save: "Save"
+      retry: "Retry",
+      replaceConfirmTitle: "Replace “{name}”?",
+      replaceConfirmBody: "The original file will be overwritten. This cannot be undone.",
+      replaceAction: "Replace",
+      replaceCancel: "Cancel"
     },
     batchCompress: {
       title: "Batch Compress",
@@ -2186,28 +2382,63 @@ const enUS = {
       textPlaceholder: "Type text, press Enter to confirm"
     },
     editToolbar: {
-      expandTip: "Expand edit toolbar",
-      collapseTip: "Collapse edit toolbar",
-      toolbarAria: "Image editing",
-      annoToolsAria: "Annotation tools",
-      toolArrow: "Arrow",
-      toolRect: "Rectangle",
-      toolEllipse: "Ellipse",
-      toolFreehand: "Pen",
-      toolText: "Text",
-      colorTip: "Color {color}",
-      strokeWidthTip: "Stroke width {width}px",
-      undoAnnoTip: "Undo last annotation",
-      clearAnnoTip: "Clear all annotations",
-      pickToolFirstTip: "Pick an annotation tool first",
-      saveAnnotate: "Save Annotations",
-      cropTip: "Crop",
+      /** Top toolbar (view + edit) and right annotation rail (Finder-style redesign 2026-08-16). */
+      toolbarAria: "Image view and editing",
+      railAria: "Annotation tools",
+      zoomMenuAria: "Zoom options",
+      zoomTo: "Zoom to {percent}%",
+      fitWindow: "Zoom to Fit (⌘0)",
+      actualSize: "Actual Size (⌘1)",
+      moreAria: "More collection actions",
+      cropTip: "Crop (⌥⌘C)",
+      rotateDisabledInCrop: "Rotation is unavailable while cropping",
       annotateTip: "Annotate",
-      compressTip: "Compress",
+      showAnnoTip: "Hide annotations (⇧⌘A)",
+      hideAnnoTip: "Show annotations (⇧⌘A)",
+      showAnnoDisabledTip: "No annotations yet",
+      done: "Done",
+      doneTip: "Finish and save annotations (⌘S)",
+      toolSelect: "Select (V)",
+      toolArrow: "Arrow (A)",
+      toolRect: "Rectangle (R)",
+      toolEllipse: "Ellipse (O)",
+      toolFreehand: "Pen (P)",
+      toolText: "Text (T)",
+      undoTip: "Undo (⌘Z)",
+      redoTip: "Redo (⇧⌘Z)",
+      nothingToUndo: "Nothing to undo",
+      nothingToRedo: "Nothing to redo",
+      deleteTip: "Delete selected annotations (⌫)",
+      deleteDisabledTip: "Select an annotation first",
+      duplicateTip: "Duplicate selected annotations (⌘D)",
+      paramAria: "Annotation settings",
+      paramColor: "Color",
+      colorTip: "Color {color}",
+      paramCustomColor: "Custom color…",
+      paramWidth: "Stroke width",
+      strokeWidthTip: "Stroke width {width}px",
+      paramFill: "Fill",
+      paramFillNone: "Outline",
+      paramFillOnly: "Fill Only",
+      paramFillSolid: "Stroke + Fill",
+      paramOpacity: "Opacity",
+      paramHintPending: "Applies to new annotations",
+      paramHintSelected: "Editing selected annotations",
+      editedBadge: "Edited",
+      selectedCount: "{n} object selected | {n} objects selected",
+      flashSavedCopy: "Saved {name}",
+      flashSavedReplace: "Original replaced",
+      unsavedAria: "Unsaved changes",
+      unsavedTitle: "Store changes to “{name}”?",
+      unsavedBody: "Your annotations will be lost if you don’t store them.",
+      unsavedDiscard: "Don’t Save",
+      unsavedStore: "Store",
+      unsavedCancel: "Cancel",
       batchCompressTip: "Batch compress the current collection",
       batchCompress: "Batch Compress",
       batchRenameTip: "Batch rename the current collection",
-      batchRename: "Batch Rename"
+      batchRename: "Batch Rename",
+      compressTip: "Compress"
     },
     video: {
       loading: "Loading video...",
@@ -2237,8 +2468,13 @@ const enUS = {
     text: {
       loading: "Loading file...",
       loadFailed: "Failed to load file",
+      unsavedAria: "Unsaved changes",
+      unsavedPrompt: "There are unsaved changes. How do you want to close?",
+      saveAndClose: "Save and Close",
+      discard: "Discard Changes",
       truncatedBanner: "File is {size}; only the first {limit} MB is loaded (whole-read of large files risks stalls/memory)",
       linesCount: "{n} line | {n} lines",
+      metaLinesSize: "{n} lines · {size}",
       csvRowsCols: "{rows} rows · {cols} cols",
       showingRows: "Showing first {shown} of {total} rows",
       sortColumnTip: "Sort by this column",
@@ -2252,10 +2488,72 @@ const enUS = {
       diffLabel: "Diff",
       save: "Save",
       saveBlockedTip: "Cannot save the source file while a filtered view is active",
+      saveBlockedPartialTip: "Partially loaded — load everything before editing/saving",
       changesTitle: "Changes: {name}",
       originalToModified: "Original → Modified",
       escToClose: "(Press Esc to close)",
-      saveFailed: "Failed to save file"
+      saveFailed: "Failed to save file",
+      // ── Finder-style toolbar (redesign 2026-08-17) ────────────────────────
+      toolbarAriaLabel: "Text preview toolbar",
+      searchPlaceholder: "Find in file: plain text or co()/reg() expression",
+      searchTip: "Find (⌘F)",
+      findOptionsTip: "Find options",
+      matchCountTotal: "{n} match | {n} matches",
+      matchCountCurrent: "{i} / {n} matches",
+      prevMatchTip: "Previous match (⇧Enter)",
+      findNavDisabledTip: "Find first, then navigate matches",
+      nextMatchTip: "Next match (Enter)",
+      clearSearchTip: "Clear search (Esc)",
+      syntaxMenuLabel: "Syntax: {lang}",
+      syntaxPlain: "Plain Text",
+      syntaxAuto: "Auto Detect",
+      copyTip: "Copy (⌘C)",
+      copySelectionTip: "Copy selection (⌘C)",
+      copyAllTip: "Copy all (⌘C)",
+      exportTip: "Export",
+      exportFull: "Export Full Text…",
+      exportMatches: "Export Matches…",
+      exportSelection: "Export Selection…",
+      moreMenuTip: "More options",
+      encodingRow: "Encoding",
+      fontSizeRow: "Font Size",
+      showLineNumbersRow: "Show Line Numbers",
+      showMinimapRow: "Show Minimap",
+      jumpToLineRow: "Go to Line…",
+      jumpToLineTip: "Go to Line (⌘L)",
+      jumpPlaceholder: "Line (1–{max})",
+      jumpInvalid: "Enter an integer between 1 and {max}",
+      jumpGo: "Go",
+      // Filter status bar
+      statusQuerySummary: '"{query}": {n} match | "{query}": {n} matches',
+      statusContextDesc: "Matching lines only, ±{n} context",
+      statusContextOff: "Showing matching lines only",
+      showFullTextBtn: "Show Full Text",
+      showMatchLinesBtn: "Show Matches Only",
+      fullHighlightNote: "Full text highlighted",
+      escRestoreTip: "Esc restores full text",
+      loadedRangeNote: " (loaded range only)",
+      noMatchTitle: 'No matches for "{query}"',
+      adjustFindOptions: "Adjust Find Options",
+      gapLinesLabel: "⋯ {n} lines hidden ⋯",
+      // Find options popover
+      findRulesSection: "Match Rules",
+      ruleCaseSensitive: "Case Sensitive",
+      ruleWholeWord: "Whole Word",
+      ruleRegex: "Regular Expression",
+      rulesUnavailableExpr: "Rules unavailable for expression queries",
+      contextSection: "Context Lines",
+      contextDesc: "Lines shown above/below each match",
+      advancedSection: "Advanced",
+      invalidRegex: "Invalid regular expression",
+      // Copy/export feedback
+      copiedAll: "Full text copied",
+      copiedSelection: "Copied {n} selected line | Copied {n} selected lines",
+      // Chunked-loading footer
+      loadedProgress: "Loaded {loaded} / {size}",
+      loadMoreTip: "Load more",
+      loadMoreChunk: "Load 2 MB More",
+      loadAll: "Load All"
     },
     pdf: {
       loading: "Loading PDF...",
@@ -2470,6 +2768,8 @@ const enUS = {
       imageEditUnsupportedFormat: "Unsupported image format: .{ext}",
       imageEditCropAnnotateExclusive: "crop and annotate are mutually exclusive; save them separately",
       imageEditNameExhausted: "Cannot generate a unique output file name (100 candidates tried): {path}",
+      imageEditInvalidName: 'File name "{name}" is invalid: it cannot be empty or contain / or \\',
+      imageEditTargetDirMissing: "Target folder is missing or unavailable: {dir}",
       verifyDeviceNotConnected: "Device is not connected; cannot verify content",
       hashStreamUnsupported: "This device does not support streaming reads; cannot process files larger than 32 MB",
       // ── mobile screenshots ──────────────────────────────────────────────
@@ -5597,6 +5897,7 @@ const CH = {
     // system:
     systemGetHomeDir: "system:getHomeDir",
     systemSaveFileDialog: "system:saveFileDialog",
+    systemPickDirectory: "system:pickDirectory",
     // window:
     fileInfoWindowOpen: "window:fileInfo:open",
     fileInfoWindowGetContext: "window:fileInfo:getContext",
@@ -8676,12 +8977,17 @@ function extensionForFormat(format) {
   return format === "jpeg" ? "jpg" : format;
 }
 function resolveOutputPath(options) {
-  const { sourcePath, mode, format, suffix = "_edited", exists } = options;
+  const { sourcePath, mode, format, suffix = "_edited", name, dir, exists } = options;
   if (mode === "overwrite") return sourcePath;
-  const dir = path__default.dirname(sourcePath);
-  const base = path__default.basename(sourcePath, path__default.extname(sourcePath));
+  if (name !== void 0) {
+    if (!name.trim() || name.includes("/") || name.includes("\\") || name === "." || name === "..") {
+      throw new Error(t("errors.main.imageEditInvalidName", { name }));
+    }
+  }
+  const outDir = dir ?? path__default.dirname(sourcePath);
+  const base = name ?? path__default.basename(sourcePath, path__default.extname(sourcePath)) + suffix;
   const ext = extensionForFormat(format);
-  const candidate = (n) => path__default.join(dir, `${base}${suffix}${n > 0 ? `-${n}` : ""}.${ext}`);
+  const candidate = (n) => path__default.join(outDir, `${base}${n > 0 ? `-${n}` : ""}.${ext}`);
   for (let n = 0; n <= 100; n++) {
     const p = candidate(n);
     if (!exists(p)) return p;
@@ -8696,17 +9002,19 @@ class ImageEditService {
     this.decoder = decoder;
   }
   registry = new SessionTaskRegistry();
-  /** 试编码预估（不落盘）。 */
+  /** 试编码预估（不落盘）。按真实输出格式/质量编码，保证体积与格式结论可用于 Sheet 摘要。 */
   async estimate(filePath, params) {
     const t0 = Date.now();
     log$5.info("[ImageEdit] estimate start", { filePath, quality: params.quality, maxEdge: params.maxEdge, format: params.format });
-    const { pipeline: pipeline2, format } = await this.buildPipeline(filePath, { compress: params });
-    const { data, info } = await pipeline2.toBuffer({ resolveWithObject: true });
+    const { pipeline: pipeline2, format: inputFormat } = await this.buildPipeline(filePath, { compress: params });
+    const meta = await pipeline2.metadata();
+    const outFormat = this.resolveOutFormat({ mode: "copy" }, { compress: params }, inputFormat);
+    const data = await this.encode(pipeline2, outFormat, params.quality);
     const result = {
       estimatedBytes: data.byteLength,
-      format: info.format,
-      width: info.width,
-      height: info.height
+      format: outFormat,
+      width: meta.width ?? 0,
+      height: meta.height ?? 0
     };
     log$5.info("[ImageEdit] estimate done", { filePath, ms: Date.now() - t0, ...result });
     return result;
@@ -8716,6 +9024,10 @@ class ImageEditService {
     const t0 = Date.now();
     log$5.info("[ImageEdit] apply start", { filePath, crop: !!ops.crop, compress: !!ops.compress, mode: save.mode });
     if (!ops.crop && !ops.compress && !ops.annotate) throw new Error(t("errors.main.imageEditEmptyOps"));
+    if (save.dir && save.mode === "copy") {
+      const stat2 = await fs$1.stat(save.dir).catch(() => null);
+      if (!stat2?.isDirectory()) throw new Error(t("errors.main.imageEditTargetDirMissing", { dir: save.dir }));
+    }
     const { pipeline: pipeline2, format: inputFormat } = await this.buildPipeline(filePath, ops);
     const outFormat = this.resolveOutFormat(save, ops, inputFormat);
     const encoded = await this.encode(pipeline2, outFormat, ops.compress?.quality);
@@ -8724,6 +9036,8 @@ class ImageEditService {
       mode: save.mode,
       format: outFormat,
       suffix: save.suffix,
+      name: save.name,
+      dir: save.dir,
       exists: (p) => fs$1.existsSync(p)
     });
     await this.writeAtomic(target, encoded, save.mode);
@@ -9945,6 +10259,11 @@ ipcMain.handle(CH.invoke.systemSaveFileDialog, async (event, options) => {
   const result = win ? await dialog.showSaveDialog(win, { defaultPath: options.defaultPath, filters: options.filters }) : await dialog.showSaveDialog({ defaultPath: options.defaultPath, filters: options.filters });
   return result.canceled || !result.filePath ? null : result.filePath;
 });
+ipcMain.handle(CH.invoke.systemPickDirectory, async (event, defaultPath) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = win ? await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"], defaultPath }) : await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"], defaultPath });
+  return result.canceled || !result.filePaths?.length ? null : result.filePaths[0];
+});
 ipcMain.handle(CH.invoke.fsCopyBetween, async (_, srcDeviceId, srcPaths, dstDeviceId, dstPath) => {
   await fileOperationManager.addTaskAndWait({
     type: "copy",
@@ -10104,6 +10423,18 @@ volumeScanner.onVolumeChange((volumes) => {
     mainWindow.webContents.send(CH.push.volumesChanged, volumes);
   }
 });
+Menu.setApplicationMenu(Menu.buildFromTemplate([
+  { role: "appMenu" },
+  { role: "editMenu" },
+  { role: "viewMenu" },
+  {
+    label: "Window",
+    submenu: [
+      { role: "minimize" },
+      { role: "zoom" }
+    ]
+  }
+]));
 app.whenReady().then(() => {
   createWindow();
   deviceManager.startMobileDeviceScan();

@@ -1,11 +1,20 @@
 /**
  * Log Analysis - Feature ViewModel (ROLE-L02, MVVM presentation model)
  *
- * Owns the per-preview-tab filter session (expression, error, invert, context
- * window, hit navigation) and orchestrates the domain pipeline (D1/D2), the
- * scheme library (store L01) and the two Monaco adapters (L04/L05).
- * Session state deliberately does NOT persist (PRD R10); global scheme
- * library and history live in the logAnalysis store.
+ * Owns the per-preview-tab find/filter session (query, plain-mode rules, error,
+ * invert, context window, hit navigation, A/B view switching) and orchestrates
+ * the domain pipeline (D1/D2), the scheme library (store L01) and the two
+ * Monaco adapters (L04/L05). Session state deliberately does NOT persist
+ * (PRD R10); global scheme library and history live in the logAnalysis store.
+ *
+ * Redesign 2026-08-17:
+ * - Plain-text-first query: input that parses as an expression (or starts with
+ *   a predicate keyword) is compiled as-is; anything else is wrapped as a raw
+ *   contains/word/regex term via ComposePlainQuery (no string escaping).
+ * - Two search views: 'filtered' (A: match blocks + context + gap chips) and
+ *   'full' (B: full text with soft match highlights + solid current match).
+ * - Match character ranges flow from the pipeline into L2/L3 decorations;
+ *   composite expressions degrade to whole-line highlights.
  *
  * Race safety: every async filter run carries a generation counter; a newer
  * run invalidates older results, which are discarded instead of written back
@@ -15,14 +24,16 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { t } from '@/i18n'
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-import { ComposeExpression } from '@/utils/textFilter'
+import { ComposeExpression, ComposePlainQuery, PlainQueryMode, looksLikeExpression } from '@/utils/textFilter'
 import {
   FilterResult,
   runFilterAsync
 } from '@/utils/logAnalysis/filterPipeline'
+import { createMatchRangeExtractor } from '@/utils/logAnalysis/matchRanges'
+import { buildDisplayModelFromResult } from '@/utils/logAnalysis/filterGaps'
 import { compileScheme } from '@/utils/logAnalysis/schemeModel'
 import { useLogAnalysisStore } from '@/stores/logAnalysis'
-import { createFilterViewAdapter } from '@/components/preview/logview/monacoFilterView'
+import { createFilterViewAdapter, FilterDisplayModel } from '@/components/preview/logview/monacoFilterView'
 import { createHighlighter } from '@/components/preview/logview/monacoHighlighter'
 
 /** Console-backed logger, main-process call-site style (log.info/log.error) */
@@ -31,8 +42,10 @@ const log = {
   error: (msg: string, ...args: unknown[]) => console.error('[UseLogAnalysis]', msg, ...args)
 }
 
-/** Smallest context window offered in the toolbar */
-const CONTEXT_RANGE = [0, 1, 2, 3, 5, 10] as const
+/** Context-window choices in the find-options popover (design: 0/1/3/5, default 3) */
+const CONTEXT_RANGE = [0, 1, 3, 5] as const
+
+export type SearchViewMode = 'filtered' | 'full'
 
 export interface LogAnalysisHost {
   /** Current Monaco editor instance or null (host may recreate it) */
@@ -58,9 +71,17 @@ export function useLogAnalysis(host: LogAnalysisHost) {
   const contextN = ref(3)
   const filtering = ref(false)
   const result = shallowRef<FilterResult | null>(null)
+  const displayModel = shallowRef<FilterDisplayModel | null>(null)
   const hitIndex = ref(-1)
   const exporting = ref(false)
   const actionMessage = ref<string | null>(null)
+
+  /** Find-rule sugar for plain queries (expression queries ignore this) */
+  const plainMode = ref<PlainQueryMode>('contains')
+  /** True when the active/last query was compiled as a predicate expression */
+  const isExpressionQuery = ref(false)
+  /** A = filtered view, B = full text with highlights */
+  const searchViewMode = ref<SearchViewMode>('filtered')
 
   let generation = 0
 
@@ -68,22 +89,14 @@ export function useLogAnalysis(host: LogAnalysisHost) {
   const highlighter = createHighlighter(host.getEditor)
 
   // ── Derived state for the View ────────────────────────────────────────────
-  /** True while the editor shows a filtered view (host must suppress edit/save) */
+  /** True while the editor shows a transformed view (host must suppress edit/save) */
   const isViewTransformed = computed(() => result.value !== null)
   const matchCount = computed(() => result.value?.matchCount ?? null)
   const hasResult = computed(() => result.value !== null)
   const canExport = computed(() => result.value !== null && result.value.entries.length > 0)
 
-  /** display-line index of each match entry, for navigation */
-  const matchDisplayLines = computed<number[]>(() => {
-    const r = result.value
-    if (r === null) return []
-    const lines: number[] = []
-    r.entries.forEach((e, idx) => {
-      if (e.kind === 'match') lines.push(idx + 1)
-    })
-    return lines
-  })
+  /** display-line index of each match entry, for A-view navigation */
+  const matchDisplayLines = computed<number[]>(() => displayModel.value?.matchDisplayLines ?? [])
 
   // ── Scheme wiring (independent from filtering, PRD R3) ────────────────────
   watch(
@@ -94,21 +107,49 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     { immediate: true }
   )
 
-  // ── Filtering ─────────────────────────────────────────────────────────────
-  async function applyFilter(): Promise<void> {
-    const expr = expression.value.trim()
+  // ── Query compilation (plain-text first, expression escape hatch) ────────
+  function compileQuery(raw: string): { ok: true; expr: ReturnType<typeof ComposeExpression> } | { ok: false; error: string } {
+    const parsed = ComposeExpression(raw, { levels: store.levelVocabulary })
+    if (parsed.isValid()) {
+      isExpressionQuery.value = true
+      return { ok: true, expr: parsed }
+    }
+    if (looksLikeExpression(raw)) {
+      // Power user intent: surface the parse error, keep the last valid view (PRD R8)
+      return { ok: false, error: parsed.error() ?? t('preview.logview.filterFailed') }
+    }
+    // Plain query — validate regex mode up front so errors are actionable
+    if (plainMode.value === 'regex') {
+      try {
+        new RegExp(raw)
+      } catch (err) {
+        return { ok: false, error: t('preview.text.invalidRegex') }
+      }
+    }
+    isExpressionQuery.value = false
+    return { ok: true, expr: ComposePlainQuery(raw, plainMode.value, { levels: store.levelVocabulary }) }
+  }
 
-    if (expr === '') {
+  // ── Filtering ─────────────────────────────────────────────────────────────
+  /**
+   * @param record store the query in filter history (explicit Enter/popover
+   *               actions only — live-typing debounce passes false)
+   */
+  async function applyFilter(record: boolean = true): Promise<void> {
+    const raw = expression.value
+    const trimmed = raw.trim()
+
+    if (trimmed === '') {
       clearFilter()
       return
     }
 
-    log.info('applyFilter: expr="%s" invert=%s context=%s', expr, invert.value, contextEnabled.value ? contextN.value : 0)
-    const parsed = ComposeExpression(expr, { levels: store.levelVocabulary })
-    if (!parsed.isValid()) {
+    log.info('applyFilter: query="%s" plain=%s invert=%s context=%s', trimmed, !isExpressionQuery, invert.value, contextEnabled.value ? contextN.value : 0)
+    const compiled = compileQuery(trimmed)
+    if (!compiled.ok) {
       // Keep the last valid view untouched (PRD R8)
-      filterError.value = parsed.error()
-      log.info('applyFilter: parse failed: %s', parsed.error())
+      filterError.value = compiled.error
+      log.info('applyFilter: compile failed: %s', compiled.error)
       return
     }
 
@@ -119,15 +160,18 @@ export function useLogAnalysis(host: LogAnalysisHost) {
 
     try {
       const lines = host.getLines()
+      const rangeExtractor = createMatchRangeExtractor(compiled.expr.getAst(), { levels: store.levelVocabulary })
       const filterResult = await runFilterAsync(
         lines,
-        parsed,
+        compiled.expr,
         {
           invert: invert.value,
           contextBefore: contextEnabled.value ? contextN.value : 0,
           contextAfter: contextEnabled.value ? contextN.value : 0
         },
-        { isCancelled: () => generation !== myGeneration }
+        { isCancelled: () => generation !== myGeneration },
+        undefined,
+        rangeExtractor
       )
 
       if (filterResult === null) {
@@ -137,9 +181,17 @@ export function useLogAnalysis(host: LogAnalysisHost) {
 
       result.value = filterResult
       hitIndex.value = -1
-      filterView.applyFilterResult(filterResult, host.getOriginalContent())
+      // A fresh query always lands in the filtered (A) view
+      searchViewMode.value = 'filtered'
+      displayModel.value = buildDisplayModelFromResult(
+        filterResult,
+        lines.length,
+        n => t('preview.text.gapLinesLabel', { n })
+      )
+      filterView.applyFilterResult(filterResult, displayModel.value, host.getOriginalContent())
+      filterView.setCurrentMatchIndex(-1)
       highlighter.scheduleRefresh()
-      store.recordExpression(expr)
+      if (record) store.recordExpression(trimmed)
       log.info('applyFilter: matched %d / %d lines', filterResult.matchCount, lines.length)
     } catch (err) {
       log.error('applyFilter failed:', err)
@@ -156,8 +208,10 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     expression.value = ''
     filterError.value = null
     result.value = null
+    displayModel.value = null
     hitIndex.value = -1
     filtering.value = false
+    searchViewMode.value = 'filtered'
     filterView.clear(host.getOriginalContent())
     highlighter.scheduleRefresh()
     log.info('clearFilter: restored full view')
@@ -166,22 +220,81 @@ export function useLogAnalysis(host: LogAnalysisHost) {
   function setInvert(value: boolean): void {
     if (invert.value === value) return
     invert.value = value
-    if (result.value !== null) void applyFilter()
+    if (result.value !== null) void applyFilter(false)
   }
 
   function setContext(enabled: boolean, n?: number): void {
     contextEnabled.value = enabled
     if (n !== undefined) contextN.value = n
-    if (result.value !== null) void applyFilter()
+    if (result.value !== null) void applyFilter(false)
+  }
+
+  function setPlainMode(mode: PlainQueryMode): void {
+    if (plainMode.value === mode) return
+    plainMode.value = mode
+    // Rules only affect plain queries; re-run when one is (or would be) active
+    if (!isExpressionQuery.value && expression.value.trim() !== '') void applyFilter(false)
+  }
+
+  // ── A/B view switching (design 2026-08-17 §3) ─────────────────────────────
+  function showFullView(): void {
+    const r = result.value
+    if (r === null) return
+    searchViewMode.value = 'full'
+    filterView.showFullHighlight(r, host.getOriginalContent())
+    filterView.setCurrentMatchIndex(hitIndex.value)
+    log.info('showFullView: B view, matches=%d', r.matchCount)
+  }
+
+  function showFilteredView(): void {
+    const r = result.value
+    const model = displayModel.value
+    if (r === null || model === null) return
+    searchViewMode.value = 'filtered'
+    filterView.applyFilterResult(r, model, host.getOriginalContent())
+    filterView.setCurrentMatchIndex(hitIndex.value)
+    log.info('showFilteredView: A view')
+  }
+
+  /** Jump into the B view at a source line; optionally make matchIndex current */
+  function locateInFullView(sourceLine: number, matchIndex?: number): void {
+    const r = result.value
+    if (r === null) return
+    searchViewMode.value = 'full'
+    filterView.showFullHighlight(r, host.getOriginalContent())
+    if (matchIndex !== undefined && matchIndex >= 0) {
+      hitIndex.value = matchIndex
+    }
+    filterView.setCurrentMatchIndex(hitIndex.value)
+    filterView.navigateToSourceLine(sourceLine)
+  }
+
+  /** Click routing for the A view: gap chip / match line → locate in B view */
+  function handleEditorMouseDown(lineNumber: number | undefined): void {
+    if (searchViewMode.value !== 'filtered' || lineNumber === undefined) return
+    const hit = filterView.hitTestDisplayLine(lineNumber)
+    if (hit === null) return
+    if (hit.kind === 'gap') {
+      locateInFullView(hit.sourceLine)
+    } else {
+      locateInFullView(hit.sourceLine, hit.matchIndex)
+    }
   }
 
   // ── Hit navigation (PRD P1) ───────────────────────────────────────────────
   function navigateHit(direction: 1 | -1): void {
-    const lines = matchDisplayLines.value
-    if (lines.length === 0) return
-    const next = (hitIndex.value + direction + lines.length) % lines.length
+    const r = result.value
+    if (r === null || r.matchSourceLines.length === 0) return
+    const count = r.matchSourceLines.length
+    const next = (hitIndex.value + direction + count) % count
     hitIndex.value = next
-    filterView.navigateToDisplayLine(lines[next])
+    filterView.setCurrentMatchIndex(next)
+    if (searchViewMode.value === 'filtered') {
+      const displayLine = matchDisplayLines.value[next]
+      if (displayLine !== undefined) filterView.navigateToDisplayLine(displayLine)
+    } else {
+      filterView.navigateToSourceLine(r.matchSourceLines[next])
+    }
   }
 
   // ── Copy / export (PRD P1, contract IFC-5) ───────────────────────────────
@@ -245,9 +358,15 @@ export function useLogAnalysis(host: LogAnalysisHost) {
   // ── Host lifecycle hooks ──────────────────────────────────────────────────
   /** Host calls this after (re)creating the editor instance */
   function onEditorReady(): void {
-    if (result.value !== null) {
-      // Re-apply the current filter result to the fresh editor
-      filterView.applyFilterResult(result.value, host.getOriginalContent())
+    const r = result.value
+    if (r !== null) {
+      // Re-apply the current result to the fresh editor in the active view mode
+      if (searchViewMode.value === 'full') {
+        filterView.showFullHighlight(r, host.getOriginalContent())
+      } else {
+        filterView.applyFilterResult(r, displayModel.value ?? { items: [], lineTexts: [], matchDisplayLines: [] }, host.getOriginalContent())
+      }
+      filterView.setCurrentMatchIndex(hitIndex.value)
     }
     const scheme = store.activeScheme
     highlighter.setCompiledScheme(scheme === null ? null : compileScheme(scheme))
@@ -264,9 +383,11 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     expression.value = ''
     filterError.value = null
     result.value = null
+    displayModel.value = null
     hitIndex.value = -1
     filtering.value = false
     actionMessage.value = null
+    searchViewMode.value = 'filtered'
     filterView.clear(host.getOriginalContent())
   }
 
@@ -287,6 +408,9 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     exporting,
     actionMessage,
     hitIndex,
+    plainMode,
+    isExpressionQuery,
+    searchViewMode,
     contextOptions: CONTEXT_RANGE,
     // derived
     isViewTransformed,
@@ -299,6 +423,11 @@ export function useLogAnalysis(host: LogAnalysisHost) {
     clearFilter,
     setInvert,
     setContext,
+    setPlainMode,
+    showFullView,
+    showFilteredView,
+    locateInFullView,
+    handleEditorMouseDown,
     navigateHit,
     copyResult,
     exportFiltered,

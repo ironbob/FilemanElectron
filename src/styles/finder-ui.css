@@ -17,9 +17,14 @@
   --finder-secondary-label: #6e6e73;
   --finder-selection: #0a84ff;
   --finder-control: rgba(118, 118, 128, 0.10);
+  --finder-control-strong: rgba(118, 118, 128, 0.16);
   --finder-list-header: rgba(255, 255, 255, 0.92);
   --finder-zebra: rgba(118, 118, 128, 0.045);
   --finder-row-hover: rgba(118, 118, 128, 0.09);
+  /* 标签栏（Finder 式重设计）状态 token：hover 浅底 / 按压加深 / 激活微阴影 */
+  --finder-tab-hover: rgba(0, 0, 0, 0.055);
+  --finder-tab-press: rgba(0, 0, 0, 0.085);
+  --finder-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   /* Hex 编辑器（v2）状态 token —— 全部为字节/行级局部反馈，无大面积描边 */
   --hex-selection: rgba(10, 132, 255, 0.22);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
@@ -42,9 +47,14 @@
   --finder-secondary-label: #a1a1a6;
   --finder-selection: #0a84ff;
   --finder-control: rgba(118, 118, 128, 0.28);
+  --finder-control-strong: rgba(118, 118, 128, 0.38);
   --finder-list-header: rgba(40, 40, 42, 0.92);
   --finder-zebra: rgba(118, 118, 128, 0.06);
   --finder-row-hover: rgba(118, 118, 128, 0.13);
+  /* 标签栏（Finder 式重设计）状态 token */
+  --finder-tab-hover: rgba(255, 255, 255, 0.08);
+  --finder-tab-press: rgba(255, 255, 255, 0.11);
+  --finder-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   --hex-selection: rgba(10, 132, 255, 0.30);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
   --hex-match: rgba(255, 214, 10, 0.28);
@@ -70,6 +80,10 @@
   border-color: var(--finder-divider) !important;
   backdrop-filter: saturate(180%) blur(18px);
   -webkit-backdrop-filter: saturate(180%) blur(18px);
+  /* backdrop-filter 形成层叠上下文：标题栏内的标签栏菜单（右键/总览）要伸出
+     48px 条带覆盖 main 内容，标题栏自身必须压过 main（低于 overlay/modal）。 */
+  position: relative;
+  z-index: 30;
 }
 
 .finder-shell .finder-sidebar {
@@ -107,10 +121,27 @@
   border-color: var(--finder-divider) !important;
 }
 
+/* bg-bg-secondary/50 工具类经颜色变量无法解析透明度（渲染为透明），实际着色
+   一直由本覆盖完成；2026-08-17 扩展到文本预览工具栏（与 FilePane 对齐） */
 .finder-shell .finder-pane-toolbar .bg-bg-secondary\/50,
-.finder-shell .finder-pane-toolbar .bg-bg-secondary {
+.finder-shell .finder-pane-toolbar .bg-bg-secondary,
+.finder-shell .text-view-toolbar .bg-bg-secondary\/50 {
   background: var(--finder-control) !important;
   border-color: transparent !important;
+}
+
+/* 聚焦/错误/菜单打开态：border 已被上方 !important 压制，统一用 box-shadow 环 */
+.finder-shell .finder-search-control:focus-within {
+  box-shadow: 0 0 0 1.5px var(--finder-selection);
+}
+.finder-shell .finder-search-control.is-invalid {
+  box-shadow: 0 0 0 1.5px var(--accent-red);
+}
+.finder-shell .finder-search-control.is-invalid:focus-within {
+  box-shadow: 0 0 0 1.5px var(--accent-red);
+}
+.finder-shell .text-view-toolbar .syntax-open {
+  box-shadow: inset 0 0 0 1px var(--finder-selection);
 }
 
 .finder-shell .toolbar-btn-enhanced {
@@ -130,24 +161,58 @@
   color: #fff !important;
 }
 
+/* 菜单打开态（单蓝规则）：菜单类控件永不长蓝实底——1px 内嵌蓝描边表达「打开」 */
+.finder-shell .toolbar-btn-enhanced.is-open {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), inset 0 0 0 1px var(--finder-selection);
+}
+
+/* 分段钮（FilePane 视图切换同款，随共享组件 FinderToolbarButton 抽取，2026-08-17）：
+   28×28、圆角 6、无独立描边，配 bordered 分组托盘；active 为唯一长蓝态 */
+.finder-shell .finder-segment-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--finder-secondary-label);
+  background: transparent;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.finder-shell .finder-segment-btn:hover:not(:disabled) {
+  background: var(--finder-control);
+  color: var(--finder-label);
+}
+.finder-shell .finder-segment-btn.active {
+  background: var(--finder-selection);
+  color: #fff;
+  box-shadow: none;
+}
+.finder-shell .finder-segment-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.finder-shell .finder-segment-btn.is-open {
+  box-shadow: inset 0 0 0 1px var(--finder-selection);
+}
+
 .finder-shell .finder-tab-strip {
   height: 36px !important;
   padding: 4px 8px;
-  gap: 3px;
+  gap: 4px;
   background: var(--finder-chrome) !important;
   border-color: var(--finder-divider) !important;
 }
 
-/* Tabs share the native titlebar instead of taking a second row. */
+/* Tabs share the native titlebar instead of taking a second row.
+   激活标签的层级感由 .tab-item-active 的材质浮起 + hairline 承担
+   （此前此处的 rgba(255,255,255,.82) 是仅浅色态的硬编码，深色下劣化，已删）。 */
 .finder-window-titlebar .finder-tab-strip {
   height: 44px !important;
   padding: 6px 0 6px 4px;
   border: 0 !important;
   background: transparent !important;
-}
-
-.finder-window-titlebar .finder-tab-strip .tab-item-active {
-  background: rgba(255, 255, 255, 0.82) !important;
 }
 
 .finder-shell .sidebar-utility-button {
@@ -238,15 +303,38 @@
   background: var(--finder-row-hover) !important;
 }
 
+/* ── 标签栏（Finder 式）：几何在 TabItem scoped，这里只管材质/状态色 ───────── */
+
 .finder-shell .finder-tab-strip .tab-item {
-  min-height: 26px;
-  border-radius: 5px;
-  padding: 4px 9px;
+  border-radius: 7px;
 }
 
+/* 非激活：hover 浅底（不抢激活层级）；按压加深 */
+.finder-shell .finder-tab-strip .tab-item-inactive:hover {
+  background: var(--finder-tab-hover) !important;
+}
+
+.finder-shell .finder-tab-strip .tab-item-inactive:active {
+  background: var(--finder-tab-press) !important;
+}
+
+/* 激活：材质浮起（canvas + 1px hairline + 微阴影）；无厚描边、无整块蓝 */
 .finder-shell .finder-tab-strip .tab-item-active {
   background: var(--finder-canvas) !important;
-  box-shadow: inset 0 0 0 1px var(--finder-divider);
+  box-shadow: inset 0 0 0 1px var(--finder-divider), var(--finder-tab-active-shadow);
+}
+
+/* 键盘焦点环：原生 :focus-visible，鼠标点击不出现 */
+.finder-shell .finder-tab-strip .tab-item:focus-visible {
+  outline: none;
+  z-index: 1;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--finder-selection) 45%, transparent),
+    inset 0 0 0 1px var(--finder-divider) !important;
+}
+
+.finder-shell .finder-tab-strip .close-button:hover {
+  background: var(--finder-control-strong) !important;
 }
 
 .finder-shell input {
@@ -341,6 +429,11 @@
   color: #fff;
 }
 
+/* 菜单打开态（v2 单蓝规则）：菜单类控件永不长蓝实底——用 1px 内嵌蓝描边表达“打开” */
+.finder-shell .finder-icon-button.is-open {
+  box-shadow: inset 0 0 0 1px var(--finder-selection);
+}
+
 .finder-shell .finder-icon-button:disabled {
   opacity: 0.36;
   cursor: not-allowed;
@@ -363,6 +456,180 @@
   color: var(--finder-secondary-label);
   font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .025em;
+}
+
+/* ========================================
+   Text preview —— Finder 式三段工具栏（重设计 2026-08-17，44px 与 hex 工具栏对齐）
+   左=元信息(+模式切换组) 中=查找 右=阅读/内容/更多；
+   过滤状态条 28px。设计契约：docs/superpowers/specs/2026-08-17-text-preview-finder-redesign.md
+   ======================================== */
+.finder-shell .text-view-toolbar {
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--finder-chrome) !important;
+  border-color: var(--finder-divider) !important;
+  color: var(--finder-secondary-label);
+}
+
+/* 过滤状态条（28px，仅搜索激活） */
+.finder-shell .text-filter-statusbar {
+  min-height: 28px;
+  padding: 0 12px;
+  background: var(--finder-chrome) !important;
+  border-bottom: 1px solid var(--finder-divider);
+  color: var(--finder-secondary-label);
+  font-size: 12px;
+}
+.finder-shell .text-filter-statusbar .statusbar-toggle-btn {
+  height: 22px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--finder-divider);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--finder-label);
+  background: var(--finder-control);
+  transition: background-color 130ms ease;
+  white-space: nowrap;
+}
+.finder-shell .text-filter-statusbar .statusbar-toggle-btn:hover { filter: brightness(1.1); }
+
+/* ⋯ 更多 / 语法 / 导出 下拉菜单（edit-panel 容器 + 菜单行） */
+.finder-shell .text-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--edit-surface);
+  border: 1px solid var(--edit-hairline);
+  border-radius: 10px;
+  box-shadow: var(--edit-shadow);
+}
+.finder-shell .text-menu-popover .menu-row {
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--finder-label);
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+}
+.finder-shell .text-menu-popover .menu-row:hover:not(:disabled) { background: var(--finder-control); }
+.finder-shell .text-menu-popover .menu-row:disabled { opacity: 0.4; }
+.finder-shell .text-menu-popover .menu-row.is-checked { color: var(--finder-selection); }
+.finder-shell .text-menu-popover .menu-section-title {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  color: var(--finder-secondary-label);
+}
+.finder-shell .text-menu-popover .menu-row .menu-row-value {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--finder-secondary-label);
+}
+
+/* 分片加载脚注（24px） */
+.finder-shell .text-load-footer {
+  min-height: 24px;
+  padding: 0 12px;
+  background: var(--finder-chrome) !important;
+  border-top: 1px solid var(--finder-divider);
+  color: var(--finder-secondary-label);
+  font-size: 12px;
+}
+
+/* 跳转到行：编辑器上方居中的行内浮层（非模态） */
+.finder-shell .text-jump-panel {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--edit-surface);
+  border: 1px solid var(--edit-hairline);
+  border-radius: 10px;
+  box-shadow: var(--edit-shadow);
+}
+.finder-shell .text-jump-panel input {
+  width: 110px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--finder-divider);
+  border-radius: 6px;
+  background: var(--finder-control);
+  color: var(--finder-label);
+  font-size: 13px;
+  outline: none;
+}
+.finder-shell .text-jump-panel input:focus { border-color: var(--finder-selection); }
+.finder-shell .text-jump-panel .jump-error { font-size: 11px; color: var(--accent-red); max-width: 180px; }
+
+/* 查找选项 Popover：macOS 小开关（role=switch 按钮上的视觉滑块） + 分段控件 */
+.finder-shell .text-menu-popover .menu-switch {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-left: auto;
+  border: 0;
+  border-radius: 10px;
+  background: var(--finder-control);
+  transition: background-color 130ms ease;
+  pointer-events: none;
+}
+.finder-shell .text-menu-popover .menu-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 130ms ease;
+}
+.finder-shell .text-menu-popover button[role='switch'][aria-checked='true'] .menu-switch {
+  background: var(--finder-selection);
+}
+.finder-shell .text-menu-popover button[role='switch'][aria-checked='true'] .menu-switch::after {
+  transform: translateX(14px);
+}
+.finder-shell .text-menu-popover button[role='switch']:disabled { opacity: 0.45; }
+
+.finder-shell .text-menu-popover .menu-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--finder-control);
+}
+.finder-shell .text-menu-popover .menu-segmented button {
+  min-width: 34px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--finder-secondary-label);
+  background: transparent;
+  transition: background-color 130ms ease, color 130ms ease;
+}
+.finder-shell .text-menu-popover .menu-segmented button:hover { color: var(--finder-label); }
+.finder-shell .text-menu-popover .menu-segmented button.is-selected {
+  background: var(--finder-selection);
+  color: #ffffff;
 }
 
 .iconfont-preview-icon {

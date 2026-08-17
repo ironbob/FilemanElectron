@@ -162,6 +162,39 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  // ── 脏探针（标签栏圆点用；键 = preview session id，Set 允许多组件共存） ──────
+  // 与关闭守卫分立：守卫管「能否关」，探针管「是否有未保存修改」的展示态。
+  const dirtyProbes = new Map<string, Set<() => boolean>>()
+  const dirtyVersion = ref(0)
+
+  /** 注册脏探针；返回反注册函数。探针闭包读组件 ref 即保持响应式。 */
+  function registerDirtyProbe(sessionId: string, probe: () => boolean): () => void {
+    let set = dirtyProbes.get(sessionId)
+    if (!set) {
+      set = new Set()
+      dirtyProbes.set(sessionId, set)
+    }
+    set.add(probe)
+    dirtyVersion.value++
+    return () => {
+      set!.delete(probe)
+      if (set!.size === 0) dirtyProbes.delete(sessionId)
+      dirtyVersion.value++
+    }
+  }
+
+  /** 标签是否有未保存修改（无探针/未挂载内容 → false）。 */
+  function isTabDirty(tab: Tab): boolean {
+    const sessionId = tab.preview?.id
+    if (!sessionId) return false
+    const probes = dirtyProbes.get(sessionId)
+    if (!probes) return false
+    for (const probe of probes) {
+      if (probe()) return true
+    }
+    return false
+  }
+
   /** 按 preview session id 关闭所在 tab（守卫语义同 closeTab）。 */
   function closePreviewSession(sessionId: string) {
     const tab = tabs.value.find(t => t.preview?.id === sessionId)
@@ -191,6 +224,71 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs.value.splice(index, 1)
     if (activeTabId.value === tabId) {
       activeTabId.value = tabs.value[Math.max(0, index - 1)].id
+    }
+  }
+
+  // ── 标签栏重排 / 固定 / 别名 / 批量关闭 ─────────────────────────────────────
+
+  /** 重分区：pinned 组依序在前，普通组依序在后（重排/固定的不变式，单一事实源）。 */
+  function partitionByPinned() {
+    const pinned = tabs.value.filter(t => t.pinned)
+    if (pinned.length === 0) return
+    const merged = [...pinned, ...tabs.value.filter(t => !t.pinned)]
+    if (merged.some((t, i) => t !== tabs.value[i])) tabs.value = merged
+  }
+
+  /** 指针拖拽重排（索引 = tabs 数组顺序 = 视觉顺序；pinned 区不可跨界，事后兜底重分区）。 */
+  function moveTab(fromIndex: number, toIndex: number) {
+    const max = tabs.value.length - 1
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex > max || toIndex > max) return
+    const [moved] = tabs.value.splice(fromIndex, 1)
+    tabs.value.splice(toIndex, 0, moved)
+    partitionByPinned()
+  }
+
+  /** 关闭除指定标签与所有固定标签外的全部（逐个走 closeTab，守卫/never-empty 语义自然生效）。 */
+  function closeOtherTabs(tabId: string) {
+    for (const tab of [...tabs.value]) {
+      if (tab.id === tabId || tab.pinned) continue
+      closeTab(tab.id)
+    }
+  }
+
+  /** 关闭指定标签右侧所有非固定标签。 */
+  function closeTabsToRight(tabId: string) {
+    const index = tabs.value.findIndex(t => t.id === tabId)
+    if (index === -1) return
+    for (const tab of [...tabs.value].slice(index + 1)) {
+      if (tab.pinned) continue
+      closeTab(tab.id)
+    }
+  }
+
+  /** 固定/取消固定：翻转标志后交给重分区维持 pinned-left 不变式（组内相对顺序不变）。 */
+  function togglePin(tabId: string) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (!tab) return
+    if (tab.pinned) delete tab.pinned
+    else tab.pinned = true
+    partitionByPinned()
+  }
+
+  /** 设置/清除本地显示别名；空串等价清除（delete 键，保持持久化 JSON 干净）。 */
+  function setTabAlias(tabId: string, alias: string | undefined) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (!tab) return
+    const trimmed = alias?.trim()
+    if (!trimmed) delete tab.titleAlias
+    else tab.titleAlias = trimmed
+  }
+
+  /** ⌘T / ⊕ 语义：活动标签是浏览页 → 在当前位置旁开新标签；否则回默认首页。 */
+  function newTabFromActiveContext() {
+    const pane = activePane.value
+    if (pane && activeTab.value && activeTab.value.panes.length > 0) {
+      openPathInNewTab(pane.deviceId, pane.path)
+    } else {
+      createTab()
     }
   }
 
@@ -512,6 +610,15 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTab,
     closePreviewSession,
     registerCloseGuard,
+    dirtyVersion,
+    registerDirtyProbe,
+    isTabDirty,
+    moveTab,
+    closeOtherTabs,
+    closeTabsToRight,
+    togglePin,
+    setTabAlias,
+    newTabFromActiveContext,
     setActivePane,
     toggleActiveSplit,
     openPathInNewTab,

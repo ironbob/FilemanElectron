@@ -330,6 +330,7 @@ const closeConfirm = ref(false)
 /** 放弃修改后置真：守卫放行一次，完成关闭。 */
 const closeArmed = ref(false)
 let unregisterGuard: (() => void) | null = null
+let unregisterProbe: (() => void) | null = null
 
 if (props.sessionId) {
   onMounted(() => {
@@ -338,10 +339,14 @@ if (props.sessionId) {
       closeConfirm.value = true  // 阻止关闭，就地请求用户决策
       return false
     })
+    // 脏探针（标签栏圆点）：与守卫同生命周期
+    unregisterProbe = tabsStore.registerDirtyProbe(props.sessionId!, () => vm.isModified)
   })
   onBeforeUnmount(() => {
     unregisterGuard?.()
+    unregisterProbe?.()
     unregisterGuard = null
+    unregisterProbe = null
   })
 }
 

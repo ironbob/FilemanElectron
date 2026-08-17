@@ -344,7 +344,7 @@ test('closing a dirty hex tab shows confirm bar; cancel keeps, discard closes', 
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible({ timeout: 5000 })
 
   // 无修改：关闭直接生效（无确认条）→ 重新打开
-  await page.getByLabel('Close firmware.bin').click()
+  await page.getByLabel('关闭 firmware.bin').click()
   await expect(page.getByText('HEX', { exact: true })).toHaveCount(0)
   await page.locator('[data-file-path="/fw/firmware.bin"]').dblclick()
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible({ timeout: 5000 })
@@ -353,7 +353,7 @@ test('closing a dirty hex tab shows confirm bar; cancel keeps, discard closes', 
   await page.locator('[data-hex-offset="0"]').click()
   await page.keyboard.press('9')
   await expect(page.getByText('已修改 1 处', { exact: true })).toBeVisible()
-  await page.getByLabel('Close firmware.bin').click()
+  await page.getByLabel('关闭 firmware.bin').click()
   await expect(page.getByText('存在未保存修改，关闭前如何处理？')).toBeVisible()
   await expect(page.getByText('98 65 6c 6c 6f').first()).toBeVisible()  // tab 未关闭
 
@@ -363,7 +363,7 @@ test('closing a dirty hex tab shows confirm bar; cancel keeps, discard closes', 
   await expect(page.getByText('98 65 6c 6c 6f').first()).toBeVisible()
 
   // 再次关闭 → 放弃修改 → tab 关闭
-  await page.getByLabel('Close firmware.bin').click()
+  await page.getByLabel('关闭 firmware.bin').click()
   await expect(page.getByText('存在未保存修改，关闭前如何处理？')).toBeVisible()
   await page.getByRole('button', { name: '放弃修改' }).click()
   await expect(page.getByText('HEX', { exact: true })).toHaveCount(0)

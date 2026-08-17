@@ -13,6 +13,7 @@
     v-else-if="type === 'text'"
     :file="file"
     :device-id="deviceId"
+    :session-id="sessionId"
     :initial-line="initialLine"
   />
   <PreviewImageContent

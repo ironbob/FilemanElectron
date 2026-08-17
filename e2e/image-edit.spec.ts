@@ -68,7 +68,8 @@ test.beforeEach(async ({ page }) => {
         estimate: async () => ({ estimatedBytes: 42, format: 'png', width: 200, height: 200 }),
         apply: async (filePath: string, ops: any, save: any) => {
           operations.push({ kind: 'imageEdit.apply', filePath, ops, save })
-          return { writtenPath: save.mode === 'overwrite' ? filePath : '/docs/a_edited.png', bytes: 42 }
+          const outPath = save.mode === 'overwrite' ? filePath : `/docs/${save.name || 'a_edited'}.png`
+          return { writtenPath: outPath, bytes: 42 }
         },
         batchStart: async (request: any) => {
           operations.push({ kind: 'imageEdit.batchStart', request })
@@ -121,19 +122,24 @@ test('annotate: rail + param popover, dirty badge, done → save sheet → apply
   await expect(page.getByText('导出选项')).toBeVisible()
   await expect(page.getByLabel('格式')).toHaveCount(0)
 
-  // 存储副本 → apply：annotate op + copy + 完整文件名
+  // 自定义文件名回归（2026-08-17 bugfix）：默认 a_edited → 改为 myshot，落盘名随之
+  const nameField = page.locator('#save-sheet-name')
+  await expect(nameField).toHaveValue('a_edited')
+  await nameField.fill('myshot')
+
+  // 存储副本 → apply：annotate op + copy + 用户输入的完整文件名
   await page.getByRole('button', { name: '存储副本' }).click()
   await page.waitForTimeout(400)
   const ops = await page.evaluate(() => (window as any).__ops)
   const applyCall = ops.filter((o: any) => o.kind === 'imageEdit.apply').pop()
   expect(applyCall?.ops?.annotate?.overlayBase64?.length).toBeGreaterThan(100)
   expect(applyCall.save.mode).toBe('copy')
-  expect(applyCall.save.name).toBe('a_edited')
+  expect(applyCall.save.name).toBe('myshot')
   expect(applyCall.ops.compress).toBeFalsy()
 
   // 保存成功 → 退出标注 + flash
   await expect(page.getByRole('toolbar', { name: '标注工具' })).toHaveCount(0)
-  await expect(page.getByText('已存储 a_edited.png')).toBeVisible()
+  await expect(page.getByText('已存储 myshot.png')).toBeVisible()
 })
 
 test('dirty Esc opens unsaved alert; discard exits annotate mode', async ({ page }) => {
@@ -144,6 +150,19 @@ test('dirty Esc opens unsaved alert; discard exits annotate mode', async ({ page
   await page.getByRole('button', { name: '不保存' }).click()
   await expect(page.getByRole('toolbar', { name: '标注工具' })).toHaveCount(0)
   await expect(page.getByText('已编辑')).toHaveCount(0)
+})
+
+test('closing preview tab with unsaved annotations prompts before discard', async ({ page }) => {
+  await openImagePreview(page)
+  await drawRectAnnotation(page)
+  // 直接点预览 tab 的 ✕：关闭守卫拦截（AppTabBar/Esc/命令面板统一走 closeTab）
+  await page.getByRole('button', { name: '关闭 a.png' }).click({ force: true })
+  await expect(page.getByText('要存储对“a.png”的标注更改吗？')).toBeVisible()
+  await page.getByRole('button', { name: '不保存' }).click()
+  await page.waitForTimeout(300)
+  // 标注丢弃后 tab 真正关闭，回到浏览 tab（预览前已进入 /docs）
+  await expect(page.getByRole('toolbar', { name: '图片视图与编辑' })).toHaveCount(0)
+  await expect(page.locator('[data-file-path="/docs/a.png"]')).toBeVisible()
 })
 
 test('crop mode enters with overlay and Esc exits', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen } from 'electron'
 import os from 'os'
 import path, { basename, dirname, join } from 'path'
 import fs from 'fs-extra'
@@ -931,6 +931,26 @@ volumeScanner.onVolumeChange((volumes) => {
 })
 
 // ============ App Lifecycle ============
+
+// ── 应用菜单（⌘W 放行给渲染层）────────────────────────────────────────────
+// 不设置菜单时 macOS 使用 Electron 默认菜单，其中 Window▸Close(⌘W) 的菜单
+// 加速器先于页面 keydown 被消费，标签栏的 ⌘W（关标签，never-empty 规则在
+// tabs store）永远收不到。这里显式构建菜单并去掉 close role：
+// - editMenu 必须保留（macOS 输入框 ⌘C/⌘V 依赖其加速器）
+// - windowMenu 手工构造（Minimize/Zoom，不含 Close）
+// - ⌘T/⌘1-9/⇧⌘[ ] 不在默认菜单中，设置后同样不受影响
+Menu.setApplicationMenu(Menu.buildFromTemplate([
+  { role: 'appMenu' },
+  { role: 'editMenu' },
+  { role: 'viewMenu' },
+  {
+    label: 'Window',
+    submenu: [
+      { role: 'minimize' },
+      { role: 'zoom' }
+    ]
+  }
+]))
 
 app.whenReady().then(() => {
   createWindow()

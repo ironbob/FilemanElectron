@@ -11,6 +11,10 @@ export interface Tab {
   titleKey?: string
   /** titleKey 的插值参数。 */
   titleParams?: Record<string, string>
+  /** 本地显示别名（双击标签设置；仅显示层，不参与同名消歧，不改磁盘文件名）。 */
+  titleAlias?: string
+  /** 固定标签：锁定标签栏左侧、图标紧凑形态；「关闭其他/右侧」跳过。 */
+  pinned?: boolean
   panes: Pane[]
   activePaneId: string
   /** When set, this tab renders a directory compare view instead of file panes */

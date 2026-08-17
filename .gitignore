@@ -45,3 +45,4 @@ test-results/
 
 # Bundled CLI tools (adb / rg) — 由 scripts/fetch-rg.sh 等按需投放，不入库
 build/tools/
+.playwright-mcp/

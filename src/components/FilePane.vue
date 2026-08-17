@@ -14,23 +14,21 @@
     <div class="file-pane-toolbar-container">
       <div class="finder-pane-toolbar file-pane-toolbar h-10 min-w-0 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
       <!-- Navigation Buttons -->
-      <div class="file-pane-toolbar-nav flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-        <button v-if="fileOpsStore.undoRecycle" class="toolbar-btn-enhanced text-accent-blue" :title="$t('filePane.toolbar.undoRemoteDelete')" :aria-label="$t('filePane.toolbar.undoRemoteDelete')" @click="undoRecycle">
+      <FinderToolbarGroup class="file-pane-toolbar-nav flex-shrink-0">
+        <FinderToolbarButton v-if="fileOpsStore.undoRecycle" class="text-accent-blue" :label="$t('filePane.toolbar.undoRemoteDelete')" @click="undoRecycle">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 101.9-5.2M4 4v4h4"/></svg>
-        </button>
-        <button
-          class="toolbar-btn-enhanced"
+        </FinderToolbarButton>
+        <FinderToolbarButton
           :disabled="pane.historyIndex <= 0"
           @click="tabsStore.goBack(paneId)"
-          :title="$t('filePane.toolbar.goBack')"
-          :aria-label="$t('filePane.toolbar.goBack')"
+          :label="$t('filePane.toolbar.goBack')"
         >
           <FinderIcon name="arrowLeft" />
-        </button>
+        </FinderToolbarButton>
         <div ref="recentMenuRef" class="relative flex-shrink-0">
-          <button class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.recentLocations')" :aria-label="$t('filePane.toolbar.recentLocations')" :aria-expanded="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
+          <FinderToolbarButton :label="$t('filePane.toolbar.recentLocations')" :aria-expanded="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </button>
+          </FinderToolbarButton>
           <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto rounded-lg border border-border py-1 shadow-xl" role="menu" :aria-label="$t('filePane.toolbar.recentLocations')">
             <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-tertiary">{{ $t('filePane.toolbar.noRecentLocations') }}</div>
             <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="block w-full px-3 py-2 text-left text-xs hover:bg-bg-hover" role="menuitem" @click="openRecentLocation(location.deviceId, location.path)">
@@ -38,26 +36,22 @@
             </button>
           </div>
         </div>
-        <button
-          class="toolbar-btn-enhanced"
+        <FinderToolbarButton
           :disabled="pane.historyIndex >= pane.history.length - 1"
           @click="tabsStore.goForward(paneId)"
-          :title="$t('filePane.toolbar.goForward')"
-          :aria-label="$t('filePane.toolbar.goForward')"
+          :label="$t('filePane.toolbar.goForward')"
         >
           <FinderIcon name="arrowRight" />
-        </button>
-        <button
-          class="toolbar-btn-enhanced"
+        </FinderToolbarButton>
+        <FinderToolbarButton
           @click="tabsStore.goUp(paneId)"
-          :title="$t('filePane.toolbar.goUp')"
-          :aria-label="$t('filePane.toolbar.goUp')"
+          :label="$t('filePane.toolbar.goUp')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
           </svg>
-        </button>
-      </div>
+        </FinderToolbarButton>
+      </FinderToolbarGroup>
 
       <!-- Path Breadcrumb -->
       <div class="file-pane-toolbar-breadcrumb min-w-0 flex-1 mx-2 flex items-center">
@@ -92,28 +86,29 @@
 
       <!-- Search (含历史下拉:聚焦/输入时展示,点击回填) -->
       <div ref="searchBoxRef" class="file-pane-toolbar-search relative flex-shrink-0">
-        <input
+        <FinderSearchField
           ref="searchInputRef"
           v-model="searchQuery"
-          type="text"
+          class="w-36 focus-within:w-52"
           :placeholder="$t('filePane.toolbar.searchPlaceholder')"
-          class="w-36 h-8 text-[13px] bg-bg-secondary/50 border border-border/50 rounded-lg focus:w-52 transition-all focus:border-accent-blue/50 focus:bg-bg-secondary focus:outline-none"
-          :class="searchQuery ? 'pr-7 pl-3' : 'px-3'"
           @focus="searchHistoryOpen = true"
           @blur="searchHistoryOpen = false"
-          @keydown.enter="commitSearch"
-          @keydown.escape="clearSearch"
-        />
-        <button
-          v-if="searchQuery"
-          class="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-          :title="$t('filePane.toolbar.clearSearch')"
-          :aria-label="$t('filePane.toolbar.clearSearch')"
-          @mousedown.prevent
-          @click="clearSearch"
+          @enter="commitSearch"
+          @escape="clearSearch"
         >
-          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
+          <template #trailing>
+            <button
+              v-if="searchQuery"
+              class="flex h-4 w-4 items-center justify-center rounded-full text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+              :title="$t('filePane.toolbar.clearSearch')"
+              :aria-label="$t('filePane.toolbar.clearSearch')"
+              @mousedown.prevent
+              @click="clearSearch"
+            >
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </template>
+        </FinderSearchField>
         <div
           v-if="searchHistoryOpen && filteredSearchHistory.length > 0"
           class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto rounded-lg border border-border py-1 shadow-xl"
@@ -140,69 +135,63 @@
           </button>
         </div>
       </div>
-      <button class="file-pane-toolbar-search-mode toolbar-btn-enhanced flex-shrink-0" :class="{ active: browserState.recursiveSearch }" :title="$t('filePane.toolbar.recursiveSearch')" :aria-label="$t('filePane.toolbar.recursiveSearch')" @click="browserStore.toggleRecursiveSearch(paneId)">
+      <FinderToolbarButton class="file-pane-toolbar-search-mode flex-shrink-0" :active="browserState.recursiveSearch" :label="$t('filePane.toolbar.recursiveSearch')" @click="browserStore.toggleRecursiveSearch(paneId)">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
-      </button>
+      </FinderToolbarButton>
 
       <!-- View Mode -->
-      <div class="file-pane-toolbar-view flex flex-shrink-0 items-center bg-bg-secondary/50 rounded-lg border border-border/50 p-0.5">
-        <button
+      <FinderToolbarGroup bordered class="file-pane-toolbar-view flex-shrink-0">
+        <FinderToolbarButton
           v-for="mode in viewModes"
           :key="mode.value"
-          class="w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all"
-          :class="pane.viewMode === mode.value ? 'bg-accent-blue text-white shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
-          :title="mode.value === 'grid' ? $t('filePane.view.gridHint', { label: mode.label }) : mode.label"
-          :aria-label="mode.label"
+          variant="segment"
+          :active="pane.viewMode === mode.value"
+          :label="mode.value === 'grid' ? $t('filePane.view.gridHint', { label: mode.label }) : mode.label"
           @click="tabsStore.setViewMode(paneId, mode.value)"
           @contextmenu.prevent="onViewButtonContextMenu(mode.value, $event)"
         >
           <component :is="mode.icon" class="w-3.5 h-3.5" />
-        </button>
-      </div>
+        </FinderToolbarButton>
+      </FinderToolbarGroup>
 
-      <button
-        class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
+      <FinderToolbarButton
+        class="file-pane-toolbar-optional flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
-        :title="$t('filePane.toolbar.copyPaths')"
-        :aria-label="$t('filePane.toolbar.copyPaths')"
+        :label="$t('filePane.toolbar.copyPaths')"
         @click="copySelectedPaths"
       >
         <FinderIcon name="share" />
-      </button>
-      <button
-        class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
+      </FinderToolbarButton>
+      <FinderToolbarButton
+        class="file-pane-toolbar-optional flex-shrink-0"
         :disabled="!pane?.selectedFiles.length"
-        :title="$t('filePane.toolbar.editTags')"
-        :aria-label="$t('filePane.toolbar.editTags')"
+        :label="$t('filePane.toolbar.editTags')"
         @click="editSelectedTags"
       >
         <FinderIcon name="tags" />
-      </button>
+      </FinderToolbarButton>
 
       <!-- Inline Preview Toggle -->
-      <button
-        class="file-pane-toolbar-optional toolbar-btn-enhanced flex-shrink-0"
-        :class="{ active: inlinePreviewEnabled }"
-        :title="$t('filePane.toolbar.inlinePreviewTip')"
-        :aria-label="$t('filePane.toolbar.inlinePreview')"
+      <FinderToolbarButton
+        class="file-pane-toolbar-optional flex-shrink-0"
+        :active="inlinePreviewEnabled"
+        :label="$t('filePane.toolbar.inlinePreviewTip')"
         @click="toggleInlinePreview"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2"/>
           <line x1="15" y1="4" x2="15" y2="20" stroke-width="2"/>
         </svg>
-      </button>
+      </FinderToolbarButton>
 
       <!-- Actions -->
-      <div class="file-pane-toolbar-actions flex flex-shrink-0 items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-        <button v-if="canCaptureScreenshot" class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.screenshot')" :aria-label="$t('filePane.toolbar.screenshot')" @click="captureScreenshot">
+      <FinderToolbarGroup class="file-pane-toolbar-actions flex-shrink-0">
+        <FinderToolbarButton v-if="canCaptureScreenshot" :label="$t('filePane.toolbar.screenshot')" @click="captureScreenshot">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 5l1-2h6l1 2M12 10v4m-2-2h4"/></svg>
-        </button>
-        <button
-          class="toolbar-btn-enhanced"
+        </FinderToolbarButton>
+        <FinderToolbarButton
           :disabled="!canRevealInFinder"
-          :title="canRevealInFinder ? $t('filePane.toolbar.revealInFinder') : $t('filePane.toolbar.revealInFinderLocalOnly')"
-          :aria-label="$t('filePane.toolbar.revealInFinder')"
+          :label="canRevealInFinder ? $t('filePane.toolbar.revealInFinder') : $t('filePane.toolbar.revealInFinderLocalOnly')"
           @click="revealCurrentFolderInFinder"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,18 +200,18 @@
             <circle cx="16" cy="15.5" r="2.5" stroke-width="2" />
             <path stroke-linecap="round" stroke-width="2" d="M18 17.5l1.5 1.5" />
           </svg>
-        </button>
-        <button class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.newFolder')" :aria-label="$t('filePane.toolbar.newFolder')" @click="openCreateDialog('folder')">
+        </FinderToolbarButton>
+        <FinderToolbarButton :label="$t('filePane.toolbar.newFolder')" @click="openCreateDialog('folder')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
           </svg>
-        </button>
-        <button class="toolbar-btn-enhanced" :title="$t('filePane.toolbar.newFile')" :aria-label="$t('filePane.toolbar.newFile')" @click="openCreateDialog('file')">
+        </FinderToolbarButton>
+        <FinderToolbarButton :label="$t('filePane.toolbar.newFile')" @click="openCreateDialog('file')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-        </button>
-      </div>
+        </FinderToolbarButton>
+      </FinderToolbarGroup>
       </div>
     </div>
 
@@ -362,6 +351,9 @@
 <script setup lang="ts">
 import { ref, computed, reactive, h, type Component, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import FinderIcon from './FinderIcon.vue'
+import FinderToolbarButton from './toolbar/FinderToolbarButton.vue'
+import FinderToolbarGroup from './toolbar/FinderToolbarGroup.vue'
+import FinderSearchField from './toolbar/FinderSearchField.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useGitStatusStore } from '@/stores/gitStatus'
 import { usePreviewStore } from '@/stores/preview'
@@ -411,7 +403,7 @@ const searchQuery = ref('')
 // ── 搜索历史下拉 ─────────────────────────────────────────────────────────────
 const searchHistoryOpen = ref(false)
 const searchBoxRef = ref<HTMLElement | null>(null)
-const searchInputRef = ref<HTMLInputElement | null>(null)
+const searchInputRef = ref<InstanceType<typeof FinderSearchField> | null>(null)
 const filteredSearchHistory = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return browserStore.searchHistory
@@ -1293,8 +1285,8 @@ function handleDrop() {
     display: none;
   }
 
-  .file-pane-toolbar-search input,
-  .file-pane-toolbar-search input:focus {
+  .file-pane-toolbar-search :deep(.finder-search-control),
+  .file-pane-toolbar-search :deep(.finder-search-control):focus-within {
     width: 7.5rem;
   }
 }
@@ -1304,8 +1296,8 @@ function handleDrop() {
     display: none;
   }
 
-  .file-pane-toolbar-search input,
-  .file-pane-toolbar-search input:focus {
+  .file-pane-toolbar-search :deep(.finder-search-control),
+  .file-pane-toolbar-search :deep(.finder-search-control):focus-within {
     width: 6rem;
   }
 }

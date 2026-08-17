@@ -1066,6 +1066,55 @@ button {
 /* Context rows in a filtered view: dimmed, non-color signal */
 .fma-hl-context { opacity: 0.55; }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Text preview find layers (文本预览查找分层, 重设计 2026-08-17)
+   L2 当前匹配 = 系统蓝实底白字；L3 其他匹配 = 淡黄低透明（token 双主题）。
+   Gap 省略块：A 视图中未显示的连续区段（含文件头尾），胶囊 + 可点击。
+   Monaco decoration class 必须是全局类（不能进 scoped 样式）。
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --preview-find-match: rgba(250, 204, 21, 0.28);   /* L3 淡黄（暗色默认） */
+  --preview-gap-chip-bg: rgba(118, 118, 128, 0.16);
+  --preview-gap-chip-fg: #a1a1a6;
+}
+[data-theme="light"] {
+  --preview-find-match: rgba(202, 138, 4, 0.22);    /* L3 淡黄（亮色） */
+  --preview-gap-chip-bg: rgba(118, 118, 128, 0.12);
+  --preview-gap-chip-fg: #6e6e73;
+}
+
+/* L3 其他匹配（有字符区间 → inline 装饰） */
+.fma-find-match { background-color: var(--preview-find-match); border-radius: 2px; }
+
+/* L2 当前匹配：系统蓝实底白字（叠加于 L3 之上） */
+.fma-find-current {
+  background-color: #0a84ff;
+  color: #ffffff;
+  border-radius: 2px;
+}
+
+/* Gap 省略块：整行可点 + hover 反馈；inline 胶囊套在文本区间上 */
+.fma-gap-line { cursor: pointer; }
+.fma-gap-line:hover { background-color: rgba(118, 118, 128, 0.10); }
+.fma-gap-chip {
+  background-color: var(--preview-gap-chip-bg);
+  color: var(--preview-gap-chip-fg);
+  border-radius: 9px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* 跳转/定位脉冲（prefers-reduced-motion 时降级为静态描边） */
+.fma-locate-pulse { animation: fma-locate-pulse 0.4s ease-in-out 2; }
+@keyframes fma-locate-pulse {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(10, 132, 255, 0.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fma-locate-pulse { animation: none; outline: 1.5px solid rgba(10, 132, 255, 0.8); outline-offset: -1.5px; }
+}
+
 /* Scheme editor color swatches */
 .fma-swatch-red    { background-color: var(--fma-red-fg); }
 .fma-swatch-orange { background-color: var(--fma-orange-fg); }

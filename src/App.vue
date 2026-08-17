@@ -355,6 +355,58 @@ useKeyInterceptor(event => {
   return false
 })
 
+// ── 标签快捷键（⌘T / ⌘W / ⇧⌘[ ] / ⌘1-9）─────────────────────────────────
+// 同为捕获期消费；面板/Quick Look 打开时静默（浮层持有键盘），总览弹层与
+// 重命名输入由各自后注册的 interceptor 以 LIFO 先行接管 Enter/Esc。
+useKeyInterceptor(event => {
+  if (paletteOpen.value || previewStore.quickLookOpen) return false
+  const mod = event.metaKey || event.ctrlKey
+  if (!mod || event.altKey) return false
+
+  const key = event.key
+  const lower = key.toLowerCase()
+
+  if (!event.shiftKey && lower === 't') {
+    event.preventDefault()
+    tabsStore.newTabFromActiveContext()
+    return true
+  }
+  if (!event.shiftKey && lower === 'w') {
+    event.preventDefault()
+    if (tabsStore.activeTabId) tabsStore.closeTab(tabsStore.activeTabId) // never-empty 在 store
+    return true
+  }
+  if (event.shiftKey && (key === '[' || key === '{')) {
+    event.preventDefault()
+    cycleActiveTab(-1)
+    return true
+  }
+  if (event.shiftKey && (key === ']' || key === '}')) {
+    event.preventDefault()
+    cycleActiveTab(1)
+    return true
+  }
+  if (!event.shiftKey && key >= '1' && key <= '9') {
+    const tabs = tabsStore.tabs
+    if (tabs.length === 0) return false
+    // ⌘1-8 直达；⌘9 = 最后一个（Safari 惯例）
+    const index = key === '9' ? tabs.length - 1 : Math.min(Number(key) - 1, tabs.length - 1)
+    event.preventDefault()
+    tabsStore.setActiveTab(tabs[index].id)
+    return true
+  }
+  return false
+})
+
+/** ⇧⌘[ / ⇧⌘] 循环切换（首尾环绕）。 */
+function cycleActiveTab(delta: number) {
+  const tabs = tabsStore.tabs
+  if (tabs.length === 0) return
+  const index = tabs.findIndex(tb => tb.id === tabsStore.activeTabId)
+  const next = (index + delta + tabs.length) % tabs.length
+  tabsStore.setActiveTab(tabs[next].id)
+}
+
 /** 面板执行上下文：活动面板 + 导航回调（收藏/手输路径跳转）。 */
 const paletteContext = computed<CommandContext>(() => ({
   activePane: activeTab.value?.panes.length

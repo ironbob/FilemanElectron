@@ -48,4 +48,29 @@ test('候选耗尽（100 次）抛错', () => {
   assert.throws(() => resolveOutputPath({ sourcePath: '/a/x.png', mode: 'copy', format: 'png', exists: taken }), /唯一输出文件名/)
 })
 
+test('copy 自定义文件名（保存 Sheet「存储为」）：替换 base+suffix，目录可选', () => {
+  assert.equal(
+    resolveOutputPath({ sourcePath: '/docs/a.png', mode: 'copy', format: 'png', name: 'myshot', exists: () => false }),
+    '/docs/myshot.png'
+  )
+  assert.equal(
+    resolveOutputPath({ sourcePath: '/docs/a.png', mode: 'copy', format: 'jpeg', name: 'myshot', dir: '/custom', exists: () => false }),
+    '/custom/myshot.jpg'
+  )
+})
+
+test('copy 自定义文件名冲突同样 -1 递增', () => {
+  const taken = new Set(['/docs/myshot.png'])
+  assert.equal(
+    resolveOutputPath({ sourcePath: '/docs/a.png', mode: 'copy', format: 'png', name: 'myshot', exists: p => taken.has(p) }),
+    '/docs/myshot-1.png'
+  )
+})
+
+test('copy 自定义文件名非法（空 / 含路径分隔符 / . ..）抛错', () => {
+  for (const bad of ['', '  ', 'a/b', 'a\\b', '.', '..']) {
+    assert.throws(() => resolveOutputPath({ sourcePath: '/a/x.png', mode: 'copy', format: 'png', name: bad, exists: () => false }), /非法/)
+  }
+})
+
 console.log(`\nimageEditNaming: ${passed} tests passed`)

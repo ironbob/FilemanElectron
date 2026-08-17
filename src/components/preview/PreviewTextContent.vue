@@ -20,78 +20,111 @@
     <!-- Content Area -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
 
-      <!-- 大文件截断横幅 -->
+      <!-- 未保存关闭确认条（tabs 关闭被守卫阻止后就地呈现，三键决策；仿 hex） -->
       <div
-        v-if="truncated"
-        class="flex-shrink-0 px-3 py-1 text-xs text-text-tertiary bg-bg-hover border-b border-border"
+        v-if="closeConfirm"
+        class="flex items-center gap-2 flex-shrink-0 px-3 py-1.5 text-xs border-b border-border bg-bg-toolbar"
+        role="alertdialog"
+        :aria-label="$t('preview.text.unsavedAria')"
       >
-        {{ $t('preview.text.truncatedBanner', { size: formatSizeText(props.file.size), limit: TEXT_PREVIEW_BYTE_CAP / 1024 / 1024 }) }}
+        <span class="flex-shrink-0">{{ $t('preview.text.unsavedPrompt') }}</span>
+        <div class="flex-1" />
+        <button
+          class="px-2 py-0.5 rounded text-white bg-accent-blue hover:bg-accent-blue-hover disabled:opacity-50"
+          :disabled="isSaving"
+          @click="saveAndClose"
+        >{{ $t('preview.text.saveAndClose') }}</button>
+        <button
+          class="px-2 py-0.5 rounded text-text-primary hover:bg-bg-hover"
+          @click="discardAndClose"
+        >{{ $t('preview.text.discard') }}</button>
+        <button
+          class="px-2 py-0.5 rounded text-text-secondary hover:bg-bg-hover"
+          @click="closeConfirm = false"
+        >{{ $t('common.cancel') }}</button>
       </div>
 
-      <!-- ── Toolbar ── -->
-      <div class="finder-preview-toolbar flex items-center justify-between border-b border-border flex-shrink-0">
-        <!-- Left: language badge + stats -->
-        <div class="flex items-center gap-2.5">
-          <span class="finder-preview-badge">
-            {{ displayLanguage }}
-          </span>
-          <span v-if="viewMode === 'source'" class="text-xs text-text-tertiary">
-            {{ $t('preview.text.linesCount', lineCount) }}
-          </span>
-          <span v-else-if="viewMode === 'table'" class="text-xs text-text-tertiary">
-            {{ $t('preview.text.csvRowsCols', { rows: csvRows.length + (csvTruncated ? '+' : ''), cols: csvHeaders.length }) }}
-          </span>
-          <span v-else-if="viewMode === 'tree' && fileCategory === 'json'" class="text-xs text-text-tertiary">
-            {{ $t('preview.json.nodeCount', jsonNodeCount) }}
-          </span>
-          <!-- JSON validity badge -->
-          <span
-            v-if="fileCategory === 'json' && jsonStatus !== null"
-            class="text-xs px-1.5 py-0.5 rounded font-mono leading-none"
-            :class="jsonStatus === 'valid' ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-400'"
-          >{{ jsonStatus === 'valid' ? $t('preview.json.valid') : $t('preview.json.invalid') }}</span>
-        </div>
-
-        <!-- Right: view-mode toggles + source-mode controls -->
-        <div class="flex items-center gap-1">
+      <!-- ── Finder 式三段工具栏（重设计 2026-08-17）── -->
+      <TextPreviewToolbar
+        ref="toolbarRef"
+        :vm="logAnalysis"
+        :badge="displayLanguage"
+        :meta-detail="metaDetail"
+        :show-search="viewMode === 'source'"
+        :show-source-tools="viewMode === 'source'"
+        :word-wrap-on="wordWrap"
+        :has-selection="hasSelection"
+        :syntax-label="syntaxLabel"
+        :syntax-override="syntaxOverride"
+        :syntax-languages="SYNTAX_LANGUAGES"
+        :font-size="fontSize"
+        :show-line-numbers="showLineNumbers"
+        :show-minimap="showMinimap"
+        encoding="UTF-8"
+        @toggle-wrap="toggleWordWrap"
+        @set-syntax="setSyntaxOverride"
+        @copy="copyContent"
+        @export="onExportMenu"
+        @set-font-size="setFontSize"
+        @toggle-line-numbers="toggleLineNumbers"
+        @toggle-minimap="toggleMinimap"
+        @jump-to-line="openJumpPanel"
+        @open-scheme-editor="schemeEditorVisible = true"
+      >
+        <template #left-extra>
           <!-- Markdown: Preview ↔ Source -->
-          <div v-if="fileCategory === 'markdown'" class="flex rounded border border-border overflow-hidden mr-1">
+          <div v-if="fileCategory === 'markdown'" class="finder-control-group">
             <button
-              class="px-2.5 py-1 text-xs transition-colors"
+              class="px-2.5 py-1 text-xs transition-colors rounded"
               :class="viewMode === 'rendered' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('rendered')"
             >{{ $t('preview.markdown.previewMode') }}</button>
             <button
-              class="px-2.5 py-1 text-xs transition-colors border-l border-border"
+              class="px-2.5 py-1 text-xs transition-colors rounded"
               :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('source')"
             >{{ $t('preview.markdown.sourceMode') }}</button>
           </div>
 
           <!-- JSON: Tree ↔ Source -->
-          <div v-else-if="fileCategory === 'json'" class="flex rounded border border-border overflow-hidden mr-1">
+          <div v-else-if="fileCategory === 'json'" class="finder-control-group">
             <button
-              class="px-2.5 py-1 text-xs transition-colors"
+              class="px-2.5 py-1 text-xs transition-colors rounded"
               :class="viewMode === 'tree' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('tree')"
             >{{ $t('preview.json.treeMode') }}</button>
             <button
-              class="px-2.5 py-1 text-xs transition-colors border-l border-border"
+              class="px-2.5 py-1 text-xs transition-colors rounded"
               :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
               @click="setViewMode('source')"
             >{{ $t('preview.json.sourceMode') }}</button>
           </div>
 
-          <!-- JSON 工具：格式化 / 路径查询 / 复制 TS interfaces -->
+          <!-- CSV: Table ↔ Source -->
+          <div v-else-if="fileCategory === 'csv'" class="finder-control-group">
+            <button
+              class="px-2.5 py-1 text-xs transition-colors rounded"
+              :class="viewMode === 'table' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
+              @click="setViewMode('table')"
+            >{{ $t('preview.text.tableMode') }}</button>
+            <button
+              class="px-2.5 py-1 text-xs transition-colors rounded"
+              :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
+              @click="setViewMode('source')"
+            >{{ $t('preview.json.sourceMode') }}</button>
+          </div>
+
+          <!-- JSON 工具：格式化 / 路径查询 / 复制 TS interfaces / 树折叠 -->
           <template v-if="fileCategory === 'json' && jsonStatus === 'valid'">
+            <span class="finder-toolbar-divider"></span>
             <button
               v-if="viewMode === 'source'"
-              class="px-2 py-1 text-xs rounded text-text-secondary hover:bg-bg-hover border border-border"
+              class="h-7 px-2.5 flex items-center bg-bg-secondary/50 border border-border/50 rounded-md text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors"
               :title="$t('preview.json.formatJsonTip')"
               @click="formatJsonSource"
             >{{ $t('preview.json.formatJson') }}</button>
             <button
-              class="px-2 py-1 text-xs rounded text-text-secondary hover:bg-bg-hover border border-border"
+              class="h-7 px-2.5 flex items-center bg-bg-secondary/50 border border-border/50 rounded-md text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors"
               :title="$t('preview.json.copyTsTip')"
               @click="copyTsInterfaces"
             >{{ $t('preview.json.copyTs') }}</button>
@@ -110,70 +143,43 @@
                 @click="applyJsonPath"
               >→</button>
             </div>
+            <template v-if="viewMode === 'tree'">
+              <button
+                class="finder-icon-button"
+                :title="$t('preview.common.expandAll')"
+                @click="jsonTreeRef?.expandAll()"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              </button>
+              <button
+                class="finder-icon-button"
+                :title="$t('preview.common.collapseAll')"
+                @click="jsonTreeRef?.collapseAll()"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                </svg>
+              </button>
+            </template>
           </template>
 
-          <!-- CSV: Table ↔ Source -->
-          <div v-else-if="fileCategory === 'csv'" class="flex rounded border border-border overflow-hidden mr-1">
-            <button
-              class="px-2.5 py-1 text-xs transition-colors"
-              :class="viewMode === 'table' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
-              @click="setViewMode('table')"
-            >{{ $t('preview.text.tableMode') }}</button>
-            <button
-              class="px-2.5 py-1 text-xs transition-colors border-l border-border"
-              :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
-              @click="setViewMode('source')"
-            >{{ $t('preview.json.sourceMode') }}</button>
-          </div>
+          <!-- JSON validity badge -->
+          <span
+            v-if="fileCategory === 'json' && jsonStatus !== null"
+            class="text-xs px-1.5 py-0.5 rounded font-mono leading-none"
+            :class="jsonStatus === 'valid' ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-400'"
+          >{{ jsonStatus === 'valid' ? $t('preview.json.valid') : $t('preview.json.invalid') }}</span>
+        </template>
+      </TextPreviewToolbar>
 
-          <!-- Source-mode controls (word wrap + minimap) -->
-          <template v-if="viewMode === 'source'">
-            <button
-              class="finder-icon-button"
-              :class="{ 'is-active': wordWrap }"
-              :title="wordWrap ? $t('preview.text.wordWrapDisable') : $t('preview.text.wordWrapEnable')"
-              @click="toggleWordWrap"
-            >
-              <IconfontIcon name="code" />
-            </button>
-            <button
-              class="finder-icon-button"
-              :class="{ 'is-active': showMinimap }"
-              :title="$t('preview.text.minimapTip')"
-              @click="toggleMinimap"
-            >
-              <IconfontIcon name="document" />
-            </button>
-          </template>
-
-          <!-- Log analysis toolbar: expression filter + color scheme (source mode) -->
-          <template v-if="viewMode === 'source'">
-            <LogAnalysisToolbar :vm="logAnalysis" @open-scheme-editor="schemeEditorVisible = true" />
-          </template>
-
-          <!-- JSON tree-mode controls (expand/collapse all) -->
-          <template v-if="viewMode === 'tree' && fileCategory === 'json'">
-            <button
-              class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
-              :title="$t('preview.common.expandAll')"
-              @click="jsonTreeRef?.expandAll()"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
-            </button>
-            <button
-              class="p-1.5 rounded transition-colors text-text-secondary hover:text-text-primary hover:bg-bg-hover"
-              :title="$t('preview.common.collapseAll')"
-              @click="jsonTreeRef?.collapseAll()"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-              </svg>
-            </button>
-          </template>
-        </div>
-      </div>
+      <!-- ── 过滤状态条（仅搜索激活时） ── -->
+      <TextFilterStatusBar
+        v-if="viewMode === 'source' && logAnalysis.hasResult.value"
+        :vm="logAnalysis"
+        :partial-loaded="!isFullyLoaded"
+      />
 
       <!-- ── Rendered Markdown ── -->
       <div
@@ -246,7 +252,39 @@
       </div>
 
       <!-- ── Monaco Editor (source view) ── -->
-      <div v-else ref="editorContainer" class="flex-1 overflow-hidden"></div>
+      <div v-else class="flex-1 overflow-hidden relative">
+        <div ref="editorContainer" class="absolute inset-0"></div>
+
+        <!-- 0 匹配空态（非错误样式） -->
+        <div
+          v-if="logAnalysis.hasResult.value && logAnalysis.matchCount.value === 0"
+          class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 pointer-events-auto"
+          data-testid="text-no-match"
+        >
+          <p class="text-sm" style="color: var(--finder-secondary-label)">
+            {{ $t('preview.text.noMatchTitle', { query: logAnalysis.expression.value }) }}
+          </p>
+          <button class="edit-secondary-btn" @click="toolbarRef?.openFindOptions()">
+            {{ $t('preview.text.adjustFindOptions') }}
+          </button>
+        </div>
+
+        <!-- 跳转到行（⌘L，行内浮层非模态） -->
+        <div v-if="jumpVisible" class="text-jump-panel" data-testid="text-jump-panel">
+          <span class="text-xs" style="color: var(--finder-secondary-label)">{{ $t('preview.text.jumpToLineTip') }}</span>
+          <input
+            ref="jumpInput"
+            v-model="jumpInputValue"
+            type="text"
+            inputmode="numeric"
+            :placeholder="$t('preview.text.jumpPlaceholder', { max: jumpMaxLine })"
+            @keydown.enter.prevent="doJumpToLine"
+            @keydown.esc.stop.prevent="jumpVisible = false"
+          >
+          <span v-if="jumpError" class="jump-error">{{ jumpError }}</span>
+          <button class="edit-secondary-btn !h-6 !px-3" @click="doJumpToLine">{{ $t('preview.text.jumpGo') }}</button>
+        </div>
+      </div>
 
       <!-- ── File Info Bar ── -->
       <div class="flex-shrink-0 px-4 py-2 bg-bg-tertiary border-t border-border">
@@ -272,12 +310,12 @@
               </svg>
               {{ $t('preview.text.diffLabel') }}
             </button>
-            <!-- Save button (disabled while a filtered view is active) -->
+            <!-- Save button (disabled while a filtered view is active or the file is partially loaded) -->
             <button
               class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors flex items-center gap-1.5"
-              :class="{ 'opacity-50 cursor-not-allowed': !isModified || isSaving || logAnalysis.isViewTransformed.value }"
-              :disabled="!isModified || isSaving || logAnalysis.isViewTransformed.value"
-              :title="logAnalysis.isViewTransformed.value ? $t('preview.text.saveBlockedTip') : $t('preview.text.save')"
+              :class="{ 'opacity-50 cursor-not-allowed': !isModified || isSaving || logAnalysis.isViewTransformed.value || !isFullyLoaded }"
+              :disabled="!isModified || isSaving || logAnalysis.isViewTransformed.value || !isFullyLoaded"
+              :title="logAnalysis.isViewTransformed.value ? $t('preview.text.saveBlockedTip') : !isFullyLoaded ? $t('preview.text.saveBlockedPartialTip') : $t('preview.text.save')"
               @click="saveFile"
             >
               <svg v-if="isSaving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -292,6 +330,26 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- ── 分片加载脚注（大文件渐进加载；未全量 = 只读 + 禁保存） ── -->
+      <div
+        v-if="!isFullyLoaded && !loading"
+        class="text-load-footer flex items-center gap-3 flex-shrink-0"
+        data-testid="text-load-footer"
+      >
+        <span>{{ $t('preview.text.loadedProgress', { loaded: formatSize(loadedBytes), size: formatSize(props.file.size) }) }}</span>
+        <span class="flex-1"></span>
+        <button
+          class="edit-secondary-btn !h-5 !px-2.5 !text-xs"
+          :disabled="loadingMore || loadedBytes >= file.size || loadedBytes >= TEXT_ABSOLUTE_CAP"
+          @click="extendLoaded(TEXT_CHUNK_BYTES)"
+        >{{ $t('preview.text.loadMoreChunk') }}</button>
+        <button
+          class="edit-secondary-btn !h-5 !px-2.5 !text-xs"
+          :disabled="loadingMore || loadedBytes >= file.size || loadedBytes >= TEXT_ABSOLUTE_CAP"
+          @click="extendLoaded('all')"
+        >{{ $t('preview.text.loadAll') }}</button>
       </div>
 
       <!-- ── Diff Modal ── -->
@@ -330,10 +388,11 @@
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { t } from '@/i18n'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import { useTabsStore } from '@/stores/tabs'
 import type { FileInfo } from '@/types'
-import IconfontIcon from './IconfontIcon.vue'
 import { useLogAnalysis } from '@/components/preview/composables/useLogAnalysis'
-import LogAnalysisToolbar from '@/components/preview/logview/LogAnalysisToolbar.vue'
+import TextPreviewToolbar from '@/components/preview/textview/TextPreviewToolbar.vue'
+import TextFilterStatusBar from '@/components/preview/textview/TextFilterStatusBar.vue'
 import { queryJson } from '@/utils/jsonQuery'
 import { jsonToInterfaces } from '@/utils/jsonToTs'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -414,7 +473,8 @@ import 'monaco-editor/esm/vs/basic-languages/pascal/pascal.contribution'
 import 'monaco-editor/esm/vs/basic-languages/lexon/lexon.contribution'
 import 'monaco-editor/esm/vs/basic-languages/bicep/bicep.contribution'
 import 'monaco-editor/esm/vs/basic-languages/cameligo/cameligo.contribution'
-import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController'
+// NOTE: findController (Monaco 内置查找) 已按重设计移除 —— ⌘F/⌘G/⇧⌘G 统一走
+// 自定义搜索框（docs/superpowers/specs/2026-08-17-text-preview-finder-redesign.md 决策②）
 
 // ── Marked setup (singleton at module level) ──────────────────────────────────
 const markedInstance = new Marked(
@@ -434,13 +494,55 @@ const log = (msg: string, ...args: unknown[]) => console.log(`[PreviewTextConten
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CSV_ROW_LIMIT = 2000
 
+/** 大文件渐进加载：首片 2MB；绝对上限 64MB（未全量 = 只读 + 禁保存，防截断写回） */
+const TEXT_CHUNK_BYTES = 2 * 1024 * 1024
+const TEXT_ABSOLUTE_CAP = 64 * 1024 * 1024
+
+/** Monaco 语言显示名（语法菜单 + 类型徽标共用；仅收录已注册 basic-languages） */
+const LANGUAGE_DISPLAY: Record<string, string> = {
+  // Web
+  javascript: 'JavaScript', typescript: 'TypeScript', html: 'HTML',
+  css: 'CSS', scss: 'SCSS', less: 'Less',
+  // Data
+  json: 'JSON', xml: 'XML', yaml: 'YAML', ini: 'INI/TOML',
+  // Scripting
+  python: 'Python', ruby: 'Ruby', php: 'PHP', lua: 'Lua', perl: 'Perl',
+  r: 'R', julia: 'Julia',
+  // Shell
+  shell: 'Shell', bat: 'Batch', powershell: 'PowerShell',
+  // Systems
+  cpp: 'C/C++', csharp: 'C#', java: 'Java',
+  kotlin: 'Kotlin', swift: 'Swift', go: 'Go', rust: 'Rust', dart: 'Dart',
+  scala: 'Scala',
+  // Functional
+  fsharp: 'F#', clojure: 'Clojure', elixir: 'Elixir', scheme: 'Scheme',
+  // Mobile
+  'objective-c': 'Objective-C',
+  // DB & API
+  sql: 'SQL', mysql: 'MySQL', pgsql: 'PostgreSQL', redis: 'Redis',
+  graphql: 'GraphQL', protobuf: 'Protocol Buffers',
+  // Docs
+  markdown: 'Markdown', mdx: 'MDX', restructuredtext: 'reStructuredText',
+  // DevOps
+  dockerfile: 'Dockerfile', hcl: 'HCL (Terraform)',
+  // Other
+  plaintext: 'Plain Text', solidity: 'Solidity', systemverilog: 'SystemVerilog',
+}
+
+/** 语法菜单清单（自动检测项由工具栏另行渲染） */
+const SYNTAX_LANGUAGES = Object.entries(LANGUAGE_DISPLAY).map(([id, label]) => ({ id, label }))
+
 // ── Props / Emits ─────────────────────────────────────────────────────────────
 const props = defineProps<{
   file: FileInfo
   deviceId: string
+  /** 预览会话 id（关闭守卫/脏探针注册键；由 PreviewContentRouter 传入）。 */
+  sessionId?: string
   /** 初始定位行号（grep 命中跳入；仅首次创建编辑器时消费一次）。 */
   initialLine?: number
 }>()
+
+const tabsStore = useTabsStore()
 
 // ── JSON Tree View Component Ref ──────────────────────────────────────────────
 // json-viewer web component interface
@@ -462,6 +564,27 @@ const errorMessage = ref('')
 const lineCount = ref(0)
 const wordWrap = ref(false)
 const showMinimap = ref(false)
+
+// ── 阅读区设置（⋯ 菜单 / ⌘ 快捷键驱动；会话级，不持久化） ────────────────────
+const fontSize = ref(14)                    // 设计默认 14（12–18，⌘±0）
+const showLineNumbers = ref(true)
+const syntaxOverride = ref<string | null>(null)
+const hasSelection = ref(false)
+
+// ── 跳转到行（⌘L） ────────────────────────────────────────────────────────────
+const jumpVisible = ref(false)
+const jumpInputValue = ref('')
+const jumpError = ref<string | null>(null)
+const jumpInput = ref<HTMLInputElement | null>(null)
+
+// ── 大文件渐进加载状态 ────────────────────────────────────────────────────────
+const isFullyLoaded = ref(true)
+const loadedBytes = ref(0)
+const loadingMore = ref(false)
+/** 全文总行数（分片扩展/过滤视图下与模型行数解耦） */
+const fullLineCount = ref(0)
+
+const toolbarRef = ref<InstanceType<typeof TextPreviewToolbar> | null>(null)
 
 type ViewMode = 'source' | 'rendered' | 'table' | 'tree'
 const viewMode = ref<ViewMode>('source')
@@ -578,37 +701,30 @@ const fileCategory = computed((): FileCategory => {
 // 语言 id 仅使用 Monaco basic-languages 实际注册过的子集。
 const monacoLanguage = computed(() => getLanguageForFile(props.file.name, props.file.extension ?? ''))
 
-const displayLanguage = computed(() => {
-  const DISPLAY: Record<string, string> = {
-    // Web
-    javascript: 'JavaScript', typescript: 'TypeScript', html: 'HTML',
-    css: 'CSS', scss: 'SCSS', less: 'Less',
-    // Data
-    json: 'JSON', xml: 'XML', yaml: 'YAML', ini: 'INI/TOML',
-    // Scripting
-    python: 'Python', ruby: 'Ruby', php: 'PHP', lua: 'Lua', perl: 'Perl',
-    r: 'R', julia: 'Julia',
-    // Shell
-    shell: 'Shell', bat: 'Batch', powershell: 'PowerShell',
-    // Systems
-    cpp: 'C/C++', csharp: 'C#', java: 'Java',
-    kotlin: 'Kotlin', swift: 'Swift', go: 'Go', rust: 'Rust', dart: 'Dart',
-    scala: 'Scala',
-    // Functional
-    fsharp: 'F#', clojure: 'Clojure', elixir: 'Elixir', scheme: 'Scheme',
-    // Mobile
-    'objective-c': 'Objective-C',
-    // DB & API
-    sql: 'SQL', mysql: 'MySQL', pgsql: 'PostgreSQL', redis: 'Redis',
-    graphql: 'GraphQL', protobuf: 'Protocol Buffers',
-    // Docs
-    markdown: 'Markdown', mdx: 'MDX', restructuredtext: 'reStructuredText',
-    // DevOps
-    dockerfile: 'Dockerfile', hcl: 'HCL (Terraform)',
-    // Other
-    plaintext: 'Plain Text', solidity: 'Solidity', systemverilog: 'SystemVerilog',
+/** 手动语法覆盖优先（会话级），否则自动检测 */
+const effectiveLanguage = computed(() => syntaxOverride.value ?? monacoLanguage.value)
+
+const displayLanguage = computed(() => LANGUAGE_DISPLAY[monacoLanguage.value] || monacoLanguage.value)
+
+/** 语法菜单当前值（纯文本本地化，其余用语言显示名） */
+const syntaxLabel = computed(() => {
+  const lang = effectiveLanguage.value
+  if (lang === 'plaintext') return t('preview.text.syntaxPlain')
+  return LANGUAGE_DISPLAY[lang] || lang
+})
+
+// ── 工具栏左段元信息 ──────────────────────────────────────────────────────────
+const metaDetail = computed(() => {
+  if (viewMode.value === 'source') {
+    return t('preview.text.metaLinesSize', { n: fullLineCount.value || lineCount.value, size: formatSize(props.file.size) })
   }
-  return DISPLAY[monacoLanguage.value] || monacoLanguage.value
+  if (viewMode.value === 'table') {
+    return t('preview.text.csvRowsCols', { rows: csvRows.value.length + (csvTruncated.value ? '+' : ''), cols: csvHeaders.value.length })
+  }
+  if (viewMode.value === 'tree' && fileCategory.value === 'json') {
+    return t('preview.json.nodeCount', jsonNodeCount.value)
+  }
+  return null
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -752,19 +868,23 @@ function createEditor(content: string) {
 
   editorInstance.value = monaco.editor.create(editorContainer.value, {
     value: content,
-    language: monacoLanguage.value,
+    language: effectiveLanguage.value,
     theme: isDark ? 'vs-dark' : 'vs',
     automaticLayout: true,
     minimap: { enabled: showMinimap.value },
     wordWrap: wordWrap.value ? 'on' : 'off',
     scrollBeyondLastLine: false,
     renderLineHighlight: 'line',
-    lineNumbers: 'on',
+    lineNumbers: showLineNumbers.value ? 'on' : 'off',
     glyphMargin: false,
     folding: true,
     foldingHighlight: true,
-    fontSize: 13,
-    fontFamily: "JetBrains Mono, Menlo, Monaco, 'Courier New', monospace",
+    // 设计默认：SF Mono 栈 · 14px · 行高 ≈ 字号×1.6（22–24px 区间）
+    fontSize: fontSize.value,
+    lineHeight: Math.round(fontSize.value * 1.6),
+    fontFamily: "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace",
+    // 分片未全量时只读（防截断写回；过滤视图由 adapter/watcher 置只读）
+    readOnly: !isFullyLoaded.value,
     smoothScrolling: false,
     hover: { enabled: false },
     quickSuggestions: false,
@@ -782,8 +902,8 @@ function createEditor(content: string) {
   // grep 命中跳入：一次性定位到 initialLine（reveal + 选中整行 + 聚焦）
   if (props.initialLine && props.initialLine > 0) {
     const lineNumber = props.initialLine
-    const lineCount = editorInstance.value.getModel()?.getLineCount() ?? 0
-    const target = Math.min(lineNumber, Math.max(lineCount, 1))
+    const modelLineCount = editorInstance.value.getModel()?.getLineCount() ?? 0
+    const target = Math.min(lineNumber, Math.max(modelLineCount, 1))
     editorInstance.value.revealLineInCenter(target)
     editorInstance.value.setSelection({ startLineNumber: target, startColumn: 1, endLineNumber: target, endColumn: 1 })
     editorInstance.value.focus()
@@ -805,9 +925,41 @@ function createEditor(content: string) {
     })
   }
 
-  // Register Cmd+S save shortcut
+  // Register editor-scoped shortcuts (window-level fallbacks live in the
+  // useKeyInterceptor below — they cover focus outside the editor)
   editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
     saveFile()
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
+    toolbarRef.value?.focusSearch()
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyG, () => {
+    logAnalysis.navigateHit(1)
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyG, () => {
+    logAnalysis.navigateHit(-1)
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
+    openJumpPanel()
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Equal, () => {
+    setFontSize(fontSize.value + 1)
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Minus, () => {
+    setFontSize(fontSize.value - 1)
+  })
+  editorInstance.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0, () => {
+    setFontSize(14)
+  })
+
+  // A 视图点击路由：gap 省略块 / 匹配行 → 定位到 B 全文视图
+  editorInstance.value.onMouseDown(e => {
+    logAnalysis.handleEditorMouseDown(e.target.position?.lineNumber)
+  })
+
+  // 选区跟踪（复制/导出菜单的上下文项）
+  editorInstance.value.onDidChangeCursorSelection(e => {
+    hasSelection.value = !e.selection.isEmpty()
   })
 
   // Lazy viewport coloring on scroll
@@ -816,7 +968,7 @@ function createEditor(content: string) {
   })
 
   lineCount.value = model?.getLineCount() ?? 0
-  log(`Editor created: lang=${monacoLanguage.value} lines=${lineCount.value}`)
+  log(`Editor created: lang=${effectiveLanguage.value} lines=${lineCount.value}`)
   logAnalysis.onEditorReady()
 }
 
@@ -828,62 +980,51 @@ function destroyEditor() {
   }
 }
 
-// ── File loading ──────────────────────────────────────────────────────────────
-/** 文本预览载入上限；超过则只读前 8MB 并显示截断横幅。 */
-const TEXT_PREVIEW_BYTE_CAP = 8 * 1024 * 1024
-const truncated = ref(false)
-
-function formatSizeText(bytes: number): string {
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+// ── File loading（渐进分片：首片 2MB，脚注续载，未全量只读） ────────────────────
+function base64ToText(base64: string): string {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new TextDecoder('utf-8', { fatal: false }).decode(bytes)
 }
 
-async function loadFile() {
-  loading.value = true
-  hasError.value = false
-  errorMessage.value = ''
-  jsonStatus.value = null
-  csvHeaders.value = []
-  csvRows.value = []
-  wordWrap.value = false
-  // Reset log analysis session (filter state, hit navigation)
-  logAnalysis.reset()
-  destroyEditor()
+/** 首次载入：小文件整读；大文件首片 2MB（readChunk，避免整读卡顿） */
+async function fetchInitialText(): Promise<string> {
+  if (props.file.size <= TEXT_CHUNK_BYTES) {
+    loadedBytes.value = props.file.size
+    isFullyLoaded.value = true
+    return base64ToText(await window.fileman.readFile(props.deviceId, props.file.path))
+  }
+  const end = Math.min(props.file.size, TEXT_CHUNK_BYTES, TEXT_ABSOLUTE_CAP)
+  loadedBytes.value = end
+  isFullyLoaded.value = end >= props.file.size
+  const chunk = await window.fileman.readChunk(props.deviceId, props.file.path, 0, end)
+  return base64ToText(chunk.base64)
+}
 
-  try {
-    log('Loading:', props.file.name, 'device:', props.deviceId)
-    let base64: string
-    if (props.file.size > TEXT_PREVIEW_BYTE_CAP) {
-      // 大文件截断：Monaco 整模型渲染几十 MB 会拖垮渲染进程
-      const chunk = await window.fileman.readChunk(props.deviceId, props.file.path, 0, TEXT_PREVIEW_BYTE_CAP)
-      base64 = chunk.base64
-      truncated.value = true
-    } else {
-      base64 = await window.fileman.readFile(props.deviceId, props.file.path)
-      truncated.value = false
-    }
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    const raw = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+/**
+ * 应用已解码文本（首载 initial=true / 续载 extend）：类别处理 + 状态落位。
+ * 续载时保持用户当前 viewMode 与滚动位置；过滤激活则重跑过滤扩大范围。
+ */
+async function applyLoadedText(raw: string, opts: { initial: boolean }): Promise<void> {
+  const category = fileCategory.value
+  let editorContent = raw
+  wordWrap.value = category === 'log'
 
-    const category = fileCategory.value
-    let editorContent = raw
+  if (category === 'json') {
+    editorContent = processJson(raw)
+  } else if (category === 'markdown') {
+    await processMarkdown(raw)
+  } else if (category === 'csv') {
+    processCsv(raw)
+  }
 
-    if (category === 'json') {
-      editorContent = processJson(raw)
-    } else if (category === 'markdown') {
-      await processMarkdown(raw)
-    } else if (category === 'csv') {
-      processCsv(raw)
-    } else if (category === 'log') {
-      wordWrap.value = true
-    }
+  preparedContent.value = editorContent
+  originalContent.value = editorContent
+  fullLineCount.value = editorContent.split('\n').length
 
-    preparedContent.value = editorContent
-    originalContent.value = editorContent
+  if (opts.initial) {
     isModified.value = false
-
     // Set initial view mode per category
     viewMode.value = category === 'markdown' ? 'rendered'
       : category === 'csv' ? 'table'
@@ -901,6 +1042,69 @@ async function loadFile() {
         jsonTreeRef.value.data = parsedJsonData.value
       }
     }
+    return
+  }
+
+  // ── 续载：内容扩展（分片期间只读 ⇒ 无编辑可被覆盖） ──
+  isModified.value = false
+  if (viewMode.value === 'source') {
+    const editor = editorInstance.value
+    if (logAnalysis.hasResult.value) {
+      // 过滤激活：扩大已加载范围后重跑（状态条会追加「仅已加载范围」标注）
+      await logAnalysis.applyFilter(false)
+    } else if (editor) {
+      const scrollTop = editor.getScrollTop()
+      const model = editor.getModel()
+      if (model) model.setValue(editorContent)
+      editor.setScrollTop(scrollTop)
+      lineCount.value = model?.getLineCount() ?? 0
+    }
+  } else if (viewMode.value === 'tree' && parsedJsonData.value !== null) {
+    await nextTick()
+    if (jsonTreeRef.value) {
+      jsonTreeRef.value.data = parsedJsonData.value
+    }
+  }
+}
+
+/** 续载更多（+2MB 或全部）；从 0 重读到新边界（规避 UTF-8 多字节被分片截断） */
+async function extendLoaded(target: number | 'all'): Promise<void> {
+  if (loadingMore.value || isFullyLoaded.value || loading.value) return
+  loadingMore.value = true
+  try {
+    const end = target === 'all'
+      ? Math.min(props.file.size, TEXT_ABSOLUTE_CAP)
+      : Math.min(props.file.size, loadedBytes.value + target, TEXT_ABSOLUTE_CAP)
+    if (end <= loadedBytes.value) return
+    const chunk = await window.fileman.readChunk(props.deviceId, props.file.path, 0, end)
+    loadedBytes.value = end
+    isFullyLoaded.value = end >= props.file.size
+    await applyLoadedText(base64ToText(chunk.base64), { initial: false })
+    log('extendLoaded: now %d bytes, fullyLoaded=%s', end, isFullyLoaded.value)
+  } catch (err) {
+    log('Error extending file:', err)
+    errorMessage.value = err instanceof Error ? err.message : t('preview.common.unknownError')
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+async function loadFile() {
+  loading.value = true
+  hasError.value = false
+  errorMessage.value = ''
+  jsonStatus.value = null
+  csvHeaders.value = []
+  csvRows.value = []
+  wordWrap.value = false
+  // Reset log analysis session (filter state, hit navigation)
+  logAnalysis.reset()
+  destroyEditor()
+
+  try {
+    log('Loading:', props.file.name, 'device:', props.deviceId)
+    const raw = await fetchInitialText()
+    await applyLoadedText(raw, { initial: true })
   } catch (err) {
     log('Error loading file:', err)
     loading.value = false
@@ -908,6 +1112,14 @@ async function loadFile() {
     errorMessage.value = err instanceof Error ? err.message : t('preview.common.unknownError')
   }
 }
+
+// 只读总闸：过滤视图 OR 未全量 ⇒ 只读（filterView.restore 会无条件解锁，此处收口）
+watch(
+  [() => logAnalysis.isViewTransformed.value, isFullyLoaded],
+  ([transformed, full]) => {
+    editorInstance.value?.updateOptions({ readOnly: transformed || !full })
+  }
+)
 
 // ── View mode switching ───────────────────────────────────────────────────────
 async function setViewMode(mode: ViewMode) {
@@ -936,6 +1148,132 @@ function toggleWordWrap() {
 function toggleMinimap() {
   showMinimap.value = !showMinimap.value
   editorInstance.value?.updateOptions({ minimap: { enabled: showMinimap.value } })
+}
+
+function toggleLineNumbers() {
+  showLineNumbers.value = !showLineNumbers.value
+  // 过滤视图下行号由 filterView 的回调管理，仅在全文态切开关
+  if (!logAnalysis.isViewTransformed.value) {
+    editorInstance.value?.updateOptions({ lineNumbers: showLineNumbers.value ? 'on' : 'off' })
+  }
+}
+
+function setFontSize(size: number) {
+  const clamped = Math.min(18, Math.max(12, Math.round(size)))
+  if (clamped === fontSize.value) return
+  fontSize.value = clamped
+  editorInstance.value?.updateOptions({ fontSize: clamped, lineHeight: Math.round(clamped * 1.6) })
+}
+
+function setSyntaxOverride(id: string | null) {
+  syntaxOverride.value = id
+  const model = editorInstance.value?.getModel()
+  if (model) monaco.editor.setModelLanguage(model, id ?? monacoLanguage.value)
+}
+
+// ── 复制 / 导出 ───────────────────────────────────────────────────────────────
+async function copyContent(): Promise<void> {
+  const editor = editorInstance.value
+  const selection = editor?.getSelection()
+  if (editor && selection && !selection.isEmpty()) {
+    const text = editor.getModel()?.getValueInRange(selection) ?? ''
+    if (text !== '') {
+      await copyToClipboard(text)
+      return
+    }
+  }
+  await copyToClipboard(preparedContent.value)
+}
+
+function onExportMenu(kind: 'full' | 'matches' | 'selection'): void {
+  if (kind === 'matches') {
+    void logAnalysis.exportFiltered()
+    return
+  }
+  const editor = editorInstance.value
+  const selection = editor?.getSelection()
+  const text = kind === 'selection' && editor && selection && !selection.isEmpty()
+    ? (editor.getModel()?.getValueInRange(selection) ?? '')
+    : preparedContent.value
+  const suffix = kind === 'selection' ? '.selection' : '.copy'
+  void writeExportFile(text, suffix)
+}
+
+/** 导出副本：<去扩展名基名><suffix><扩展名>，冲突递增 .2/.3…（不覆盖） */
+async function writeExportFile(text: string, suffix: string): Promise<void> {
+  if (text === '') return
+  const path = props.file.path
+  const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  const dot = path.lastIndexOf('.')
+  const hasExt = dot > slash
+  const base = hasExt ? path.slice(0, dot) : path
+  const ext = hasExt ? path.slice(dot) : '.txt'
+
+  let candidate = `${base}${suffix}${ext}`
+  for (let n = 2; await window.fileman.exists(props.deviceId, candidate); n++) {
+    candidate = `${base}${suffix}.${n}${ext}`
+  }
+
+  const bytes = new TextEncoder().encode(text)
+  let binary = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  await window.fileman.writeFile(props.deviceId, candidate, btoa(binary))
+  log('Exported to:', candidate)
+}
+
+// ── 跳转到行（⌘L 行内浮层） ────────────────────────────────────────────────────
+const jumpMaxLine = computed(() => {
+  if (logAnalysis.hasResult.value) return Math.max(fullLineCount.value, 1)
+  return editorInstance.value?.getModel()?.getLineCount() ?? Math.max(fullLineCount.value, 1)
+})
+
+function openJumpPanel(): void {
+  if (viewMode.value !== 'source') return
+  jumpError.value = null
+  jumpVisible.value = true
+  void nextTick(() => jumpInput.value?.focus())
+}
+
+let pulseCollection: monaco.editor.IEditorDecorationsCollection | null = null
+let pulseTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 定位脉冲：目标行 0.8s 高亮（fma-locate-pulse 自带 reduced-motion 降级） */
+function pulseLine(lineNumber: number): void {
+  const editor = editorInstance.value
+  if (editor === null) return
+  pulseCollection?.clear()
+  pulseCollection = editor.createDecorationsCollection([{
+    range: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 },
+    options: { isWholeLine: true, className: 'fma-locate-pulse' }
+  }])
+  if (pulseTimer !== null) clearTimeout(pulseTimer)
+  pulseTimer = setTimeout(() => {
+    pulseCollection?.clear()
+    pulseTimer = null
+  }, 900)
+}
+
+function doJumpToLine(): void {
+  const n = Number.parseInt(jumpInputValue.value, 10)
+  const max = jumpMaxLine.value
+  if (!Number.isInteger(n) || n < 1 || n > max) {
+    jumpError.value = t('preview.text.jumpInvalid', { max })
+    return
+  }
+  jumpVisible.value = false
+  if (logAnalysis.hasResult.value) {
+    // 搜索激活：切到 B 全文高亮视图并定位
+    logAnalysis.locateInFullView(n)
+    return
+  }
+  const editor = editorInstance.value
+  if (editor) {
+    editor.revealLineInCenter(n)
+    pulseLine(n)
+  }
 }
 
 // ── Log analysis wiring ───────────────────────────────────────────────────────
@@ -984,6 +1322,48 @@ async function saveFile() {
   }
 }
 
+// ── 未保存关闭守卫 + 脏探针（此前未保存修改在关标签时静默丢失） ────────────────
+
+const closeConfirm = ref(false)
+/** 放弃修改后置真：守卫放行一次，完成关闭。 */
+const closeArmed = ref(false)
+let unregisterTextGuard: (() => void) | null = null
+let unregisterTextProbe: (() => void) | null = null
+
+if (props.sessionId) {
+  onMounted(() => {
+    unregisterTextGuard = tabsStore.registerCloseGuard(props.sessionId!, () => {
+      if (closeArmed.value || !isModified.value) return true
+      closeConfirm.value = true // 阻止关闭，就地请求用户决策
+      return false
+    })
+    unregisterTextProbe = tabsStore.registerDirtyProbe(props.sessionId!, () => isModified.value)
+  })
+  onUnmounted(() => {
+    unregisterTextGuard?.()
+    unregisterTextProbe?.()
+    unregisterTextGuard = null
+    unregisterTextProbe = null
+  })
+}
+
+/** 确认条：保存并关闭（saveFile 成功会复位 isModified）。 */
+async function saveAndClose(): Promise<void> {
+  await saveFile()
+  if (!isModified.value) {
+    closeConfirm.value = false
+    if (props.sessionId) tabsStore.closePreviewSession(props.sessionId)
+  }
+  // 保存失败/被过滤视图阻断：确认条保留，原因已由错误态/日志呈现
+}
+
+/** 确认条：放弃修改并关闭。 */
+function discardAndClose(): void {
+  closeArmed.value = true
+  closeConfirm.value = false
+  if (props.sessionId) tabsStore.closePreviewSession(props.sessionId)
+}
+
 function showDiff() {
   if (!isModified.value) return
   showDiffModal.value = true
@@ -997,17 +1377,65 @@ function closeDiff() {
   destroyDiffEditor()
 }
 
-// Intercept ESC in capture phase so parent (App.vue) bubble-phase handler never sees it
-// when the diff modal is open. Returning `true` signals the event is consumed.
+// Intercept keys in capture phase so parent (App.vue) bubble-phase handlers never
+// see them. Returning `true` signals the event is consumed.
+// Esc 链（LIFO 内本组件优先于 App）：diff 弹窗 → 方案编辑器 → 跳转浮层 → 清除搜索。
 useKeyInterceptor((e: KeyboardEvent) => {
-  if (e.key === 'Escape' && showDiffModal.value) {
-    closeDiff()
-    return true // consumed — blocks parent ESC handlers
+  if (e.key === 'Escape') {
+    if (showDiffModal.value) {
+      closeDiff()
+      return true // consumed — blocks parent ESC handlers
+    }
+    if (schemeEditorVisible.value) {
+      schemeEditorVisible.value = false
+      return true
+    }
+    if (jumpVisible.value) {
+      jumpVisible.value = false
+      return true
+    }
+    if (toolbarRef.value?.handleEscape()) {
+      // 工具栏菜单/窄窗搜索浮层 → 先收起
+      return true
+    }
+    if (logAnalysis.hasResult.value || logAnalysis.expression.value !== '') {
+      // 两段式 Esc：清除查询并立即恢复全文
+      logAnalysis.clearFilter()
+      return true
+    }
+    return undefined
   }
-  if (e.key === 'Escape' && schemeEditorVisible.value) {
-    schemeEditorVisible.value = false
-    return true
+
+  // ⌘F / ⌘G / ⇧⌘G / ⌘L / ⌘±0 —— 编辑器外的全局兜底（编辑器内由 addCommand 接管；
+  // capture 拦截先于 Monaco 键绑定服务，两条路径行为一致）
+  if ((e.metaKey || e.ctrlKey) && viewMode.value === 'source' && !showDiffModal.value && !schemeEditorVisible.value) {
+    const key = e.key.toLowerCase()
+    if (key === 'f') {
+      toolbarRef.value?.focusSearch()
+      return true
+    }
+    if (key === 'g') {
+      logAnalysis.navigateHit(e.shiftKey ? -1 : 1)
+      return true
+    }
+    if (key === 'l') {
+      openJumpPanel()
+      return true
+    }
+    if (key === '+' || key === '=') {
+      setFontSize(fontSize.value + 1)
+      return true
+    }
+    if (key === '-') {
+      setFontSize(fontSize.value - 1)
+      return true
+    }
+    if (key === '0') {
+      setFontSize(14)
+      return true
+    }
   }
+  return undefined
 })
 
 function createDiffEditor() {

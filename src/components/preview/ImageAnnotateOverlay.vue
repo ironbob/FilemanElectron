@@ -471,6 +471,7 @@ function resizeBox(from: BBox, corner: Corner, p: { x: number; y: number }): BBo
 const textInput = reactive({ visible: false, x: 0, y: 0, value: '' })
 const textInputRef = ref<HTMLInputElement | null>(null)
 let editingTextId: number | null = null
+let editingTextStyle: { color: string; strokeWidth: number; opacity?: number } | null = null
 
 function openTextInput(p: { x: number; y: number }, existing?: { id: number; text: string; style: { color: string; width: number } }) {
   textInput.visible = true
@@ -478,6 +479,7 @@ function openTextInput(p: { x: number; y: number }, existing?: { id: number; tex
   textInput.y = p.y - textFontSize(existing?.style.width ?? draftStyle().strokeWidth) / toNaturalScale.value
   textInput.value = existing?.text ?? ''
   editingTextId = existing?.id ?? null
+  editingTextStyle = existing ? { color: existing.style.color, strokeWidth: existing.style.width } : null
   void nextTick(() => textInputRef.value?.focus())
 }
 
@@ -506,7 +508,7 @@ function commitText() {
   editingTextId = null
   if (!value) return
   const n = toNatural(box)
-  const style = draftStyle()
+  const style = editingTextStyle ?? draftStyle()
   if (wasEditing !== null) {
     props.edit.replaceShape(wasEditing, {
       kind: 'text',
@@ -515,7 +517,7 @@ function commitText() {
       text: value,
       color: style.color,
       strokeWidth: style.strokeWidth,
-      opacity: style.opacity
+      ...(style.opacity !== undefined ? { opacity: style.opacity } : {})
     } as never)
   } else {
     props.edit.addShape({
