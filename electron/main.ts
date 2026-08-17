@@ -8,7 +8,7 @@ import { DeviceManager, type Device, type DeviceConfig, type Credentials, type D
 import { FileOperationManager, type FileOperationTask, type CreateTaskParams } from './src/services/FileOperationManager'
 import { ThumbnailService } from './src/services/ThumbnailService'
 import { ImageDecodeService } from './src/services/ImageDecodeService'
-import { ZipService } from './src/services/ZipService'
+import { ZipService, type ZipEntry } from './src/services/ZipService'
 import { VolumeScanner } from './src/services/VolumeScanner'
 import { HostShellService } from './src/services/HostShellService'
 import { FileMetadataService } from './src/services/FileMetadataService'
@@ -322,6 +322,21 @@ ipcMain.handle(CH.invoke.spaceCancel, (_, taskId: string) => {
 // openReadStream 丢弃前缀；非流式设备 readFile 后 slice（32MB 守卫）。
 
 ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId: string, path: string, offset: number, length: number): Promise<ReadChunkResult> => {
+  // Virtual ZIP path: no stream — extract the entry into memory, then slice
+  // (32MB guard, same semantics as the non-streaming fallback below).
+  if (isZipVirtualPath(path)) {
+    const { zipFilePath, innerPath } = parseZipVirtualPath(path)
+    const entry = findZipEntry(await zipService.getEntries(zipFilePath), innerPath)
+    if (!entry) throw new Error(`ZIP entry not found: ${innerPath}`)
+    if (entry.size > 32 * 1024 * 1024) {
+      throw new Error(t('errors.main.readChunkStreamUnsupported'))
+    }
+    const buffer = await zipService.readEntry(zipFilePath, innerPath)
+    const start = Math.max(0, Math.min(Math.floor(offset), entry.size))
+    const end = Math.min(start + Math.max(1, Math.floor(length)), entry.size)
+    const slice = end > start ? buffer.subarray(start, end) : Buffer.alloc(0)
+    return { base64: slice.toString('base64'), bytesRead: slice.length, fileSize: entry.size }
+  }
   const adapter = await deviceManager.getReadyAdapter(deviceId)
   const st = await adapter.stat(path)
   const fileSize = st.size
@@ -501,6 +516,12 @@ ipcMain.handle(CH.invoke.devicePair, async (_, deviceId: string): Promise<{ succ
 
 // ============ File System IPC Handlers (with deviceId routing) ============
 
+/** 按 innerPath 查 ZIP 条目（容错尾 '/'，与 parseZipVirtualPath 归一化一致）。 */
+function findZipEntry(entries: ZipEntry[], innerPath: string): ZipEntry | undefined {
+  const normalized = innerPath.replace(/\/+$/, '')
+  return entries.find(e => e.path === normalized)
+}
+
 ipcMain.handle(CH.invoke.fsList, async (_, deviceId: string, path: string) => {
   return deviceManager.listFiles(deviceId, path)
 })
@@ -508,8 +529,7 @@ ipcMain.handle(CH.invoke.fsList, async (_, deviceId: string, path: string) => {
 ipcMain.handle(CH.invoke.fsStat, async (_, deviceId: string, path: string) => {
   if (isZipVirtualPath(path)) {
     const { zipFilePath, innerPath } = parseZipVirtualPath(path)
-    const entries = await zipService.getEntries(zipFilePath)
-    const entry = entries.find(e => e.path === innerPath || e.path === innerPath.replace(/\/$/, ''))
+    const entry = findZipEntry(await zipService.getEntries(zipFilePath), innerPath)
     if (!entry) throw new Error(`ZIP entry not found: ${innerPath}`)
     return {
       name: entry.name,
@@ -525,6 +545,17 @@ ipcMain.handle(CH.invoke.fsStat, async (_, deviceId: string, path: string) => {
 })
 
 ipcMain.handle(CH.invoke.fsExists, async (_, deviceId: string, path: string) => {
+  // Virtual ZIP path: host file must exist locally, then look up the entry
+  if (isZipVirtualPath(path)) {
+    try {
+      const { zipFilePath, innerPath } = parseZipVirtualPath(path)
+      if (!fs.existsSync(zipFilePath)) return false
+      if (!innerPath) return true
+      return findZipEntry(await zipService.getEntries(zipFilePath), innerPath) !== undefined
+    } catch {
+      return false
+    }
+  }
   return deviceManager.exists(deviceId, path)
 })
 
@@ -871,7 +902,15 @@ ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId: string, filePath: str
     size,
     mtime,
     thumbnailSize,
-    (devId, path) => deviceManager.readFile(devId, path)
+    // Virtual ZIP path: feed the service the extracted entry bytes (image
+    // thumbnails then work as-is; video frames return early inside the service).
+    (devId, path) => {
+      if (isZipVirtualPath(path)) {
+        const { zipFilePath, innerPath } = parseZipVirtualPath(path)
+        return zipService.readEntry(zipFilePath, innerPath)
+      }
+      return deviceManager.readFile(devId, path)
+    }
   )
 })
 

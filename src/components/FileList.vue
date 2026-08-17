@@ -280,9 +280,11 @@
               v-for="child in item.children"
               :key="child.action"
               class="context-menu-item"
-              @click="handleContextMenuAction(child.action)"
+              :class="{ disabled: child.disabled }"
+              @click="child.disabled ? null : handleContextMenuAction(child.action)"
             >
               <span>{{ child.label }}</span>
+              <span v-if="child.shortcut" class="shortcut">{{ child.shortcut }}</span>
             </div>
           </div>
         </div>
@@ -434,7 +436,7 @@ const contextMenu = reactive({
   visible: false,
   x: 0,
   y: 0,
-  items: [] as Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; deviceId?: string }> }>
+  items: [] as Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }>
 })
 
 // ── 内联重命名状态 ─────────────────────────────────────────────────────────────
@@ -1230,6 +1232,12 @@ function handleDoubleClick(file: FileInfo) {
   if (file.isDirectory) {
     emit('navigate', file.path)
   } else if (file.extension?.toLowerCase() === '.zip') {
+    // Nested ZIP ('a.zip::inner.zip'): the '::' protocol has no second level —
+    // open the archive in tree preview instead of a broken virtual path.
+    if (isZipVirtualPath(file.path)) {
+      previewStore.openPreview(file, props.deviceId, undefined, 'zip')
+      return
+    }
     // Navigate INTO the ZIP as a virtual filesystem
     emit('navigate', joinZipPath(file.path, ''))
   } else {
@@ -1859,9 +1867,9 @@ function getTargetDevices(operation: 'copy' | 'move'): Array<{ label: string; ac
 /**
  * Build context menu items based on device capabilities
  */
-function buildContextMenuItems(isBackground: boolean): Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; deviceId?: string }> }> {
+function buildContextMenuItems(isBackground: boolean): Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }> {
   const caps = deviceCapabilities.value
-  const items: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; deviceId?: string }> }> = []
+  const items: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }> = []
 
   if (isBackground) {
     // Background context menu (empty area)
@@ -1911,7 +1919,26 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
   } else {
     // File/folder context menu
-    items.push({ label: t('fileList.menu.open'), action: 'open', shortcut: '⌘O' })
+    // 本地 .zip：以 ZIP 子菜单替代「打开/解压/十六进制」顶层项（浏览 = 进入虚拟目录，与双击一致）
+    const isLocalZip = !contextMenuTargetFile.value?.isDirectory
+      && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip'
+      && props.deviceId === 'local'
+    if (isLocalZip) {
+      // 嵌套 zip（'a.zip::inner.zip'）协议无二级 '::'：不提供「浏览/解压」，树形/hex 仍可
+      const nested = isZipVirtualPath(contextMenuTargetFile.value!.path)
+      items.push({
+        label: t('fileList.menu.zipMenu'),
+        action: 'zip-menu',
+        children: [
+          ...(nested ? [] : [{ label: t('fileList.menu.browseZip'), action: 'zip-browse', shortcut: '⌘O' }]),
+          { label: t('fileList.menu.treePreviewZip'), action: 'zip-tree-preview' },
+          ...(caps?.canArchive && !nested ? [{ label: t('fileList.menu.extractZip'), action: 'extract-archive' }] : []),
+          { label: t('fileList.menu.openAsHex'), action: 'zip-hex' },
+        ],
+      })
+    } else {
+      items.push({ label: t('fileList.menu.open'), action: 'open', shortcut: '⌘O' })
+    }
 
     // 目录：新标签页 / 并列双面板标签页打开
     if (contextMenuTargetFile.value?.isDirectory) {
@@ -1970,8 +1997,9 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
 
     items.push({ label: t('fileList.menu.info'), action: 'info', shortcut: '⌘I' })
-    // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制）
-    if (!contextMenuTargetFile.value?.isDirectory) {
+    // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制；
+    // 本地 .zip 已并入 ZIP 子菜单）
+    if (!contextMenuTargetFile.value?.isDirectory && !isLocalZip) {
       items.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex' })
     }
     if (props.selectedFiles.length > 1 && caps?.canRename) {
@@ -1980,7 +2008,7 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     if (caps?.canArchive) {
       items.push({ label: t('fileList.menu.archive'), action: 'archive' })
     }
-    if (contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
+    if (!isLocalZip && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
       items.push({ label: t('fileList.menu.extractZip'), action: 'extract-archive' })
     }
 
@@ -2300,6 +2328,22 @@ function handleContextMenuAction(action: string) {
     const file = contextMenuTargetFile.value
     if (file && !file.isDirectory) {
       previewStore.openPreview(file, props.deviceId, undefined, 'hex')
+    }
+    return
+  }
+
+  // ZIP 子菜单：浏览 = 进入虚拟目录（与双击一致）；树形/hex = 打开对应预览 tab
+  if (action === 'zip-browse') {
+    const file = contextMenuTargetFile.value
+    if (file && !isZipVirtualPath(file.path)) {
+      emit('navigate', joinZipPath(file.path, ''))
+    }
+    return
+  }
+  if (action === 'zip-tree-preview' || action === 'zip-hex') {
+    const file = contextMenuTargetFile.value
+    if (file && !file.isDirectory) {
+      previewStore.openPreview(file, props.deviceId, undefined, action === 'zip-hex' ? 'hex' : 'zip')
     }
     return
   }

@@ -2,9 +2,10 @@
   <div class="select-none">
     <!-- Node Row -->
     <div
-      class="flex items-center gap-1 px-2 py-1 rounded cursor-default transition-colors group"
+      class="flex items-center gap-1 px-2 py-1 rounded transition-colors group"
       :class="[
-        isMatched ? 'bg-accent-blue/20' : 'hover:bg-bg-hover'
+        isMatched ? 'bg-accent-blue/20' : 'hover:bg-bg-hover',
+        node.isDirectory ? 'cursor-default' : 'cursor-pointer'
       ]"
       :style="{ paddingLeft: `${depth * 16 + 8}px` }"
       @click="handleClick"
@@ -79,6 +80,7 @@
         :expanded-keys="expandedKeys"
         :search-query="searchQuery"
         @toggle="(path: string) => emit('toggle', path)"
+        @select="(node: ZipNode) => emit('select', node)"
       />
     </div>
   </div>
@@ -105,6 +107,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggle: [path: string]
+  select: [node: ZipNode]
 }>()
 
 const depth = computed(() => props.depth ?? 0)
@@ -166,6 +169,9 @@ function formatSize(bytes: number): string {
 function handleClick() {
   if (props.node.isDirectory && props.node.children.size > 0) {
     emit('toggle', props.node.path)
+  } else if (!props.node.isDirectory) {
+    // 文件节点：上抛 select 由父级打开二次预览（虚拟路径走统一预览管道）
+    emit('select', props.node)
   }
 }
 </script>

@@ -431,6 +431,9 @@ const zhCN = {
       batchRename: "批量重命名",
       archive: "压缩为 ZIP",
       extractZip: "解压 ZIP",
+      zipMenu: "ZIP",
+      browseZip: "浏览 ZIP",
+      treePreviewZip: "树形预览",
       checksumCompare: "校验和对比",
       checksumSingle: "计算校验和",
       compareDirs: "对比目录",
@@ -1841,6 +1844,9 @@ const enUS = {
       batchRename: "Batch Rename",
       archive: "Compress to ZIP",
       extractZip: "Extract ZIP",
+      zipMenu: "ZIP",
+      browseZip: "Browse ZIP",
+      treePreviewZip: "Tree Preview",
       checksumCompare: "Compare Checksums",
       checksumSingle: "Compute Checksum",
       compareDirs: "Compare Directories",
@@ -7550,6 +7556,10 @@ class ThumbnailService {
       logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
       return null;
     }
+    if (SUPPORTED_VIDEO_FORMATS.has(ext) && filePath.includes("::")) {
+      logWarn("Video thumbnails are not supported inside ZIP:", filePath);
+      return null;
+    }
     const dimensions = THUMBNAIL_SIZES[thumbnailSize];
     log$h("Target dimensions:", dimensions);
     let thumbnailBuffer = null;
@@ -10286,6 +10296,19 @@ ipcMain.handle(CH.invoke.spaceCancel, (_, taskId) => {
   return spaceAnalyzerService.cancel(taskId);
 });
 ipcMain.handle(CH.invoke.fsReadChunk, async (_, deviceId, path2, offset, length) => {
+  if (isZipVirtualPath(path2)) {
+    const { zipFilePath, innerPath } = parseZipVirtualPath(path2);
+    const entry = findZipEntry(await zipService.getEntries(zipFilePath), innerPath);
+    if (!entry) throw new Error(`ZIP entry not found: ${innerPath}`);
+    if (entry.size > 32 * 1024 * 1024) {
+      throw new Error(t("errors.main.readChunkStreamUnsupported"));
+    }
+    const buffer = await zipService.readEntry(zipFilePath, innerPath);
+    const start2 = Math.max(0, Math.min(Math.floor(offset), entry.size));
+    const end2 = Math.min(start2 + Math.max(1, Math.floor(length)), entry.size);
+    const slice2 = end2 > start2 ? buffer.subarray(start2, end2) : Buffer.alloc(0);
+    return { base64: slice2.toString("base64"), bytesRead: slice2.length, fileSize: entry.size };
+  }
   const adapter = await deviceManager.getReadyAdapter(deviceId);
   const st = await adapter.stat(path2);
   const fileSize = st.size;
@@ -10427,14 +10450,17 @@ ipcMain.handle(CH.invoke.deviceCanTransferBetween, (_, sourceDeviceId, targetDev
 ipcMain.handle(CH.invoke.devicePair, async (_, deviceId) => {
   return deviceManager.pairDevice(deviceId);
 });
+function findZipEntry(entries, innerPath) {
+  const normalized = innerPath.replace(/\/+$/, "");
+  return entries.find((e) => e.path === normalized);
+}
 ipcMain.handle(CH.invoke.fsList, async (_, deviceId, path2) => {
   return deviceManager.listFiles(deviceId, path2);
 });
 ipcMain.handle(CH.invoke.fsStat, async (_, deviceId, path2) => {
   if (isZipVirtualPath(path2)) {
     const { zipFilePath, innerPath } = parseZipVirtualPath(path2);
-    const entries = await zipService.getEntries(zipFilePath);
-    const entry = entries.find((e) => e.path === innerPath || e.path === innerPath.replace(/\/$/, ""));
+    const entry = findZipEntry(await zipService.getEntries(zipFilePath), innerPath);
     if (!entry) throw new Error(`ZIP entry not found: ${innerPath}`);
     return {
       name: entry.name,
@@ -10449,6 +10475,16 @@ ipcMain.handle(CH.invoke.fsStat, async (_, deviceId, path2) => {
   return deviceManager.getStats(deviceId, path2);
 });
 ipcMain.handle(CH.invoke.fsExists, async (_, deviceId, path2) => {
+  if (isZipVirtualPath(path2)) {
+    try {
+      const { zipFilePath, innerPath } = parseZipVirtualPath(path2);
+      if (!fs$1.existsSync(zipFilePath)) return false;
+      if (!innerPath) return true;
+      return findZipEntry(await zipService.getEntries(zipFilePath), innerPath) !== void 0;
+    } catch {
+      return false;
+    }
+  }
   return deviceManager.exists(deviceId, path2);
 });
 ipcMain.handle(CH.invoke.fsMkdir, async (_, deviceId, path2) => {
@@ -10679,7 +10715,15 @@ ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId, filePath, size, mtime
     size,
     mtime,
     thumbnailSize,
-    (devId, path2) => deviceManager.readFile(devId, path2)
+    // Virtual ZIP path: feed the service the extracted entry bytes (image
+    // thumbnails then work as-is; video frames return early inside the service).
+    (devId, path2) => {
+      if (isZipVirtualPath(path2)) {
+        const { zipFilePath, innerPath } = parseZipVirtualPath(path2);
+        return zipService.readEntry(zipFilePath, innerPath);
+      }
+      return deviceManager.readFile(devId, path2);
+    }
   );
 });
 ipcMain.handle(CH.invoke.thumbnailClearCache, async () => {

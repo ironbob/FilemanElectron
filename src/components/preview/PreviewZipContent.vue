@@ -65,6 +65,7 @@
           :expanded-keys="expandedKeys"
           :search-query="searchQuery"
           @toggle="toggleNode"
+          @select="handleNodeSelect"
         />
       </div>
 
@@ -85,6 +86,8 @@
 import { ref, computed, watch, onMounted, shallowRef } from 'vue'
 import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
+import { usePreviewStore } from '@/stores/preview'
+import { joinZipPath } from '@shared/zipPath'
 import IconfontIcon from './IconfontIcon.vue'
 import { unzip } from 'fflate'
 import ZipTreeNode from './ZipTreeNode.vue'
@@ -224,6 +227,25 @@ function toggleNode(path: string) {
   }
   // Force reactivity update
   expandedKeys.value = new Set(expandedKeys.value)
+}
+
+const previewStore = usePreviewStore()
+
+/** 点击文件节点：构造虚拟路径 FileInfo 走统一预览管道（fs:readFile 已支持 zip 条目）。 */
+function handleNodeSelect(node: ZipNode) {
+  const info: FileInfo = {
+    name: node.name,
+    path: joinZipPath(props.file.path, node.path),
+    isDirectory: false,
+    isFile: true,
+    size: node.size,
+    // ZipNode 无条目时间，借外层归档文件的 mtime
+    modifiedTime: props.file.modifiedTime,
+    extension: node.name.includes('.')
+      ? '.' + node.name.split('.').pop()!.toLowerCase()
+      : undefined,
+  }
+  previewStore.openPreview(info, props.deviceId)
 }
 
 function expandAll() {

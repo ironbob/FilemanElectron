@@ -110,6 +110,14 @@ export class ThumbnailService {
       return null
     }
 
+    // Virtual ZIP paths: images are read via the injected callback and work
+    // as-is, but video frames require a temp file on disk, which a '::' path
+    // cannot provide — bail out before reaching ffmpeg.
+    if (SUPPORTED_VIDEO_FORMATS.has(ext) && filePath.includes('::')) {
+      logWarn('Video thumbnails are not supported inside ZIP:', filePath)
+      return null
+    }
+
     const dimensions = THUMBNAIL_SIZES[thumbnailSize]
     log('Target dimensions:', dimensions)
     

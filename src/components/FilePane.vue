@@ -925,9 +925,13 @@ function handlePreview(file: FileInfo) {
   if (!file.isDirectory) {
     // ZIP files: navigate into the archive instead of previewing
     if (file.extension?.toLowerCase() === '.zip') {
-      // file.path may already be a virtual zip path if we're nested; just append '::'
-      const virtualPath = isZipVirtualPath(file.path) ? file.path : file.path + '::'
-      tabsStore.navigatePane(props.paneId, virtualPath)
+      // Nested ZIP ('a.zip::inner.zip'): the '::' protocol has no second
+      // level — open the tree preview instead of a broken virtual path.
+      if (isZipVirtualPath(file.path)) {
+        previewStore.openPreview(file, pane.value?.deviceId || 'local', undefined, 'zip')
+        return
+      }
+      tabsStore.navigatePane(props.paneId, joinZipPath(file.path, ''))
       return
     }
     const deviceId = pane.value?.deviceId || 'local'
