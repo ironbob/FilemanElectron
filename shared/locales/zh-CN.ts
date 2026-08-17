@@ -280,8 +280,6 @@ const zhCN = {
       previewImagesRecursive: '预览图片（递归）',
       copy: '复制',
       cut: '剪切',
-      copyToDevice: '复制到设备',
-      moveToDevice: '移动到设备',
       rename: '重命名',
       info: '属性',
       openAsHex: '以十六进制查看',
@@ -326,20 +324,6 @@ const zhCN = {
       conflictError: '规则产生 {count} 个重名，请调整后重试',
       cancel: '取消',
       submit: '重命名 {count} 项'
-    },
-    targetOperation: {
-      titleCopy: '复制 {count} 项',
-      titleMove: '移动 {count} 项',
-      desc: '选择一个已连接的目标设备及确切的文件夹路径。',
-      deviceLabel: '目标设备',
-      folderLabel: '目标文件夹',
-      conflictLabel: '若同名文件已存在',
-      conflictSkip: '跳过已有文件',
-      conflictOverwrite: '替换已有文件',
-      conflictRename: '两者保留（重命名新文件）',
-      cancel: '取消',
-      confirmCopy: '复制',
-      confirmMove: '移动'
     },
     fileInfo: {
       previewAlt: '预览',

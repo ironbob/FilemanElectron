@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { CH } from './src/ipc/channels'
 
 // 域类型正典在 @shared/types（跨进程单一事实源），此处仅 import type 消费
@@ -244,9 +244,9 @@ const filemanAPI = {
   },
 
   // ============ Shell Operations ============
-  showInFolder: (path: string) => {
-    shell.showItemInFolder(path)
-  },
+  // 注意：sandboxed preload 的 electron 模块不含 shell，一律经主进程 handler 中转
+  showInFolder: (path: string): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.shellShowInFolder, path),
   // Open a local directory in the system Terminal (macOS: Terminal.app via osascript).
   openInTerminal: (path: string): Promise<void> =>
     ipcRenderer.invoke(CH.invoke.shellOpenInTerminal, path),

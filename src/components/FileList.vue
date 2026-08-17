@@ -359,6 +359,7 @@ import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHin
 import { extensionCategories, extensionIconMap, isThumbnailable, isImageFile, IMAGE_EXTENSIONS_WITH_DOT } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
+import { resolveFileKind } from '@shared/fileKinds'
 import { listingDiffers } from '@/utils/listingDiff'
 import { toRelativePath, toFileUri, getBaseName, paneParentPath } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -425,7 +426,6 @@ watch(
 const loading = ref(false)
 const columnFilesMap = ref<Map<string, FileInfo[]>>(new Map())
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
-const transferTargets = ref<Map<string, { copy: boolean; move: boolean }>>(new Map())
 /** 当前拖拽悬停的文件夹行（放置目标高亮） */
 const dropTargetPath = ref<string | null>(null)
 
@@ -737,23 +737,11 @@ function zipEntriesToFileInfo(entries: Array<{
 
 async function loadDeviceCapabilities(deviceId: string) {
   try {
-    const [capabilities, checks] = await Promise.all([
-      devicesStore.getDeviceCapabilities(deviceId),
-      Promise.all(devicesStore.connectedDevices
-        .filter(device => device.id !== deviceId)
-        .map(async device => {
-          const [copy, move] = await Promise.all([
-            window.fileman.canTransferBetween(deviceId, device.id, 'copy'),
-            window.fileman.canTransferBetween(deviceId, device.id, 'move')
-          ])
-          return [device.id, { copy, move }] as const
-        }))
-    ])
+    const capabilities = await devicesStore.getDeviceCapabilities(deviceId)
 
     // A later navigation can switch devices while these background checks run.
     if (props.deviceId !== deviceId) return
     deviceCapabilities.value = capabilities
-    transferTargets.value = new Map(checks)
   } catch (error) {
     // Capabilities only affect contextual actions; a failure must not block the
     // directory listing itself.
@@ -1350,6 +1338,17 @@ function handleDoubleClick(file: FileInfo) {
     }
     // Navigate INTO the ZIP as a virtual filesystem
     emit('navigate', joinZipPath(file.path, ''))
+  } else if (
+    props.deviceId === 'local'
+    && !isZipVirtualPath(file.path)
+    && resolveFileKind(file.name, file.extension ?? '') === 'zip'
+  ) {
+    // ZIP 容器格式（pptx/docx/aar/jar…）：实为 zip 但属于其他应用的格式。
+    // 本机有实体与专属应用，双击交给系统默认应用（Finder 语义）；想看内部
+    // 结构走右键 ZIP 子菜单。ZIP 内部的同名条目无本地实体，继续应用内预览。
+    window.fileman.openDefault(file.path).catch(err => {
+      console.error('[FileList] openDefault failed for', file.path, err)
+    })
   } else {
     emit('preview', file)
   }
@@ -2047,32 +2046,15 @@ async function handleColumnClick(columnIndex: number, file: FileInfo) {
 }
 
 /**
- * Get available target devices for cross-device operations
- */
-function getTargetDevices(operation: 'copy' | 'move'): Array<{ label: string; action: string; deviceId: string }> {
-  const targets: Array<{ label: string; action: string; deviceId: string }> = []
-
-  for (const device of devicesStore.connectedDevices) {
-    // Skip the current device
-    if (device.id === props.deviceId) continue
-    if (!transferTargets.value.get(device.id)?.[operation]) continue
-
-    targets.push({
-      label: device.name,
-      action: `copy-to-device:${device.id}`,
-      deviceId: device.id
-    })
-  }
-
-  return targets
-}
-
-/**
  * Build context menu items based on device capabilities
  */
 function buildContextMenuItems(isBackground: boolean): Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }> {
   const caps = deviceCapabilities.value
   const items: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }> = []
+  // 菜单打开瞬间的选中快照（showFileContextMenu/showContextMenu 已先行写入）。
+  // 选中区隔项（校验和/对比/批量重命名）一律以它为准：右键未选中文件时
+  // emit('select') 的 props 回填是异步的，同步构建读 props 会拿到旧选中集
+  const selectedAtMenuOpen = contextMenuSelectedFiles.value
 
   if (isBackground) {
     // Background context menu (empty area)
@@ -2122,11 +2104,16 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
     }
   } else {
     // File/folder context menu
-    // 本地 .zip：以 ZIP 子菜单替代「打开/解压/十六进制」顶层项（浏览 = 进入虚拟目录，与双击一致）
-    const isLocalZip = !contextMenuTargetFile.value?.isDirectory
-      && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip'
+    // 本地 ZIP 族（.zip 及 zip 容器格式 pptx/docx/aar…，判定源 @shared/fileKinds
+    // 的 zipOf 注册表）：以 ZIP 子菜单替代「打开/解压/十六进制」顶层项。
+    // .zip 双击进虚拟目录；容器格式双击走系统默认应用——ZIP 子菜单是它们
+    // 浏览内部结构的入口（浏览 = 新标签页进虚拟目录）。
+    const target = contextMenuTargetFile.value
+    const isLocalZipFamily = !!target
+      && !target.isDirectory
       && props.deviceId === 'local'
-    if (isLocalZip) {
+      && resolveFileKind(target.name, target.extension ?? '') === 'zip'
+    if (isLocalZipFamily) {
       // 嵌套 zip（'a.zip::inner.zip'）协议无二级 '::'：不提供「浏览/解压」，树形/hex 仍可
       const nested = isZipVirtualPath(contextMenuTargetFile.value!.path)
       items.push({
@@ -2168,29 +2155,6 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
       items.push({ label: t('fileList.menu.cut'), action: 'cut', shortcut: '⌘X' })
     }
 
-    // Add cross-device copy submenu if there are other connected devices
-    const targetDevices = getTargetDevices('copy')
-    if (caps?.canCopyFrom && targetDevices.length > 0) {
-      items.push({
-        label: t('fileList.menu.copyToDevice'),
-        action: 'copy-to-device-menu',
-        children: targetDevices
-      })
-    }
-
-    // Add cross-device move submenu
-    const moveTargetDevices = getTargetDevices('move')
-    if (caps?.canMoveFrom && moveTargetDevices.length > 0) {
-      items.push({
-        label: t('fileList.menu.moveToDevice'),
-        action: 'move-to-device-menu',
-        children: moveTargetDevices.map(device => ({
-          ...device,
-          action: `move-to-device:${device.deviceId}`
-        }))
-      })
-    }
-
     if (caps?.canRename) {
       items.push({ label: t('fileList.menu.rename'), action: 'rename', shortcut: 'Enter' })
     }
@@ -2201,36 +2165,38 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
 
     items.push({ label: t('fileList.menu.info'), action: 'info', shortcut: '⌘I' })
     // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制；
-    // 本地 .zip 已并入 ZIP 子菜单）
-    if (!contextMenuTargetFile.value?.isDirectory && !isLocalZip) {
+    // 本地 ZIP 族已并入 ZIP 子菜单）
+    if (!contextMenuTargetFile.value?.isDirectory && !isLocalZipFamily) {
       items.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex' })
     }
-    if (props.selectedFiles.length > 1 && caps?.canRename) {
+    if (selectedAtMenuOpen.length > 1 && caps?.canRename) {
       items.push({ label: t('fileList.menu.batchRename'), action: 'batch-rename', shortcut: '⇧⌘R' })
     }
     if (caps?.canArchive) {
       items.push({ label: t('fileList.menu.archive'), action: 'archive' })
     }
-    if (!isLocalZip && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
+    if (!isLocalZipFamily && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
       items.push({ label: t('fileList.menu.extractZip'), action: 'extract-archive' })
     }
 
-    // 校验和：恰好选中 1-2 个文件（单哈希 / 对比）
-    if (props.selectedFiles.length >= 1 && props.selectedFiles.length <= 2) {
-      const selectedInfos = props.selectedFiles
+    // 校验和：恰好选中 1-2 个文件（单哈希 / 对比）。
+    // 用打开瞬间的快照而非 props.selectedFiles：右键未选中文件时
+    // emit('select') 的 prop 回填是异步的，同步构建会读到旧值漏掉本项
+    if (selectedAtMenuOpen.length >= 1 && selectedAtMenuOpen.length <= 2) {
+      const selectedInfos = selectedAtMenuOpen
         .map(p => files.value.find(f => f.path === p))
         .filter(Boolean) as FileInfo[]
-      if (selectedInfos.length === props.selectedFiles.length && selectedInfos.every(f => !f.isDirectory)) {
+      if (selectedInfos.length === selectedAtMenuOpen.length && selectedInfos.every(f => !f.isDirectory)) {
         items.push({
-          label: props.selectedFiles.length === 2 ? t('fileList.menu.checksumCompare') : t('fileList.menu.checksumSingle'),
+          label: selectedAtMenuOpen.length === 2 ? t('fileList.menu.checksumCompare') : t('fileList.menu.checksumSingle'),
           action: 'checksum'
         })
       }
     }
 
     // Compare two directories: only when exactly 2 directories are selected
-    if (props.selectedFiles.length === 2) {
-      const selectedInfos = props.selectedFiles
+    if (selectedAtMenuOpen.length === 2) {
+      const selectedInfos = selectedAtMenuOpen
         .map(p => files.value.find(f => f.path === p))
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === 2 && selectedInfos.every(f => f.isDirectory)) {
@@ -2517,7 +2483,9 @@ function handleContextMenuAction(action: string) {
   if (action === 'reveal-in-finder') {
     const target = contextMenuTargetFile.value?.path
     if (target) {
-      window.fileman.showInFolder(target)
+      window.fileman.showInFolder(target).catch(err => {
+        console.error('[FileList] showInFolder failed for', target, err)
+      })
     } else {
       console.warn('[FileList] reveal-in-finder: no target file (background menu should not show this action)')
     }
@@ -2566,11 +2534,12 @@ function handleContextMenuAction(action: string) {
     return
   }
 
-  // ZIP 子菜单：浏览 = 进入虚拟目录（与双击一致）；树形/hex = 打开对应预览 tab
+  // ZIP 子菜单：浏览 = 在新标签页进入虚拟目录（双击仍在当前面板内导航）；
+  // 树形/hex = 打开对应预览 tab
   if (action === 'zip-browse') {
     const file = contextMenuTargetFile.value
     if (file && !isZipVirtualPath(file.path)) {
-      emit('navigate', joinZipPath(file.path, ''))
+      tabsStore.openPathInNewTab(props.deviceId, joinZipPath(file.path, ''))
     }
     return
   }
@@ -2687,36 +2656,6 @@ function handleContextMenuAction(action: string) {
       pattern: '',
       isRegex: false,
       caseSensitive: false
-    })
-    return
-  }
-
-  // Check for cross-device copy action
-  if (action.startsWith('copy-to-device:')) {
-    const targetDeviceId = action.substring('copy-to-device:'.length)
-    console.log('[FileList] Action: copy-to-device', {
-      targetDeviceId,
-      files: props.selectedFiles
-    })
-    emit('operation', {
-      action: 'copy-to-device',
-      files: props.selectedFiles,
-      targetDeviceId
-    })
-    return
-  }
-
-  // Check for cross-device move action
-  if (action.startsWith('move-to-device:')) {
-    const targetDeviceId = action.substring('move-to-device:'.length)
-    console.log('[FileList] Action: move-to-device', {
-      targetDeviceId,
-      files: props.selectedFiles
-    })
-    emit('operation', {
-      action: 'move-to-device',
-      files: props.selectedFiles,
-      targetDeviceId
     })
     return
   }

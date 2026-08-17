@@ -186,8 +186,8 @@ export const EXTENSION_KINDS: Record<string, FileKindDef> = {
   // ── PDF ───────────────────────────────────────────────────────────────────
   pdf: { kind: 'pdf' },
 
-  // ── ZIP 族（.zip 双击进虚拟目录；其余开 zip 浏览 tab） ─────────────────────
-  zip: zipOf(), jar: zipOf(), war: zipOf(), ear: zipOf(), apk: zipOf(), ipa: zipOf(),
+  // ── ZIP 族（.zip 双击进虚拟目录；其余双击走系统默认应用，ZIP 子菜单可浏览） ──
+  zip: zipOf(), jar: zipOf(), war: zipOf(), ear: zipOf(), aar: zipOf(), apk: zipOf(), ipa: zipOf(),
   docx: zipOf('document'), xlsx: zipOf('document'), pptx: zipOf('document'),
   docm: zipOf('document'), xlsm: zipOf('document'), pptm: zipOf('document'),
   odt: zipOf(), ods: zipOf(), odp: zipOf(), epub: zipOf(), cbz: zipOf(),

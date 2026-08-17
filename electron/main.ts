@@ -187,9 +187,12 @@ ipcMain.handle(CH.invoke.fileInfoWindowGetContext, event => {
 
 // ============ Host Shell Integration IPC Handlers ============
 // 「在终端中打开」：spawn 系统终端（macOS=osascript Terminal.app）。
-// 「在 Finder 中显示」不走此 handler —— 它复用 preload 的 shell.showItemInFolder
-// （Electron 安全同步 API，已被 preview/TaskItem 在用）。两者机制不同，故分离。
+// 「在 Finder 中显示」同样必须走 handler：sandboxed preload 的 electron 模块
+// 不含 shell，preload 直调 shell.showItemInFolder 会静默抛错（右键菜单无效的根因）。
 
+ipcMain.handle(CH.invoke.shellShowInFolder, (_, targetPath: string): void => {
+  return hostShellService.showInFolder(targetPath)
+})
 ipcMain.handle(CH.invoke.shellOpenInTerminal, async (_, dirPath: string): Promise<void> => {
   return hostShellService.openInTerminal(dirPath)
 })

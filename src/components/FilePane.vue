@@ -327,14 +327,6 @@
       @close="renameDialog.visible = false"
       @confirm="doRename"
     />
-    <TargetOperationDialog
-      v-if="targetDialog.visible"
-      :mode="targetDialog.mode"
-      :count="targetDialog.files.length"
-      :devices="targetDialog.devices"
-      @close="targetDialog.visible = false"
-      @confirm="confirmTargetOperation"
-    />
     <BatchRenameDialog
       v-if="batchRenameDialog.visible"
       :files="batchRenameDialog.files"
@@ -374,7 +366,6 @@ import FileList from './FileList.vue'
 import InlinePreview from './preview/InlinePreview.vue'
 import { DualPaneIcon } from './icons/sidebarIcons'
 import RenameDialog from './dialogs/RenameDialog.vue'
-import TargetOperationDialog from './dialogs/TargetOperationDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import ChecksumDialog from './dialogs/ChecksumDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
@@ -386,7 +377,7 @@ import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegmen
 import type { FileInfo } from '@/types'
 import type { ChecksumAlgo, ChecksumItem } from '@shared/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
-import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
+import type { FileOperationTask } from '@/types/fileOperation'
 
 const log = console
 
@@ -537,12 +528,6 @@ const renameDialog = reactive({
   visible: false,
   filePath: ''
 })
-const targetDialog = reactive({
-  visible: false,
-  mode: 'copy' as 'copy' | 'move',
-  files: [] as string[],
-  devices: [] as Array<{ id: string; name: string; path?: string }>
-})
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 const checksumDialog = reactive<{ visible: boolean; items: ChecksumItem[]; algo: ChecksumAlgo }>({ visible: false, items: [], algo: 'sha256' })
 const symlinkDialog = reactive({ visible: false })
@@ -579,12 +564,14 @@ const gitBranchInfo = computed<{ label: string; title: string } | null>(() => {
  */
 const canRevealInFinder = computed(() => pane.value?.deviceId === 'local' && !isInsideZip.value)
 
-/** 工具栏按钮：在 Finder 中定位当前目录（shell.showItemInFolder 选中该目录于其父窗口）。 */
+/** 工具栏按钮：在 Finder 中定位当前目录（主进程 shell.showItemInFolder 选中该目录于其父窗口）。 */
 function revealCurrentFolderInFinder() {
   if (!canRevealInFinder.value) return
   const currentPath = pane.value?.path
   if (currentPath) {
-    window.fileman.showInFolder(currentPath)
+    window.fileman.showInFolder(currentPath).catch(err => {
+      console.error('[FilePane] showInFolder failed for', currentPath, err)
+    })
   }
 }
 
@@ -1199,35 +1186,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         }
       }
       break
-
-    case 'copy-to-device':
-      if (op.targetDeviceId && op.files.length > 0) openTargetDialog('copy', op.files, op.targetDeviceId)
-      break
-
-    case 'move-to-device':
-      if (op.targetDeviceId && op.files.length > 0) openTargetDialog('move', op.files, op.targetDeviceId)
-      break
   }
-}
-
-function openTargetDialog(mode: 'copy' | 'move', files: string[], preferredDeviceId: string) {
-  const companionPanes = tabsStore.activeTab?.panes ?? []
-  targetDialog.devices = devicesStore.connectedDevices
-    .filter(device => device.id !== pane.value?.deviceId)
-    .map(device => ({ id: device.id, name: device.name, path: companionPanes.find(other => other.deviceId === device.id)?.path || '/' }))
-    .sort((left, right) => left.id === preferredDeviceId ? -1 : right.id === preferredDeviceId ? 1 : left.name.localeCompare(right.name))
-  targetDialog.mode = mode
-  targetDialog.files = files
-  targetDialog.visible = targetDialog.devices.length > 0
-}
-
-async function confirmTargetOperation(value: { deviceId: string; targetPath: string; conflictStrategy: ConflictStrategy }) {
-  const deviceId = pane.value?.deviceId || 'local'
-  if (targetDialog.mode === 'copy') await fileOpsStore.createCopyTask(deviceId, targetDialog.files, value.deviceId, value.targetPath, value.conflictStrategy)
-  else await fileOpsStore.createMoveTask(deviceId, targetDialog.files, value.deviceId, value.targetPath, value.conflictStrategy)
-  targetDialog.visible = false
-  log.info('[FilePane] target operation queued', { mode: targetDialog.mode, targetDeviceId: value.deviceId, targetPath: value.targetPath })
-  if (targetDialog.mode === 'move') tabsStore.setSelectedFiles(props.paneId, [])
 }
 
 async function confirmBatchRename(items: BatchRenameItem[]) {

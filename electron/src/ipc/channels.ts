@@ -25,6 +25,7 @@ export const CH = {
     fileInfoWindowOpen: 'window:fileInfo:open',
     fileInfoWindowGetContext: 'window:fileInfo:getContext',
     // shell:
+    shellShowInFolder: 'shell:showInFolder',
     shellOpenInTerminal: 'shell:openInTerminal',
     shellOpenWith: 'shell:openWith',
     shellOpenDefault: 'shell:openDefault',

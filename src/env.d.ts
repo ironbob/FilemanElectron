@@ -203,7 +203,8 @@ interface Window {
     onFileOperationUpdated: (callback: (task: FileOperationTask) => void) => () => void
 
     // System Integration
-    showInFolder: (path: string) => void
+    // Reveal in Finder（主进程 shell.showItemInFolder 中转；目标不存在不报错）
+    showInFolder: (path: string) => Promise<void>
     // Open a local directory in the system Terminal (macOS only; rejects on other platforms).
     openInTerminal: (path: string) => Promise<void>
     // Open a local file/directory with a chosen app (macOS: open -a).

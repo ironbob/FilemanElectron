@@ -274,8 +274,6 @@ const enUS: MessageSchema = {
       previewImagesRecursive: 'Preview Images (Recursive)',
       copy: 'Copy',
       cut: 'Cut',
-      copyToDevice: 'Copy to Device',
-      moveToDevice: 'Move to Device',
       rename: 'Rename',
       info: 'Properties',
       openAsHex: 'View as Hex',
@@ -320,20 +318,6 @@ const enUS: MessageSchema = {
       conflictError: 'The rules produce {count} name conflict. Adjust and try again. | The rules produce {count} name conflicts. Adjust and try again.',
       cancel: 'Cancel',
       submit: 'Rename {count} item | Rename {count} items'
-    },
-    targetOperation: {
-      titleCopy: 'Copy {count} item | Copy {count} items',
-      titleMove: 'Move {count} item | Move {count} items',
-      desc: 'Choose a connected destination and the exact folder path.',
-      deviceLabel: 'Destination device',
-      folderLabel: 'Destination folder',
-      conflictLabel: 'If a file already exists',
-      conflictSkip: 'Skip existing files',
-      conflictOverwrite: 'Replace existing files',
-      conflictRename: 'Keep both (rename new file)',
-      cancel: 'Cancel',
-      confirmCopy: 'Copy',
-      confirmMove: 'Move'
     },
     fileInfo: {
       previewAlt: 'preview',

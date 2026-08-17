@@ -144,10 +144,22 @@ export const useTabsStore = defineStore('tabs', () => {
     activeTabId.value = tabId
   }
 
-  function createTab(): Tab {
-    const tab = createDefaultTab(defaultHomePath)
+  // ── 新 tab 来源记忆 ─────────────────────────────────────────────────────────
+  // 打开新 tab 时记录当时的活动 tab（来源）；关闭「最新 tab」（数组末位）时回到
+  // 来源 tab。只对末位 tab 生效：非末位（历史中更早打开的）关闭仍走默认的
+  // 「激活左侧相邻」，避免与既有 muscle memory 冲突。
+  const tabOrigins = new Map<string, string>()
+
+  /** 统一的新 tab 落位：记录来源 → push → 激活。 */
+  function pushTab(tab: Tab): void {
+    tabOrigins.set(tab.id, activeTabId.value)
     tabs.value.push(tab)
     activeTabId.value = tab.id
+  }
+
+  function createTab(): Tab {
+    const tab = createDefaultTab(defaultHomePath)
+    pushTab(tab)
     return tab
   }
 
@@ -224,8 +236,21 @@ export const useTabsStore = defineStore('tabs', () => {
     }
 
     tabs.value.splice(index, 1)
+    // 关的是最新 tab（原末位）且来源 tab 仍存活 → 回到来源 tab；
+    // 其余情况维持默认：激活左侧相邻
+    const originId = tabOrigins.get(tabId)
+    const wasNewest = index >= tabs.value.length
+    // 来源记忆清理：自己的条目 + 指向自己的条目（Map 迭代中删除安全）
+    tabOrigins.delete(tabId)
+    for (const [key, origin] of tabOrigins) {
+      if (origin === tabId) tabOrigins.delete(key)
+    }
     if (activeTabId.value === tabId) {
-      activeTabId.value = tabs.value[Math.max(0, index - 1)].id
+      if (wasNewest && originId && tabs.value.some(t => t.id === originId)) {
+        activeTabId.value = originId
+      } else {
+        activeTabId.value = tabs.value[Math.max(0, index - 1)].id
+      }
     }
   }
 
@@ -334,8 +359,7 @@ export const useTabsStore = defineStore('tabs', () => {
       panes: [pane],
       activePaneId: pane.id
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     log.info('[TabsStore] opened path in new tab', { deviceId, path, tabId: tab.id })
   }
 
@@ -352,8 +376,7 @@ export const useTabsStore = defineStore('tabs', () => {
       panes: [left, right],
       activePaneId: left.id
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     log.info('[TabsStore] opened path in dual-pane tab', { deviceId, path, refPath: refPath ?? '(same)', tabId: tab.id })
   }
 
@@ -512,8 +535,7 @@ export const useTabsStore = defineStore('tabs', () => {
       activePaneId: '',
       compareSession: session
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     return tab.id
   }
 
@@ -535,8 +557,7 @@ export const useTabsStore = defineStore('tabs', () => {
       activePaneId: '',
       dupesSession: session
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     return tab.id
   }
 
@@ -552,8 +573,7 @@ export const useTabsStore = defineStore('tabs', () => {
       activePaneId: '',
       grepSession: full
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     return tab.id
   }
 
@@ -575,8 +595,7 @@ export const useTabsStore = defineStore('tabs', () => {
       activePaneId: '',
       spaceSession: session
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     return tab.id
   }
 
@@ -606,8 +625,7 @@ export const useTabsStore = defineStore('tabs', () => {
       activePaneId: '',
       fileDiffSession: session,
     }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
+    pushTab(tab)
     return tab.id
   }
 

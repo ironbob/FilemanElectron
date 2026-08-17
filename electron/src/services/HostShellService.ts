@@ -1,4 +1,5 @@
 import { execFile } from 'child_process'
+import { shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { OpenWithApp } from '@shared/types'
@@ -113,6 +114,18 @@ export class HostShellService {
         resolve()
       })
     })
+  }
+
+  /**
+   * 在 Finder 中显示指定文件/目录（选中其所在层级并高亮）。
+   * 走主进程 shell.showItemInFolder——sandboxed preload 的 electron 模块
+   * 不含 shell，此前 preload 直调会静默抛错（详见 疑难问题解决记录）。
+   * 目标不存在时不抛错（与 Electron 语义一致，仅无操作）。
+   */
+  showInFolder(targetPath: string): void {
+    const normalized = path.resolve(targetPath)
+    shell.showItemInFolder(normalized)
+    console.log(`[HostShellService] Revealed in Finder: "${normalized}"`)
   }
 
   /**

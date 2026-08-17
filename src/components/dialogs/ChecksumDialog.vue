@@ -32,13 +32,17 @@ const { progress, isRunning, start, cancel } = useLongTaskProgress<
   subscribe: callback => window.fileman.onChecksumProgress(callback)
 })
 
-void start({ sessionId, algo: algo.value, items: props.items })
+// props.items 经 FilePane 的 reactive() 存储，读出即深层 Proxy——直接跨 IPC 会
+// "could not be cloned" 且异常被 void 吞掉（弹窗永远停在准备中）。发送前展开成普通对象。
+const plainItems = (): ChecksumItem[] => props.items.map(item => ({ ...item }))
+
+void start({ sessionId, algo: algo.value, items: plainItems() })
 
 /** 切算法即重启（同 session 自动取消旧任务）。 */
 function changeAlgo(next: ChecksumAlgo): void {
   if (isRunning.value) return
   algo.value = next
-  void start({ sessionId, algo: next, items: props.items })
+  void start({ sessionId, algo: next, items: plainItems() })
 }
 
 const percent = computed(() => {

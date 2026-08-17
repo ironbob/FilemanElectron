@@ -344,7 +344,7 @@ function locateEndpoint(kind: 'source' | 'destination'): void {
   if (kind === 'source') {
     if (!primarySourcePath.value) return
     if (sourceDeviceId.value === 'local') {
-      window.fileman.showInFolder(primarySourcePath.value)
+      window.fileman.showInFolder(primarySourcePath.value).catch(() => undefined)
       return
     }
     emit('locate', { kind, deviceId: sourceDeviceId.value, path: primarySourcePath.value })
@@ -352,14 +352,14 @@ function locateEndpoint(kind: 'source' | 'destination'): void {
   }
   if (!destinationPath.value) return
   if (destinationDeviceId.value === 'local') {
-    window.fileman.showInFolder(destinationPath.value)
+    window.fileman.showInFolder(destinationPath.value).catch(() => undefined)
     return
   }
   emit('locate', { kind, deviceId: destinationDeviceId.value, path: destinationPath.value })
 }
 
 function windowShowInFolder(path: string): void {
-  window.fileman.showInFolder(path)
+  window.fileman.showInFolder(path).catch(() => undefined)
 }
 </script>
 
