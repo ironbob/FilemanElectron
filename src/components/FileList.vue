@@ -54,7 +54,7 @@
           @drop="handleRowDrop(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
-          <div class="w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
+          <div class="finder-drag-hotspot w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
             <img
               v-if="getThumbnailUrl(file, 'small')"
               :src="getThumbnailUrl(file, 'small')!"
@@ -64,7 +64,7 @@
             <component v-else :is="getFileIconComponent(file)" class="w-6 h-6" />
           </div>
           <FileNameMatchLabel
-            class="flex-1 truncate text-base"
+            class="finder-drag-hotspot flex-1 truncate text-base"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
@@ -482,6 +482,9 @@ const rubberBand = reactive({
   cmdKey: false,   // 框选开始时是否按住 Cmd（追加模式）
 })
 const selectionBeforeDrag = ref<string[]>([])
+/** 框选真实拖动（≥4px）结束后，若按下/释放在同一行内浏览器仍会派发 click——
+ *  吞掉该 click，避免 handleClick 的单选冲掉框选结果 */
+let suppressNextClick = false
 
 // 框选矩形 CSS 样式
 const rubberBandStyle = computed(() => {
@@ -1161,6 +1164,11 @@ function isSelected(path: string): boolean {
 }
 
 function handleClick(file: FileInfo, event: MouseEvent) {
+  // 框选拖动结束后的余波 click（mousedown preventDefault 不抑制 click 派发）
+  if (suppressNextClick) {
+    suppressNextClick = false
+    return
+  }
   // event.detail === 2 is reliable on draggable elements where @dblclick may not fire
   if (event.detail === 2) {
     handleDoubleClick(file)
@@ -1489,13 +1497,21 @@ function handleContainerMouseDown(e: MouseEvent) {
   // 上下文菜单打开时，不触发框选（否则 mouseup 会因距离 < 4px 而清空选中）
   if (contextMenu.visible) return
   const target = e.target as Element
-  if (!target.closest('.file-item')) {
+  // list 行是全宽且无行距的 .file-item：文件数填满视口后内容区不存在任何空白
+  // 落点，框选必须能从行上发起（grid 格子间有 gap/空轨道，无此问题）。
+  // Finder 语义：仅图标 + 文件名是拖拽热点（finder-drag-hotspot），行的元数据
+  // 列（日期/大小/种类/权限）视为背景 —— 从那里按下并拖动即框选。
+  // startRubberBand 的 preventDefault 会抑制该按势触发的原生 dragstart。
+  const onFileItem = target.closest('.file-item')
+  const onDragHotspot = target.closest('.finder-drag-hotspot')
+  if (!onFileItem || (props.viewMode === 'list' && !onDragHotspot)) {
     startRubberBand(e)
   }
 }
 
 function startRubberBand(e: MouseEvent) {
   if (!containerRef.value) return
+  suppressNextClick = false
   const rect = containerRef.value.getBoundingClientRect()
   rubberBand.startClientX = e.clientX
   rubberBand.startClientY = e.clientY
@@ -1583,12 +1599,21 @@ function handleRubberBandUp(e: MouseEvent) {
     // 拖动距离很小，视为点击空白区域，取消所有选中
     emit('select', [])
     anchorPath.value = null
+  } else {
+    // 真实框选拖动：随后同元素上的 click 是同一手势的余波，需吞掉
+    suppressNextClick = true
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function handleDragStart(file: FileInfo, event: DragEvent) {
+  // 框选手势进行中（从行元数据列发起）：取消拖拽。mousedown preventDefault
+  // 之外的双保险——两者任一生效都能保证框选与文件拖拽不互相竞争。
+  if (rubberBand.active) {
+    event.preventDefault()
+    return
+  }
   if (event.dataTransfer) {
     const dragData: InternalFileDragPayload = {
       paneId: props.paneId,

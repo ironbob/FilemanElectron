@@ -193,3 +193,26 @@ if (performance.now() - t0 > 5) {
 |------|---------|
 | `src/components/FileList.vue` | anchor 逻辑、rubber-band 全实现、图标/日期 memoize、缩略图 sentinel、诊断日志 |
 | `src/stores/tabs.ts` | selectedFiles 不持久化、300ms 防抖 save |
+
+---
+
+## 六、list 模式文件填满视口后无法框选（2026-08-17）
+
+### 现象
+list 视图下鼠标拖动无法框选（Cmd/Shift+click 多选正常）；grid 视图一切正常。
+
+### 根因（三层叠加）
+1. `handleContainerMouseDown` 只在 `!target.closest('.file-item')` 时启动框选 —— 即只有按在**非行区域**才能框选；
+2. list 行是**全宽 flex 行**（icon w-6 + name flex-1 + 日期/大小/种类/权限列），行高 26px 无行距紧密堆叠。文件数 ≥ 视口容量后**内容区每一像素都属于某个 `.file-item`**（实测 emptySpaceBelowPx=0），唯一的非行区域只剩顶部表头。grid 格子间有 rowGap/columnGap、末行右侧常有空轨道，所以总能找到框选起点；
+3. 行带 `draggable="true"`，从行上按下拖动触发原生 HTML5 文件拖拽，手势被吞。
+
+### 修复（Finder 语义：拖拽热点）
+- list 行模板：图标容器 + `FileNameMatchLabel` 标记 `finder-drag-hotspot`（marker 类，无样式）；行的**元数据列视为背景**；
+- `handleContainerMouseDown`：list 模式下按在行内但不在热点上 → 同样 `startRubberBand(e)`。其 `e.preventDefault()` 会**抑制该按势的原生 dragstart**（Chromium 行为，实测有效）；
+- `handleDragStart` 开头加 `if (rubberBand.active) { event.preventDefault(); return }` 双保险；
+- **click 余波坑**：mousedown preventDefault **不会**抑制 click 派发——框选真实拖动（≥4px）后若按下/释放在同一行内，随后的 click 会触发 `handleClick` 单选冲掉框选结果。用 `suppressNextClick` 标志在 `handleRubberBandUp` 置位、`handleClick` 开头吞掉。
+
+### 验证
+- 60 文件填满视口：元数据区拖动 → 框选矩形出现、扫过行选中、dragstart=0；文件名区拖动 → dragstart 正常（跨面板拖拽传输保留）；
+- 元数据区单击仍单选该行（click 未被 preventDefault 破坏）；Cmd+click/Shift+click 不受影响；grid 框选/拖拽无回归；
+- `e2e/drag-transfer.spec.ts` 5/5 通过（合成 dragstart 派发在行元素上，不受热点限制影响）。
