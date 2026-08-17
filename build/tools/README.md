@@ -6,7 +6,7 @@ This directory holds external CLI binaries that are packaged into the DMG via
 否则手机设备连接不可用** —— 运行时由 `ToolPathResolver`
 (`electron/src/services/ToolPathResolver.ts`)按「捆绑 → $PATH → brew 常见前缀」解析。
 
-## `adb` (Android / OHOS)
+## `adb` (Android)
 
 `build-dmg.sh` 在打包前自动投放(优先本机 Android SDK,回退 Google 官方下载):
 
@@ -28,6 +28,20 @@ Bundled binaries may carry a quarantine attribute that blocks execution
 ```sh
 xattr -dr com.apple.quarantine /Applications/Fileman.app
 ```
+
+## hdc (`hdc/`, OHOS / 鸿蒙)
+
+HarmonyOS Device Connector —— OHOS 设备发现/文件适配/截图引擎(注意:OHOS **不走 adb**)。
+hdc 非自包含单文件,依赖同目录 `libusb_shared.dylib`(`@rpath`),两者必须一起捆绑:
+
+```sh
+bash scripts/fetch-hdc.sh             # 从本机 OpenHarmony/DevEco SDK 拷取(--force 重取)
+```
+
+hdc 无公开直链下载,本机无 SDK 时投放失败(打包不阻塞,该 DMG 的 OHOS 连接退化为
+运行时 SDK 目录探测兜底)。落在 `build/tools/hdc/`,打包后位于
+`Contents/Resources/hdc/hdc`,由 `MobileDeviceScanner` / `OhosAdapter` /
+`MobileScreenshotService` 使用。
 
 ## ripgrep (`rg/rg`)
 

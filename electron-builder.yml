@@ -35,6 +35,14 @@ extraResources:
   - from: build/tools/adb
     to: adb
     filter: ["**/*"]
+  # hdc（HarmonyOS Device Connector）+ libusb_shared.dylib — OHOS 设备发现/文件
+  # 适配/截图引擎。由 scripts/fetch-hdc.sh 从本机 OpenHarmony/DevEco SDK 投放到
+  # build/tools/hdc/（hdc 无公开直链，本机无 SDK 时为空目录占位，打包不失败）。
+  # 缺失时运行时 ToolPathResolver 退回 $PATH / SDK 目录探测 —— 打包态 GUI 应用
+  # 无用户 $PATH，通常即 OHOS 连接不可用。
+  - from: build/tools/hdc
+    to: hdc
+    filter: ["**/*"]
   # ripgrep（grep 内容搜索本地引擎）。放置 macOS 二进制（单文件，可执行）到
   # build/tools/rg/rg。缺省时 ToolPathResolver 回退 $PATH 的 rg，再退化为
   # 流式扫描引擎——打包不因缺文件失败（与 adb 同语义）。

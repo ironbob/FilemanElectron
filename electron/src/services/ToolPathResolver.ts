@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { execFileSync, spawnSync } from 'child_process'
 import * as fs from 'fs'
+import * as os from 'os'
 import * as path from 'path'
 
 /**
@@ -17,15 +18,25 @@ import * as path from 'path'
  * 解析顺序(逐级回退):
  *  1. 打包态 extraResources(process.resourcesPath 下,按 candidates 探测);
  *  2. $PATH(which)—— 开发态主路径;
- *  3. 常见安装前缀(/opt/homebrew/bin 等)—— macOS GUI 应用(Finder/Dock 启动)的
- *     $PATH 只有 /usr/bin:/bin:/usr/sbin:/sbin,which 探测不到 brew 安装的工具,
- *     必须直接试已知前缀(2026-08-17:打包后手机连接失效的根因之一)。
+ *  3. 常见安装前缀(/opt/homebrew/bin 等)与工具专属 SDK 目录(extraPaths)——
+ *     macOS GUI 应用(Finder/Dock 启动)的 $PATH 只有 /usr/bin:/bin:/usr/sbin:/sbin,
+ *     which 探测不到 brew/SDK 安装的工具,必须直接试已知位置
+ *     (2026-08-17:打包后手机连接失效的根因之一;hdc 随 DevEco 装在
+ *     ~/Library/OpenHarmony/Sdk 等 SDK 目录,既不在 $PATH 也不在 brew 前缀)。
  */
 interface BundledTool {
   /** extraResources 落地点的候选相对路径。 */
   candidates: string[]
   /** 是否额外探测 $PATH / 常见前缀(纯捆绑语义的工具填 false)。 */
   probePath?: boolean
+  /** 工具专属安装位置的绝对路径模式($PATH/brew 前缀之外的兜底探测)。
+   *  支持 `~` 开头与单段 `*` 通配(版本目录,多命中取版本大者),
+   *  如 ~/Library/OpenHarmony/Sdk/<ver>/toolchains/hdc。 */
+  extraPaths?: string[]
+  /** 与工具同目录、运行必需的伴随文件(如 hdc 的 libusb_shared.dylib)。
+   *  命中捆绑路径时一并 best-effort 清除 quarantine(dylib 加载同样被
+   *  Gatekeeper 拦截)。 */
+  siblings?: string[]
 }
 
 export class ToolPathResolver {
@@ -36,9 +47,21 @@ export class ToolPathResolver {
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
     rg: { candidates: ['rg/rg', 'rg', 'tools/rg'], probePath: true },
-    // hdc（HarmonyOS Device Connector）常经 DevEco Studio 安装在 $PATH，
-    // 开发态值得探测；打包态同样支持捆绑（布局同 adb）
-    hdc: { candidates: ['hdc', 'tools/hdc'], probePath: true },
+    // hdc（HarmonyOS Device Connector）—— 打包态由 build-dmg.sh 经 fetch-hdc.sh
+    // 捆绑(目录布局 Resources/hdc/{hdc,libusb_shared.dylib},同 rg);未捆绑时
+    // 经 $PATH / DevEco·OpenHarmony SDK 目录使用本机安装(hdc 常随 DevEco 装在
+    // SDK toolchains 下,不在 brew 前缀,需要 extraPaths 兜底)。
+    hdc: {
+      candidates: ['hdc/hdc', 'hdc', 'tools/hdc'],
+      probePath: true,
+      extraPaths: [
+        '~/Library/OpenHarmony/Sdk/*/toolchains/hdc',
+        '/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc',
+        '/Applications/DevEco-Studio.app/Contents/sdk/*/openharmony/toolchains/hdc'
+      ],
+      // hdc 依赖同目录 @rpath/libusb_shared.dylib(rpath=@loader_path/.)
+      siblings: ['libusb_shared.dylib']
+    },
     // libimobiledevice CLI（iOS 设备发现/配对校验/截图）。bundle-ios-dylibs.sh 会把
     // brew 的 CLI 及其 dylib 链收进 Resources/ios-native（与 iosafc.node 同目录）；
     // 未捆绑时 dev 态经 $PATH / brew 前缀使用本机安装。
@@ -81,6 +104,10 @@ export class ToolPathResolver {
           // 直接 spawn 目录只会得到模糊的 EACCES/EISDIR —— 存在性检查不够
           if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
             this.stripQuarantine(candidate)
+            // 伴随 dylib 同样会被 Gatekeeper 拦截加载,一并清一次
+            for (const sibling of this.TOOLS[name].siblings ?? []) {
+              this.stripQuarantine(path.join(path.dirname(candidate), sibling))
+            }
             this.bundledCache.set(name, candidate)
             console.log(`[ToolPathResolver] ${name} resolved (bundled): ${candidate}`)
             return candidate
@@ -107,7 +134,8 @@ export class ToolPathResolver {
   }
 
   /**
-   * $PATH(which)→ 常见安装前缀,返回可用的绝对路径;未启用探测或未找到 → undefined。
+   * $PATH(which)→ 常见安装前缀 → 工具专属 SDK 目录(extraPaths),
+   * 返回可用的绝对路径;未启用探测或未找到 → undefined。
    * 结果按工具名缓存。macOS 无 which 内建,execFileSync 走 /usr/bin/which。
    */
   private static pathLookup(name: string): string | undefined {
@@ -136,9 +164,57 @@ export class ToolPathResolver {
         }
       }
     }
+    if (!found) {
+      // 工具专属 SDK 目录(如 DevEco 的 OpenHarmony SDK toolchains)
+      for (const pattern of tool.extraPaths ?? []) {
+        found = this.probePattern(pattern)
+        if (found) break
+      }
+    }
     this.pathCache.set(name, found ?? null)
-    if (found) console.log(`[ToolPathResolver] ${name} resolved via $PATH/common prefix: ${found}`)
+    if (found) console.log(`[ToolPathResolver] ${name} resolved via $PATH/known locations: ${found}`)
     return found
+  }
+
+  /**
+   * 探测带单段通配符(*)的绝对路径模式,如 ~/Library/OpenHarmony/Sdk/<ver>/toolchains/hdc:
+   * * 只匹配一个版本目录段(数字/点组成),多个命中取版本大者;无 * 直接 stat。
+   * 找不到 → undefined。路径不存在等探测异常一律静默(与其他探测级同语义)。
+   */
+  private static probePattern(pattern: string): string | undefined {
+    const expanded = pattern.startsWith('~/')
+      ? path.join(os.homedir(), pattern.slice(2))
+      : pattern
+    const star = expanded.indexOf('*')
+    if (star === -1) {
+      try {
+        return fs.statSync(expanded).isFile() ? expanded : undefined
+      } catch {
+        return undefined
+      }
+    }
+    // * 必须夹在两个 '/' 之间:dir=通配段所在目录,suffix=其后的固定路径(以 / 开头)
+    const dirEnd = expanded.lastIndexOf('/', star) + 1
+    const suffixStart = expanded.indexOf('/', star)
+    if (dirEnd === 0 || suffixStart === -1) return undefined
+    const dir = expanded.slice(0, dirEnd)
+    const suffix = expanded.slice(suffixStart)
+    try {
+      const versions = fs.readdirSync(dir)
+        .filter(entry => /^\d+(\.\d+)*$/.test(entry))
+        .sort(compareVersionsDesc)
+      for (const version of versions) {
+        const candidate = dir + version + suffix
+        try {
+          if (fs.statSync(candidate).isFile()) return candidate
+        } catch {
+          // 该版本目录下没有,继续
+        }
+      }
+    } catch {
+      // 目录不存在,静默
+    }
+    return undefined
   }
 
   /**
@@ -204,4 +280,15 @@ export class ToolPathResolver {
     this.bundledCache.clear()
     this.pathCache.clear()
   }
+}
+
+/** 版本目录降序比较('15' > '5.1' > '5.0.3';按点分段数值比较)。 */
+function compareVersionsDesc(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pb[i] ?? 0) - (pa[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
 }

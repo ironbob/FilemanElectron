@@ -3,8 +3,8 @@
 # fetch-adb.sh — 投放 macOS adb 二进制至 build/tools/adb(Android 手机连接引擎)。
 # npm run dist:mac 经 extraResources 把它捆进 DMG(Contents/Resources/adb),运行时由
 # ToolPathResolver 解析。打包态 GUI 应用(Finder/Dock 启动)的 $PATH 不含用户安装位
-# (SDK/brew),不捆绑则 Android/OHOS 设备扫描全部失效 —— 这是 2026-08-17 修复的
-# “打包后手机连接不可用”问题的核心。
+# (SDK/brew),不捆绑则 Android 设备扫描全部失效 —— 这是 2026-08-17 修复的
+# “打包后手机连接不可用”问题的核心。(OHOS/鸿蒙不走 adb,走 hdc —— 见 fetch-hdc.sh。)
 #
 # 来源优先级:
 #   1. 本机 Android SDK(ANDROID_HOME / ANDROID_SDK_ROOT / ~/Library/Android/sdk)——

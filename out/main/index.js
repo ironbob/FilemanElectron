@@ -300,7 +300,6 @@ const zhCN = {
     toolsAria: "应用工具",
     switchToLight: "切换到浅色模式",
     switchToDark: "切换到深色模式",
-    toggleDualPane: "切换双面板",
     settings: "设置",
     connectFailed: "无法连接 {name}: {message}",
     pairFailed: "配对失败:{reason}",
@@ -329,6 +328,8 @@ const zhCN = {
       editTags: "编辑所选条目标签",
       inlinePreviewTip: "切换内联预览（单击即预览）",
       inlinePreview: "切换内联预览",
+      openDualPane: "打开双面板（在当前路径）",
+      closeDualPane: "关闭双面板",
       screenshot: "截取设备屏幕",
       revealInFinder: "在 Finder 中显示",
       revealInFinderLocalOnly: "在 Finder 中显示（仅限本地文件夹）",
@@ -1709,7 +1710,6 @@ const enUS = {
     toolsAria: "Application tools",
     switchToLight: "Switch to Light Mode",
     switchToDark: "Switch to Dark Mode",
-    toggleDualPane: "Toggle Dual Pane",
     settings: "Settings",
     connectFailed: "Cannot connect to {name}: {message}",
     pairFailed: "Pairing failed: {reason}",
@@ -1738,6 +1738,8 @@ const enUS = {
       editTags: "Edit selected item tags",
       inlinePreviewTip: "Toggle inline preview (single-click preview)",
       inlinePreview: "Toggle inline preview",
+      openDualPane: "Open Dual Pane (at current path)",
+      closeDualPane: "Close Dual Pane",
       screenshot: "Capture Device Screenshot",
       revealInFinder: "Reveal in Finder",
       revealInFinderLocalOnly: "Reveal in Finder (local folders only)",
@@ -3452,9 +3454,21 @@ class ToolPathResolver {
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
     rg: { candidates: ["rg/rg", "rg", "tools/rg"], probePath: true },
-    // hdc（HarmonyOS Device Connector）常经 DevEco Studio 安装在 $PATH，
-    // 开发态值得探测；打包态同样支持捆绑（布局同 adb）
-    hdc: { candidates: ["hdc", "tools/hdc"], probePath: true },
+    // hdc（HarmonyOS Device Connector）—— 打包态由 build-dmg.sh 经 fetch-hdc.sh
+    // 捆绑(目录布局 Resources/hdc/{hdc,libusb_shared.dylib},同 rg);未捆绑时
+    // 经 $PATH / DevEco·OpenHarmony SDK 目录使用本机安装(hdc 常随 DevEco 装在
+    // SDK toolchains 下,不在 brew 前缀,需要 extraPaths 兜底)。
+    hdc: {
+      candidates: ["hdc/hdc", "hdc", "tools/hdc"],
+      probePath: true,
+      extraPaths: [
+        "~/Library/OpenHarmony/Sdk/*/toolchains/hdc",
+        "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc",
+        "/Applications/DevEco-Studio.app/Contents/sdk/*/openharmony/toolchains/hdc"
+      ],
+      // hdc 依赖同目录 @rpath/libusb_shared.dylib(rpath=@loader_path/.)
+      siblings: ["libusb_shared.dylib"]
+    },
     // libimobiledevice CLI（iOS 设备发现/配对校验/截图）。bundle-ios-dylibs.sh 会把
     // brew 的 CLI 及其 dylib 链收进 Resources/ios-native（与 iosafc.node 同目录）；
     // 未捆绑时 dev 态经 $PATH / brew 前缀使用本机安装。
@@ -3490,6 +3504,9 @@ class ToolPathResolver {
         try {
           if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
             this.stripQuarantine(candidate);
+            for (const sibling of this.TOOLS[name].siblings ?? []) {
+              this.stripQuarantine(path.join(path.dirname(candidate), sibling));
+            }
             this.bundledCache.set(name, candidate);
             console.log(`[ToolPathResolver] ${name} resolved (bundled): ${candidate}`);
             return candidate;
@@ -3511,7 +3528,8 @@ class ToolPathResolver {
     return !!this.getBundledPath(name) || !!this.pathLookup(name);
   }
   /**
-   * $PATH(which)→ 常见安装前缀,返回可用的绝对路径;未启用探测或未找到 → undefined。
+   * $PATH(which)→ 常见安装前缀 → 工具专属 SDK 目录(extraPaths),
+   * 返回可用的绝对路径;未启用探测或未找到 → undefined。
    * 结果按工具名缓存。macOS 无 which 内建,execFileSync 走 /usr/bin/which。
    */
   static pathLookup(name) {
@@ -3538,9 +3556,48 @@ class ToolPathResolver {
         }
       }
     }
+    if (!found) {
+      for (const pattern of tool.extraPaths ?? []) {
+        found = this.probePattern(pattern);
+        if (found) break;
+      }
+    }
     this.pathCache.set(name, found ?? null);
-    if (found) console.log(`[ToolPathResolver] ${name} resolved via $PATH/common prefix: ${found}`);
+    if (found) console.log(`[ToolPathResolver] ${name} resolved via $PATH/known locations: ${found}`);
     return found;
+  }
+  /**
+   * 探测带单段通配符(*)的绝对路径模式,如 ~/Library/OpenHarmony/Sdk/<ver>/toolchains/hdc:
+   * * 只匹配一个版本目录段(数字/点组成),多个命中取版本大者;无 * 直接 stat。
+   * 找不到 → undefined。路径不存在等探测异常一律静默(与其他探测级同语义)。
+   */
+  static probePattern(pattern) {
+    const expanded = pattern.startsWith("~/") ? path.join(os.homedir(), pattern.slice(2)) : pattern;
+    const star = expanded.indexOf("*");
+    if (star === -1) {
+      try {
+        return fs.statSync(expanded).isFile() ? expanded : void 0;
+      } catch {
+        return void 0;
+      }
+    }
+    const dirEnd = expanded.lastIndexOf("/", star) + 1;
+    const suffixStart = expanded.indexOf("/", star);
+    if (dirEnd === 0 || suffixStart === -1) return void 0;
+    const dir = expanded.slice(0, dirEnd);
+    const suffix = expanded.slice(suffixStart);
+    try {
+      const versions = fs.readdirSync(dir).filter((entry) => /^\d+(\.\d+)*$/.test(entry)).sort(compareVersionsDesc);
+      for (const version of versions) {
+        const candidate = dir + version + suffix;
+        try {
+          if (fs.statSync(candidate).isFile()) return candidate;
+        } catch {
+        }
+      }
+    } catch {
+    }
+    return void 0;
   }
   /**
    * 捆绑二进制可能随 DMG 下载继承 com.apple.quarantine(整个 .app 递归标记),
@@ -3593,6 +3650,15 @@ class ToolPathResolver {
     this.bundledCache.clear();
     this.pathCache.clear();
   }
+}
+function compareVersionsDesc(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pb[i] ?? 0) - (pa[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 const log$o = console;
 let adbkitModule = null;
