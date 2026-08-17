@@ -435,7 +435,9 @@ function isEqualStatus(status: CompareStatus) {
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const FolderIcon: Component = {
   render() {
-    return h('img', { src: '/icons/ic_folder_mac.svg', class: 'w-4 h-4' })
+    // 相对 URL(dev/打包态都以 index.html 所在目录解析);勿用 '/icons' —— file:// 下
+    // 绝对路径指向磁盘根,打包后 404。icons/ 由 copyRootIconsPlugin 拷进产物。
+    return h('img', { src: './icons/ic_folder_mac.svg', class: 'w-4 h-4' })
   }
 }
 const FileIcon: Component = {

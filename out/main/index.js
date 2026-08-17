@@ -7,7 +7,7 @@ import fs$1 from "fs-extra";
 import Store from "electron-store";
 import { createRequire } from "module";
 import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
-import { execFileSync, spawn, exec, execFile } from "child_process";
+import { execFileSync, spawnSync, spawn, exec, execFile } from "child_process";
 import * as fs from "fs";
 import fs__default from "fs";
 import { createClient } from "webdav";
@@ -258,13 +258,15 @@ const zhCN = {
       toggleHidden: "显示/隐藏隐藏文件",
       toggleTheme: "切换深/浅色主题",
       openSettings: "打开设置",
-      refresh: "刷新当前目录"
+      refresh: "刷新当前目录",
+      toggleTaskDrawer: "打开/关闭任务抽屉"
     },
     group: {
       tabs: "标签页",
       view: "视图",
       appearance: "外观",
-      files: "文件"
+      files: "文件",
+      tasks: "任务"
     }
   },
   sidebar: {
@@ -298,8 +300,6 @@ const zhCN = {
     toolsAria: "应用工具",
     switchToLight: "切换到浅色模式",
     switchToDark: "切换到深色模式",
-    fileOperations: "文件操作",
-    fileOperationsActive: "文件操作，{count} 个任务进行中",
     toggleDualPane: "切换双面板",
     settings: "设置",
     connectFailed: "无法连接 {name}: {message}",
@@ -928,7 +928,90 @@ const zhCN = {
     noHistory: "暂无历史记录",
     transfersTitle: "传输",
     noActiveTransfers: "暂无进行中的传输",
-    completedCount: "{count} 已完成"
+    completedCount: "{count} 已完成",
+    /** 任务抽屉（右侧）新增段。动词形态：中文干净动词（正在{action}/已{action}）。 */
+    verb: {
+      copy: "复制",
+      move: "移动",
+      delete: "删除",
+      rename: "重命名",
+      mkdir: "创建文件夹",
+      touch: "创建文件",
+      batchRename: "批量重命名",
+      recycle: "移入废纸篓",
+      restore: "恢复"
+    },
+    drawer: {
+      title: "任务",
+      openTip: "任务 (⌘⇧T)",
+      closeTip: "关闭任务抽屉 (Esc)",
+      more: "更多操作",
+      pauseQueue: "暂停队列",
+      resumeQueue: "恢复队列",
+      queuePausedHint: "队列已暂停，当前任务完成后不再派发新任务",
+      cancelAll: "取消全部",
+      cancelAllTitle: "取消所有任务",
+      cancelAllMessage: "确定取消 {count} 个进行中的任务？已传输的部分将保留。",
+      clearHistory: "清除历史",
+      copyPath: "拷贝完整路径",
+      removeEntry: "从历史移除"
+    },
+    sentence: {
+      runningSingle: "正在{action}“{name}”",
+      runningMultiple: "正在{action} {count} 个项目",
+      doneSingle: "已{action}“{name}”",
+      doneMultiple: "已{action} {count} 个项目",
+      failedSingle: "{action}“{name}”失败",
+      failedMultiple: "{action} {count} 个项目失败",
+      cancelled: "已取消{action} {count} 个项目"
+    },
+    line: {
+      running: "{percent}% · {speed} · {eta}",
+      waiting: "等待中",
+      soon: "即将完成",
+      eta: "预计 {duration}",
+      etaUnknown: "计算中…",
+      pending: "等待开始 · 排队第 {position} 位",
+      completed: "已完成 · 用时 {duration}",
+      completedMultiple: "{count} 个项目 · 用时 {duration}",
+      items: "{done} / {total} 项",
+      cancelled: "已取消 · 已传输 {size}"
+    },
+    time: {
+      seconds: "{count} 秒",
+      minutes: "{count} 分钟",
+      hours: "{count} 小时"
+    },
+    row: {
+      cancel: "取消",
+      retry: "重试",
+      reexecute: "重新执行",
+      showInFinder: "显示于 Finder"
+    },
+    group: {
+      today: "今天",
+      yesterday: "昨天",
+      week: "过去 7 天",
+      earlier: "更早",
+      cap: "仅保留最近 100 条"
+    },
+    toast: {
+      show: "显示",
+      undo: "撤销"
+    },
+    badge: {
+      failure: "{count} 个任务失败",
+      count: "{count} 个任务进行中",
+      progress: "任务进行中 · {percent}%"
+    },
+    detail: {
+      size: "大小",
+      duration: "用时",
+      viewAll: "查看全部 {count} 项"
+    },
+    statusbar: {
+      processing: "正在{action} {count} 个项目 · {percent}%"
+    }
   },
   mobile: {
     /** 移动设备工具组件（src/components/mobile/）。 */
@@ -1584,13 +1667,15 @@ const enUS = {
       toggleHidden: "Show/Hide Hidden Files",
       toggleTheme: "Toggle Light/Dark Theme",
       openSettings: "Open Settings",
-      refresh: "Refresh Current Directory"
+      refresh: "Refresh Current Directory",
+      toggleTaskDrawer: "Toggle Task Drawer"
     },
     group: {
       tabs: "Tabs",
       view: "View",
       appearance: "Appearance",
-      files: "Files"
+      files: "Files",
+      tasks: "Tasks"
     }
   },
   sidebar: {
@@ -1624,8 +1709,6 @@ const enUS = {
     toolsAria: "Application tools",
     switchToLight: "Switch to Light Mode",
     switchToDark: "Switch to Dark Mode",
-    fileOperations: "File Operations",
-    fileOperationsActive: "File Operations, {count} active task | File Operations, {count} active tasks",
     toggleDualPane: "Toggle Dual Pane",
     settings: "Settings",
     connectFailed: "Cannot connect to {name}: {message}",
@@ -2249,7 +2332,90 @@ const enUS = {
     noHistory: "No history yet",
     transfersTitle: "Transfers",
     noActiveTransfers: "No active transfers",
-    completedCount: "{count} completed"
+    completedCount: "{count} completed",
+    /** Task drawer (right side). EN verbs are gerunds ("Copying") so sentence templates need no inflection. */
+    verb: {
+      copy: "Copying",
+      move: "Moving",
+      delete: "Deleting",
+      rename: "Renaming",
+      mkdir: "Creating Folder",
+      touch: "Creating File",
+      batchRename: "Batch Renaming",
+      recycle: "Moving to Trash",
+      restore: "Restoring"
+    },
+    drawer: {
+      title: "Tasks",
+      openTip: "Tasks (⌘⇧T)",
+      closeTip: "Close task drawer (Esc)",
+      more: "More Actions",
+      pauseQueue: "Pause Queue",
+      resumeQueue: "Resume Queue",
+      queuePausedHint: "Queue paused; no new task starts until resumed",
+      cancelAll: "Cancel All",
+      cancelAllTitle: "Cancel All Tasks",
+      cancelAllMessage: "Cancel {count} active task? Partially transferred files will be kept. | Cancel {count} active tasks? Partially transferred files will be kept.",
+      clearHistory: "Clear History",
+      copyPath: "Copy Full Path",
+      removeEntry: "Remove from History"
+    },
+    sentence: {
+      runningSingle: '{action} "{name}"',
+      runningMultiple: "{action} {count} item | {action} {count} items",
+      doneSingle: '{action} "{name}"',
+      doneMultiple: "{action} {count} item | {action} {count} items",
+      failedSingle: '{action} failed: "{name}"',
+      failedMultiple: "{action} failed: {count} item | {action} failed: {count} items",
+      cancelled: "{action} cancelled: {count} item | {action} cancelled: {count} items"
+    },
+    line: {
+      running: "{percent}% · {speed} · {eta}",
+      waiting: "Waiting",
+      soon: "Finishing…",
+      eta: "{duration} left",
+      etaUnknown: "Estimating…",
+      pending: "Waiting · #{position} in queue",
+      completed: "Completed · {duration}",
+      completedMultiple: "{count} item · {duration} | {count} items · {duration}",
+      items: "{done} / {total}",
+      cancelled: "Cancelled · {size} transferred"
+    },
+    time: {
+      seconds: "{count}s",
+      minutes: "{count}m",
+      hours: "{count}h"
+    },
+    row: {
+      cancel: "Cancel",
+      retry: "Retry",
+      reexecute: "Run Again",
+      showInFinder: "Show in Finder"
+    },
+    group: {
+      today: "Today",
+      yesterday: "Yesterday",
+      week: "Previous 7 Days",
+      earlier: "Earlier",
+      cap: "Only the most recent 100 items are kept"
+    },
+    toast: {
+      show: "Show",
+      undo: "Undo"
+    },
+    badge: {
+      failure: "{count} task failed | {count} tasks failed",
+      count: "{count} task active | {count} tasks active",
+      progress: "Tasks in progress · {percent}%"
+    },
+    detail: {
+      size: "Size",
+      duration: "Time",
+      viewAll: "View all {count} item | View all {count} items"
+    },
+    statusbar: {
+      processing: "{action} {count} item · {percent}% | {action} {count} items · {percent}%"
+    }
   },
   mobile: {
     screenshot: {
@@ -3280,18 +3446,35 @@ function shellQuote(s) {
 }
 class ToolPathResolver {
   static TOOLS = {
-    adb: { candidates: ["adb", "tools/adb"] },
+    // 平铺布局:Resources/adb;兼容 tools/ 子目录历史形态。
+    // 打包态必捆绑(build-dmg.sh 自动投放);dev 态 SDK 的 adb 在 $PATH 上。
+    adb: { candidates: ["adb", "tools/adb"], probePath: true },
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
     rg: { candidates: ["rg/rg", "rg", "tools/rg"], probePath: true },
     // hdc（HarmonyOS Device Connector）常经 DevEco Studio 安装在 $PATH，
     // 开发态值得探测；打包态同样支持捆绑（布局同 adb）
-    hdc: { candidates: ["hdc", "tools/hdc"], probePath: true }
+    hdc: { candidates: ["hdc", "tools/hdc"], probePath: true },
+    // libimobiledevice CLI（iOS 设备发现/配对校验/截图）。bundle-ios-dylibs.sh 会把
+    // brew 的 CLI 及其 dylib 链收进 Resources/ios-native（与 iosafc.node 同目录）；
+    // 未捆绑时 dev 态经 $PATH / brew 前缀使用本机安装。
+    idevice_id: { candidates: ["ios-native/idevice_id"], probePath: true },
+    ideviceinfo: { candidates: ["ios-native/ideviceinfo"], probePath: true },
+    idevicepair: { candidates: ["ios-native/idevicepair"], probePath: true },
+    idevicescreenshot: { candidates: ["ios-native/idevicescreenshot"], probePath: true }
   };
+  /**
+   * macOS GUI 应用经 Finder/Dock 启动时不继承用户 shell 的 $PATH
+   * （仅 /usr/bin:/bin:/usr/sbin:/sbin）,brew 安装的工具需直接探测已知前缀。
+   * Apple Silicon 与 Intel 的 Homebrew 前缀各一个。
+   */
+  static COMMON_PREFIXES = ["/opt/homebrew/bin", "/usr/local/bin"];
   /** undefined=未探测, null=无捆绑(回退 $PATH)。按工具名缓存。 */
   static bundledCache = /* @__PURE__ */ new Map();
-  /** $PATH 探测结果缓存(按工具名)。 */
+  /** $PATH / 常见前缀探测结果缓存(按工具名)。undefined=未探测, null=未找到。 */
   static pathCache = /* @__PURE__ */ new Map();
+  /** 已 best-effort 清除过 quarantine 的捆绑路径(每次启动最多一次)。 */
+  static dequarantined = /* @__PURE__ */ new Set();
   /**
    * 解析打包内工具的绝对路径。
    * @returns 打包且存在 → 绝对路径;否则 undefined(调用方走 $PATH)。
@@ -3306,6 +3489,7 @@ class ToolPathResolver {
         const candidate = path.join(process.resourcesPath, rel);
         try {
           if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+            this.stripQuarantine(candidate);
             this.bundledCache.set(name, candidate);
             console.log(`[ToolPathResolver] ${name} resolved (bundled): ${candidate}`);
             return candidate;
@@ -3315,12 +3499,63 @@ class ToolPathResolver {
       }
     }
     this.bundledCache.set(name, null);
-    console.log(`[ToolPathResolver] ${name} not bundled; falling back to $PATH`);
     return void 0;
   }
-  /** 供 child_process spawn 使用的命令(打包内绝对路径或裸命令名)。 */
+  /** 供 child_process spawn 使用的命令(打包内绝对路径,或 $PATH/前缀上的绝对路径,或裸命令名)。 */
   static getExecutable(name) {
-    return this.getBundledPath(name) ?? name;
+    return this.getBundledPath(name) ?? this.pathLookup(name) ?? name;
+  }
+  /** 工具是否可用(捆绑 / $PATH / 常见前缀任一命中)。 */
+  static has(name) {
+    if (!this.TOOLS[name]) throw new Error(`ToolPathResolver: unknown tool "${name}"`);
+    return !!this.getBundledPath(name) || !!this.pathLookup(name);
+  }
+  /**
+   * $PATH(which)→ 常见安装前缀,返回可用的绝对路径;未启用探测或未找到 → undefined。
+   * 结果按工具名缓存。macOS 无 which 内建,execFileSync 走 /usr/bin/which。
+   */
+  static pathLookup(name) {
+    const tool = this.TOOLS[name];
+    if (!tool?.probePath) return void 0;
+    if (this.pathCache.has(name)) {
+      return this.pathCache.get(name) ?? void 0;
+    }
+    let found;
+    try {
+      const out = execFileSync("which", [name], { encoding: "utf-8" }).trim();
+      if (out) found = out.split("\n")[0];
+    } catch {
+    }
+    if (!found) {
+      for (const prefix of this.COMMON_PREFIXES) {
+        const candidate = path.join(prefix, name);
+        try {
+          if (fs.statSync(candidate).isFile()) {
+            found = candidate;
+            break;
+          }
+        } catch {
+        }
+      }
+    }
+    this.pathCache.set(name, found ?? null);
+    if (found) console.log(`[ToolPathResolver] ${name} resolved via $PATH/common prefix: ${found}`);
+    return found;
+  }
+  /**
+   * 捆绑二进制可能随 DMG 下载继承 com.apple.quarantine(整个 .app 递归标记),
+   * 未清除时内核会拦截 execve(killed: 9 / "cannot be opened")。
+   * 这里 best-effort 自清一次:app 被拖入 /Applications 后 bundle 对当前用户可写,
+   * xattr -d 即可生效;只读 / App Translocation 态下静默失败,由用户按 DMG 提示
+   * 对整个 .app 执行 xattr -dr 兜底。
+   */
+  static stripQuarantine(p) {
+    if (this.dequarantined.has(p)) return;
+    this.dequarantined.add(p);
+    try {
+      spawnSync("xattr", ["-d", "com.apple.quarantine", p], { stdio: "ignore", timeout: 5e3 });
+    } catch {
+    }
   }
   // ============ 兼容既有 adb 调用面 ============
   /** 解析 adb 可执行文件路径(打包且存在 → 绝对路径;否则 undefined 走 $PATH)。 */
@@ -3342,18 +3577,7 @@ class ToolPathResolver {
   }
   /** hdc 是否可用(捆绑存在或 $PATH 上有)。 */
   static hasHdc() {
-    if (this.getBundledPath("hdc")) return true;
-    if (this.pathCache.has("hdc")) return this.pathCache.get("hdc");
-    let found = false;
-    try {
-      execFileSync("which", ["hdc"], { stdio: "ignore" });
-      found = true;
-    } catch {
-      found = false;
-    }
-    this.pathCache.set("hdc", found);
-    if (found) console.log("[ToolPathResolver] hdc resolved via $PATH");
-    return found;
+    return this.has("hdc");
   }
   // ============ ripgrep(grep 内容搜索引擎) ============
   /** rg 命令(捆绑绝对路径或 $PATH 上的 'rg')。 */
@@ -3362,18 +3586,7 @@ class ToolPathResolver {
   }
   /** rg 是否可用(捆绑存在或 $PATH 上有)。无 rg 时 GrepService 回退流式扫描引擎。 */
   static hasRipgrep() {
-    if (this.getBundledPath("rg")) return true;
-    if (this.pathCache.has("rg")) return this.pathCache.get("rg");
-    let found = false;
-    try {
-      execFileSync("which", ["rg"], { stdio: "ignore" });
-      found = true;
-    } catch {
-      found = false;
-    }
-    this.pathCache.set("rg", found);
-    if (found) console.log("[ToolPathResolver] rg resolved via $PATH");
-    return found;
+    return this.has("rg");
   }
   /** 重置缓存(安装/重打包后重探测用)。 */
   static resetCache() {
@@ -4919,53 +5132,37 @@ class MobileDeviceScanner {
     return this.currentDevices.get(id);
   }
   /**
-   * Check if libimobiledevice is installed
+   * Check if libimobiledevice is available
+   * (打包内 CLI → $PATH → brew 常见前缀,统一走 ToolPathResolver)
    */
   async checkLibimobiledeviceInstalled() {
-    try {
-      const { stdout, stderr } = await execAsync("which idevice_id");
-      log$l.debug("idevice_id path:", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
-      return !!stdout.trim();
-    } catch (error) {
-      log$l.debug("libimobiledevice check failed:", error);
-      return false;
+    const available = ToolPathResolver.has("idevice_id");
+    if (!available) {
+      log$l.debug("idevice_id not found (bundled/$PATH/common prefixes)");
     }
+    return available;
   }
   /**
    * Check if ADB is installed
+   * (打包内 adb → $PATH → 常见前缀,统一走 ToolPathResolver)
    */
   async checkAdbInstalled() {
-    const bundled = ToolPathResolver.getAdbPath();
-    if (bundled) {
-      log$l.debug("adb resolved (bundled):", bundled);
-      return true;
+    const available = ToolPathResolver.has("adb");
+    if (!available) {
+      log$l.debug("adb not found (bundled/$PATH/common prefixes)");
     }
-    try {
-      const { stdout, stderr } = await execAsync("which adb");
-      log$l.debug("adb path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
-      return !!stdout.trim();
-    } catch (error) {
-      log$l.debug("ADB check failed:", error);
-      return false;
-    }
+    return available;
   }
   /**
    * Check if hdc (HarmonyOS Device Connector) is installed
+   * (打包内 hdc → $PATH → 常见前缀,统一走 ToolPathResolver)
    */
   async checkHdcInstalled() {
-    const bundled = ToolPathResolver.getHdcPath();
-    if (bundled) {
-      log$l.debug("hdc resolved (bundled):", bundled);
-      return true;
+    const available = ToolPathResolver.hasHdc();
+    if (!available) {
+      log$l.debug("hdc not found (bundled/$PATH/common prefixes)");
     }
-    try {
-      const { stdout, stderr } = await execAsync("which hdc");
-      log$l.debug("hdc path ($PATH):", stdout.trim() || "not found", stderr ? `stderr: ${stderr}` : "");
-      return !!stdout.trim();
-    } catch (error) {
-      log$l.debug("hdc check failed:", error);
-      return false;
-    }
+    return available;
   }
   /**
    * Scan for Android devices using ADB
@@ -5038,7 +5235,9 @@ class MobileDeviceScanner {
   async scanIOS() {
     const devices = [];
     try {
-      const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""');
+      const { stdout, stderr } = await execAsync(
+        `${ToolPathResolver.getExecutable("idevice_id")} -l 2>/dev/null || echo ""`
+      );
       if (stderr) {
         log$l.debug("idevice_id stderr:", stderr);
       }
@@ -5051,7 +5250,7 @@ class MobileDeviceScanner {
           try {
             log$l.debug(`Getting device name for ${udid}...`);
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
-              `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
+              `${ToolPathResolver.getExecutable("ideviceinfo")} -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             );
             log$l.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
             if (nameOutput.trim()) {
@@ -5064,7 +5263,7 @@ class MobileDeviceScanner {
           try {
             log$l.debug(`Checking pairing status for ${udid}...`);
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
-              `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
+              `${ToolPathResolver.getExecutable("idevicepair")} validate -u ${udid} 2>/dev/null || echo ""`
             );
             log$l.debug(`idevicepair output:`, pairOutput, pairStderr);
             if (pairOutput.includes("SUCCESS")) {
@@ -5973,6 +6172,8 @@ const CH = {
     fileOperationGetQueue: "file-operation:getQueue",
     fileOperationGetHistory: "file-operation:getHistory",
     fileOperationClearHistory: "file-operation:clearHistory",
+    fileOperationSetQueuePaused: "file-operation:setQueuePaused",
+    fileOperationGetQueuePaused: "file-operation:getQueuePaused",
     // file-metadata:
     fileMetadataGet: "file-metadata:get",
     fileMetadataSetTags: "file-metadata:setTags",
@@ -6039,6 +6240,9 @@ class TransferTask {
   startedAt;
   completedAt;
   error;
+  conflictStrategy;
+  renameItems;
+  restoreItems;
   constructor(params) {
     this.id = generateTaskId();
     this.type = params.type;
@@ -6100,6 +6304,8 @@ class FileOperationManager {
   currentTask = null;
   isRunning = false;
   cancelled = false;
+  /** 队列挂起：当前任务照常跑完，不再派发下一个 pending（抽屉「暂停队列」）。 */
+  queuePaused = false;
   adapters = /* @__PURE__ */ new Map();
   mainWindow = null;
   maxHistorySize = 100;
@@ -6141,7 +6347,7 @@ class FileOperationManager {
     return task;
   }
   async processQueue() {
-    if (this.isRunning || this.queue.length === 0) return;
+    if (this.isRunning || this.queuePaused || this.queue.length === 0) return;
     this.isRunning = true;
     this.currentTask = this.queue.shift();
     try {
@@ -6572,6 +6778,15 @@ class FileOperationManager {
     task.recordItem(item);
   }
   // ============ 队列管理 ============
+  /** 暂停/恢复队列派发（不中断当前任务）。恢复时若空闲则立即续跑。 */
+  setQueuePaused(paused) {
+    this.queuePaused = paused;
+    if (!paused) this.processQueue();
+    return this.queuePaused;
+  }
+  isQueuePaused() {
+    return this.queuePaused;
+  }
   cancelTask(taskId) {
     if (this.currentTask?.id === taskId) {
       this.cancelled = true;
@@ -6600,7 +6815,11 @@ class FileOperationManager {
       sourcePaths: historyTask.sourcePaths,
       targetDeviceId: historyTask.targetDeviceId,
       targetPath: historyTask.targetPath,
-      newName: historyTask.newName
+      newName: historyTask.newName,
+      // 重建必须携带完整参数，否则 batch-rename/restore 的重试必失败
+      conflictStrategy: historyTask.conflictStrategy,
+      renameItems: historyTask.renameItems,
+      restoreItems: historyTask.restoreItems
     });
     this.history = this.history.filter((t2) => t2.id !== taskId);
     return newTask;
@@ -8165,7 +8384,7 @@ class MobileScreenshotService {
   captureIos(udid) {
     const localPath = localTempPath("png");
     return new Promise((resolve, reject) => {
-      const child = spawn("idevicescreenshot", ["-u", udid, localPath], {
+      const child = spawn(ToolPathResolver.getExecutable("idevicescreenshot"), ["-u", udid, localPath], {
         stdio: ["ignore", "ignore", "pipe"]
       });
       const errors = [];
@@ -10339,6 +10558,12 @@ ipcMain.handle(CH.invoke.fileOperationGetHistory, async () => {
 });
 ipcMain.handle(CH.invoke.fileOperationClearHistory, async () => {
   fileOperationManager.clearHistory();
+});
+ipcMain.handle(CH.invoke.fileOperationSetQueuePaused, async (_, paused) => {
+  return fileOperationManager.setQueuePaused(paused);
+});
+ipcMain.handle(CH.invoke.fileOperationGetQueuePaused, async () => {
+  return fileOperationManager.isQueuePaused();
 });
 ipcMain.handle(CH.invoke.mobileStartScan, () => {
   deviceManager.startMobileDeviceScan();

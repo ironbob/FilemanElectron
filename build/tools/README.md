@@ -2,42 +2,53 @@
 
 This directory holds external CLI binaries that are packaged into the DMG via
 `electron-builder.yml` → `extraResources`, so end users don't install them.
+**打包态的 GUI 应用($PATH 只有 /usr/bin:/bin:/usr/sbin:/sbin)必须捆绑这些工具,
+否则手机设备连接不可用** —— 运行时由 `ToolPathResolver`
+(`electron/src/services/ToolPathResolver.ts`)按「捆绑 → $PATH → brew 常见前缀」解析。
 
-## Required: `adb` (Android)
+## `adb` (Android / OHOS)
 
-Place the **macOS** `adb` binary at `build/tools/adb` before running
-`npm run dist:mac`. It is copied to `Contents/Resources/adb` and resolved at
-runtime by `ToolPathResolver` (`electron/src/services/ToolPathResolver.ts`),
-which the `AndroidAdapter` (adbkit) and `MobileDeviceScanner` use instead of
-`$PATH`.
-
-### Where to get it
-
-- From **Android SDK Platform Tools** (official):
-  https://developer.android.com/tools/releases/platform-tools
-  Download the macOS build, extract, and copy `platform-tools/adb` here.
-- For a **universal** (arm64 + x86_64) build, use `lipo` to merge the two
-  arch binaries, or ship two and pick at runtime (out of current scope).
-
-### Make it executable
+`build-dmg.sh` 在打包前自动投放(优先本机 Android SDK,回退 Google 官方下载):
 
 ```sh
-chmod +x build/tools/adb
+bash scripts/fetch-adb.sh            # 手动投放/重取(--force 强制)
+bash scripts/fetch-adb.sh 35.0.2     # 指定 platform-tools 版本
 ```
+
+它落在本目录 `build/tools/adb`,打包后位于 `Contents/Resources/adb`,由
+`MobileDeviceScanner`(设备扫描)与 `AndroidAdapter`(adbkit,`bin` 参数)使用。
 
 ### macOS Gatekeeper note
 
-Bundled binaries may carry a quarantine attribute that blocks execution. If
-the packaged app fails to spawn adb with a "cannot be opened" error, strip it
-at install/run time:
+Bundled binaries may carry a quarantine attribute that blocks execution
+(killed: 9)。`ToolPathResolver` 在打包态解析到捆绑二进制时会 best-effort 自清一次
+(`xattr -d com.apple.quarantine`);App Translocation 等只读场景自清会失败,由用户
+对整个 .app 执行下面命令兜底(fetch 脚本投放时也会清一次):
 
 ```sh
-xattr -d com.apple.quarantine /Applications/Fileman.app/Contents/Resources/adb
+xattr -dr com.apple.quarantine /Applications/Fileman.app
 ```
 
-(Automating this inside the app is a known follow-up; not in the current pass.)
+## ripgrep (`rg/rg`)
 
-## libimobiledevice (iOS — Phase 2, not yet)
+grep 内容搜索本地引擎。一键投放(按本机架构取最新版 + SHA256 校验):
 
-iOS support (Phase 2) will bundle `libimobiledevice` binaries here under the
-same scheme. Tracked in `prd/2026-08-07-mobile-file-management-requirements.md`.
+```sh
+bash scripts/fetch-rg.sh             # 或指定版本: bash scripts/fetch-rg.sh 14.1.1
+```
+
+缺省时运行时回退 $PATH 的 rg,再退化为流式扫描(打包不阻塞)。
+
+## libimobiledevice (iOS)
+
+`iosafc.node` addon 及其 dylib 链、`idevice_id`/`ideviceinfo`/`idevicepair`/
+`idevicescreenshot` CLI 由 `scripts/bundle-ios-dylibs.sh` 统一收进
+`build/ios-native/` → `Contents/Resources/ios-native/`(CLI 从 brew
+libimobiledevice 拷入并本地化 dylib;未装 brew 包时跳过,iOS 退回 $PATH 语义)。
+
+前置(一次性):
+
+```sh
+brew install libimobiledevice dylibbundler
+bash scripts/install-ios-deps.sh && npm run build:native
+```

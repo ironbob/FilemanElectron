@@ -1095,13 +1095,16 @@ function getFileIconComponent(file: FileInfo): Component {
 
   let component: Component
   if (file.isDirectory) {
-    component = createSvgIcon('/icons/ic_folder_mac.svg')
+    // 相对 URL:dev(http://localhost:5173/)与打包态(file://…/out/renderer/)都以
+    // index.html 所在目录解析,icons/ 由 copyRootIconsPlugin 拷进产物。勿用 '/icons' ——
+    // file:// 下绝对路径会指向磁盘根目录,打包后 404。
+    component = createSvgIcon('./icons/ic_folder_mac.svg')
   } else {
     const ext = cacheKey
     const iconFile = extensionIconMap[ext]
 
     if (iconFile) {
-      component = createSvgIcon(`/icons/${iconFile}`)
+      component = createSvgIcon(`./icons/${iconFile}`)
     } else if (extensionCategories.image.has(ext)) {
       component = createPathIcon('M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', 'text-accent-teal')
     } else if (extensionCategories.video.has(ext)) {

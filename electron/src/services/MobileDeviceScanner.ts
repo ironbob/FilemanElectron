@@ -205,57 +205,39 @@ export class MobileDeviceScanner {
   }
 
   /**
-   * Check if libimobiledevice is installed
+   * Check if libimobiledevice is available
+   * (打包内 CLI → $PATH → brew 常见前缀,统一走 ToolPathResolver)
    */
   async checkLibimobiledeviceInstalled(): Promise<boolean> {
-    try {
-      const { stdout, stderr } = await execAsync('which idevice_id')
-      log.debug('idevice_id path:', stdout.trim() || 'not found', stderr ? `stderr: ${stderr}` : '')
-      return !!stdout.trim()
-    } catch (error) {
-      log.debug('libimobiledevice check failed:', error)
-      return false
+    const available = ToolPathResolver.has('idevice_id')
+    if (!available) {
+      log.debug('idevice_id not found (bundled/$PATH/common prefixes)')
     }
+    return available
   }
 
   /**
    * Check if ADB is installed
+   * (打包内 adb → $PATH → 常见前缀,统一走 ToolPathResolver)
    */
   async checkAdbInstalled(): Promise<boolean> {
-    // 打包内 adb 优先(生产态);开发态回退 $PATH。
-    const bundled = ToolPathResolver.getAdbPath()
-    if (bundled) {
-      log.debug('adb resolved (bundled):', bundled)
-      return true
+    const available = ToolPathResolver.has('adb')
+    if (!available) {
+      log.debug('adb not found (bundled/$PATH/common prefixes)')
     }
-    try {
-      const { stdout, stderr } = await execAsync('which adb')
-      log.debug('adb path ($PATH):', stdout.trim() || 'not found', stderr ? `stderr: ${stderr}` : '')
-      return !!stdout.trim()
-    } catch (error) {
-      log.debug('ADB check failed:', error)
-      return false
-    }
+    return available
   }
 
   /**
    * Check if hdc (HarmonyOS Device Connector) is installed
+   * (打包内 hdc → $PATH → 常见前缀,统一走 ToolPathResolver)
    */
   async checkHdcInstalled(): Promise<boolean> {
-    // 打包内 hdc 优先(生产态);开发态回退 $PATH(常经 DevEco Studio 安装)。
-    const bundled = ToolPathResolver.getHdcPath()
-    if (bundled) {
-      log.debug('hdc resolved (bundled):', bundled)
-      return true
+    const available = ToolPathResolver.hasHdc()
+    if (!available) {
+      log.debug('hdc not found (bundled/$PATH/common prefixes)')
     }
-    try {
-      const { stdout, stderr } = await execAsync('which hdc')
-      log.debug('hdc path ($PATH):', stdout.trim() || 'not found', stderr ? `stderr: ${stderr}` : '')
-      return !!stdout.trim()
-    } catch (error) {
-      log.debug('hdc check failed:', error)
-      return false
-    }
+    return available
   }
 
   /**
@@ -365,7 +347,10 @@ export class MobileDeviceScanner {
     try {
       // log.debug('Executing: idevice_id -l')
       // Get list of connected iOS devices
-      const { stdout, stderr } = await execAsync('idevice_id -l 2>/dev/null || echo ""')
+      // (经 ToolPathResolver:打包内 Resources/ios-native/idevice_id 优先)
+      const { stdout, stderr } = await execAsync(
+        `${ToolPathResolver.getExecutable('idevice_id')} -l 2>/dev/null || echo ""`
+      )
 
       // log.debug('idevice_id stdout:', JSON.stringify(stdout))
       if (stderr) {
@@ -386,7 +371,7 @@ export class MobileDeviceScanner {
           try {
             log.debug(`Getting device name for ${udid}...`)
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
-              `ideviceinfo -u ${udid} -k DeviceName 2>/dev/null || echo ""`
+              `${ToolPathResolver.getExecutable('ideviceinfo')} -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             )
             log.debug(`ideviceinfo name output:`, nameOutput, nameStderr)
             if (nameOutput.trim()) {
@@ -401,7 +386,7 @@ export class MobileDeviceScanner {
           try {
             log.debug(`Checking pairing status for ${udid}...`)
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
-              `idevicepair validate -u ${udid} 2>/dev/null || echo ""`
+              `${ToolPathResolver.getExecutable('idevicepair')} validate -u ${udid} 2>/dev/null || echo ""`
             )
             log.debug(`idevicepair output:`, pairOutput, pairStderr)
             if (pairOutput.includes('SUCCESS')) {

@@ -148,7 +148,9 @@ export class MobileScreenshotService {
   private captureIos(udid: string): Promise<Buffer> {
     const localPath = localTempPath('png')
     return new Promise<Buffer>((resolve, reject) => {
-      const child = spawn('idevicescreenshot', ['-u', udid, localPath], {
+      // 经 ToolPathResolver:打包内 Resources/ios-native/idevicescreenshot 优先,
+      // 未捆绑回退 $PATH / brew 常见前缀,最后才是裸命令名(ENOENT 语义保留)。
+      const child = spawn(ToolPathResolver.getExecutable('idevicescreenshot'), ['-u', udid, localPath], {
         stdio: ['ignore', 'ignore', 'pipe']
       })
       const errors: Buffer[] = []

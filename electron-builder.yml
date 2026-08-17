@@ -26,10 +26,11 @@ asarUnpack:
   - "**/ffmpeg-static/**"
   - "**/@img/**"
 
-# Bundled mobile CLI tools — drop the macOS `adb` binary at build/tools/adb
-# before running `npm run dist:mac`. It lands at Contents/Resources/adb and is
-# resolved at runtime by ToolPathResolver (replaces the $PATH lookup). Per
-# project decision, license compliance for bundled tools is out of scope.
+# Bundled mobile CLI tools — `adb` is auto-placed by scripts/fetch-adb.sh
+# (invoked from build-dmg.sh; local Android SDK first, Google download as
+# fallback). It lands at Contents/Resources/adb and is resolved at runtime by
+# ToolPathResolver (bundled → $PATH → brew common prefixes). Per project
+# decision, license compliance for bundled tools is out of scope.
 extraResources:
   - from: build/tools/adb
     to: adb
