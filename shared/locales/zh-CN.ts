@@ -95,12 +95,13 @@ const zhCN = {
     }
   },
   palette: {
-    /** 快速跳转面板（⌘⇧P）：只搜索/跳转最近打开过的目录。 */
+    /** 快速跳转面板（⌘⇧P）：搜索/跳转最近打开过的目录；/ 开头输入出绝对路径直达行。 */
     ariaLabel: '快速跳转目录',
     placeholder: '搜索最近打开的目录',
     groupJump: '跳转到',
     noMatch: '无匹配目录',
-    empty: '暂无最近打开的目录'
+    empty: '暂无最近打开的目录',
+    directGo: '按路径前往'
   },
   sidebar: {
     locations: '位置',

@@ -1,7 +1,8 @@
 <template>
-  <!-- 快速跳转面板（⌘⇧P）—— 只做一件事：搜索并跳转到最近打开过的目录。
+  <!-- 快速跳转面板（⌘⇧P）—— 搜索并跳转到最近打开过的目录；输入 / 开头的
+       绝对路径时在结果首位提供直达行（校验通过才跳转，失败内联报错不关闭）。
        Finder 原生浮层（TabHistoryMenu 同款材质骨架）：半透明高不透明度 + blur；
-       搜索框只过滤历史目录（无命令/收藏/绝对路径入口）；单一可见分组「跳转到」，
+       搜索框过滤历史目录（无命令/收藏入口）；单一可见分组「跳转到」，
        MRU 倒序，46px 双行条目；键盘 ↑↓/Enter/Esc 经 useKeyInterceptor 捕获期消费；
        锚定标题栏下沿 8px、水平居中，空间不足上翻、视口钳制；仅列表区滚动；
        外点关闭（左键吞掉，后方内容不可操作）；关闭时还原先前焦点。 -->
@@ -32,10 +33,13 @@
       >
     </div>
 
+    <!-- 直达行校验失败（路径不存在/不是文件夹）：Finder ⇧⌘G 同款内联红字，面板不关闭 -->
+    <div v-if="directError" class="qj-error" role="alert">{{ directError }}</div>
+
     <div v-if="entries.length" class="qj-group-title">{{ $t('palette.groupJump') }}</div>
 
     <div
-      v-if="entries.length"
+      v-if="entries.length || directRow"
       id="qj-list"
       ref="listEl"
       class="qj-list"
@@ -47,7 +51,7 @@
       <button
         v-for="(row, i) in results"
         :id="`qj-opt-${i}`"
-        :key="`${row.deviceId}:${row.path}`"
+        :key="row.isDirect ? `direct:${row.path}` : `${row.deviceId}:${row.path}`"
         :data-index="i"
         class="qj-row"
         :class="{ 'is-active': i === activeIndex }"
@@ -56,7 +60,16 @@
         :tabindex="-1"
         @click="open(row)"
       >
-        <svg class="qj-row-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <!-- 直达行：右向箭头（区别于历史行的文件夹图标） -->
+        <svg v-if="row.isDirect" class="qj-row-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M4 12h16m-6-6 6 6-6 6"
+          />
+        </svg>
+        <svg v-else class="qj-row-icon shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -81,18 +94,24 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { useFileBrowserStore } from '@/stores/fileBrowser'
+import { useTabsStore } from '@/stores/tabs'
 import { useRecentLocationEntries } from '@/composables/useRecentLocationEntries'
 import type { RecentLocationEntry } from '@/composables/useRecentLocationEntries'
+import { isZipVirtualPath } from '@shared/zipPath'
+import { t } from '@/i18n'
 
 /**
- * 快速跳转面板（⌘⇧P）：Finder 风格「最近打开目录」搜索跳转浮层。
+ * 快速跳转面板（⌘⇧P）：Finder 风格「最近打开目录」搜索跳转浮层，
+ * 兼绝对路径直达（输入 / 开头时结果首位出直达行）。
  *
  * 键盘契约（疑难问题解决记录/子组件ESC键消费）：↑↓/Enter/Esc 经
  * useKeyInterceptor 捕获期消费（return true），不得落入 FileList 的
  * document 冒泡监听（否则触发 typeahead/重命名等）。
  *
- * 其余分组（未来可能的收藏/设备等）只存在于数据结构层，界面不渲染空分组
- * 标题或占位——当前唯一可见分组即「跳转到」。
+ * 直达行校验与 ⇧⌘G 对话框（FilePane.validateAndGo）同语义：getStats
+ * 必须为目录才跳转，失败内联红字不关闭；zip 虚拟路径不收（面板无
+ * 「已在 ZIP 内」上下文，inner 条目无法校验）。其余分组（未来可能的
+ * 收藏/设备等）只存在于数据结构层，界面不渲染空分组标题或占位。
  */
 
 const props = defineProps<{
@@ -108,6 +127,7 @@ const emit = defineEmits<{ close: [] }>()
 useAppDragSuspend()
 
 const browserStore = useFileBrowserStore()
+const tabsStore = useTabsStore()
 const entries = useRecentLocationEntries()
 
 const query = ref('')
@@ -119,15 +139,44 @@ const pos = reactive({ x: 0, y: 0 })
 /** 量取视口后写入的列表区最大高（null = 未量取，用 CSS 兜底 50vh）。 */
 const listMaxH = ref<number | null>(null)
 const panelW = ref(480)
+/** 直达行校验失败的错误文案（空串 = 无错误）；输入变化即清除（Finder ⇧⌘G 同款）。 */
+const directError = ref('')
+/** 直达行校验在途（防 await 期间重复 Enter 触发双跳转）。 */
+let directPending = false
+
+/** 渲染行：历史条目，或带 isDirect 标记的直达行（deviceId 取活动面板）。 */
+type PanelRow = RecentLocationEntry & { isDirect?: boolean }
+
+/** 直达行设备：活动面板所在设备；活动标签是工具视图（无面板）时本机。
+ *  与 App.quickJumpNavigate 的兜底一致——那种情况 navigate 会开新标签。 */
+const directDeviceId = computed(() => {
+  const tab = tabsStore.tabs.find(tb => tb.id === tabsStore.activeTabId)
+  const pane = tab?.panes.find(p => p.id === tab.activePaneId) ?? tab?.panes[0]
+  return pane?.deviceId || 'local'
+})
+
+/** 直达行：输入以 / 开头的绝对路径时生成，置于结果首位。规范化与 ⇧⌘G
+ *  对话框一致（去尾部斜杠、根目录除外）；zip 虚拟路径不生成（无法校验）。 */
+const directRow = computed<PanelRow | null>(() => {
+  const trimmed = query.value.trim()
+  if (!trimmed.startsWith('/') || isZipVirtualPath(trimmed)) return null
+  const path = trimmed === '/' ? '/' : trimmed.replace(/\/+$/, '')
+  return { isDirect: true, deviceId: directDeviceId.value, path, name: path, detail: t('palette.directGo') }
+})
 
 /** 过滤：目录名/路径片段大小写不敏感子串匹配，保持 MRU 顺序（不重排序）。 */
-const results = computed<RecentLocationEntry[]>(() => {
+const results = computed<PanelRow[]>(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return entries.value
-  return entries.value.filter(
-    entry => entry.name.toLowerCase().includes(q) || entry.detail.toLowerCase().includes(q)
-  )
+  const history = q
+    ? entries.value.filter(
+        entry => entry.name.toLowerCase().includes(q) || entry.detail.toLowerCase().includes(q)
+      )
+    : entries.value
+  return directRow.value ? [directRow.value, ...history] : history
 })
+
+// 输入变化即清错误（旧路径的校验结论对新输入无意义）
+watch(query, () => { directError.value = '' })
 
 watch(results, list => { activeIndex.value = list.length ? 0 : -1 }, { flush: 'post' })
 
@@ -141,7 +190,24 @@ function accept(): void {
   if (entry) open(entry)
 }
 
-function open(entry: RecentLocationEntry): void {
+async function open(entry: PanelRow): Promise<void> {
+  // 直达行：先校验（getStats 必须为目录）再跳转；失败内联报错、面板保持打开
+  if (entry.isDirect) {
+    if (directPending) return
+    directPending = true
+    try {
+      const stats = await window.fileman.getStats(entry.deviceId, entry.path)
+      if (!stats.isDirectory) {
+        directError.value = t('filePane.goToDialog.notFolder')
+        return
+      }
+    } catch {
+      directError.value = t('filePane.goToDialog.notFound', { path: entry.path })
+      return
+    } finally {
+      directPending = false
+    }
+  }
   props.navigate(entry.deviceId, entry.path)
   // 显式置顶 MRU：新 tab 打开不触发面板导航记录（与标签栏历史菜单一致）
   browserStore.rememberLocation(entry.deviceId, entry.path)
@@ -296,6 +362,18 @@ watch(activeIndex, idx => {
 .qj-input::placeholder {
   color: var(--finder-secondary-label);
   opacity: 0.7;
+}
+
+/* ── 直达行校验失败：Finder ⇧⌘G 同款内联红字（浅底衬托浮层材质） ──────────── */
+.qj-error {
+  flex-shrink: 0;
+  margin: 0 12px 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 16px;
+  border-radius: 6px;
+  color: var(--danger-red);
+  background: var(--finder-popover-hover);
 }
 
 /* ── 分组标题「跳转到」：12.5px Medium 灰（空分组不渲染，见模板 v-if） ──────── */

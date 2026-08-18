@@ -89,12 +89,13 @@ const enUS: MessageSchema = {
     }
   },
   palette: {
-    /** Quick jump panel (⌘⇧P): searches and jumps to recently opened folders only. */
+    /** Quick jump panel (⌘⇧P): searches/jumps recent folders; "/…" input offers an absolute-path direct-go row. */
     ariaLabel: 'Quick Jump',
     placeholder: 'Search recent folders',
     groupJump: 'Go To',
     noMatch: 'No matching folders',
-    empty: 'No recently opened folders'
+    empty: 'No recently opened folders',
+    directGo: 'Go to this path'
   },
   sidebar: {
     locations: 'Locations',
