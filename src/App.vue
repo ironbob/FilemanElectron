@@ -5,7 +5,10 @@
     :style="{ '--task-drawer-width': (fileOpsStore.isDrawerOpen ? taskDrawerWidth : 0) + 'px' }"
   >
     <!-- Title bar: tabs share this row with the native window controls. -->
-    <div class="finder-window-titlebar h-12 bg-bg-toolbar flex items-center px-4 border-b border-border app-drag overflow-visible">
+    <div
+      ref="titlebarRef"
+      class="finder-window-titlebar h-12 bg-bg-toolbar flex items-center px-4 border-b border-border app-drag overflow-visible"
+    >
       <!-- Left spacer for macOS traffic lights (native buttons via hiddenInset) -->
       <div class="w-16 finder-traffic-light-inset"></div>
 
@@ -174,10 +177,11 @@
       @close="showSettingsDialog = false"
     />
 
-    <!-- Command Palette (⌘⇧P) -->
-    <CommandPalette
+    <!-- 快速跳转面板（⌘⇧P）：最近打开目录的搜索跳转浮层 -->
+    <QuickJumpPanel
       v-if="paletteOpen"
-      :context="paletteContext"
+      :anchor="paletteAnchor"
+      :navigate="quickJumpNavigate"
       @close="paletteOpen = false"
     />
 
@@ -196,8 +200,7 @@ import PreviewView from './components/preview/PreviewView.vue'
 import QuickLookOverlay from './components/preview/QuickLookOverlay.vue'
 import ScreenshotOverlay from './components/mobile/ScreenshotOverlay.vue'
 import SettingsDialog from './components/dialogs/SettingsDialog.vue'
-import CommandPalette from './components/palette/CommandPalette.vue'
-import { useCommandRegistryStore, type CommandContext } from './stores/commandRegistry'
+import QuickJumpPanel from './components/palette/QuickJumpPanel.vue'
 import { useKeyInterceptor } from './composables/useKeyInterceptor'
 import DirCompareView from './components/compare/DirCompareView.vue'
 import DuplicateFinderView from './components/dupes/DuplicateFinderView.vue'
@@ -236,7 +239,9 @@ const dragSessionStore = useDragSessionStore()
 const theme = ref<'light' | 'dark'>('dark')
 const showSettingsDialog = ref(false)
 const paletteOpen = ref(false)
-const commandRegistry = useCommandRegistryStore()
+const titlebarRef = ref<HTMLElement | null>(null)
+/** 打开面板时量取的标题栏 rect（锚点；取不到时兜底窗口顶部 48px 条带）。 */
+const paletteAnchor = ref(new DOMRect(0, 0, window.innerWidth, 48))
 
 // The reference Finder sidebar occupies about 15% of its window width.
 // This default keeps that ratio at the app's normal 1152px launch viewport.
@@ -270,9 +275,6 @@ onMounted(() => {
 
   // Git 状态徽标：订阅 watch:changed 做缓存失效（本地仓库目录）
   useGitStatusStore().initialize()
-
-  // 命令面板内置命令播种
-  seedBuiltinCommands()
 
   // Load app settings (hidden-files toggle etc.)
   void settingsStore.load().then(() => {
@@ -337,13 +339,17 @@ function toggleTheme() {
   persistTheme(theme.value)
 }
 
-// ── 命令面板（⌘⇧P）────────────────────────────────────────────────────────
+// ── 快速跳转面板（⌘⇧P）────────────────────────────────────────────────────
 // 捕获期消费（return true），先于 FileList 的 document 冒泡监听；
-// 面板自身打开后，其内部的 ↑↓/Enter/Esc 由 CommandPalette 的 interceptor
+// 面板自身打开后，其内部的 ↑↓/Enter/Esc 由 QuickJumpPanel 的 interceptor
 // 以 LIFO 顺序先处理（疑难问题解决记录/子组件ESC键消费 的既定模式）。
 useKeyInterceptor(event => {
   if ((event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 'p') {
     event.preventDefault()
+    if (!paletteOpen.value) {
+      paletteAnchor.value = titlebarRef.value?.getBoundingClientRect()
+        ?? new DOMRect(0, 0, window.innerWidth, 48)
+    }
     paletteOpen.value = !paletteOpen.value
     return true
   }
@@ -408,87 +414,15 @@ function cycleActiveTab(delta: number) {
   tabsStore.setActiveTab(tabs[next].id)
 }
 
-/** 面板执行上下文：活动面板 + 导航回调（收藏/手输路径跳转）。 */
-const paletteContext = computed<CommandContext>(() => ({
-  activePane: activeTab.value?.panes.length
-    ? (() => {
-        const pane = activeTab.value!.panes.find(p => p.id === activeTab.value!.activePaneId) ?? activeTab.value!.panes[0]
-        return { paneId: pane.id, deviceId: pane.deviceId, path: pane.path }
-      })()
-    : undefined,
-  navigate: (deviceId, path) => {
-    const tab = activeTab.value
-    if (!tab || tab.panes.length === 0) {
-      tabsStore.openPathInNewTab(deviceId, path)
-      return
-    }
-    const pane = tab.panes.find(p => p.id === tab.activePaneId) ?? tab.panes[0]
-    tabsStore.navigatePane(pane.id, path)
+/** 跳转回调：活动面板导航；活动标签为工具视图（无面板）时开新标签页。 */
+function quickJumpNavigate(deviceId: string, path: string) {
+  const tab = activeTab.value
+  if (!tab || tab.panes.length === 0) {
+    tabsStore.openPathInNewTab(deviceId, path)
+    return
   }
-}))
-
-/** 内置命令播种（一次性；M3/M4 功能组件挂载时各自追加）。titleKey/groupKey
- *  由命令面板在渲染时翻译；title/group 保留中文兜底并供模糊匹配。 */
-function seedBuiltinCommands(): void {
-  commandRegistry.registerCommands([
-    {
-      id: 'app.new-tab', title: '新建标签页', group: '标签页',
-      titleKey: 'palette.cmd.newTab', groupKey: 'palette.group.tabs',
-      run: () => { tabsStore.createTab() }
-    },
-    {
-      id: 'app.close-tab', title: '关闭当前标签页', group: '标签页',
-      titleKey: 'palette.cmd.closeTab', groupKey: 'palette.group.tabs',
-      run: () => { const tab = activeTab.value; if (tab) tabsStore.closeTab(tab.id) }
-    },
-    {
-      id: 'app.toggle-dual-pane', title: '切换双面板', group: '标签页', shortcut: '⌘D',
-      titleKey: 'palette.cmd.toggleDualPane', groupKey: 'palette.group.tabs',
-      run: () => { tabsStore.toggleActiveSplit() }
-    },
-    {
-      id: 'app.view-list', title: '切换为列表视图', group: '视图',
-      titleKey: 'palette.cmd.viewList', groupKey: 'palette.group.view',
-      run: ctx => { if (ctx.activePane) tabsStore.setViewMode(ctx.activePane.paneId, 'list') }
-    },
-    {
-      id: 'app.view-grid', title: '切换为图标视图', group: '视图',
-      titleKey: 'palette.cmd.viewGrid', groupKey: 'palette.group.view',
-      run: ctx => { if (ctx.activePane) tabsStore.setViewMode(ctx.activePane.paneId, 'grid') }
-    },
-    {
-      id: 'app.view-columns', title: '切换为分栏视图', group: '视图',
-      titleKey: 'palette.cmd.viewColumns', groupKey: 'palette.group.view',
-      run: ctx => { if (ctx.activePane) tabsStore.setViewMode(ctx.activePane.paneId, 'columns') }
-    },
-    {
-      id: 'app.toggle-hidden', title: '显示/隐藏隐藏文件', group: '视图', shortcut: '⌘⇧.',
-      titleKey: 'palette.cmd.toggleHidden', groupKey: 'palette.group.view',
-      run: () => { void settingsStore.toggleShowHiddenFiles() }
-    },
-    {
-      id: 'app.toggle-theme', title: '切换深/浅色主题', group: '外观',
-      titleKey: 'palette.cmd.toggleTheme', groupKey: 'palette.group.appearance',
-      run: () => { toggleTheme() }
-    },
-    {
-      id: 'app.open-settings', title: '打开设置', group: '外观',
-      titleKey: 'palette.cmd.openSettings', groupKey: 'palette.group.appearance',
-      run: () => { showSettingsDialog.value = true }
-    },
-    {
-      id: 'app.refresh', title: '刷新当前目录', group: '文件', shortcut: '⌘R',
-      titleKey: 'palette.cmd.refresh', groupKey: 'palette.group.files',
-      keywords: ['refresh', 'reload'],
-      run: () => { window.dispatchEvent(new CustomEvent('fileman:refresh-active-pane')) }
-    },
-    {
-      id: 'app.toggle-task-drawer', title: '打开/关闭任务抽屉', group: '任务', shortcut: '⌘⇧T',
-      titleKey: 'palette.cmd.toggleTaskDrawer', groupKey: 'palette.group.tasks',
-      keywords: ['tasks', 'transfers', 'drawer'],
-      run: () => { fileOpsStore.toggleDrawer() }
-    }
-  ])
+  const pane = tab.panes.find(p => p.id === tab.activePaneId) ?? tab.panes[0]
+  tabsStore.navigatePane(pane.id, path)
 }
 
 // Resize sidebar via the divider handle (mirrors FilePane's preview resize).

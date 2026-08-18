@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive } from 'vue'
+import { onMounted, reactive } from 'vue'
 import type { GrepSession } from '@/types'
 import type { GrepMatch } from '@shared/types'
 import { useGrepSearch } from './useGrepSearch'
 import { usePreviewStore } from '@/stores/preview'
-import { useCommandRegistryStore } from '@/stores/commandRegistry'
 import { getBaseName } from '@/utils/path'
-import { t } from '@/i18n'
 
 /**
  * 内容搜索工具页（瞬态标签）。查询栏 + 实时进度行 + 按文件分组折叠列表；
@@ -16,7 +14,6 @@ import { t } from '@/i18n'
 const props = defineProps<{ session: GrepSession }>()
 
 const previewStore = usePreviewStore()
-const commandRegistry = useCommandRegistryStore()
 
 const query = reactive({
   pattern: props.session.pattern,
@@ -36,20 +33,9 @@ const view = reactive({
   collapsed: new Set<string>()
 })
 
-const COMMAND_IDS = ['grep.rerun']
-
 onMounted(() => {
   if (query.pattern) void grep.run(query)
-  commandRegistry.registerCommands([{
-    id: 'grep.rerun',
-    title: t('grep.cmd.rerun'),
-    group: t('grep.cmdGroup'),
-    run: () => {
-      if (!grep.isRunning && query.pattern) void grep.run(query)
-    }
-  }])
 })
-onUnmounted(() => commandRegistry.unregisterCommands(COMMAND_IDS))
 
 function submit(): void {
   if (!query.pattern.trim() || grep.isRunning) return

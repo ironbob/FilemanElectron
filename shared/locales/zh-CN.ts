@@ -95,35 +95,12 @@ const zhCN = {
     }
   },
   palette: {
-    ariaLabel: '命令面板',
-    placeholder: '输入命令、收藏名称或绝对路径（/开头）…',
-    goto: '前往',
-    noMatch: '无匹配命令',
-    favoritesGroup: '收藏目录',
-    hintSelect: '↑↓ 选择',
-    hintRun: '↩ 执行',
-    hintClose: 'Esc 关闭',
-    hintOpen: '⌘⇧P 呼出',
-    cmd: {
-      newTab: '新建标签页',
-      closeTab: '关闭当前标签页',
-      toggleDualPane: '切换双面板',
-      viewList: '切换为列表视图',
-      viewGrid: '切换为图标视图',
-      viewColumns: '切换为分栏视图',
-      toggleHidden: '显示/隐藏隐藏文件',
-      toggleTheme: '切换深/浅色主题',
-      openSettings: '打开设置',
-      refresh: '刷新当前目录',
-      toggleTaskDrawer: '打开/关闭任务抽屉'
-    },
-    group: {
-      tabs: '标签页',
-      view: '视图',
-      appearance: '外观',
-      files: '文件',
-      tasks: '任务'
-    }
+    /** 快速跳转面板（⌘⇧P）：只搜索/跳转最近打开过的目录。 */
+    ariaLabel: '快速跳转目录',
+    placeholder: '搜索最近打开的目录',
+    groupJump: '跳转到',
+    noMatch: '无匹配目录',
+    empty: '暂无最近打开的目录'
   },
   sidebar: {
     locations: '位置',
@@ -674,10 +651,6 @@ const zhCN = {
   },
   grep: {
     /** 内容搜索工具页（src/components/grep/）。 */
-    cmd: {
-      rerun: '重新执行内容搜索'
-    },
-    cmdGroup: '内容搜索',
     placeholder: '搜索内容…（⏎ 执行）',
     regexTip: '作为正则表达式搜索',
     caseTip: '区分大小写',
@@ -696,10 +669,6 @@ const zhCN = {
   },
   dupes: {
     /** 重复文件查找工具页（src/components/dupes/）。 */
-    cmd: {
-      rescan: '重新扫描重复文件'
-    },
-    cmdGroup: '重复文件',
     phaseIdle: '未开始',
     selectOlder: '勾选旧副本',
     rescan: '重新扫描',
@@ -728,10 +697,6 @@ const zhCN = {
   },
   treemap: {
     /** 空间分析工具页（src/components/treemap/）。 */
-    cmd: {
-      rerun: '重新分析空间'
-    },
-    cmdGroup: '空间分析',
     analyzing: '分析中 · {path}',
     summary: '{count} 文件 · {size}',
     rerun: '重新分析',

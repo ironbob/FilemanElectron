@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import type { SpaceSession } from '@/types'
 import type { SpaceEntry } from '@shared/types'
 import { useLongTaskProgress } from '@/composables/useLongTaskProgress'
-import { useCommandRegistryStore } from '@/stores/commandRegistry'
 import { useTabsStore } from '@/stores/tabs'
 import { formatSize } from '@/utils/path'
 import { t } from '@/i18n'
@@ -17,7 +16,6 @@ import { squarify } from './squarify'
 const props = defineProps<{ session: SpaceSession }>()
 
 const tabsStore = useTabsStore()
-const commandRegistry = useCommandRegistryStore()
 
 const sessionId = `space-${props.session.id}`
 
@@ -103,17 +101,9 @@ function drillDown(cell: Cell): void {
   tabsStore.openSpaceTab(props.session.deviceId, cell.path)
 }
 
-const COMMAND_IDS = ['space.rerun']
 onMounted(() => {
   void start({ sessionId, deviceId: props.session.deviceId, rootPath: props.session.rootPath })
-  commandRegistry.registerCommands([{
-    id: 'space.rerun',
-    title: t('treemap.cmd.rerun'),
-    group: t('treemap.cmdGroup'),
-    run: () => { if (!isRunning.value) void start({ sessionId, deviceId: props.session.deviceId, rootPath: props.session.rootPath }) }
-  }])
 })
-onUnmounted(() => commandRegistry.unregisterCommands(COMMAND_IDS))
 
 function cellColor(tone: number): string {
   // 蓝(低) → 紫 → 红(高) 的 HSL 插值；双主题下均以白色文字保证可读

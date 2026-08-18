@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive } from 'vue'
+import { onMounted, reactive } from 'vue'
 // reactive() 用于解包 composable 嵌套 ref（见下）
 import type { DuplicateSession } from '@/types'
 import { useDuplicates } from './useDuplicates'
 import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useTabsStore } from '@/stores/tabs'
 import { formatSize } from '@/utils/path'
-import { useCommandRegistryStore } from '@/stores/commandRegistry'
 import { formatDateTime } from '@/utils/formatDate'
-import { t } from '@/i18n'
 
 /**
  * 重复文件查找工具页（瞬态标签，DirCompareView 配方）。
@@ -19,7 +17,6 @@ const props = defineProps<{ session: DuplicateSession }>()
 
 const tabsStore = useTabsStore()
 const fileOpsStore = useFileOperationsStore()
-const commandRegistry = useCommandRegistryStore()
 
 // reactive() 解包 composable 返回值里的嵌套 ref（模板与脚本一致访问）
 const dupes = reactive(useDuplicates({
@@ -33,21 +30,8 @@ const view = reactive({
   collapsed: new Set<string>()
 })
 
-// 挂载即注册命令面板入口（M2 注册表；卸载对称注销）
-const COMMAND_IDS = ['dupes.rescan']
 onMounted(() => {
   void dupes.run()
-  commandRegistry.registerCommands([{
-    id: 'dupes.rescan',
-    title: t('dupes.cmd.rescan'),
-    group: t('dupes.cmdGroup'),
-    run: () => {
-      if (!dupes.isRunning) void dupes.run()
-    }
-  }])
-})
-onUnmounted(() => {
-  commandRegistry.unregisterCommands(COMMAND_IDS)
 })
 
 function toggleGroup(hash: string): void {

@@ -138,10 +138,12 @@ import TabOverviewMenu, { type TabOverviewRow } from './tabbar/TabOverviewMenu.v
 import TabHistoryMenu, { type TabHistoryEntry } from './tabbar/TabHistoryMenu.vue'
 import { iconForTab } from './tabbar/tabIcons'
 import { useTabDragReorder } from './tabbar/useTabDragReorder'
+import { useRecentLocationEntries } from '@/composables/useRecentLocationEntries'
 
 const tabsStore = useTabsStore()
 const devicesStore = useDevicesStore()
 const browserStore = useFileBrowserStore()
+const recentLocationEntries = useRecentLocationEntries()
 const { t } = useI18n()
 
 // ── 同名消歧（只在渲染层 computed，绝不写回 Tab —— 写回会持续触发持久化） ──────
@@ -299,22 +301,8 @@ function closeOverview() {
 const historyRect = ref<DOMRect | null>(null)
 const historyBtnEl = ref<HTMLElement | null>(null)
 
-/** 副行：父路径（zip 虚拟路径自然显示 zip::父串）；远程设备前缀「设备名 › 」。 */
-const historyEntries = computed<TabHistoryEntry[]>(() =>
-  browserStore.recent.map(loc => {
-    const segs = loc.path.split('/').filter(Boolean)
-    // zip 根路径形如「a.zip::」，叶子名去掉 '::' 尾巴只显示 zip 文件名
-    const name = segs.length ? segs[segs.length - 1].replace(/::$/, '') : 'Root'
-    const parent = segs.length > 1
-      ? (loc.path.slice(0, loc.path.length - segs[segs.length - 1].length).replace(/\/+$/, '') || '/')
-      : '/'
-    const deviceName = loc.deviceId === 'local'
-      ? undefined
-      : devicesStore.devices.find(d => d.id === loc.deviceId)?.name
-    const detail = deviceName ? `${deviceName} › ${parent}` : parent
-    return { deviceId: loc.deviceId, path: loc.path, name, detail }
-  })
-)
+/** 展示条目推导（叶子名/父路径/设备前缀）与 ⌘⇧P 快速跳转面板共用同一 composable。 */
+const historyEntries = computed<TabHistoryEntry[]>(() => recentLocationEntries.value)
 
 function toggleHistory() {
   if (historyRect.value) {

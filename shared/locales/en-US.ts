@@ -89,35 +89,12 @@ const enUS: MessageSchema = {
     }
   },
   palette: {
-    ariaLabel: 'Command Palette',
-    placeholder: 'Type a command, favorite name, or absolute path (starting with /)…',
-    goto: 'Go to',
-    noMatch: 'No matching commands',
-    favoritesGroup: 'Favorites',
-    hintSelect: '↑↓ Navigate',
-    hintRun: '↩ Run',
-    hintClose: 'Esc Close',
-    hintOpen: '⌘⇧P Open',
-    cmd: {
-      newTab: 'New Tab',
-      closeTab: 'Close Current Tab',
-      toggleDualPane: 'Toggle Dual Pane',
-      viewList: 'Switch to List View',
-      viewGrid: 'Switch to Icon View',
-      viewColumns: 'Switch to Columns View',
-      toggleHidden: 'Show/Hide Hidden Files',
-      toggleTheme: 'Toggle Light/Dark Theme',
-      openSettings: 'Open Settings',
-      refresh: 'Refresh Current Directory',
-      toggleTaskDrawer: 'Toggle Task Drawer'
-    },
-    group: {
-      tabs: 'Tabs',
-      view: 'View',
-      appearance: 'Appearance',
-      files: 'Files',
-      tasks: 'Tasks'
-    }
+    /** Quick jump panel (⌘⇧P): searches and jumps to recently opened folders only. */
+    ariaLabel: 'Quick Jump',
+    placeholder: 'Search recent folders',
+    groupJump: 'Go To',
+    noMatch: 'No matching folders',
+    empty: 'No recently opened folders'
   },
   sidebar: {
     locations: 'Locations',
@@ -666,10 +643,6 @@ const enUS: MessageSchema = {
     }
   },
   grep: {
-    cmd: {
-      rerun: 'Re-run Content Search'
-    },
-    cmdGroup: 'Content Search',
     placeholder: 'Search content… (⏎ Run)',
     regexTip: 'Search as regular expression',
     caseTip: 'Case sensitive',
@@ -687,10 +660,6 @@ const enUS: MessageSchema = {
     cancelled: 'Cancelled'
   },
   dupes: {
-    cmd: {
-      rescan: 'Rescan Duplicate Files'
-    },
-    cmdGroup: 'Duplicate Files',
     phaseIdle: 'Not started',
     selectOlder: 'Select Older Copies',
     rescan: 'Rescan',
@@ -718,10 +687,6 @@ const enUS: MessageSchema = {
     }
   },
   treemap: {
-    cmd: {
-      rerun: 'Re-analyze Space'
-    },
-    cmdGroup: 'Space Analysis',
     analyzing: 'Analyzing · {path}',
     summary: '{count} file · {size} | {count} files · {size}',
     rerun: 'Re-analyze',
