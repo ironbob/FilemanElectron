@@ -15,6 +15,8 @@
     :device-id="deviceId"
     :session-id="sessionId"
     :initial-line="initialLine"
+    :fit-content="fitContent"
+    @fit-height="emit('fit-height', $event)"
   />
   <PreviewImageContent
     v-else-if="type === 'image'"
@@ -97,6 +99,12 @@ const props = defineProps<{
   collection?: { index: number; total: number } | null
   /** 集合步进（dirty 标注由 VM 弹未保存确认后执行）。 */
   stepCollection?: (delta: number) => void
+  /** 高度贴合内容（QuickLook 传入；转发给 text 内容上报 fit-height）。 */
+  fitContent?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'fit-height', height: number | null): void
 }>()
 
 // 优先级：forceType > initialLine（grep 命中按文本渲染——grep 已证明内容

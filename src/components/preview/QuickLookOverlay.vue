@@ -2,22 +2,24 @@
   <Transition name="quicklook-fade">
     <div
       v-if="previewStore.quickLookOpen && currentFile"
+      ref="overlayEl"
       class="absolute inset-0 z-[70] flex items-center justify-center"
     >
       <!-- 半透明遮罩：点击关闭 -->
       <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px] app-no-drag" @click="close" />
 
-      <!-- 居中预览卡片：占内容区 70% 宽高。
+      <!-- 居中预览卡片：占内容区 70% 宽高；文本类按内容自适应高度
+           （Fit：短文件收缩贴合、长文件封顶 70%，对齐 Finder 空格预览行为）。
            表面语言对齐 finder-ui-standard：canvas 实色内容面 + chrome 工具栏 +
            1px 发丝线 + 12px 圆角 + NSMenu 柔和双影（--menu-shadow）。 -->
       <div
         class="quick-look-card relative flex flex-col rounded-xl border border-border bg-bg-primary overflow-hidden app-no-drag"
-        style="width: 70%; height: 70%"
+        :style="cardStyle"
         role="dialog"
         :aria-label="$t('preview.quickLook.dialogAria')"
       >
         <!-- Header -->
-        <div class="finder-preview-toolbar flex items-center justify-between border-b border-border">
+        <div ref="headerEl" class="finder-preview-toolbar flex items-center justify-between border-b border-border">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-sm font-medium text-text-primary truncate">{{ currentFile.name }}</span>
             <span class="finder-preview-badge flex-shrink-0">{{ sizeLabel }}</span>
@@ -56,6 +58,8 @@
           <PreviewContentRouter
             :file="currentFile"
             :device-id="deviceId"
+            :fit-content="isTextKind"
+            @fit-height="onFitHeight"
           />
         </div>
         <div v-else class="flex-1 min-h-0 flex flex-col items-center justify-center px-6 text-center bg-bg-primary select-none">
@@ -71,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { usePreviewStore } from '@/stores/preview'
 import { useTabsStore } from '@/stores/tabs'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
@@ -93,6 +97,61 @@ const QUICK_LOOK_KINDS: ReadonlySet<PreviewType> = new Set(['text', 'image', 'vi
 const kindSupported = computed(() => {
   const file = currentFile.value
   return !!file && QUICK_LOOK_KINDS.has(getPreviewType(file))
+})
+
+// ── 文本卡片高度贴合内容（Fit）──────────────────────────────────────────────
+// PreviewTextContent（fit 模式）上报「chrome + Monaco 内容高度」；
+// 此处加上浮层自身 header 实测高度，在 [MIN, 70% 封顶] 内取值。
+// 图片/视频/非 source 视图上报 null → 回退固定 70%。
+const overlayEl = ref<HTMLElement | null>(null)
+const headerEl = ref<HTMLElement | null>(null)
+const fitHeight = ref<number | null>(null)
+/** 遮罩区实测高度（ResizeObserver 维护；封顶 70% 的分母须随窗口变化） */
+const overlayHeight = ref(0)
+const isTextKind = computed(() =>
+  kindSupported.value && !!currentFile.value && getPreviewType(currentFile.value) === 'text'
+)
+const MIN_CARD_HEIGHT = 160
+
+const cardStyle = computed<Record<string, string>>(() => {
+  const width = '70%'
+  if (!isTextKind.value || fitHeight.value == null || overlayHeight.value <= 0) {
+    return { width, height: '70%' }
+  }
+  const cap = Math.floor(overlayHeight.value * 0.7)
+  const headerH = headerEl.value?.offsetHeight ?? 0
+  const height = Math.max(MIN_CARD_HEIGHT, Math.min(fitHeight.value + headerH, cap))
+  return { width, height: `${height}px` }
+})
+
+function onFitHeight(height: number | null): void {
+  fitHeight.value = height
+}
+
+let overlayRo: ResizeObserver | null = null
+watch(() => previewStore.quickLookOpen, (open) => {
+  fitHeight.value = null
+  overlayRo?.disconnect()
+  overlayRo = null
+  if (open) {
+    void nextTick(() => {
+      const el = overlayEl.value
+      if (!el || typeof ResizeObserver === 'undefined') {
+        overlayHeight.value = el?.clientHeight ?? 0
+        return
+      }
+      overlayRo = new ResizeObserver(() => {
+        overlayHeight.value = overlayEl.value?.clientHeight ?? 0
+      })
+      overlayRo.observe(el)
+      overlayHeight.value = el.clientHeight
+    })
+  }
+})
+
+onUnmounted(() => {
+  overlayRo?.disconnect()
+  overlayRo = null
 })
 
 const sizeLabel = computed(() => {
@@ -156,6 +215,8 @@ function step(delta: number) {
    不用 Tailwind shadow-2xl 的硬投影。 */
 .quick-look-card {
   box-shadow: var(--menu-shadow);
+  /* 文本 fit 收缩/封顶切换时高度平滑过渡（宽度恒为 70% 不参与） */
+  transition: height 0.15s ease-out;
 }
 
 .quicklook-fade-enter-active,

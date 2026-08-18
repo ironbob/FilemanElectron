@@ -45,32 +45,34 @@
       </div>
 
       <!-- ── Finder 式三段工具栏（重设计 2026-08-17）── -->
-      <TextPreviewToolbar
-        ref="toolbarRef"
-        :vm="logAnalysis"
-        :badge="displayLanguage"
-        :meta-detail="metaDetail"
-        :show-search="viewMode === 'source'"
-        :show-source-tools="viewMode === 'source'"
-        :word-wrap-on="wordWrap"
-        :has-selection="hasSelection"
-        :syntax-label="syntaxLabel"
-        :syntax-override="syntaxOverride"
-        :syntax-languages="SYNTAX_LANGUAGES"
-        :font-size="fontSize"
-        :show-line-numbers="showLineNumbers"
-        :show-minimap="showMinimap"
-        encoding="UTF-8"
-        @toggle-wrap="toggleWordWrap"
-        @set-syntax="setSyntaxOverride"
-        @copy="copyContent"
-        @export="onExportMenu"
-        @set-font-size="setFontSize"
-        @toggle-line-numbers="toggleLineNumbers"
-        @toggle-minimap="toggleMinimap"
-        @jump-to-line="openJumpPanel"
-        @open-scheme-editor="schemeEditorVisible = true"
-      >
+      <!-- topChromeEl：Quick Look fit 模式实测顶部chrome高度（工具栏+过滤状态条） -->
+      <div ref="topChromeEl" class="flex flex-col flex-shrink-0">
+        <TextPreviewToolbar
+          ref="toolbarRef"
+          :vm="logAnalysis"
+          :badge="displayLanguage"
+          :meta-detail="metaDetail"
+          :show-search="viewMode === 'source'"
+          :show-source-tools="viewMode === 'source'"
+          :word-wrap-on="wordWrap"
+          :has-selection="hasSelection"
+          :syntax-label="syntaxLabel"
+          :syntax-override="syntaxOverride"
+          :syntax-languages="SYNTAX_LANGUAGES"
+          :font-size="fontSize"
+          :show-line-numbers="showLineNumbers"
+          :show-minimap="showMinimap"
+          encoding="UTF-8"
+          @toggle-wrap="toggleWordWrap"
+          @set-syntax="setSyntaxOverride"
+          @copy="copyContent"
+          @export="onExportMenu"
+          @set-font-size="setFontSize"
+          @toggle-line-numbers="toggleLineNumbers"
+          @toggle-minimap="toggleMinimap"
+          @jump-to-line="openJumpPanel"
+          @open-scheme-editor="schemeEditorVisible = true"
+        >
         <template #left-extra>
           <!-- Markdown: Preview ↔ Source -->
           <div v-if="fileCategory === 'markdown'" class="finder-control-group">
@@ -174,12 +176,13 @@
         </template>
       </TextPreviewToolbar>
 
-      <!-- ── 过滤状态条（仅搜索激活时） ── -->
-      <TextFilterStatusBar
-        v-if="viewMode === 'source' && logAnalysis.hasResult.value"
-        :vm="logAnalysis"
-        :partial-loaded="!isFullyLoaded"
-      />
+        <!-- ── 过滤状态条（仅搜索激活时） ── -->
+        <TextFilterStatusBar
+          v-if="viewMode === 'source' && logAnalysis.hasResult.value"
+          :vm="logAnalysis"
+          :partial-loaded="!isFullyLoaded"
+        />
+      </div>
 
       <!-- ── Rendered Markdown ── -->
       <div
@@ -287,7 +290,7 @@
       </div>
 
       <!-- ── File Info Bar ── -->
-      <div class="flex-shrink-0 px-4 py-2 bg-bg-tertiary border-t border-border">
+      <div ref="infoBarEl" class="flex-shrink-0 px-4 py-2 bg-bg-tertiary border-t border-border">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <span class="text-sm font-medium text-text-primary">{{ file.name }}</span>
@@ -335,6 +338,7 @@
       <!-- ── 分片加载脚注（大文件渐进加载；未全量 = 只读 + 禁保存） ── -->
       <div
         v-if="!isFullyLoaded && !loading"
+        ref="loadFooterEl"
         class="text-load-footer flex items-center gap-3 flex-shrink-0"
         data-testid="text-load-footer"
       >
@@ -540,6 +544,14 @@ const props = defineProps<{
   sessionId?: string
   /** 初始定位行号（grep 命中跳入；仅首次创建编辑器时消费一次）。 */
   initialLine?: number
+  /** 高度贴合内容（Quick Look 传入；预览 tab 不传=填满视口）。
+   *  激活时按 chrome 实测高度 + Monaco 内容高度上报 fit-height，
+   *  宿主据此收缩浮层卡片（Finder 短文本 Quick Look 的贴内容行为）。 */
+  fitContent?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'fit-height', height: number | null): void
 }>()
 
 const tabsStore = useTabsStore()
@@ -585,6 +597,28 @@ const loadingMore = ref(false)
 const fullLineCount = ref(0)
 
 const toolbarRef = ref<InstanceType<typeof TextPreviewToolbar> | null>(null)
+
+// ── Quick Look fit 模式：chrome 实测锚点（offsetHeight 求和 = 非编辑器高度） ──
+const topChromeEl = ref<HTMLElement | null>(null)
+const infoBarEl = ref<HTMLElement | null>(null)
+const loadFooterEl = ref<HTMLElement | null>(null)
+
+/**
+ * 上报贴合高度：顶部chrome（工具栏+过滤条）+ Monaco 内容高度 + 信息栏/脚注。
+ * 仅 source 视图可贴合；loading/错误/其余视图（渲染MD/JSON树/CSV表）上报 null
+ * （宿主回退到默认固定高度）。非 fit 模式不上报。
+ */
+function emitFitHeight(): void {
+  if (!props.fitContent) return
+  const editor = editorInstance.value
+  if (loading.value || hasError.value || !editor || viewMode.value !== 'source') {
+    emit('fit-height', null)
+    return
+  }
+  const chrome = [topChromeEl, infoBarEl, loadFooterEl]
+    .reduce((sum, el) => sum + (el.value?.offsetHeight ?? 0), 0)
+  emit('fit-height', chrome + editor.getContentHeight())
+}
 
 type ViewMode = 'source' | 'rendered' | 'table' | 'tree'
 const viewMode = ref<ViewMode>('source')
@@ -648,6 +682,13 @@ const logAnalysis = useLogAnalysis({
   getExportTarget: () => ({ deviceId: props.deviceId, path: props.file.path }),
   canWrite: () => true // adapters expose writeFile; per-device failures surface on export
 })
+
+// 视图形态变化（加载态/错误/视图切换/过滤条与分片脚注显隐）→ 重新上报贴合高度。
+// （须在 logAnalysis 之后注册：watch 注册即求值源，提前会触发 TDZ。）
+watch(
+  [loading, hasError, viewMode, () => logAnalysis.hasResult.value, isFullyLoaded],
+  () => { void nextTick(() => emitFitHeight()) }
+)
 
 // ── Edit & Save State ─────────────────────────────────────────────────────────
 const isModified = ref(false)
@@ -970,6 +1011,10 @@ function createEditor(content: string) {
   lineCount.value = model?.getLineCount() ?? 0
   log(`Editor created: lang=${effectiveLanguage.value} lines=${lineCount.value}`)
   logAnalysis.onEditorReady()
+
+  // Quick Look fit 模式：内容高度变化（载入/续载/换行/字号/过滤变换）即时上报
+  editorInstance.value.onDidContentSizeChange(() => emitFitHeight())
+  emitFitHeight()
 }
 
 function destroyEditor() {
