@@ -29,6 +29,13 @@
   --finder-tab-hover: rgba(0, 0, 0, 0.055);
   --finder-tab-press: rgba(0, 0, 0, 0.085);
   --finder-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  /* 原生浮层材质（标签总览等锚定弹层）：高不透明度 + backdrop blur，
+     底层文件列表透过时不可辨认（穿透问题修复，2026-08-18） */
+  --finder-popover-bg: rgba(248, 248, 250, 0.94);
+  --finder-popover-border: rgba(0, 0, 0, 0.12);
+  --finder-popover-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --finder-popover-hover: rgba(0, 0, 0, 0.06);
+  --finder-popover-path: rgba(0, 0, 0, 0.58);
   /* Hex 编辑器（v2）状态 token —— 全部为字节/行级局部反馈，无大面积描边 */
   --hex-selection: rgba(10, 132, 255, 0.22);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
@@ -61,6 +68,12 @@
   --finder-tab-hover: rgba(255, 255, 255, 0.08);
   --finder-tab-press: rgba(255, 255, 255, 0.11);
   --finder-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  /* 原生浮层材质（暗色）：不透明度抬高到 0.96，深底上透字更明显 */
+  --finder-popover-bg: rgba(42, 42, 44, 0.96);
+  --finder-popover-border: rgba(255, 255, 255, 0.14);
+  --finder-popover-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --finder-popover-hover: rgba(255, 255, 255, 0.07);
+  --finder-popover-path: rgba(235, 235, 245, 0.62);
   --hex-selection: rgba(10, 132, 255, 0.30);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
   --hex-match: rgba(255, 214, 10, 0.28);
