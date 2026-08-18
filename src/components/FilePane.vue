@@ -940,6 +940,13 @@ function onBreadcrumbEnter(event: KeyboardEvent) {
 
 async function commitBreadcrumbEdit() {
   if (!breadcrumbEditing.value || breadcrumbCommitting) return
+  // 报错后全清输入再回车 = 放弃编辑并刷新当前目录（不当作「空路径」错误）
+  if (!breadcrumbInput.value.trim()) {
+    breadcrumbError.value = ''
+    breadcrumbEditing.value = false
+    refreshCurrentDirectory()
+    return
+  }
   breadcrumbCommitting = true
   const error = await validateAndGo(breadcrumbInput.value)
   breadcrumbCommitting = false
@@ -1266,7 +1273,10 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         baseName = dot > 0 ? leaf.slice(0, dot) : leaf
       }
       try {
-        const task = await window.fileman.createArchive(deviceId, op.files, targetPath, `${baseName}.zip`)
+        // [...op.files] 展开成普通数组：op.files 可能是 store 里的 reactive Proxy
+        // （选中态右键走 props.selectedFiles 直传），裸 Proxy 过 contextBridge 会抛
+        // "An object could not be cloned"，被此处 catch 吞成静默失败
+        const task = await window.fileman.createArchive(deviceId, [...op.files], targetPath, `${baseName}.zip`)
         trackDirectoryRefresh(task)
       } catch (error) {
         log.error('[FilePane] archive task failed to queue', { targetPath, error })

@@ -1742,7 +1742,10 @@ function handleDragStart(file: FileInfo, event: DragEvent) {
   const dragData: InternalFileDragPayload = {
     paneId: props.paneId,
     deviceId: props.deviceId,
-    files: isSelected(file.path) ? props.selectedFiles : [file.path]
+    // 展开成普通数组：props.selectedFiles 是 store 里的 reactive Proxy，
+    // 直接传给 ipcRenderer.send 会在 contextBridge 结构化克隆时抛
+    // "An object could not be cloned"（选中态拖拽无声死亡的根因）
+    files: isSelected(file.path) ? [...props.selectedFiles] : [file.path]
   }
 
   // 本地实体文件（非 ZIP 虚拟路径）→ 原生拖拽接管，可拖出到 Finder / VSCode 等
