@@ -57,6 +57,7 @@ const zhCN = {
     newTab: '新建标签页',
     stripAriaLabel: '标签栏',
     overviewButton: '标签总览',
+    historyButton: '历史目录',
     renamePlaceholder: '重命名标签',
     ariaTabLabel: '{name}，{type}标签，第 {index} 项，共 {total} 项',
     tabType: {
@@ -77,6 +78,11 @@ const zhCN = {
       unsaved: '未保存',
       current: '当前标签',
       closeRowAria: '关闭 {name}'
+    },
+    history: {
+      title: '最近访问 · {count}',
+      empty: '暂无访问记录',
+      clear: '清除历史记录'
     },
     menu: {
       close: '关闭标签',

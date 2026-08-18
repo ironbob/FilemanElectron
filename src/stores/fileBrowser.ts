@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { FileBrowserViewState, FileSortDescriptor, RecentLocation } from '@/types/fileBrowser'
 
 const RECENT_STORAGE_KEY = 'fileman-recent-locations'
+const RECENT_LOCATIONS_LIMIT = 10
 const SEARCH_HISTORY_KEY = 'fileman-search-history'
 const SEARCH_HISTORY_LIMIT = 10
 const log = console
@@ -34,7 +35,7 @@ function loadSearchHistory(): string[] {
 export const useFileBrowserStore = defineStore('fileBrowser', () => {
   const paneStates = ref<Record<string, FileBrowserViewState>>({})
   const recentLocations = ref<RecentLocation[]>(loadRecent())
-  const recent = computed(() => recentLocations.value.slice(0, 12))
+  const recent = computed(() => recentLocations.value.slice(0, RECENT_LOCATIONS_LIMIT))
   const searchHistory = ref<string[]>(loadSearchHistory())
 
   function stateFor(paneId: string): FileBrowserViewState {
@@ -58,9 +59,15 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     recentLocations.value = [
       { deviceId, path, visitedAt: Date.now() },
       ...recentLocations.value.filter(item => `${item.deviceId}:${item.path}` !== key)
-    ].slice(0, 12)
+    ].slice(0, RECENT_LOCATIONS_LIMIT)
     localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recentLocations.value))
     log.info('[FileBrowserStore] recent location saved', { deviceId, path })
+  }
+
+  /** 清空最近访问记录（顶部历史目录菜单「清除」用）。 */
+  function clearRecentLocations() {
+    recentLocations.value = []
+    localStorage.removeItem(RECENT_STORAGE_KEY)
   }
 
   /** 记录一次搜索(去重置顶,空串忽略);搜索是渲染层过滤,历史留在 localStorage 即可。 */
@@ -76,5 +83,5 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     localStorage.removeItem(SEARCH_HISTORY_KEY)
   }
 
-  return { stateFor, setSort, toggleRecursiveSearch, recent, rememberLocation, searchHistory, rememberSearch, clearSearchHistory }
+  return { stateFor, setSort, toggleRecursiveSearch, recent, rememberLocation, clearRecentLocations, searchHistory, rememberSearch, clearSearchHistory }
 })

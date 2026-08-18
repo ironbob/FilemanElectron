@@ -51,6 +51,7 @@ const enUS: MessageSchema = {
     newTab: 'New Tab',
     stripAriaLabel: 'Tab bar',
     overviewButton: 'Show tab overview',
+    historyButton: 'Recent folders',
     renamePlaceholder: 'Rename tab',
     ariaTabLabel: '{name}, {type} tab, item {index} of {total}',
     tabType: {
@@ -71,6 +72,11 @@ const enUS: MessageSchema = {
       unsaved: 'Unsaved',
       current: 'Current tab',
       closeRowAria: 'Close {name}'
+    },
+    history: {
+      title: 'Recent · {count}',
+      empty: 'No recent locations yet',
+      clear: 'Clear history'
     },
     menu: {
       close: 'Close Tab',

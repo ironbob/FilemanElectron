@@ -48,7 +48,7 @@
     <div v-if="canScrollLeft" class="edge-fade is-left" aria-hidden="true" />
     <div v-if="canScrollRight" class="edge-fade is-right" aria-hidden="true" />
 
-    <!-- 固定簇：⊕（⌘T 语义）+ ⌄（标签总览，任何时候可开） -->
+    <!-- 固定簇：⊕（⌘T 语义）+ 🕐（历史目录，最近10条）+ ⌄（标签总览，任何时候可开） -->
     <div class="tab-cluster app-no-drag">
       <button
         class="action-button"
@@ -58,6 +58,23 @@
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+      <button
+        ref="historyBtnEl"
+        class="action-button"
+        :title="$t('tabs.historyButton')"
+        :aria-label="$t('tabs.historyButton')"
+        :aria-expanded="historyRect !== null"
+        @click="toggleHistory"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
       </button>
       <button
@@ -94,6 +111,15 @@
       @new-tab="() => { tabsStore.newTabFromActiveContext(); closeOverview() }"
       @close="closeOverview"
     />
+
+    <TabHistoryMenu
+      v-if="historyRect"
+      :entries="historyEntries"
+      :anchor="historyRect"
+      @open="openHistoryEntry"
+      @clear="() => { browserStore.clearRecentLocations(); closeHistory() }"
+      @close="closeHistory"
+    />
   </div>
 </template>
 
@@ -101,6 +127,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useDevicesStore } from '@/stores/devices'
+import { useFileBrowserStore } from '@/stores/fileBrowser'
 import { useI18n } from 'vue-i18n'
 import type { InternalFileDragPayload } from '@/types/fileOperation'
 import type { Tab } from '@/types'
@@ -108,11 +135,13 @@ import { disambiguateTabTitles, tabFullPath, tabKindOf, tabTitleEntry } from '@/
 import TabItem, { type TabLabel } from './tabbar/TabItem.vue'
 import TabContextMenu, { type TabContextMenuAction } from './tabbar/TabContextMenu.vue'
 import TabOverviewMenu, { type TabOverviewRow } from './tabbar/TabOverviewMenu.vue'
+import TabHistoryMenu, { type TabHistoryEntry } from './tabbar/TabHistoryMenu.vue'
 import { iconForTab } from './tabbar/tabIcons'
 import { useTabDragReorder } from './tabbar/useTabDragReorder'
 
 const tabsStore = useTabsStore()
 const devicesStore = useDevicesStore()
+const browserStore = useFileBrowserStore()
 const { t } = useI18n()
 
 // ── 同名消歧（只在渲染层 computed，绝不写回 Tab —— 写回会持续触发持久化） ──────
@@ -254,6 +283,7 @@ function toggleOverview() {
   if (overviewRect.value) {
     closeOverview()
   } else {
+    closeHistory() // 与历史弹层互斥，两个 fixed 浮层不可同屏
     const rect = overviewBtnEl.value?.getBoundingClientRect()
     if (rect) overviewRect.value = rect
   }
@@ -261,6 +291,49 @@ function toggleOverview() {
 
 function closeOverview() {
   overviewRect.value = null
+}
+
+// ── 历史目录弹层（最近10条，点击在新标签页打开） ───────────────────────────────
+// 数据来自 fileBrowser store 的 recentLocations（每次面板导航都会 remember），
+// 点击后显式 rememberLocation 重新置顶——新 tab 打开本身不触发面板导航记录。
+const historyRect = ref<DOMRect | null>(null)
+const historyBtnEl = ref<HTMLElement | null>(null)
+
+/** 副行：父路径（zip 虚拟路径自然显示 zip::父串）；远程设备前缀「设备名 › 」。 */
+const historyEntries = computed<TabHistoryEntry[]>(() =>
+  browserStore.recent.map(loc => {
+    const segs = loc.path.split('/').filter(Boolean)
+    // zip 根路径形如「a.zip::」，叶子名去掉 '::' 尾巴只显示 zip 文件名
+    const name = segs.length ? segs[segs.length - 1].replace(/::$/, '') : 'Root'
+    const parent = segs.length > 1
+      ? (loc.path.slice(0, loc.path.length - segs[segs.length - 1].length).replace(/\/+$/, '') || '/')
+      : '/'
+    const deviceName = loc.deviceId === 'local'
+      ? undefined
+      : devicesStore.devices.find(d => d.id === loc.deviceId)?.name
+    const detail = deviceName ? `${deviceName} › ${parent}` : parent
+    return { deviceId: loc.deviceId, path: loc.path, name, detail }
+  })
+)
+
+function toggleHistory() {
+  if (historyRect.value) {
+    closeHistory()
+  } else {
+    closeOverview() // 与标签总览互斥
+    const rect = historyBtnEl.value?.getBoundingClientRect()
+    if (rect) historyRect.value = rect
+  }
+}
+
+function closeHistory() {
+  historyRect.value = null
+}
+
+function openHistoryEntry(entry: TabHistoryEntry) {
+  tabsStore.openPathInNewTab(entry.deviceId, entry.path)
+  browserStore.rememberLocation(entry.deviceId, entry.path)
+  closeHistory()
 }
 
 // ── 滚动：溢出渐隐 + 激活标签滚入视区 ────────────────────────────────────────
