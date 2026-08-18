@@ -1012,6 +1012,8 @@ onMounted(() => {
   document.addEventListener('click', hideContextMenu)
   document.addEventListener('keydown', handleKeyDown)
   document.addEventListener('compositionend', handleCompositionEnd)
+  document.addEventListener('copy', consumeNativeClipboardEvent)
+  document.addEventListener('cut', consumeNativeClipboardEvent)
   unsubscribeWatchChanged = window.fileman.onWatchChanged(event => {
     // autoRefresh 开关的裁决移入 refreshAfterWatchEvent：目录失效检测不受开关影响
     if (event.deviceId !== props.deviceId || event.dirPath !== props.path) return
@@ -1028,6 +1030,8 @@ onUnmounted(() => {
   document.removeEventListener('click', hideContextMenu)
   document.removeEventListener('keydown', handleKeyDown)
   document.removeEventListener('compositionend', handleCompositionEnd)
+  document.removeEventListener('copy', consumeNativeClipboardEvent)
+  document.removeEventListener('cut', consumeNativeClipboardEvent)
   // 确保 rubber-band 残留监听器被清理
   document.removeEventListener('mousemove', handleRubberBandMove)
   document.removeEventListener('mouseup', handleRubberBandUp)
@@ -1043,6 +1047,22 @@ function isTextEditingTarget(target: EventTarget | null): boolean {
 function handleCompositionEnd(event: CompositionEvent) {
   if (isTextEditingTarget(event.target)) return
   typeahead.append(event.data)
+}
+
+/**
+ * 应用菜单 editMenu 的 ⌘C/⌘X 加速器（macOS 输入框复制粘贴依赖它，不能删）
+ * 会触发 webContents.copy()/cut()，Chromium 以惰性声明方式重写系统粘贴板，
+ * 约 150ms 后把 FilePane 写穿的多文件 file URL 冲掉（实测：清空或只剩第一项，
+ * 2026-08-18）。文件选中时消费掉 copy/cut 事件：Chromium 不写板，系统粘贴板
+ * 由 mirrorToSystemClipboard 的 legacy 饿式写入独占落盘。
+ * 文本编辑目标（路径输入/重命名/预览编辑器）不拦截，保留原生文本复制；
+ * 与下方 ⌘⇧. 一致加活动窗格守卫，双窗格下只由活动 FileList 消费一次。
+ */
+function consumeNativeClipboardEvent(event: ClipboardEvent) {
+  if (isTextEditingTarget(event.target)) return
+  if (tabsStore.activePane?.id !== props.paneId) return
+  if (!props.selectedFiles.length) return
+  event.preventDefault()
 }
 
 function handleKeyDown(event: KeyboardEvent) {

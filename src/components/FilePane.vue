@@ -1275,6 +1275,35 @@ watch(() => pane.value?.path, () => {
   revealArrivedPath.value = null
 })
 
+// ============ 系统剪贴板互通（应用内复制 ↔ Finder 粘贴） ============
+
+// 写穿令牌：连续两次复制时只允许最后一次的结果翻转 store 镜像标记，
+// 防止先发的 osascript 写完成后覆盖后发者的判定
+let systemMirrorToken = 0
+
+/**
+ * 复制/剪切后把本地真实文件镜像到系统剪贴板（Finder 等原生应用可 ⌘V）。
+ * 仅本地设备（deviceId === 'local'，主进程 adapter 注册名）的非 ZIP 虚拟
+ * 路径能成为本机 file URL；远端/压缩包内文件只留内部剪贴板。
+ * 部分文件不可镜像时仍写可镜像子集（Finder 侧能粘多少粘多少），但镜像
+ * 标记置 false——粘贴决策按内部剪贴板走，不拿系统板陈旧内容比对。
+ * 失败静默降级（标记 false），不打断复制本身。
+ */
+async function mirrorToSystemClipboard(files: string[], sourceDeviceId: string) {
+  const token = ++systemMirrorToken
+  const mirrorable = sourceDeviceId === 'local' ? files.filter(p => !isZipVirtualPath(p)) : []
+  if (mirrorable.length === 0) return
+
+  try {
+    const ok = await window.fileman.writeFileClipboard(mirrorable)
+    if (token === systemMirrorToken) {
+      clipboardStore.setSystemMirrored(ok && mirrorable.length === files.length)
+    }
+  } catch (error) {
+    log.error('[FilePane] mirror to system clipboard failed', { error })
+  }
+}
+
 async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move'; checksumItems?: ChecksumItem[] }) {
   const targetPath = op.target || pane.value?.path || '/'
   const deviceId = pane.value?.deviceId || 'local'
@@ -1330,6 +1359,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         sourceDeviceId: deviceId
       })
       clipboardStore.setClipboard(op.files, 'copy', props.paneId, deviceId)
+      void mirrorToSystemClipboard(op.files, deviceId)
       break
 
     case 'cut':
@@ -1340,30 +1370,78 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         sourceDeviceId: deviceId
       })
       clipboardStore.setClipboard(op.files, 'cut', props.paneId, deviceId)
+      // 剪切同样写穿系统板：Finder 粘贴退化为复制（macOS 无跨应用剪切语义），
+      // 应用内粘贴仍走内部剪贴板保留移动语义
+      void mirrorToSystemClipboard(op.files, deviceId)
       break
 
-    case 'paste':
+    case 'paste': {
+      // 粘贴源决策（应用内 ↔ 系统剪贴板互通）：
+      // 1) 内部剪贴板来自远端设备 → 只能走内部（远端文件不可能出现在系统板）；
+      // 2) 内部本地剪贴板未成功镜像系统板 → 走内部（系统板上是陈旧内容，
+      //    比对会把用户更早的 Finder 复制误判成新粘贴源）；
+      // 3) 否则读系统板：与内部一致 → 内部（保留 cut/同目录副本语义）；
+      //    不一致且非空 → 用户在 Finder 复制了新文件 → 从系统板粘贴；
+      // 4) 系统板无文件引用 → 内部（无则本操作跳过）。
+      const internalEmpty = clipboardStore.files.length === 0
+      const internalFromRemote = !internalEmpty && clipboardStore.sourceDeviceId !== 'local'
+      const internalOnly = !internalEmpty && (internalFromRemote || !clipboardStore.systemMirrored)
+
+      let pasteFiles = clipboardStore.files
+      let pasteAction = clipboardStore.action
+      let pasteSourceDeviceId = clipboardStore.sourceDeviceId
+      let fromSystem = false
+
+      if (!internalOnly) {
+        let systemPaths: string[] = []
+        try {
+          systemPaths = await window.fileman.readFileClipboard()
+        } catch (error) {
+          log.error('[FilePane] read system clipboard failed, falling back to internal', { error })
+        }
+        if (systemPaths.length > 0) {
+          const sameAsInternal =
+            !internalEmpty &&
+            systemPaths.length === clipboardStore.files.length &&
+            systemPaths.every(p => clipboardStore.files.includes(p))
+          if (!sameAsInternal) {
+            pasteFiles = systemPaths
+            pasteAction = 'copy'
+            pasteSourceDeviceId = 'local'
+            fromSystem = true
+          }
+        }
+      }
+
       console.log('[FilePane] Paste action received:', {
-        clipboardFiles: clipboardStore.files,
-        clipboardFilesLength: clipboardStore.files.length,
-        clipboardAction: clipboardStore.action,
-        clipboardSourcePaneId: clipboardStore.sourcePaneId,
-        clipboardSourceDeviceId: clipboardStore.sourceDeviceId,
+        clipboardFiles: pasteFiles,
+        clipboardFilesLength: pasteFiles.length,
+        clipboardAction: pasteAction,
+        clipboardSourcePaneId: fromSystem ? '(system)' : clipboardStore.sourcePaneId,
+        clipboardSourceDeviceId: pasteSourceDeviceId,
+        fromSystemClipboard: fromSystem,
         targetPath,
         currentDeviceId: deviceId
       })
-      if (clipboardStore.files.length > 0) {
-        console.log('[FilePane] Executing paste with files:', clipboardStore.files)
-        if (clipboardStore.action === 'cut') {
+      if (pasteFiles.length > 0) {
+        console.log('[FilePane] Executing paste with files:', pasteFiles)
+        if (pasteAction === 'cut') {
           console.log('[FilePane] Paste as MOVE operation')
           const task = await fileOpsStore.createMoveTask(
-            clipboardStore.sourceDeviceId,
-            clipboardStore.files,
+            pasteSourceDeviceId,
+            pasteFiles,
             deviceId,
             targetPath
           )
           pasteOriginatedTaskIds.add(task.id)
+          // cut 消费后清系统板：源文件已移走，残留 file 引用再粘（本应用或
+          // Finder）都会悬空；仅镜像成功过才清，避免误清用户自己的剪贴板。
+          // 先取标记再 clearClipboard（后者会把标记一并重置）。
+          const wasSystemMirrored = clipboardStore.systemMirrored
           clipboardStore.clearClipboard()
+          if (wasSystemMirrored) {
+            void window.fileman.clearFileClipboard().catch(() => {})
+          }
         } else {
           console.log('[FilePane] Paste as COPY operation')
           // Finder 语义：在源目录内 Cmd+V = 复制出「xxx 副本」文件。
@@ -1371,13 +1449,13 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
           // rename 策略（主进程按 Finder 命名生成「a 副本.txt / a 副本 2.txt」）。
           // ZIP 虚拟路径（::）不走此逻辑（源在压缩包内，无同目录概念）。
           const sameDirDuplicate =
-            clipboardStore.sourceDeviceId === deviceId &&
-            clipboardStore.files.length > 0 &&
+            pasteSourceDeviceId === deviceId &&
+            pasteFiles.length > 0 &&
             !isZipVirtualPath(targetPath) &&
-            clipboardStore.files.every(p => !isZipVirtualPath(p) && parentDirectoryOf(p) === targetPath)
+            pasteFiles.every(p => !isZipVirtualPath(p) && parentDirectoryOf(p) === targetPath)
           const task = await fileOpsStore.createCopyTask(
-            clipboardStore.sourceDeviceId,
-            clipboardStore.files,
+            pasteSourceDeviceId,
+            pasteFiles,
             deviceId,
             targetPath,
             sameDirDuplicate ? 'rename' : 'skip'
@@ -1389,6 +1467,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         console.warn('[FilePane] Paste skipped: clipboard is empty')
       }
       break
+    }
 
     case 'delete':
       if (confirm(t('fileList.confirmDelete', op.files.length))) {

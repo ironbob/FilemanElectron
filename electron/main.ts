@@ -11,6 +11,7 @@ import { ImageDecodeService } from './src/services/ImageDecodeService'
 import { ZipService, type ZipEntry } from './src/services/ZipService'
 import { VolumeScanner } from './src/services/VolumeScanner'
 import { HostShellService } from './src/services/HostShellService'
+import { SystemClipboardService } from './src/services/SystemClipboardService'
 import { FileMetadataService } from './src/services/FileMetadataService'
 import { ArchiveService } from './src/services/ArchiveService'
 import { MobileScreenshotService } from './src/services/MobileScreenshotService'
@@ -34,6 +35,15 @@ import type { DirectoryStatsRequest, OpenWithApp } from '@shared/types'
 const isDev = !app.isPackaged
 const log = console
 
+// 真实 App 端到端验证/自动化的会话隔离钩子：指定 FILEMAN_USER_DATA_DIR 时把
+// userData（localStorage 持久化标签、配置、凭据）整体指到独立目录，避免驱动
+// 到真实用户数据。必须在任何服务实例化（ConfigService 等）与 app ready 之前
+// 生效——下方 HOME 环境变量与 --user-data-dir 开关在 macOS 上都隔离不了
+// Electron 的 userData 路径（实测）。
+if (process.env.FILEMAN_USER_DATA_DIR) {
+  app.setPath('userData', process.env.FILEMAN_USER_DATA_DIR)
+}
+
 let mainWindow: BrowserWindow | null = null
 const fileInfoWindowContexts = new Map<number, FileInfoWindowContext>()
 const configService = new ConfigService()
@@ -48,6 +58,7 @@ const imageEditService = new ImageEditService(imageDecodeService)
 const zipService = new ZipService()
 const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
 const hostShellService = new HostShellService()
+const systemClipboardService = new SystemClipboardService()
 const fileMetadataService = new FileMetadataService(configService)
 const archiveService = new ArchiveService(deviceManager)
 fileOperationManager.setArchiveService(archiveService)
@@ -170,6 +181,22 @@ function createFileInfoWindow(parent: BrowserWindow | null, context: FileInfoWin
 
 ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
   return os.homedir()
+})
+
+// 系统剪贴板文件引用读写：应用内复制本地文件 → Finder ⌘V；
+// Finder 复制 → 应用内 ⌘V（读到的本地路径由渲染层走既有 local→目标 复制链路）。
+// 失败不抛错：写返回 false、读返回 []，渲染层静默降级回应用内剪贴板。
+ipcMain.handle(CH.invoke.systemWriteFileClipboard, async (_, paths: string[]): Promise<boolean> => {
+  return systemClipboardService.writeLocalFiles(paths)
+})
+
+ipcMain.handle(CH.invoke.systemReadFileClipboard, async (): Promise<string[]> => {
+  return systemClipboardService.readLocalFiles()
+})
+
+// cut 粘贴消费后清系统板：源文件已移走，残留 file 引用再粘（本应用或 Finder）会悬空
+ipcMain.handle(CH.invoke.systemClearFileClipboard, async (): Promise<boolean> => {
+  return systemClipboardService.clearFileClipboard()
 })
 
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context: FileInfoWindowContext): void => {

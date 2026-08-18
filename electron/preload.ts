@@ -49,6 +49,15 @@ const filemanAPI = {
   /** 原生目录选择（保存 Sheet「位置」行）；取消返回 null。 */
   pickDirectory: (defaultPath?: string): Promise<string | null> =>
     ipcRenderer.invoke(CH.invoke.systemPickDirectory, defaultPath),
+  /** 本地文件路径写入系统剪贴板（Finder 可 ⌘V）；失败返回 false（静默降级）。 */
+  writeFileClipboard: (paths: string[]): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.systemWriteFileClipboard, [...paths]),
+  /** 读系统剪贴板中的文件引用（Finder 复制的文件）；无/失败返回 []。 */
+  readFileClipboard: (): Promise<string[]> =>
+    ipcRenderer.invoke(CH.invoke.systemReadFileClipboard),
+  /** 清空系统剪贴板文件引用（cut 消费后防悬空）；失败返回 false。 */
+  clearFileClipboard: (): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.systemClearFileClipboard),
 
   // ============ Windows ============
   openFileInfoWindow: (context: FileInfoWindowContext): Promise<void> =>

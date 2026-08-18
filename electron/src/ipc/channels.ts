@@ -21,6 +21,10 @@ export const CH = {
     systemGetHomeDir: 'system:getHomeDir',
     systemSaveFileDialog: 'system:saveFileDialog',
     systemPickDirectory: 'system:pickDirectory',
+    // 系统剪贴板文件引用读写（应用内复制 ↔ Finder 粘贴互通）
+    systemWriteFileClipboard: 'system:writeFileClipboard',
+    systemReadFileClipboard: 'system:readFileClipboard',
+    systemClearFileClipboard: 'system:clearFileClipboard',
     // window:
     fileInfoWindowOpen: 'window:fileInfo:open',
     fileInfoWindowGetContext: 'window:fileInfo:getContext',
