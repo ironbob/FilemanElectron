@@ -132,7 +132,7 @@ function cellLabel(cell: Cell): string {
 <template>
   <div class="flex flex-col h-full min-h-0 bg-bg-primary">
     <!-- 工具栏 -->
-    <div class="flex items-center gap-3 px-4 py-2 border-b border-border bg-bg-toolbar">
+    <div class="flex items-center gap-3 h-10 px-4 border-b border-border bg-bg-toolbar flex-shrink-0">
       <span class="text-xs text-text-secondary font-mono truncate" :title="session.rootPath">{{ session.rootPath }}</span>
       <span v-if="isRunning" class="text-[11px] px-1.5 py-0.5 rounded bg-bg-secondary text-accent-blue">
         {{ $t('treemap.analyzing', { path: progress?.currentPath ?? '' }) }}
@@ -142,10 +142,10 @@ function cellLabel(cell: Cell): string {
       </span>
       <div class="flex-1" />
       <button
-        class="text-xs px-2.5 py-1 rounded"
+        class="h-7 inline-flex items-center text-xs px-3 rounded-md"
         :class="isRunning
-          ? 'border border-border text-text-secondary hover:bg-bg-hover'
-          : 'bg-accent-blue text-white hover:bg-accent-blue/90'"
+          ? 'h-7 inline-flex items-center px-3 border border-border rounded-md text-text-secondary hover:bg-bg-hover'
+          : 'h-7 bg-accent-blue text-white hover:bg-accent-blue/90 px-3'"
         @click="isRunning ? cancel() : start({ sessionId, deviceId: session.deviceId, rootPath: session.rootPath })"
       >{{ isRunning ? $t('common.cancel') : $t('treemap.rerun') }}</button>
     </div>
@@ -176,14 +176,22 @@ function cellLabel(cell: Cell): string {
 
       <div
         v-if="!isRunning && cells.length === 0 && progress?.status === 'completed'"
-        class="absolute inset-0 flex items-center justify-center text-sm text-text-tertiary"
-      >{{ $t('treemap.emptyDir') }}</div>
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-text-tertiary"
+      >
+        <svg class="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7.5" height="7.5" rx="1" stroke-width="1.5" />
+          <rect x="13.5" y="3" width="7.5" height="4.5" rx="1" stroke-width="1.5" />
+          <rect x="3" y="13.5" width="6" height="7.5" rx="1" stroke-width="1.5" />
+          <rect x="13.5" y="10.5" width="7.5" height="10.5" rx="1" stroke-width="1.5" />
+        </svg>
+        <span class="text-sm">{{ $t('treemap.emptyDir') }}</span>
+      </div>
     </div>
 
     <!-- tooltip -->
     <div
       v-if="tooltip.visible && tooltip.entry"
-      class="fixed z-dropdown pointer-events-none px-2.5 py-1.5 rounded-md bg-bg-secondary border border-border shadow-lg text-xs"
+      class="treemap-tooltip fixed z-dropdown pointer-events-none px-2.5 py-1.5 rounded-md text-xs"
       :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
     >
       <div class="font-medium text-text-primary truncate max-w-60">{{ tooltip.entry.name }}</div>
@@ -192,3 +200,14 @@ function cellLabel(cell: Cell): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* tooltip：Finder 浮层材质（token 化，不透出底层内容） */
+.treemap-tooltip {
+  border: 1px solid var(--finder-popover-border);
+  background: var(--finder-popover-bg);
+  box-shadow: var(--finder-popover-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+</style>

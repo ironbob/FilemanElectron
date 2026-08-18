@@ -880,6 +880,8 @@ const enUS: MessageSchema = {
       nextImageTip: 'Next (→)',
       nextImageAria: 'Next image',
       unknownError: 'Unknown error',
+      prevPageTip: 'Previous Page',
+      nextPageTip: 'Next Page',
       zoomInTip: 'Zoom In',
       zoomOutTip: 'Zoom Out',
       expandAll: 'Expand All',

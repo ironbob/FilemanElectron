@@ -12,7 +12,7 @@
     <!-- Copy operations -->
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
-        class="toolbar-btn-enhanced btn-teal"
+        class="toolbar-btn-enhanced"
         :title="$t('compare.toolbar.copyLeft')"
         :aria-label="$t('compare.toolbar.copyLeft')"
         @click="$emit('copy-left')"
@@ -22,7 +22,7 @@
         </svg>
       </button>
       <button
-        class="toolbar-btn-enhanced btn-blue"
+        class="toolbar-btn-enhanced"
         :title="$t('compare.toolbar.copyRight')"
         :aria-label="$t('compare.toolbar.copyRight')"
         @click="$emit('copy-right')"
@@ -38,7 +38,7 @@
     <!-- Expand / Collapse -->
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
-        class="toolbar-btn-enhanced btn-green"
+        class="toolbar-btn-enhanced"
         :title="$t('compare.toolbar.expandAll')"
         :aria-label="$t('compare.toolbar.expandAll')"
         @click="$emit('expand-all')"
@@ -49,7 +49,7 @@
         </svg>
       </button>
       <button
-        class="toolbar-btn-enhanced btn-green"
+        class="toolbar-btn-enhanced"
         :title="$t('compare.toolbar.collapseAll')"
         :aria-label="$t('compare.toolbar.collapseAll')"
         @click="$emit('collapse-all')"
@@ -66,7 +66,7 @@
     <!-- Diff Navigation -->
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
-        class="toolbar-btn-enhanced btn-purple"
+        class="toolbar-btn-enhanced"
         :title="$t('compare.toolbar.prevDiffTip')"
         :aria-label="$t('compare.toolbar.prevDiff')"
         @click="$emit('prev-diff')"
@@ -76,7 +76,7 @@
         </svg>
       </button>
       <button
-        class="toolbar-btn-enhanced btn-purple"
+        class="toolbar-btn-enhanced"
         :title="$t('compare.toolbar.nextDiffTip')"
         :aria-label="$t('compare.toolbar.nextDiff')"
         @click="$emit('next-diff')"
@@ -93,25 +93,25 @@
     <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
       <button
         class="filter-btn"
-        :class="{ 'filter-btn-active-all': isAllFilter }"
+        :class="{ 'is-active': isAllFilter }"
         :title="$t('compare.toolbar.filterAllTip')"
         @click="setFilter('all')"
       >{{ $t('compare.toolbar.filterAll') }}</button>
       <button
         class="filter-btn"
-        :class="{ 'filter-btn-active-diff': isDiffFilter }"
+        :class="{ 'is-active': isDiffFilter }"
         :title="$t('compare.toolbar.filterDiffTip')"
         @click="setFilter('diff')"
       >{{ $t('compare.toolbar.filterDiff') }}</button>
       <button
         class="filter-btn"
-        :class="{ 'filter-btn-active-only': isOnlyFilter }"
+        :class="{ 'is-active': isOnlyFilter }"
         :title="$t('compare.toolbar.filterOrphanTip')"
         @click="setFilter('only')"
       >{{ $t('compare.toolbar.filterOrphan') }}</button>
       <button
         class="filter-btn"
-        :class="{ 'filter-btn-active-equal': isEqualFilter }"
+        :class="{ 'is-active': isEqualFilter }"
         :title="$t('compare.toolbar.filterEqualTip')"
         @click="setFilter('equal')"
       >{{ $t('compare.toolbar.filterEqual') }}</button>
@@ -138,14 +138,14 @@
 
     <button
       v-if="!isVerifying"
-      class="toolbar-btn-enhanced btn-green"
+      class="toolbar-btn-enhanced"
       :title="$t('compare.toolbar.verifySelection')"
       :aria-label="$t('compare.toolbar.verifySelection')"
       @click="$emit('verify')"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     </button>
-    <button v-else class="toolbar-btn-enhanced btn-orange" :title="$t('compare.toolbar.cancelVerify')" :aria-label="$t('compare.toolbar.cancelVerify')" @click="$emit('cancel-verify')">
+    <button v-else class="toolbar-btn-enhanced" :title="$t('compare.toolbar.cancelVerify')" :aria-label="$t('compare.toolbar.cancelVerify')" @click="$emit('cancel-verify')">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M6 6l12 12M18 6L6 18" /></svg>
     </button>
 
@@ -157,7 +157,7 @@
 
     <!-- Refresh -->
     <button
-      class="toolbar-btn-enhanced btn-orange"
+      class="toolbar-btn-enhanced"
       :title="$t('compare.toolbar.refreshTip')"
       :aria-label="$t('compare.toolbar.refresh')"
       @click="$emit('refresh')"
@@ -226,20 +226,15 @@ function setFilter(preset: 'all' | 'diff' | 'only' | 'equal') {
 </script>
 
 <style scoped>
+/* 过滤组：分段控件语义（与视图切换/设置分段同语言）——
+   默认次级灰、hover 浅底、激活=系统蓝实底白字（唯一长蓝态）。 */
 .filter-btn {
   @apply px-2.5 py-1 text-xs rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors;
 }
 
-/* Per-button accent colors — override toolbar-btn-enhanced defaults */
-.btn-teal   { color: var(--accent-teal); }
-.btn-blue   { color: var(--accent-blue); }
-.btn-green  { color: var(--accent-green); }
-.btn-purple { color: var(--accent-purple); }
-.btn-orange { color: var(--accent-orange); }
-
-/* Per-filter active colors */
-.filter-btn-active-all  { background-color: rgba(10, 132, 255, 0.75); @apply text-white; }
-.filter-btn-active-diff { background-color: rgba(239, 68, 68, 0.75);  @apply text-white; }
-.filter-btn-active-only { background-color: rgba(249, 115, 22, 0.75); @apply text-white; }
-.filter-btn-active-equal{ background-color: rgba(34, 197, 94, 0.75);  @apply text-white; }
+.filter-btn.is-active {
+  background: var(--finder-selection);
+  @apply text-white;
+  font-weight: 500;
+}
 </style>

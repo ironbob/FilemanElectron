@@ -63,6 +63,8 @@ const ICONS: Record<string, string> = {
   hex: '<path d="M8 1.8l5.3 3.1v6.2L8 14.2l-5.3-3.1V4.9z"/><path d="M6 6.4h4M6 9.2h2.6"/>',
   // 校验和：盾 + 对勾
   checksum: '<path d="M8 1.8l4.6 1.9v3.5c0 3-1.9 5.3-4.6 6.2-2.7-.9-4.6-3.2-4.6-6.2V3.7z"/><path d="M6 7.9l1.4 1.4 2.6-2.8"/>',
+  // 单选选中态（网格规格等 radio 组的当前项）
+  check: '<path d="M3.2 8.3l3 3 6.6-7"/>',
   // 对比目录：左右两栏
   compare: '<rect x="2.2" y="3.4" width="5" height="9.2" rx="1"/><rect x="8.8" y="3.4" width="5" height="9.2" rx="1"/>',
   // 收藏
@@ -137,7 +139,7 @@ function onItemClick(item: FinderMenuItem, path: number[]): void {
 </script>
 
 <template>
-  <template v-for="(item, i) in items" :key="`${pathPrefix.join('.')}.${item.action}`">
+  <template v-for="(item, i) in items" :key="`${pathPrefix.join('.')}.${i}.${item.action}`">
     <!-- 语义组分隔线：左右缩进与文字列对齐 -->
     <div v-if="item.action === '__divider__'" class="context-menu-separator" role="separator" />
 

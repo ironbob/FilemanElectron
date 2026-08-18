@@ -73,12 +73,12 @@ function statusText(): string {
 
 <template>
   <div class="fixed inset-0 z-modal flex items-center justify-center bg-black/50" @click.self="emit('close')">
-    <div class="w-[520px] max-w-[90vw] rounded-lg border border-border bg-bg-secondary shadow-xl">
+    <div class="finder-sheet w-[520px] max-w-[90vw]">
       <div class="px-5 py-4 border-b border-border flex items-center justify-between">
         <h3 class="text-sm font-semibold text-text-primary">
           {{ items.length === 2 ? $t('dialogs.checksum.titleCompare') : $t('dialogs.checksum.titleSingle') }}
         </h3>
-        <button class="text-text-tertiary hover:text-text-primary" @click="emit('close')">✕</button>
+        <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors" :title="t('common.close')" :aria-label="t('common.close')" @click="emit('close')">✕</button>
       </div>
 
       <div class="px-5 py-4 space-y-4">
@@ -152,11 +152,11 @@ function statusText(): string {
       <div class="px-5 py-3 border-t border-border flex justify-end gap-2">
         <button
           v-if="isRunning"
-          class="px-3 py-1.5 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover"
+          class="finder-btn-secondary"
           @click="cancel()"
         >{{ $t('dialogs.checksum.cancel') }}</button>
         <button
-          class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90"
+          class="finder-btn-primary"
           @click="emit('close')"
         >{{ $t('dialogs.checksum.close') }}</button>
       </div>

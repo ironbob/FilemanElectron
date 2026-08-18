@@ -892,6 +892,8 @@ const zhCN = {
       nextImageTip: '下一张 (→)',
       nextImageAria: '下一张图片',
       unknownError: '未知错误',
+      prevPageTip: '上一页',
+      nextPageTip: '下一页',
       zoomInTip: '放大',
       zoomOutTip: '缩小',
       expandAll: '全部展开',

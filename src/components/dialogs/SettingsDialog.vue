@@ -1,11 +1,13 @@
 <template>
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-modal animate-fade-in" @click.self="$emit('close')">
-    <div class="bg-bg-secondary rounded-lg shadow-xl w-[480px] max-h-[80vh] flex flex-col border border-border">
+    <div class="finder-sheet w-[480px] max-h-[80vh] flex flex-col">
       <!-- Header -->
       <div class="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 class="text-base font-medium text-text-primary">{{ $t('settings.title') }}</h3>
         <button
           class="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+          :title="$t('common.close')"
+          :aria-label="$t('common.close')"
           @click="$emit('close')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -35,7 +37,7 @@
                 </div>
               </div>
               <button
-                class="px-3 py-1.5 rounded text-sm bg-bg-hover hover:bg-red-500/20 text-text-secondary hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-3 py-1.5 rounded text-sm bg-bg-hover hover:bg-accent-red/20 text-text-secondary hover:text-accent-red transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="clearingCache"
                 @click="clearThumbnailCache"
               >
@@ -131,7 +133,7 @@
       <!-- Footer -->
       <div class="flex justify-end px-4 py-3 border-t border-border">
         <button
-          class="px-4 py-1.5 rounded bg-accent-blue hover:bg-accent-blue-hover text-sm text-white transition-colors"
+          class="finder-btn-primary"
           @click="$emit('close')"
         >
           {{ $t('settings.done') }}

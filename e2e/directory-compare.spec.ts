@@ -107,7 +107,12 @@ test('renders recent locations on an opaque popup surface', async ({ page }) => 
   await page.getByRole('button', { name: '最近访问的位置' }).click()
   const menu = page.getByRole('menu', { name: '最近访问的位置' })
   await expect(menu).toBeVisible()
-  await expect(menu).toHaveCSS('background-color', /^rgb\(/)
+  // Finder 浮层材质：背景不透明度 ≥0.9（底层列表不可辨认）+ backdrop blur
+  const bg = await menu.evaluate(el => getComputedStyle(el).backgroundColor)
+  expect(bg).toMatch(/^rgba?\(/)
+  const alpha = bg.startsWith('rgba') ? Number(bg.match(/,\s*([\d.]+)\)$/)![1]) : 1
+  expect(alpha).toBeGreaterThanOrEqual(0.9)
+  await expect(menu).toHaveCSS('backdrop-filter', /blur/)
   await expect(menu.getByText('/Volumes/JINGZAO/avideo')).toBeVisible()
   await page.getByPlaceholder('搜索或 tag:work').click()
   await expect(menu).toBeHidden()

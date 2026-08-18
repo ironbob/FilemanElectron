@@ -1,6 +1,6 @@
 <template>
   <div :class="standalone ? 'min-h-screen bg-bg-secondary' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/45'" @click.self="!standalone && $emit('close')">
-    <div :class="standalone ? 'flex min-h-screen flex-col bg-bg-secondary' : 'w-[460px] max-h-[80vh] flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl'">
+    <div :class="standalone ? 'flex min-h-screen flex-col bg-bg-secondary' : 'finder-sheet w-[460px] max-h-[80vh] flex flex-col'">
       <!-- Header：图片文件显示预览，其余显示文件名 + 路径。
            standalone（独立简介窗口）时整块作为窗口拖拽区——hiddenInset 标题栏
            没有原生可拖区域；此模式下 header 内无交互子元素，无需 app-no-drag 豁免。 -->
@@ -12,12 +12,12 @@
             <h2 :class="standalone ? 'truncate text-[17px] font-semibold text-text-primary' : 'truncate text-base font-semibold text-text-primary'">{{ headerTitle }}</h2>
             <p class="mt-1 break-all text-xs text-text-tertiary">{{ headerSubtitle }}</p>
           </div>
-          <button v-if="!standalone" type="button" class="text-text-tertiary hover:text-text-primary" @click="$emit('close')">×</button>
+          <button v-if="!standalone" type="button" class="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors" :title="t('common.close')" :aria-label="t('common.close')" @click="$emit('close')">×</button>
         </div>
         <button
           v-if="thumbnailSrc && !standalone"
           type="button"
-          class="absolute right-3 top-3 rounded px-1.5 text-text-tertiary hover:text-text-primary"
+          class="absolute right-3 top-3 w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors" :title="t('common.close')" :aria-label="t('common.close')"
           @click="$emit('close')"
         >
           ×
@@ -40,7 +40,7 @@
                   <span v-if="file.isDirectory && scanStatus === 'scanning'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">
                     {{ $t('dialogs.fileInfo.scanning', scannedCount) }}
                   </span>
-                  <span v-else-if="file.isDirectory && scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">
+                  <span v-else-if="file.isDirectory && scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-accent-red">
                     {{ $t('dialogs.fileInfo.scanFailed', { message: scanMessage }) }}
                   </span>
                   <span v-else-if="file.isDirectory && scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.cancelled') }}</span>
@@ -58,7 +58,7 @@
                   <span v-if="scanStatus === 'scanning'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">
                     {{ $t('dialogs.fileInfo.scanning', scannedCount) }}
                   </span>
-                  <span v-else-if="scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-red-400">{{ $t('dialogs.fileInfo.scanFailed', { message: scanMessage }) }}</span>
+                  <span v-else-if="scanStatus === 'failed'" class="ml-2 flex-shrink-0 text-xs text-accent-red">{{ $t('dialogs.fileInfo.scanFailed', { message: scanMessage }) }}</span>
                   <span v-else-if="scanStatus === 'cancelled'" class="ml-2 flex-shrink-0 text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.cancelled') }}</span>
                 </InfoRow>
                 <InfoRow :label="$t('dialogs.fileInfo.device')" :value="deviceName" />
@@ -110,7 +110,7 @@
               <div v-for="bit in (['r', 'w', 'x'] as const)" :key="bit" class="flex justify-center">
                 <input
                   type="checkbox"
-                  class="accent-blue-500"
+                  class="accent-accent"
                   :checked="chmodBits[role][bit]"
                   @change="chmodBits[role][bit] = ($event.target as HTMLInputElement).checked"
                 >
@@ -130,7 +130,7 @@
               >
             </label>
             <label v-if="file?.isDirectory" class="flex items-center gap-1.5 text-text-secondary cursor-pointer">
-              <input v-model="chmodRecursive" type="checkbox" class="accent-blue-500">
+              <input v-model="chmodRecursive" type="checkbox" class="accent-accent">
               {{ $t('dialogs.fileInfo.recursive') }}
             </label>
             <span v-if="chmodError" class="text-accent-red">{{ chmodError }}</span>
@@ -164,7 +164,7 @@
               class="min-w-0 flex-1 rounded border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none"
               :placeholder="$t('dialogs.fileInfo.tagsPlaceholder')"
             />
-            <button type="submit" class="rounded bg-accent-blue px-3 py-2 text-sm text-white transition-colors hover:bg-accent-blue/90">{{ $t('dialogs.fileInfo.save') }}</button>
+            <button type="submit" class="finder-btn-primary">{{ $t('dialogs.fileInfo.save') }}</button>
           </form>
         </section>
       </div>
@@ -195,7 +195,7 @@
           </button>
           <button
             type="button"
-            class="rounded bg-bg-tertiary px-4 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
+            class="finder-btn-secondary"
             @click="$emit('close')"
           >
             {{ $t(standalone ? 'dialogs.fileInfo.closeWindow' : 'dialogs.fileInfo.close') }}

@@ -4,9 +4,9 @@
   <div
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-modal animate-fade-in"
     data-testid="confirm-dialog"
-    @click.self="emit('close')"
+    @click.self="!danger && emit('close')"
   >
-    <div class="confirm-card w-80 p-4 rounded-xl border border-border bg-bg-secondary shadow-2xl" role="alertdialog" :aria-label="title">
+    <div class="confirm-card finder-sheet w-80 p-4" role="alertdialog" :aria-label="title">
       <div class="flex items-start gap-3">
         <svg
           v-if="danger"
@@ -26,15 +26,15 @@
       </div>
       <div class="mt-4 flex justify-end gap-2">
         <button
-          class="px-3 py-1.5 text-xs rounded-md text-text-secondary hover:bg-bg-hover transition-colors"
+          class="finder-btn-secondary"
           data-testid="confirm-cancel"
           @click="emit('close')"
         >
           {{ t('common.cancel') }}
         </button>
         <button
-          class="px-3 py-1.5 text-xs rounded-md text-white transition-colors"
-          :class="danger ? 'bg-accent-red hover:opacity-90' : 'bg-accent-blue hover:bg-accent-blue-hover'"
+          class="finder-btn-primary"
+          :class="{ 'is-danger': danger }"
           data-testid="confirm-ok"
           @click="emit('confirm')"
         >

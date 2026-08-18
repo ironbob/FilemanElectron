@@ -380,35 +380,35 @@ function rowClass(entry: CompareEntry, index: number): string[] {
 
 function leftSideBg(entry: CompareEntry): string {
   if (isSelected(entry)) return ''
-  if (entry.status === 'left-only') return 'bg-orange-500/20'
+  if (entry.status === 'left-only') return 'bg-accent-orange/20'
   if (entry.status === 'right-only') return 'bg-bg-primary/0'
-  if (displayStatus(entry) === 'different' || displayStatus(entry) === 'verification-failed') return 'bg-red-500/20'
-  if (entry.status === 'left-newer' || entry.status === 'right-newer') return 'bg-blue-500/15'
+  if (displayStatus(entry) === 'different' || displayStatus(entry) === 'verification-failed') return 'bg-accent-red/20'
+  if (entry.status === 'left-newer' || entry.status === 'right-newer') return 'bg-accent-blue/15'
   return ''
 }
 
 function rightSideBg(entry: CompareEntry): string {
   if (isSelected(entry)) return ''
-  if (entry.status === 'right-only') return 'bg-orange-500/20'
+  if (entry.status === 'right-only') return 'bg-accent-orange/20'
   if (entry.status === 'left-only') return 'bg-bg-primary/0'
-  if (displayStatus(entry) === 'different' || displayStatus(entry) === 'verification-failed') return 'bg-red-500/20'
-  if (entry.status === 'left-newer' || entry.status === 'right-newer') return 'bg-blue-500/15'
+  if (displayStatus(entry) === 'different' || displayStatus(entry) === 'verification-failed') return 'bg-accent-red/20'
+  if (entry.status === 'left-newer' || entry.status === 'right-newer') return 'bg-accent-blue/15'
   return ''
 }
 
 function statusTextClass(status: CompareStatus): string {
   switch (status) {
     case 'metadata-equal': return 'text-text-tertiary'
-    case 'content-equal': return 'text-green-400'
-    case 'different':   return 'text-red-400'
-    case 'left-newer':  return 'text-blue-400'
-    case 'right-newer': return 'text-blue-400'
-    case 'left-only':   return 'text-orange-400'
-    case 'right-only':  return 'text-orange-400'
-    case 'verifying': return 'text-blue-400 animate-pulse'
+    case 'content-equal': return 'text-accent-green'
+    case 'different':   return 'text-accent-red'
+    case 'left-newer':  return 'text-accent-blue'
+    case 'right-newer': return 'text-accent-blue'
+    case 'left-only':   return 'text-accent-orange'
+    case 'right-only':  return 'text-accent-orange'
+    case 'verifying': return 'text-accent-blue animate-pulse'
     case 'verification-failed':
-    case 'uncomparable': return 'text-orange-400'
-    case 'type-mismatch': return 'text-red-400'
+    case 'uncomparable': return 'text-accent-orange'
+    case 'type-mismatch': return 'text-accent-red'
   }
 }
 
@@ -450,14 +450,14 @@ const FileIcon: Component = {
 }
 const TextFileIcon: Component = {
   render() {
-    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'text-blue-400' }, [
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'text-accent-blue' }, [
       h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 4h10v16H7zM9 9h6m-6 3h6m-6 3h4' })
     ])
   }
 }
 const ImageFileIcon: Component = {
   render() {
-    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'text-purple-400' }, [
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'text-accent-purple' }, [
       h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 5h16v14H4zM8 10h.01M5 17l5-5 3 3 2-2 4 4' })
     ])
   }
@@ -648,7 +648,14 @@ onUnmounted(() => {
 }
 
 .ctx-menu {
-  @apply min-w-[160px] bg-bg-secondary border border-border rounded-lg shadow-xl py-1;
+  @apply min-w-[160px] py-1;
+  border-radius: 12px;
+  border: 1px solid var(--finder-popover-border);
+  background: var(--finder-popover-bg);
+  box-shadow: var(--finder-popover-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  isolation: isolate;
 }
 .ctx-menu-item {
   @apply px-3 py-1.5 text-[13px] text-text-primary hover:bg-accent-blue hover:text-white transition-colors;

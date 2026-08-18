@@ -128,7 +128,7 @@ function groupLabel(group: string): string {
     @click.self="emit('close')"
   >
     <div
-      class="w-[560px] max-w-[86vw] rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden"
+      class="palette-card w-[560px] max-w-[86vw] rounded-xl overflow-hidden"
       role="dialog"
       :aria-label="$t('palette.ariaLabel')"
     >
@@ -179,3 +179,15 @@ function groupLabel(group: string): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Spotlight 式浮层材质：半透明 + backdrop blur + 柔和阴影（token 化） */
+.palette-card {
+  border: 1px solid var(--finder-popover-border);
+  background: var(--finder-popover-bg);
+  box-shadow: var(--finder-popover-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  isolation: isolate;
+}
+</style>

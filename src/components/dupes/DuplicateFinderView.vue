@@ -75,7 +75,7 @@ function revealInPane(path: string): void {
 <template>
   <div class="flex flex-col h-full min-h-0 bg-bg-primary">
     <!-- 工具栏 -->
-    <div class="flex items-center gap-3 px-4 py-2 border-b border-border bg-bg-toolbar">
+    <div class="flex items-center gap-3 h-10 px-4 border-b border-border bg-bg-toolbar flex-shrink-0">
       <span class="text-xs text-text-secondary font-mono truncate" :title="session.rootPath">
         {{ session.rootPath }}
       </span>
@@ -85,14 +85,14 @@ function revealInPane(path: string): void {
       <div class="flex-1" />
       <button
         v-if="!dupes.isRunning && dupes.groups.length > 0"
-        class="text-xs px-2 py-1 rounded border border-border text-text-secondary hover:bg-bg-hover"
+        class="h-7 inline-flex items-center text-xs px-2.5 rounded-md border border-border text-text-secondary hover:bg-bg-hover"
         @click="dupes.selectDuplicatesOlderThanNewest()"
       >{{ $t('dupes.selectOlder') }}</button>
       <button
-        class="text-xs px-2.5 py-1 rounded"
+        class="h-7 inline-flex items-center text-xs px-2.5 rounded-md"
         :class="dupes.isRunning
-          ? 'border border-border text-text-secondary hover:bg-bg-hover'
-          : 'bg-accent-blue text-white hover:bg-accent-blue/90'"
+          ? 'h-7 inline-flex items-center border border-border rounded-md text-text-secondary hover:bg-bg-hover px-2.5'
+          : 'h-7 bg-accent-blue text-white hover:bg-accent-blue/90 px-3'"
         @click="dupes.isRunning ? dupes.cancel() : dupes.run()"
       >{{ dupes.isRunning ? $t('common.cancel') : $t('dupes.rescan') }}</button>
     </div>
@@ -109,8 +109,12 @@ function revealInPane(path: string): void {
 
     <!-- 分组列表 -->
     <div class="flex-1 min-h-0 overflow-y-auto">
-      <div v-if="!dupes.isRunning && dupes.groups.length === 0 && !dupes.message" class="flex items-center justify-center h-full text-sm text-text-tertiary">
-        {{ dupes.progress ? $t('dupes.noDuplicates') : '' }}
+      <div v-if="!dupes.isRunning && dupes.groups.length === 0 && !dupes.message" class="flex flex-col items-center justify-center h-full gap-3 text-text-tertiary">
+        <svg class="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.4 2.4l1.4 3.2M9.2 2.4l1.4 3.2M4 7.2h11.2a.8.8 0 0 1 0 1.6H4a.8.8 0 0 1 0-1.6zM5.2 8.8v9.6a2.4 2.4 0 0 0 2.4 2.4h4.8a2.4 2.4 0 0 0 2.4-2.4V8.8M8.8 12v4.8M11.2 12v4.8" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 6l2 2-4.5 4.5-2.5.5.5-2.5z" />
+        </svg>
+        <span class="text-sm">{{ dupes.progress ? $t('dupes.noDuplicates') : $t('dupes.phaseIdle') }}</span>
       </div>
 
       <div
@@ -145,7 +149,7 @@ function revealInPane(path: string): void {
           >
             <input
               type="checkbox"
-              class="accent-blue-500"
+              class="accent-accent"
               :checked="dupes.checkedPaths.has(file.path)"
               @change="toggleFile(file.path)"
             />
@@ -167,7 +171,7 @@ function revealInPane(path: string): void {
     <!-- 底部动作栏 -->
     <div
       v-if="dupes.groups.length > 0"
-      class="flex items-center gap-3 px-4 py-2 border-t border-border bg-bg-toolbar"
+      class="flex items-center gap-3 h-10 px-4 border-t border-border bg-bg-toolbar flex-shrink-0"
     >
       <span class="text-xs text-text-secondary">
         {{ $t('dupes.summary.reclaimable', dupes.groups.length) }} <span class="text-accent-orange">{{ formatSize(dupes.wastedBytes) }}</span>
@@ -175,11 +179,11 @@ function revealInPane(path: string): void {
       <div class="flex-1" />
       <span class="text-xs text-text-tertiary">{{ $t('dupes.summary.checked', dupes.checkedList.length) }}</span>
       <button
-        class="text-xs px-2 py-1 rounded border border-border text-text-secondary hover:bg-bg-hover"
+        class="h-7 inline-flex items-center text-xs px-2.5 rounded-md border border-border text-text-secondary hover:bg-bg-hover"
         @click="dupes.clearSelection()"
       >{{ $t('dupes.clearSelection') }}</button>
       <button
-        class="text-xs px-2.5 py-1 rounded bg-accent-red text-white hover:bg-accent-red/90 disabled:opacity-40"
+        class="h-7 inline-flex items-center text-xs px-3 rounded-md bg-accent-red text-white hover:bg-accent-red/90 disabled:opacity-40"
         :disabled="dupes.checkedList.length === 0"
         @click="deleteChecked"
       >{{ $t('dupes.deleteSelected', { count: dupes.checkedList.length }) }}</button>

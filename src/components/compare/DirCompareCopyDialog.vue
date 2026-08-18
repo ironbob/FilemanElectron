@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/45" @click.self="$emit('cancel')">
-    <section class="w-[460px] rounded-xl border border-border bg-bg-secondary shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="copy-title">
+    <section class="finder-sheet w-[460px]" role="dialog" aria-modal="true" aria-labelledby="copy-title">
       <header class="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
           <h2 id="copy-title" class="text-sm font-semibold">{{ $t('compare.copyDialog.title') }}</h2>
@@ -11,7 +11,7 @@
         </button>
       </header>
       <div class="space-y-4 px-5 py-4 text-sm">
-        <p v-if="plan.blockedItems.length" class="rounded-lg border border-orange-400/30 bg-orange-400/10 p-3 text-xs text-orange-300">
+        <p v-if="plan.blockedItems.length" class="rounded-lg border border-accent-orange/30 bg-accent-orange/10 p-3 text-xs text-accent-orange">
           {{ $t('compare.copyDialog.blockedNotice', plan.blockedItems.length) }}
         </p>
         <div v-if="plan.items.length" class="rounded-lg border border-border bg-bg-primary/50 p-3">

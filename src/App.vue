@@ -152,10 +152,16 @@
       <span class="text-text-secondary">{{ statusText }}</span>
       <!-- 设备徽标属窗口状态层：视频播放页（媒体沉浸层）期间隐藏，不与播放页混排 -->
       <div v-if="!isVideoPreviewActive" class="flex items-center gap-4">
-        <span v-for="device in connectedDevices" :key="device.id" class="flex items-center gap-1.5 text-text-secondary">
+        <span
+          v-for="device in connectedDevices"
+          :key="device.id"
+          class="flex items-center gap-1.5 text-text-secondary"
+          :title="device.status === 'connected' ? device.name : `${device.name} · ${device.status}`"
+        >
           <span
             class="w-2 h-2 rounded-full"
-            :class="device.status === 'connected' ? 'bg-[#28c840]' : 'bg-[#ffbd2e]'"
+            :class="device.status === 'connected' ? 'bg-accent-green' : 'bg-accent-yellow'"
+            aria-hidden="true"
           ></span>
           <span>{{ device.name }}</span>
         </span>

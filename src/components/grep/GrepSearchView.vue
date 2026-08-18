@@ -80,40 +80,40 @@ function openMatch(match: GrepMatch): void {
 <template>
   <div class="flex flex-col h-full min-h-0 bg-bg-primary">
     <!-- 查询栏 -->
-    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-bg-toolbar">
+    <div class="flex items-center gap-2 h-10 px-4 border-b border-border bg-bg-toolbar flex-shrink-0">
       <input
         v-model="query.pattern"
         type="text"
-        class="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-mono rounded border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
+        class="flex-1 min-w-0 h-7 px-2.5 text-sm font-mono rounded-md border border-border bg-bg-primary text-text-primary focus:outline-none focus:border-accent-blue"
         :placeholder="$t('grep.placeholder')"
         spellcheck="false"
         @keydown.enter="submit"
       >
       <label class="flex items-center gap-1 text-xs text-text-secondary cursor-pointer" :title="$t('grep.regexTip')">
-        <input v-model="query.isRegex" type="checkbox" class="accent-blue-500"> .*
+        <input v-model="query.isRegex" type="checkbox" class="accent-accent"> .*
       </label>
       <label class="flex items-center gap-1 text-xs text-text-secondary cursor-pointer" :title="$t('grep.caseTip')">
-        <input v-model="query.caseSensitive" type="checkbox" class="accent-blue-500"> Aa
+        <input v-model="query.caseSensitive" type="checkbox" class="accent-accent"> Aa
       </label>
       <input
         v-model="query.includeGlob"
         type="text"
-        class="w-28 px-2 py-1.5 text-xs font-mono rounded border border-border bg-bg-primary text-text-secondary"
+        class="w-28 h-7 px-2 text-xs font-mono rounded-md border border-border bg-bg-primary text-text-secondary focus:outline-none focus:border-accent-blue"
         :placeholder="$t('grep.includePlaceholder')"
         spellcheck="false"
       >
       <input
         v-model="query.excludeGlob"
         type="text"
-        class="w-28 px-2 py-1.5 text-xs font-mono rounded border border-border bg-bg-primary text-text-secondary"
+        class="w-28 h-7 px-2 text-xs font-mono rounded-md border border-border bg-bg-primary text-text-secondary focus:outline-none focus:border-accent-blue"
         :placeholder="$t('grep.excludePlaceholder')"
         spellcheck="false"
       >
       <button
-        class="text-xs px-2.5 py-1.5 rounded flex-shrink-0"
+        class="h-7 inline-flex items-center text-xs px-3 rounded-md flex-shrink-0"
         :class="grep.isRunning
-          ? 'border border-border text-text-secondary hover:bg-bg-hover'
-          : 'bg-accent-blue text-white hover:bg-accent-blue/90'"
+          ? 'h-7 inline-flex items-center px-3 border border-border rounded-md text-text-secondary hover:bg-bg-hover'
+          : 'h-7 bg-accent-blue text-white hover:bg-accent-blue/90 px-3'"
         @click="grep.isRunning ? grep.cancel() : submit()"
       >{{ grep.isRunning ? $t('common.cancel') : $t('grep.search') }}</button>
     </div>
@@ -166,8 +166,15 @@ function openMatch(match: GrepMatch): void {
 
       <div
         v-if="!grep.isRunning && grep.matches.length === 0 && grep.progress?.status === 'completed'"
-        class="flex items-center justify-center h-32 text-sm text-text-tertiary"
-      >{{ $t('grep.noMatches') }}</div>
+        class="flex flex-col items-center justify-center flex-1 gap-3 py-16 text-text-tertiary"
+      >
+        <svg class="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7" stroke-width="1.5" />
+          <path stroke-linecap="round" stroke-width="1.5" d="M20 20l-3.8-3.8" />
+          <path stroke-linecap="round" stroke-width="1.5" d="M8.5 11h5M11 8.5v5" />
+        </svg>
+        <span class="text-sm">{{ $t('grep.noMatches') }}</span>
+      </div>
     </div>
   </div>
 </template>

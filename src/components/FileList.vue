@@ -2829,8 +2829,9 @@ function handleContextMenuAction(action: string) {
 /* Rubber-band selection rectangle */
 .rubber-band-rect {
   position: absolute;
-  border: 1px solid #60a5fa;
-  background-color: rgba(96, 165, 250, 0.12);
+  /* 系统蓝描边 + 低透明填充（token 派生，与 drop-target-row 同一写法） */
+  border: 1px solid var(--accent-blue);
+  background-color: color-mix(in srgb, var(--accent-blue) 12%, transparent);
   z-index: 10;
 }
 </style>

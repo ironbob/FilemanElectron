@@ -26,13 +26,13 @@
           <FinderIcon name="arrowLeft" />
         </FinderToolbarButton>
         <div ref="recentMenuRef" class="relative flex-shrink-0">
-          <FinderToolbarButton :label="$t('filePane.toolbar.recentLocations')" :aria-expanded="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
+          <FinderToolbarButton :label="$t('filePane.toolbar.recentLocations')" :aria-expanded="recentMenuOpen" :open="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </FinderToolbarButton>
-          <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto rounded-lg border border-border py-1 shadow-xl" role="menu" :aria-label="$t('filePane.toolbar.recentLocations')">
-            <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-tertiary">{{ $t('filePane.toolbar.noRecentLocations') }}</div>
-            <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="block w-full px-3 py-2 text-left text-xs hover:bg-bg-hover" role="menuitem" @click="openRecentLocation(location.deviceId, location.path)">
-              <span class="block truncate text-text-primary">{{ location.path }}</span><span class="block truncate text-text-tertiary">{{ location.deviceId }}</span>
+          <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto py-1.5" role="menu" :aria-label="$t('filePane.toolbar.recentLocations')">
+            <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-secondary">{{ $t('filePane.toolbar.noRecentLocations') }}</div>
+            <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="group flex w-full flex-col gap-0.5 px-3 py-1.5 text-left hover:bg-accent-blue" role="menuitem" @click="openRecentLocation(location.deviceId, location.path)">
+              <span class="truncate text-[13px] font-medium text-text-primary group-hover:text-white">{{ location.path }}</span><span class="truncate text-[11px] text-text-secondary group-hover:text-white/80">{{ location.deviceId }}</span>
             </button>
           </div>
         </div>
@@ -139,7 +139,7 @@
             </button>
             <div
               v-if="breadcrumbError"
-              class="breadcrumb-path-error absolute left-0 top-full mt-1 z-50 max-w-full rounded-md border border-accent-red/40 px-2 py-1 text-xs text-accent-red shadow-lg"
+              class="breadcrumb-path-error absolute left-0 top-full mt-1 z-50 max-w-full px-2.5 py-1 text-xs text-accent-red"
               role="alert"
             >{{ breadcrumbError }}</div>
           </template>
@@ -173,14 +173,14 @@
         </FinderSearchField>
         <div
           v-if="searchHistoryOpen && filteredSearchHistory.length > 0"
-          class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto rounded-lg border border-border py-1 shadow-xl"
+          class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto py-1.5"
           role="menu"
           :aria-label="$t('filePane.toolbar.searchHistory')"
         >
           <div class="flex items-center justify-between px-3 py-1">
-            <span class="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('filePane.toolbar.history') }}</span>
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">{{ $t('filePane.toolbar.history') }}</span>
             <button
-              class="text-[10px] text-text-tertiary hover:text-red-500"
+              class="text-[10px] text-text-secondary hover:text-accent-red"
               :title="$t('filePane.toolbar.clearHistory')"
               @mousedown.prevent="browserStore.clearSearchHistory()"
             >{{ $t('filePane.toolbar.clear') }}</button>
@@ -188,12 +188,12 @@
           <button
             v-for="item in filteredSearchHistory"
             :key="item"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary hover:bg-bg-hover"
+            class="group flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-accent-blue"
             role="menuitem"
             @mousedown.prevent="applySearchHistory(item)"
           >
-            <svg class="w-3.5 h-3.5 flex-shrink-0 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span class="truncate">{{ item }}</span>
+            <svg class="w-3.5 h-3.5 flex-shrink-0 text-text-tertiary group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="truncate text-[13px] text-text-primary group-hover:text-white">{{ item }}</span>
           </button>
         </div>
       </div>
@@ -333,30 +333,16 @@
       </template>
     </div>
 
-    <!-- Grid Size Menu (right-click on grid view button) -->
-    <template v-if="gridSizeMenu.visible">
-      <div
-        class="fixed inset-0 z-40"
-        @click="closeGridSizeMenu"
-        @contextmenu.prevent="closeGridSizeMenu"
-      ></div>
-      <div
-        ref="gridSizeMenuRef"
-        class="fixed z-50 min-w-[170px] py-1 bg-bg-secondary border border-border rounded-lg shadow-lg animate-fade-in"
-        :style="{ left: gridSizeMenu.x + 'px', top: gridSizeMenu.y + 'px' }"
-      >
-        <div class="px-3 py-1 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('filePane.gridSize.title') }}</div>
-        <div
-          v-for="opt in gridSizeOptions"
-          :key="opt.value"
-          class="flex items-center gap-2 px-3 py-1.5 text-sm text-text-primary hover:bg-accent-blue hover:text-white transition-colors"
-          @click="chooseGridSize(opt.value)"
-        >
-          <span class="w-4 text-xs">{{ activeGridSize === opt.value ? '✓' : '' }}</span>
-          <span>{{ opt.label }}</span>
-        </div>
-      </div>
-    </template>
+    <!-- Grid Size Menu (right-click on grid view button)：复用 NSMenu（§11），
+         当前规格以 check 图标落在图标列（radio 语义），键盘 ↑↓/Enter/Esc 免费获得 -->
+    <FinderContextMenu
+      v-if="gridSizeMenu.visible"
+      :items="gridSizeMenuItems"
+      :x="gridSizeMenu.x"
+      :y="gridSizeMenu.y"
+      @select="onGridSizeMenuSelect"
+      @close="closeGridSizeMenu"
+    />
 
     <!-- Breadcrumb collapsed-segments menu：fixed 浮层须置于工具栏容器之外
          （container-type 的 containment 会劫持 fixed 后代的定位基准） -->
@@ -371,27 +357,27 @@
 
     <!-- Operation Dialog -->
     <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
-      <form class="w-80 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
+      <form class="finder-sheet w-80 p-4" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
         <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.kind === 'file' ? $t('filePane.toolbar.newFile') : $t('filePane.toolbar.newFolder') }}</h3>
         <p class="mb-4 text-sm text-text-tertiary">{{ $t('filePane.createDialog.createdIn', { path: pane?.path || '/' }) }}</p>
         <input ref="createNameInputRef" v-model="createDialog.name" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none" :placeholder="createDialog.kind === 'file' ? 'example.txt' : $t('filePane.createDialog.folderPlaceholder')" @input="createDialog.error = ''" @keydown.escape.prevent="closeCreateDialog" />
         <p v-if="createDialog.error" class="mt-2 text-xs text-accent-red">{{ createDialog.error }}</p>
         <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeCreateDialog">{{ $t('common.cancel') }}</button>
-          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">{{ $t('filePane.createDialog.create') }}</button>
+          <button type="button" class="finder-btn-secondary" @click="closeCreateDialog">{{ $t('common.cancel') }}</button>
+          <button type="submit" class="finder-btn-primary">{{ $t('filePane.createDialog.create') }}</button>
         </div>
       </form>
     </div>
     <!-- Go to Folder Dialog (⇧⌘G) -->
     <div v-if="goToDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeGoToDialog">
-      <form class="w-96 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="$t('filePane.goToDialog.title')" @submit.prevent="confirmGoToDialog">
+      <form class="finder-sheet w-96 p-4" role="dialog" :aria-label="$t('filePane.goToDialog.title')" @submit.prevent="confirmGoToDialog">
         <h3 class="mb-1 text-lg font-medium text-text-primary">{{ $t('filePane.goToDialog.title') }}</h3>
         <p class="mb-4 text-sm text-text-tertiary">{{ $t('filePane.goToDialog.desc', { device: currentDeviceName || $t('filePane.goToDialog.thisDevice') }) }}</p>
         <input ref="goToNameInputRef" v-model="goToDialog.path" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 font-mono text-sm text-text-primary focus:border-accent-blue focus:outline-none" placeholder="/usr/local" @input="goToDialog.error = ''" @keydown.escape.prevent="closeGoToDialog" />
         <p v-if="goToDialog.error" class="mt-2 text-xs text-accent-red">{{ goToDialog.error }}</p>
         <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover" @click="closeGoToDialog">{{ $t('common.cancel') }}</button>
-          <button type="submit" class="rounded bg-accent-blue px-3 py-1.5 text-sm text-white hover:bg-accent-hover">{{ $t('filePane.goToDialog.go') }}</button>
+          <button type="button" class="finder-btn-secondary" @click="closeGoToDialog">{{ $t('common.cancel') }}</button>
+          <button type="submit" class="finder-btn-primary">{{ $t('filePane.goToDialog.go') }}</button>
         </div>
       </form>
     </div>
@@ -705,24 +691,16 @@ const gridSizeOptions = computed(() => [
   { value: 'small' as const, label: t('filePane.gridSize.small') }
 ])
 const gridSizeMenu = reactive({ visible: false, x: 0, y: 0 })
-const gridSizeMenuRef = ref<HTMLElement | null>(null)
 const activeGridSize = computed(() => pane.value?.gridSize ?? 'large')
 
-const MENU_VIEWPORT_MARGIN = 8
-
-/** 菜单默认向右/向下展开：渲染后测量实际尺寸，靠近视口边缘时回退到视口内 */
-async function clampGridSizeMenuToViewport() {
-  await nextTick()
-  const el = gridSizeMenuRef.value
-  if (!el || !gridSizeMenu.visible) return
-  const rect = el.getBoundingClientRect()
-  if (rect.right > window.innerWidth - MENU_VIEWPORT_MARGIN) {
-    gridSizeMenu.x = Math.max(MENU_VIEWPORT_MARGIN, window.innerWidth - rect.width - MENU_VIEWPORT_MARGIN)
-  }
-  if (rect.bottom > window.innerHeight - MENU_VIEWPORT_MARGIN) {
-    gridSizeMenu.y = Math.max(MENU_VIEWPORT_MARGIN, window.innerHeight - rect.height - MENU_VIEWPORT_MARGIN)
-  }
-}
+/** NSMenu items：当前规格带 check 图标（radio 语义，与 Finder「图标大小」一致）。 */
+const gridSizeMenuItems = computed<FinderMenuItem[]>(() =>
+  gridSizeOptions.value.map(opt => ({
+    label: opt.label,
+    action: opt.value,
+    icon: activeGridSize.value === opt.value ? 'check' : undefined
+  }))
+)
 
 function onViewButtonContextMenu(value: string, e: MouseEvent) {
   // 仅网格按钮响应右键 → 弹出规格菜单
@@ -730,10 +708,12 @@ function onViewButtonContextMenu(value: string, e: MouseEvent) {
   gridSizeMenu.x = e.clientX
   gridSizeMenu.y = e.clientY
   gridSizeMenu.visible = true
-  void clampGridSizeMenuToViewport()
 }
 function closeGridSizeMenu() {
   gridSizeMenu.visible = false
+}
+function onGridSizeMenuSelect(action: string) {
+  chooseGridSize(action as 'xlarge' | 'large' | 'medium' | 'small')
 }
 function chooseGridSize(size: 'xlarge' | 'large' | 'medium' | 'small') {
   tabsStore.setGridSize(props.paneId, size)
@@ -939,9 +919,11 @@ function closeRecentMenuOnOutsideClick(event: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.addEventListener('click', closeSearchHistoryOnOutsideClick, true)
-  // … 菜单：点外部关闭（冒泡，菜单根自带 @click.stop）；右键别处时捕获阶段先行关闭
+  // … 菜单 / 网格规格菜单：点外部关闭（冒泡，菜单根自带 @click.stop）；右键别处时捕获阶段先行关闭
   document.addEventListener('click', closeBreadcrumbMenu)
   document.addEventListener('contextmenu', closeBreadcrumbMenu, true)
+  document.addEventListener('click', closeGridSizeMenu)
+  document.addEventListener('contextmenu', closeGridSizeMenu, true)
   ensureBreadcrumbObserver()
   // 命令面板「刷新当前目录」的广播（仅活动面板响应）
   document.addEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
@@ -967,6 +949,8 @@ onUnmounted(() => {
   document.removeEventListener('click', closeSearchHistoryOnOutsideClick, true)
   document.removeEventListener('click', closeBreadcrumbMenu)
   document.removeEventListener('contextmenu', closeBreadcrumbMenu, true)
+  document.removeEventListener('click', closeGridSizeMenu)
+  document.removeEventListener('contextmenu', closeGridSizeMenu, true)
   breadcrumbObserver?.disconnect()
   breadcrumbObserver = null
   document.removeEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
@@ -1617,17 +1601,39 @@ function handleDrop() {
 
 .recent-locations-menu,
 .search-history-menu {
-  /* 浮层必须与底层列表完全隔离；工具栏控件可以半透明，菜单不可以。 */
-  background-color: var(--finder-canvas, var(--bg-secondary)) !important;
-  color: var(--finder-label, var(--text-primary));
-  opacity: 1;
+  /* Finder 浮层材质（与标签总览弹层同体系）：高不透明度 + backdrop blur，
+     底层文件列表透过时不可辨认；12px 圆角、发丝边、柔和阴影。 */
+  border-radius: 12px;
+  background: var(--finder-popover-bg) !important;
+  border: 1px solid var(--finder-popover-border);
+  box-shadow: var(--finder-popover-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   isolation: isolate;
+  color: var(--finder-label);
+  animation: menu-pop 0.09s ease-out;
+  transform-origin: top left;
 }
 
 .breadcrumb-path-error {
-  /* 同上：浮层不透明。注意不要覆盖 color（气泡文字用 text-accent-red）。 */
-  background-color: var(--finder-canvas, var(--bg-secondary)) !important;
-  opacity: 1;
+  /* 错误气泡：同一浮层材质（红色仅用于边框与文字，不覆盖 color）。 */
+  border-radius: 8px;
+  background: var(--finder-popover-bg) !important;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 45%, transparent);
+  box-shadow: var(--finder-popover-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   isolation: isolate;
+}
+
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>

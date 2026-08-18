@@ -37,7 +37,7 @@ async function submit(): Promise<void> {
 <template>
   <div class="fixed inset-0 z-modal flex items-center justify-center bg-black/50" @click.self="emit('close')">
     <div
-      class="w-[440px] max-w-[90vw] rounded-lg border border-border bg-bg-secondary shadow-xl"
+      class="finder-sheet w-[440px] max-w-[90vw]"
       role="dialog"
       :aria-label="$t('dialogs.symlink.title')"
     >
@@ -68,8 +68,8 @@ async function submit(): Promise<void> {
         </label>
         <p v-if="form.error" class="text-xs text-accent-red">{{ form.error }}</p>
         <div class="flex justify-end gap-2 pt-1">
-          <button type="button" class="px-3 py-1.5 text-xs rounded border border-border text-text-secondary hover:bg-bg-hover" @click="emit('close')">{{ $t('dialogs.symlink.cancel') }}</button>
-          <button type="submit" class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:bg-accent-blue/90">{{ $t('dialogs.symlink.create') }}</button>
+          <button type="button" class="finder-btn-secondary" @click="emit('close')">{{ $t('dialogs.symlink.cancel') }}</button>
+          <button type="submit" class="finder-btn-primary">{{ $t('dialogs.symlink.create') }}</button>
         </div>
       </form>
     </div>

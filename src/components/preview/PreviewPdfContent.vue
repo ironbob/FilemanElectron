@@ -26,6 +26,8 @@
           <button
             class="finder-icon-button"
             :disabled="currentPage <= 1"
+            :title="$t('preview.common.prevPageTip')"
+            :aria-label="$t('preview.common.prevPageTip')"
             @click="prevPage"
           >
             <IconfontIcon name="previous" />
@@ -36,6 +38,8 @@
           <button
             class="finder-icon-button"
             :disabled="currentPage >= totalPages"
+            :title="$t('preview.common.nextPageTip')"
+            :aria-label="$t('preview.common.nextPageTip')"
             @click="nextPage"
           >
             <IconfontIcon name="next" />

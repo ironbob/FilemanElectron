@@ -112,10 +112,10 @@
               v-if="device.pairingStatus === 'unpaired'"
               class="px-1.5 py-0.5 text-xs bg-text-tertiary text-white rounded"
             >{{ $t('sidebar.pairUnpaired') }}</span>
-            <span v-else-if="device.pairingStatus === 'pairing'" class="px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded animate-pulse">
+            <span v-else-if="device.pairingStatus === 'pairing'" class="px-1.5 py-0.5 text-xs bg-accent-yellow text-white rounded animate-pulse">
               {{ $t('sidebar.pairBadge') }}
             </span>
-            <span v-else-if="device.pairingStatus === 'paired'" class="px-1.5 py-0.5 text-xs bg-green-500 text-white rounded">
+            <span v-else-if="device.pairingStatus === 'paired'" class="px-1.5 py-0.5 text-xs bg-accent-green text-white rounded">
               {{ $t('sidebar.paired') }}
             </span>
           </span>
@@ -128,12 +128,12 @@
           >{{ $t('sidebar.pairAction') }}</button>
           <span
             v-if="isPairing(device.id)"
-            class="ml-1 px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded animate-pulse"
+            class="ml-1 px-1.5 py-0.5 text-xs bg-accent-yellow text-white rounded animate-pulse"
           >{{ $t('sidebar.pairInProgress') }}</span>
           <!-- Auto-connect indicator -->
           <span
             v-if="devicesStore.isAutoConnectDevice(device.id)"
-            class="w-2 h-2 rounded-full bg-green-500"
+            class="w-2 h-2 rounded-full bg-accent-green"
             :title="$t('sidebar.autoConnectEnabled')"
           ></span>
           <!-- Device actions (connect/forget) - shown on hover -->
@@ -180,13 +180,13 @@
 
       <!-- libimobiledevice warning -->
       <div v-if="!libimobiledeviceInstalled" class="px-4 py-3">
-        <div class="flex items-center gap-2 p-2 bg-yellow-50/30 dark:bg-yellow-50/10 border border-yellow-400/50 rounded">
-          <svg class="w-5 h-5 text-yellow-500 dark:text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center gap-2 p-2 bg-accent-orange/10 border border-accent-orange/40 rounded">
+          <svg class="w-5 h-5 text-accent-orange flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div class="flex-1">
-            <span class="text-sm text-yellow-700 dark:text-yellow-400">{{ $t('sidebar.iosSupportTitle') }}</span>
-            <span class="text-xs text-yellow-600 dark:text-yellow-400">{{ $t('sidebar.iosSupportDesc') }}</span>
+            <span class="text-sm text-accent-orange">{{ $t('sidebar.iosSupportTitle') }}</span>
+            <span class="text-xs text-accent-orange/80">{{ $t('sidebar.iosSupportDesc') }}</span>
           </div>
         </div>
       </div>

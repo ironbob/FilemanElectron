@@ -13,31 +13,31 @@
 
       <!-- Left path -->
       <div class="flex items-center gap-1 min-w-0 flex-1">
-        <span class="text-accent-teal flex-shrink-0 text-[11px] font-bold px-1 py-0.5 bg-accent-teal/10 rounded">{{ $t('compare.diff.leftSide') }}</span>
+        <span class="text-accent-teal flex-shrink-0 text-[11px] font-medium px-1 py-0.5 bg-accent-teal/10 rounded">{{ $t('compare.diff.leftSide') }}</span>
         <span class="text-text-secondary text-xs truncate">{{ session.left?.path ?? $t('compare.missingSide') }}</span>
       </div>
 
       <!-- Status badge -->
-      <div class="flex-shrink-0 mx-2 px-2 py-0.5 rounded-full text-[11px] font-bold" :class="statusBadgeClass">
+      <div class="flex-shrink-0 mx-2 px-2 py-0.5 rounded-full text-[11px] font-medium" :class="statusBadgeClass">
         {{ statusLabel }}
       </div>
 
       <!-- Right path -->
       <div class="flex items-center gap-1 min-w-0 flex-1 justify-end">
         <span class="text-text-secondary text-xs truncate text-right">{{ session.right?.path ?? $t('compare.missingSide') }}</span>
-        <span class="text-accent-blue flex-shrink-0 text-[11px] font-bold px-1 py-0.5 bg-accent-blue/10 rounded">{{ $t('compare.diff.rightSide') }}</span>
+        <span class="text-accent-blue flex-shrink-0 text-[11px] font-medium px-1 py-0.5 bg-accent-blue/10 rounded">{{ $t('compare.diff.rightSide') }}</span>
       </div>
 
       <!-- Diff nav + layout toggle (text only, after content loaded) -->
       <template v-if="isTextFile && !isLoading && !errorMsg && !tooLarge">
         <div class="w-px h-5 bg-border mx-1 flex-shrink-0" />
         <div class="flex items-center gap-0.5 bg-bg-secondary/50 rounded-lg p-0.5">
-          <button class="toolbar-btn-enhanced btn-purple" :title="$t('compare.diff.prevDiffTip')" @click="prevDiff">
+          <button class="toolbar-btn-enhanced" :title="$t('compare.diff.prevDiffTip')" @click="prevDiff">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
             </svg>
           </button>
-          <button class="toolbar-btn-enhanced btn-purple" :title="$t('compare.diff.nextDiffTip')" @click="nextDiff">
+          <button class="toolbar-btn-enhanced" :title="$t('compare.diff.nextDiffTip')" @click="nextDiff">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -45,7 +45,7 @@
         </div>
         <button
           class="toolbar-btn-enhanced"
-          :class="{ 'btn-blue': renderSideBySide }"
+          :class="{ active: renderSideBySide }"
           :title="$t('compare.diff.toggleLayout')"
           @click="toggleLayout"
         >
@@ -67,7 +67,7 @@
 
     <!-- Error -->
     <div v-else-if="errorMsg" class="flex-1 flex items-center justify-center">
-      <p class="text-sm text-red-400">{{ errorMsg }}</p>
+      <p class="text-sm text-accent-red">{{ errorMsg }}</p>
     </div>
 
     <!-- Image comparison (interactive modes) -->
@@ -188,7 +188,7 @@
         </span>
         <div class="w-px h-4 bg-border flex-shrink-0" />
         <!-- Diff stats -->
-        <span v-if="imgMode === 'diff' && diffStats" class="text-red-400">
+        <span v-if="imgMode === 'diff' && diffStats" class="text-accent-red">
           {{ $t('compare.diff.diffPercent', { percent: diffStats.percentage.toFixed(1) }) }}
         </span>
         <!-- Zoom reset -->
@@ -207,7 +207,7 @@
         <div class="grid grid-cols-[1fr_auto_1fr] gap-6 items-start">
           <!-- Left meta -->
           <div class="text-sm space-y-3">
-            <p class="text-xs text-accent-teal font-bold mb-4">{{ $t('compare.diff.leftFile') }}</p>
+            <p class="text-xs text-accent-teal font-medium mb-4">{{ $t('compare.diff.leftFile') }}</p>
             <template v-if="session.left">
               <div>
                 <p class="text-text-tertiary text-xs">{{ $t('compare.diff.fileName') }}</p>
@@ -227,7 +227,7 @@
 
           <!-- Center status -->
           <div class="flex flex-col items-center pt-6 gap-2">
-            <div class="px-3 py-1.5 rounded-full text-sm font-bold" :class="statusBadgeClass">
+            <div class="px-3 py-1.5 rounded-full text-sm font-medium" :class="statusBadgeClass">
               {{ statusLabel }}
             </div>
             <p v-if="tooLarge" class="text-xs text-text-tertiary mt-2">{{ $t('compare.diff.tooLarge') }}</p>
@@ -235,7 +235,7 @@
 
           <!-- Right meta -->
           <div class="text-sm space-y-3 text-right">
-            <p class="text-xs text-accent-blue font-bold mb-4">{{ $t('compare.diff.rightFile') }}</p>
+            <p class="text-xs text-accent-blue font-medium mb-4">{{ $t('compare.diff.rightFile') }}</p>
             <template v-if="session.right">
               <div>
                 <p class="text-text-tertiary text-xs">{{ $t('compare.diff.fileName') }}</p>
@@ -329,16 +329,16 @@ const statusLabel = computed(() => {
 const statusBadgeClass = computed(() => {
   switch (props.session.status) {
     case 'metadata-equal': return 'bg-bg-active text-text-secondary'
-    case 'content-equal': return 'bg-green-500/15 text-green-400'
-    case 'different':   return 'bg-red-500/20 text-red-400'
+    case 'content-equal': return 'bg-accent-green/15 text-accent-green'
+    case 'different':   return 'bg-red-500/20 text-accent-red'
     case 'left-newer':
-    case 'right-newer': return 'bg-blue-500/15 text-blue-400'
+    case 'right-newer': return 'bg-accent-blue/15 text-accent-blue'
     case 'left-only':
-    case 'right-only':  return 'bg-orange-500/20 text-orange-400'
-    case 'verifying': return 'bg-blue-500/15 text-blue-400'
+    case 'right-only':  return 'bg-accent-orange/20 text-accent-orange'
+    case 'verifying': return 'bg-accent-blue/15 text-accent-blue'
     case 'verification-failed':
-    case 'uncomparable': return 'bg-orange-500/20 text-orange-400'
-    case 'type-mismatch': return 'bg-red-500/20 text-red-400'
+    case 'uncomparable': return 'bg-accent-orange/20 text-accent-orange'
+    case 'type-mismatch': return 'bg-red-500/20 text-accent-red'
   }
 })
 
@@ -639,10 +639,7 @@ onUnmounted(() => {
 /* Monaco diff editor fill */
 :deep(.monaco-diff-editor) { height: 100%; }
 
-.btn-purple { color: var(--accent-purple); }
-.btn-blue   { color: var(--accent-blue); }
-
-/* Checkerboard background for transparent image areas */
+/* Checkerboard background for transparent image areas（随主题切换） */
 .img-checkerboard {
   background-color: #1a1a1e;
   background-image:
@@ -653,21 +650,29 @@ onUnmounted(() => {
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
+:global([data-theme='light']) .img-checkerboard {
+  background-color: #e8e8ed;
+  background-image:
+    linear-gradient(45deg, rgba(0,0,0,0.045) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(0,0,0,0.045) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.045) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.045) 75%);
+}
 
 /* Side labels */
 .img-label {
   position: absolute;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: 5px;
   pointer-events: none;
   user-select: none;
   z-index: 5;
   top: 12px;
 }
-.img-label-left  { left: 12px;  background: rgba(90, 200, 250, 0.2); color: var(--accent-teal); }
-.img-label-right { right: 12px; background: rgba(10, 132, 255, 0.2); color: var(--accent-blue); }
+.img-label-left  { left: 12px;  background: color-mix(in srgb, var(--accent-teal) 20%, transparent); color: var(--accent-teal); }
+.img-label-right { right: 12px; background: color-mix(in srgb, var(--accent-blue) 20%, transparent); color: var(--accent-blue); }
 
 /* Mode buttons in the info bar */
 .img-mode-btn {
@@ -681,9 +686,9 @@ onUnmounted(() => {
   transition: all 0.12s;
 }
 .img-mode-btn:hover     { color: var(--text-primary); background: var(--bg-hover); }
-.img-mode-btn-active    { background: var(--accent-blue); color: #fff !important; }
+.img-mode-btn-active    { background: var(--accent-blue); color: var(--finder-selection-text, #fff) !important; }
 
-/* Slide divider */
+/* Slide divider / 手柄：覆于图像内容之上的媒体层控件，白系配色与主题无关 */
 .slide-divider {
   position: absolute;
   top: 0;

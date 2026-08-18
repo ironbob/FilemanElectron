@@ -503,6 +503,62 @@
   background: var(--finder-divider);
 }
 
+/* ── 对话框 Sheet（dialogs/ 共享，2026-08-18 统一）───────────────────────────
+   卡片：浮层材质（遮罩 uniform，0.94+blur 无穿透）+ 12px 圆角 + 柔和窗口阴影；
+   按钮：取消=描边次级钮 / 主按钮=系统蓝实底（危险变体 is-danger），统一 32px 高。 */
+.finder-shell .finder-sheet {
+  border: 1px solid var(--finder-popover-border);
+  border-radius: 12px;
+  background: var(--finder-popover-bg) !important;
+  box-shadow: var(--finder-popover-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  color: var(--finder-label);
+}
+
+.finder-shell .finder-btn-secondary {
+  height: 32px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--finder-divider);
+  border-radius: 7px;
+  background: var(--finder-control);
+  color: var(--finder-label);
+  font-size: 13px;
+  transition: background-color 130ms ease;
+}
+
+.finder-shell .finder-btn-secondary:hover:not(:disabled) {
+  background: var(--finder-control-strong);
+}
+
+.finder-shell .finder-btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.finder-shell .finder-btn-primary {
+  height: 32px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: var(--finder-selection);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  transition: filter 130ms ease, opacity 130ms ease;
+}
+
+.finder-shell .finder-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.finder-shell .finder-btn-primary:active:not(:disabled) { filter: brightness(0.92); }
+.finder-shell .finder-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.finder-shell .finder-btn-primary.is-danger { background: var(--accent-red); }
+
 .finder-shell .finder-preview-badge {
   display: inline-flex;
   align-items: center;
