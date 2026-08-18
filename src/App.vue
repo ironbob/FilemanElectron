@@ -150,7 +150,8 @@
     <!-- Status Bar -->
     <div class="h-7 bg-bg-statusbar flex items-center justify-between px-4 text-xs border-t border-border">
       <span class="text-text-secondary">{{ statusText }}</span>
-      <div class="flex items-center gap-4">
+      <!-- 设备徽标属窗口状态层：视频播放页（媒体沉浸层）期间隐藏，不与播放页混排 -->
+      <div v-if="!isVideoPreviewActive" class="flex items-center gap-4">
         <span v-for="device in connectedDevices" :key="device.id" class="flex items-center gap-1.5 text-text-secondary">
           <span
             class="w-2 h-2 rounded-full"
@@ -555,6 +556,11 @@ const activePanes = computed(() => {
 
 const connectedDevices = computed(() =>
   devicesStore.connectedDevices
+)
+
+/** 视频预览 tab 激活中：状态栏右下设备徽标让位（Quick Look 沉浸语义） */
+const isVideoPreviewActive = computed(() =>
+  activeTab.value?.preview?.type === 'video'
 )
 
 const statusText = computed(() => {
