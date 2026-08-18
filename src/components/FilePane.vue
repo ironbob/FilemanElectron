@@ -56,14 +56,15 @@
       <!-- Path Breadcrumb：浏览态（分段面包屑）⇄ 输入态（粘贴路径回车前往） -->
       <div class="file-pane-toolbar-breadcrumb min-w-0 flex-1 mx-2 flex items-center">
         <div
+          ref="breadcrumbPillRef"
           class="file-pane-toolbar-breadcrumb-content relative min-w-0 w-full flex items-center gap-1 px-3 py-1.5 bg-bg-secondary/50 rounded-lg border transition-colors"
           :class="breadcrumbEditing
             ? (breadcrumbError ? 'border-accent-red' : 'border-accent-blue')
             : 'border-border/50 hover:border-border'"
         >
-          <!-- 浏览态：长路径在内层裁剪，尾部按钮常驻可见 -->
+          <!-- 浏览态：长路径中段折叠成 …（Finder 式），首尾段与尾部按钮常驻可见 -->
           <template v-if="!breadcrumbEditing">
-            <div class="min-w-0 flex-1 flex items-center gap-1 overflow-hidden">
+            <div ref="breadcrumbMeasureRef" class="min-w-0 flex-1 flex items-center gap-1 overflow-hidden">
               <!-- ZIP badge shown when browsing inside an archive -->
               <span
                 v-if="isInsideZip"
@@ -79,15 +80,29 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 3v12m0 0a3 3 0 100 6 3 3 0 000-6zm12-6a3 3 0 100-6 3 3 0 000 6zm0 0a9 9 0 01-9 9" />
                 </svg>{{ gitBranchInfo.label }}
               </span>
-              <template v-for="(segment, index) in pathSegments" :key="index">
+              <template v-for="item in visibleBreadcrumb" :key="item.key">
                 <button
+                  v-if="item.kind === 'seg'"
                   class="max-w-32 truncate text-[13px] transition-colors font-medium flex-shrink-0"
-                  :class="isZipBoundarySegment(index) ? 'text-orange-400 hover:text-orange-300' : 'text-text-secondary hover:text-accent-blue'"
-                  @click="navigateToSegment(index)"
+                  :class="isZipBoundarySegment(item.index)
+                    ? 'text-orange-400 hover:text-orange-300'
+                    : (item.index === pathSegments.length - 1 ? 'text-text-primary' : 'text-text-secondary hover:text-accent-blue')"
+                  :title="item.label"
+                  @click="navigateToSegment(item.index)"
                 >
-                  {{ segment }}
+                  {{ item.label }}
                 </button>
-                <span v-if="index < pathSegments.length - 1" class="text-text-tertiary mx-0.5 flex-shrink-0">/</span>
+                <!-- 中段折叠省略号：点开隐藏层级菜单（.stop 防开菜单的冒泡 click 立即关掉它） -->
+                <button
+                  v-else
+                  class="flex-shrink-0 px-1 text-[13px] font-medium leading-none text-text-secondary hover:text-text-primary"
+                  :title="$t('filePane.toolbar.hiddenPathSegments')"
+                  :aria-label="$t('filePane.toolbar.hiddenPathSegments')"
+                  aria-haspopup="menu"
+                  :aria-expanded="breadcrumbMenu.visible"
+                  @click.stop="openBreadcrumbEllipsisMenu"
+                >…</button>
+                <span v-if="item.showSeparator" class="text-text-tertiary mx-0.5 flex-shrink-0">/</span>
               </template>
             </div>
             <!-- 尾部按钮：切换为路径输入框 -->

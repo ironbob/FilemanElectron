@@ -97,7 +97,7 @@
             <component v-else :is="getFileIconComponent(file)" class="w-full h-full" />
           </div>
           <FileNameMatchLabel
-            class="flex-1 truncate text-base rounded px-1 transition-colors"
+            class="finder-name-label flex-1 truncate text-base rounded px-1 transition-colors"
             :class="isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
@@ -180,7 +180,7 @@
             </div>
           </div>
           <FileNameMatchLabel
-            :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary']"
+            :class="[gridCfg.nameClass, 'finder-name-label text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary']"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
@@ -231,7 +231,7 @@
               <component :is="getFileIconComponent(file)" class="w-full h-full" />
             </div>
             <FileNameMatchLabel
-              class="flex-1 truncate text-base rounded px-1 transition-colors"
+              class="finder-name-label flex-1 truncate text-base rounded px-1 transition-colors"
               :class="column.selectedPath === file.path ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
               :name="file.name"
               :highlight-indices="typeaheadHighlightFor(file)"
@@ -302,51 +302,24 @@
       </button>
     </div>
 
-    <!-- Context Menu -->
-    <div
+    <!-- Context Menu（Finder/NSMenu 风格：定位、钳制、键盘导航都在组件内） -->
+    <FinderContextMenu
       v-if="contextMenu.visible"
-      ref="contextMenuRef"
-      class="context-menu fixed animate-fade-in"
-      :class="{ 'context-menu-flipped': contextMenuFlipped }"
-      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
-    >
-      <template v-for="item in contextMenu.items" :key="item.action">
-        <!-- Menu item with submenu -->
-        <div v-if="item.children && item.children.length > 0" class="context-menu-item has-submenu">
-          <span>{{ item.label }}</span>
-          <svg class="w-3 h-3 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-          <!-- Submenu -->
-          <div class="context-submenu">
-            <div
-              v-for="child in item.children"
-              :key="child.action"
-              class="context-menu-item"
-              :class="{ disabled: child.disabled }"
-              @click="child.disabled ? null : handleContextMenuAction(child.action)"
-            >
-              <span>{{ child.label }}</span>
-              <span v-if="child.shortcut" class="shortcut">{{ child.shortcut }}</span>
-            </div>
-          </div>
-        </div>
-        <!-- Divider -->
-        <hr v-else-if="item.action === '__divider__'" class="border-border my-1 mx-2" />
-        <!-- Regular menu item -->
-        <div
-          v-else
-          class="context-menu-item"
-          :class="{ disabled: item.disabled }"
-          @click="item.disabled ? null : handleContextMenuAction(item.action)"
-        >
-          <span>{{ item.label }}</span>
-          <span v-if="item.shortcut" class="shortcut">{{ item.shortcut }}</span>
-        </div>
-      </template>
-    </div>
+      :items="contextMenu.items"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      @select="handleContextMenuAction"
+      @close="hideContextMenu"
+    />
   </div>
 </template>
+
+<script lang="ts">
+// 模块级（跨 FileList 实例共享）：同一时刻只保留一个打开的右键菜单。
+// document click 只监听左键，跨窗格右键不会关掉旧菜单，这里显式互斥，
+// 也避免两个菜单组件同时注册键盘拦截器导致按键双响应。
+let _closeActiveContextMenu: (() => void) | null = null
+</script>
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed, reactive, h, type Component, onUnmounted, nextTick } from 'vue'
@@ -379,6 +352,7 @@ import { formatDateTime } from '@/utils/formatDate'
 import { i18n, t } from '@/i18n'
 import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
 import FileGitBadge from '@/components/FileGitBadge.vue'
+import FinderContextMenu, { type FinderMenuItem } from '@/components/menu/FinderContextMenu.vue'
 import { useGitStatusStore } from '@/stores/gitStatus'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -527,7 +501,7 @@ const contextMenu = reactive({
   visible: false,
   x: 0,
   y: 0,
-  items: [] as Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }>
+  items: [] as FinderMenuItem[]
 })
 
 // ── 内联重命名状态 ─────────────────────────────────────────────────────────────
@@ -1190,8 +1164,9 @@ function createSvgIcon(imagePath: string): Component {
 function createPathIcon(pathD: string, className: string = 'text-icon-folder'): Component {
   return {
     render() {
+      // stroke-width 1.75：对齐 SF Symbols 的视觉笔画重量，1.5 在非 retina 下偏细
       return h('svg', { class: className, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-        h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '1.5', d: pathD })
+        h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '1.75', d: pathD })
       ])
     }
   }
@@ -2064,57 +2039,71 @@ async function handleColumnClick(columnIndex: number, file: FileInfo) {
 
 /**
  * Build context menu items based on device capabilities
+ *
+ * 信息架构对齐 macOS Finder（文件菜单）：
+ *   1 打开类（打开/新标签页/双面板/图片集合）
+ *   2 危险操作（移到废纸篓）
+ *   3 文件管理（显示简介/重新命名/压缩/拷贝/剪切/制作替身/快速查看）
+ *   6 扩展能力统一收纳进「快速操作」子菜单（不与基础操作混排）
+ *   7 「打开方式」保留为末尾的右箭头子菜单
+ * 各项能力的门控条件与旧版一致，只调整了排布与文案。
  */
-function buildContextMenuItems(isBackground: boolean): Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }> {
+function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
   const caps = deviceCapabilities.value
-  const items: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; children?: Array<{ label: string; action: string; shortcut?: string; disabled?: boolean; deviceId?: string }> }> = []
+  const items: FinderMenuItem[] = []
   // 菜单打开瞬间的选中快照（showFileContextMenu/showContextMenu 已先行写入）。
-  // 选中区隔项（校验和/对比/批量重命名）一律以它为准：右键未选中文件时
-  // emit('select') 的 props 回填是异步的，同步构建读 props 会拿到旧选中集
+  // 选中区隔项（校验和/对比/批量重命名/压缩文案）一律以它为准：右键未选中
+  // 文件时 emit('select') 的 props 回填是异步的，同步构建读 props 会拿到旧选中集
   const selectedAtMenuOpen = contextMenuSelectedFiles.value
 
   if (isBackground) {
     // Background context menu (empty area)
-    items.push({ label: t('fileList.menu.refresh'), action: 'refresh', shortcut: '⌘R' })
+    items.push({ label: t('fileList.menu.refresh'), action: 'refresh', shortcut: '⌘R', icon: 'refresh' })
 
     if (caps?.canMkdir) {
-      items.push({ label: t('fileList.menu.newFolder'), action: 'mkdir', shortcut: '⇧⌘N' })
+      items.push({ label: t('fileList.menu.newFolder'), action: 'mkdir', shortcut: '⇧⌘N', icon: 'newFolder' })
     }
     if (caps?.canWrite) {
-      items.push({ label: t('fileList.menu.newFile'), action: 'touch' })
+      items.push({ label: t('fileList.menu.newFile'), action: 'touch', icon: 'newFile' })
     }
     if (!caps || caps.canSymlink) {
-      items.push({ label: t('fileList.menu.newSymlink'), action: 'new-symlink' })
+      items.push({ label: t('fileList.menu.newSymlink'), action: 'new-symlink', icon: 'link' })
     }
     if (caps?.canWrite) {
-      items.push({ label: t('fileList.menu.paste'), action: 'paste', shortcut: '⌘V' })
+      items.push({ label: t('fileList.menu.paste'), action: 'paste', shortcut: '⌘V', icon: 'paste' })
     }
 
     // 收藏当前文件夹（本地/远程均可，含 ZIP 内部路径）
     items.push({ label: '---', action: '__divider__' })
-    items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite-current' })
+    items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite-current', icon: 'star' })
     items.push({
       label: settingsStore.settings.showHiddenFiles ? t('fileList.menu.hideHidden') : t('fileList.menu.showHidden'),
       action: 'toggle-hidden',
-      shortcut: '⌘⇧.'
+      shortcut: '⌘⇧.',
+      icon: 'hidden'
     })
-    items.push({ label: t('fileList.menu.goToFolder'), action: 'goto', shortcut: '⇧⌘G' })
-    // 能力未知（未加载完）时不过度门控——遍历失败在工具页内呈现，不致命
+    items.push({ label: t('fileList.menu.goToFolder'), action: 'goto', shortcut: '⇧⌘G', icon: 'goto' })
+
+    // 目录级工具页（瞬态工具 tab）；grep 与查重/空间同组，组内不再插分隔线
+    let toolsDividerPushed = false
     if (!caps || (caps.canList && caps.canStat)) {
-      items.push({ label: t('fileList.menu.findDuplicates'), action: 'find-duplicates' })
-      items.push({ label: t('fileList.menu.analyzeSpace'), action: 'analyze-space' })
+      items.push({ label: '---', action: '__divider__' })
+      toolsDividerPushed = true
+      items.push({ label: t('fileList.menu.findDuplicates'), action: 'find-duplicates', icon: 'duplicates' })
+      items.push({ label: t('fileList.menu.analyzeSpace'), action: 'analyze-space', icon: 'treemap' })
     }
     if (!caps || caps.canGrepContent !== false) {
-      items.push({ label: t('fileList.menu.grepHere'), action: 'grep-here' })
+      if (!toolsDividerPushed) items.push({ label: '---', action: '__divider__' })
+      items.push({ label: t('fileList.menu.grepHere'), action: 'grep-here', icon: 'grep' })
     }
 
     // 宿主集成：在终端打开当前目录（仅本地、非 ZIP）
     if (isHostShellAvailable()) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal' })
+      items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal', icon: 'terminal' })
     }
 
-    // 复制路径（当前目录）+ 打开方式（当前目录）
+    // 拷贝路径（当前目录）+ 打开方式（当前目录）
     items.push(...buildCopyPathMenuItems())
     if (isHostShellAvailable()) {
       items.push(...buildOpenWithMenuItems())
@@ -2136,66 +2125,98 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
       items.push({
         label: t('fileList.menu.zipMenu'),
         action: 'zip-menu',
+        icon: 'zip',
         children: [
-          ...(nested ? [] : [{ label: t('fileList.menu.browseZip'), action: 'zip-browse', shortcut: '⌘O' }]),
-          { label: t('fileList.menu.treePreviewZip'), action: 'zip-tree-preview' },
-          ...(caps?.canArchive && !nested ? [{ label: t('fileList.menu.extractZip'), action: 'extract-archive' }] : []),
-          { label: t('fileList.menu.openAsHex'), action: 'zip-hex' },
+          ...(nested ? [] : [{ label: t('fileList.menu.browseZip'), action: 'zip-browse', shortcut: '⌘O', icon: 'open' }]),
+          { label: t('fileList.menu.treePreviewZip'), action: 'zip-tree-preview', icon: 'tree' },
+          ...(caps?.canArchive && !nested ? [{ label: t('fileList.menu.extractZip'), action: 'extract-archive', icon: 'extract' }] : []),
+          { label: t('fileList.menu.openAsHex'), action: 'zip-hex', icon: 'hex' },
         ],
       })
     } else {
-      items.push({ label: t('fileList.menu.open'), action: 'open', shortcut: '⌘O' })
+      items.push({ label: t('fileList.menu.open'), action: 'open', shortcut: '⌘O', icon: 'open' })
     }
 
     // 目录：新标签页 / 并列双面板标签页打开
     if (contextMenuTargetFile.value?.isDirectory) {
-      items.push({ label: t('fileList.menu.openInNewTab'), action: 'open-in-new-tab' })
-      items.push({ label: t('fileList.menu.openInSplitTab'), action: 'open-in-split-tab' })
+      items.push({ label: t('fileList.menu.openInNewTab'), action: 'open-in-new-tab', icon: 'tab' })
+      items.push({ label: t('fileList.menu.openInSplitTab'), action: 'open-in-split-tab', icon: 'split' })
       // 图片集合预览（ZIP 虚拟目录不适用：search/listFiles 语义不符）
       if (!isZipVirtualPath(contextMenuTargetFile.value.path)) {
         items.push({
           label: t('fileList.menu.images'),
           action: 'images-menu',
+          icon: 'images',
           children: [
-            { label: t('fileList.menu.previewImages'), action: 'preview-images' },
-            { label: t('fileList.menu.previewImagesRecursive'), action: 'preview-images-recursive' }
+            { label: t('fileList.menu.previewImages'), action: 'preview-images', icon: 'quickLook' },
+            { label: t('fileList.menu.previewImagesRecursive'), action: 'preview-images-recursive', icon: 'tree' }
           ]
         })
       }
     }
 
-    if (caps?.canCopyFrom) {
-      items.push({ label: t('fileList.menu.copy'), action: 'copy', shortcut: '⌘C' })
+    // ── 危险操作：移到废纸篓（delete 动作走回收站任务，可撤销还原） ──
+    if (caps?.canDelete) {
+      items.push({ label: '---', action: '__divider__' })
+      items.push({ label: t('fileList.menu.moveToTrash'), action: 'delete', shortcut: '⌘⌫', icon: 'trash' })
     }
 
-    if (caps?.canMoveFrom) {
-      items.push({ label: t('fileList.menu.cut'), action: 'cut', shortcut: '⌘X' })
-    }
+    // ── 文件管理 ──
+    items.push({ label: '---', action: '__divider__' })
+    items.push({ label: t('fileList.menu.info'), action: 'info', shortcut: '⌘I', icon: 'info' })
 
     if (caps?.canRename) {
-      items.push({ label: t('fileList.menu.rename'), action: 'rename', shortcut: 'Enter' })
+      items.push({ label: t('fileList.menu.rename'), action: 'rename', shortcut: 'Return', icon: 'rename' })
+    }
+    if (selectedAtMenuOpen.length > 1 && caps?.canRename) {
+      items.push({ label: t('fileList.menu.batchRename'), action: 'batch-rename', shortcut: '⇧⌘R', icon: 'batchRename' })
     }
 
-    if (caps?.canDelete) {
-      items.push({ label: t('common.delete'), action: 'delete', shortcut: '⌘⌫' })
+    if (caps?.canArchive) {
+      // Finder 文案：单选括注文件名（压缩“report.txt”），多选括注数量
+      const single = selectedAtMenuOpen.length === 1
+        ? (files.value.find(f => f.path === selectedAtMenuOpen[0])?.name ?? getBaseName(selectedAtMenuOpen[0]))
+        : null
+      items.push({
+        label: single
+          ? t('fileList.menu.archiveItem', { name: single })
+          : t('fileList.menu.archiveMulti', { count: selectedAtMenuOpen.length }),
+        action: 'archive',
+        icon: 'compress'
+      })
+    }
+    if (!isLocalZipFamily && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
+      items.push({ label: t('fileList.menu.extractZip'), action: 'extract-archive', icon: 'extract' })
     }
 
-    items.push({ label: t('fileList.menu.info'), action: 'info', shortcut: '⌘I' })
+    if (caps?.canCopyFrom) {
+      items.push({ label: t('fileList.menu.copy'), action: 'copy', shortcut: '⌘C', icon: 'copy' })
+    }
+    if (caps?.canMoveFrom) {
+      items.push({ label: t('fileList.menu.cut'), action: 'cut', shortcut: '⌘X', icon: 'cut' })
+    }
+
+    // 制作替身：同目录创建指向该条目的符号链接（Finder「xxx 的替身」语义；
+    // 复用 createSymlink，本地/SSH 等 canSymlink 设备，ZIP 虚拟目录内不适用）
+    if ((!caps || caps.canSymlink) && !isZipVirtualPath(props.path) && selectedAtMenuOpen.length === 1) {
+      items.push({ label: t('fileList.menu.makeAlias'), action: 'make-alias', icon: 'alias' })
+    }
+
+    // 快速查看（与空格键同链路：openQuickLook 集合预览 tab）
+    items.push({ label: t('fileList.menu.quickLook'), action: 'quick-look', shortcut: 'Space', icon: 'quickLook' })
+
+    // ── 快速操作：扩展能力统一收纳，不与基础操作混排 ──
+    const quickActions: FinderMenuItem[] = []
+    // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
+    if (isHostShellAvailable()) {
+      quickActions.push({ label: t('fileList.menu.revealInFinder'), action: 'reveal-in-finder', icon: 'finder' })
+      quickActions.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal', icon: 'terminal' })
+    }
     // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制；
     // 本地 ZIP 族已并入 ZIP 子菜单）
     if (!contextMenuTargetFile.value?.isDirectory && !isLocalZipFamily) {
-      items.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex' })
+      quickActions.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex', icon: 'hex' })
     }
-    if (selectedAtMenuOpen.length > 1 && caps?.canRename) {
-      items.push({ label: t('fileList.menu.batchRename'), action: 'batch-rename', shortcut: '⇧⌘R' })
-    }
-    if (caps?.canArchive) {
-      items.push({ label: t('fileList.menu.archive'), action: 'archive' })
-    }
-    if (!isLocalZipFamily && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
-      items.push({ label: t('fileList.menu.extractZip'), action: 'extract-archive' })
-    }
-
     // 校验和：恰好选中 1-2 个文件（单哈希 / 对比）。
     // 用打开瞬间的快照而非 props.selectedFiles：右键未选中文件时
     // emit('select') 的 prop 回填是异步的，同步构建会读到旧值漏掉本项
@@ -2204,40 +2225,37 @@ function buildContextMenuItems(isBackground: boolean): Array<{ label: string; ac
         .map(p => files.value.find(f => f.path === p))
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === selectedAtMenuOpen.length && selectedInfos.every(f => !f.isDirectory)) {
-        items.push({
+        quickActions.push({
           label: selectedAtMenuOpen.length === 2 ? t('fileList.menu.checksumCompare') : t('fileList.menu.checksumSingle'),
-          action: 'checksum'
+          action: 'checksum',
+          icon: 'checksum'
         })
       }
     }
-
     // Compare two directories: only when exactly 2 directories are selected
     if (selectedAtMenuOpen.length === 2) {
       const selectedInfos = selectedAtMenuOpen
         .map(p => files.value.find(f => f.path === p))
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === 2 && selectedInfos.every(f => f.isDirectory)) {
-        items.push({ label: '---', action: '__divider__' })
-        items.push({ label: t('fileList.menu.compareDirs'), action: 'compare-dirs', shortcut: '⌘⇧D' })
+        quickActions.push({ label: t('fileList.menu.compareDirs'), action: 'compare-dirs', shortcut: '⌘⇧D', icon: 'compare' })
       }
     }
-
     // 收藏夹：右键命中的是文件夹时可收藏（本地/远程均可）
     if (contextMenuTargetFile.value?.isDirectory) {
+      quickActions.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite', icon: 'star' })
+    }
+    // 拷贝路径（选中条目；作为「快速操作」内的嵌套子菜单）
+    quickActions.push(...buildCopyPathMenuItems())
+
+    if (quickActions.length > 0) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite' })
+      items.push({ label: t('fileList.menu.quickActions'), action: 'quick-actions', icon: 'quickActions', children: quickActions })
     }
 
-    // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
+    // ── 打开方式（保留为带右箭头的子菜单） ──
     if (isHostShellAvailable()) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: t('fileList.menu.revealInFinder'), action: 'reveal-in-finder' })
-      items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal' })
-    }
-
-    // 复制路径（选中条目）+ 打开方式（右键命中条目）
-    items.push(...buildCopyPathMenuItems())
-    if (isHostShellAvailable()) {
       items.push(...buildOpenWithMenuItems())
     }
   }
@@ -2274,31 +2292,31 @@ watch(openWithApps, () => {
   }
 })
 
-/** 复制路径子菜单（本地/远程通用——路径字符串无宿主依赖）。 */
-function buildCopyPathMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
+/** 拷贝路径子菜单（本地/远程通用——路径字符串无宿主依赖）。 */
+function buildCopyPathMenuItems(): FinderMenuItem[] {
   const otherPane = tabsStore.activeTab?.panes.find(p => p.id !== props.paneId && p.deviceId === props.deviceId)
   contextMenuOtherPanePath.value = otherPane?.path ?? null
-  const children: Array<{ label: string; action: string }> = [
+  const children: FinderMenuItem[] = [
     { label: t('fileList.menu.copyPathPosix'), action: 'copy-path:posix' },
     { label: t('fileList.menu.copyPathUri'), action: 'copy-path:uri' },
     { label: t('fileList.menu.copyPathName'), action: 'copy-path:name' }
   ]
   if (otherPane) children.splice(2, 0, { label: t('fileList.menu.copyPathRelative'), action: 'copy-path:relative' })
-  return [{ label: t('fileList.menu.copyPath'), action: 'copy-path-menu', children }]
+  return [{ label: t('fileList.menu.copyPath'), action: 'copy-path-menu', icon: 'copyPath', children }]
 }
 
 /** 「打开方式」子菜单（仅本地非 ZIP；列表 = 右键目标的 LaunchServices 适用应用）。 */
-function buildOpenWithMenuItems(): Array<{ label: string; action: string; children?: Array<{ label: string; action: string }> }> {
+function buildOpenWithMenuItems(): FinderMenuItem[] {
   const apps = openWithApps.value
   // 列表为空（查询失败/首查回填前）：保底提供默认应用入口（open <path>）
-  const children: Array<{ label: string; action: string }> = apps.length > 0
+  const children: FinderMenuItem[] = apps.length > 0
     ? apps.map(app => ({
         // 默认应用置顶展示并标注，其余为备选（主进程已排序：默认 → 名称序）
         label: app.isDefault ? `${app.name}${t('fileList.menu.openWithDefaultSuffix')}` : app.name,
         action: `open-with:${app.bundlePath}`
       }))
     : [{ label: t('fileList.menu.openWithDefault'), action: 'open-default' }]
-  return [{ label: t('fileList.menu.openWith'), action: 'open-with-menu', children }]
+  return [{ label: t('fileList.menu.openWith'), action: 'open-with-menu', icon: 'openWith', children }]
 }
 
 /** 复制路径动作（多选时按行拼接；name/relative 针对右键命中的文件）。 */
@@ -2336,33 +2354,12 @@ function parentDirectory(p: string): string {
   return i <= 0 ? '/' : p.slice(0, i)
 }
 
-// 菜单元素引用：用于渲染后测量尺寸并钳制在视口内
-const contextMenuRef = ref<HTMLElement | null>(null)
-// 右侧空间不足以展开子菜单时，子菜单改为向左弹出
-const contextMenuFlipped = ref(false)
-
-const CONTEXT_MENU_VIEWPORT_MARGIN = 8
-const SUBMENU_RESERVE = 180 // 子菜单最小宽度 + 余量
-
-/**
- * 菜单默认向右/向下展开：靠近视口右/下边缘时会被遮挡，
- * 渲染后测量实际尺寸，把菜单位置回退到视口内。
- */
-async function clampContextMenuToViewport() {
-  await nextTick()
-  const el = contextMenuRef.value
-  if (!el || !contextMenu.visible) return
-  const rect = el.getBoundingClientRect()
-  contextMenuFlipped.value = window.innerWidth - rect.right < SUBMENU_RESERVE
-  if (rect.right > window.innerWidth - CONTEXT_MENU_VIEWPORT_MARGIN) {
-    contextMenu.x = Math.max(CONTEXT_MENU_VIEWPORT_MARGIN, window.innerWidth - rect.width - CONTEXT_MENU_VIEWPORT_MARGIN)
-  }
-  if (rect.bottom > window.innerHeight - CONTEXT_MENU_VIEWPORT_MARGIN) {
-    contextMenu.y = Math.max(CONTEXT_MENU_VIEWPORT_MARGIN, window.innerHeight - rect.height - CONTEXT_MENU_VIEWPORT_MARGIN)
-  }
-}
+// 视口钳制与子菜单翻转已移入 FinderContextMenu 组件（渲染后自测量）
 
 function showContextMenu(event: MouseEvent) {
+  // 跨窗格互斥：先关掉其它 FileList 实例仍打开的菜单
+  _closeActiveContextMenu?.()
+  _closeActiveContextMenu = hideContextMenu
   contextMenuSelectedFiles.value = [...props.selectedFiles]
   // 空白右键：terminal 目标为当前目录
   contextMenuTargetFile.value = null
@@ -2373,10 +2370,12 @@ function showContextMenu(event: MouseEvent) {
   contextMenu.items = buildContextMenuItems(true)
   // 「打开方式」按当前目录拉取（异步回填，菜单可见期间由 watch 重建补全）
   if (isHostShellAvailable()) refreshOpenWithApps(props.path)
-  void clampContextMenuToViewport()
 }
 
 function showFileContextMenu(event: MouseEvent, file: FileInfo) {
+  // 跨窗格互斥：先关掉其它 FileList 实例仍打开的菜单
+  _closeActiveContextMenu?.()
+  _closeActiveContextMenu = hideContextMenu
   if (!isSelected(file.path)) {
     emit('select', [file.path])
     contextMenuSelectedFiles.value = [file.path]
@@ -2393,11 +2392,12 @@ function showFileContextMenu(event: MouseEvent, file: FileInfo) {
   contextMenu.items = buildContextMenuItems(false)
   // 「打开方式」按命中条目拉取（不同扩展名列表不同；主进程按扩展名 memoize）
   if (isHostShellAvailable()) refreshOpenWithApps(file.path)
-  void clampContextMenuToViewport()
 }
 
 function hideContextMenu() {
   contextMenu.visible = false
+  // 释放跨窗格互斥句柄（仅当仍是自己持有时）
+  if (_closeActiveContextMenu === hideContextMenu) _closeActiveContextMenu = null
 }
 
 // ── 内联重命名功能 ─────────────────────────────────────────────────────────────
@@ -2492,6 +2492,35 @@ function handleContextMenuAction(action: string) {
     // 使用内联重命名而不是弹出对话框
     if (props.selectedFiles.length === 1) {
       startRename(props.selectedFiles[0])
+    }
+    return
+  }
+
+  // 快速查看（右键菜单入口）：与空格键同链路，集合预览 tab 带上/下一张导航。
+  // 列表跟随可见顺序（分栏视图取目标所在列，其余取排序后的 displayedFiles）。
+  if (action === 'quick-look') {
+    const file = contextMenuTargetFile.value
+    if (file) {
+      const list = props.viewMode === 'columns'
+        ? (columns.value.find(c => c.files.some(f => f.path === file.path))?.files ?? [file])
+        : displayedFiles.value
+      previewStore.openQuickLook(file, props.deviceId, props.paneId, list)
+    }
+    return
+  }
+
+  // 制作替身：在目标所在目录创建「xxx 的替身」符号链接（即时调用 createSymlink；
+  // 本地设备有 watch 自动刷新，远程设备手动补一次 loadFiles）
+  if (action === 'make-alias') {
+    const file = contextMenuTargetFile.value
+    if (file) {
+      const parent = parentDirectory(file.path)
+      const linkPath = parent === '/' ? `/${file.name} 的替身` : `${parent}/${file.name} 的替身`
+      window.fileman.createSymlink(props.deviceId, file.path, linkPath)
+        .then(() => { loadFiles() })
+        .catch(err => {
+          console.error('[FileList] make-alias failed for', file.path, err)
+        })
     }
     return
   }
@@ -2712,59 +2741,8 @@ function handleContextMenuAction(action: string) {
     inset 0 1px 10px color-mix(in srgb, var(--accent-blue) 20%, transparent);
 }
 
-.context-menu {
-  @apply min-w-[180px] bg-bg-secondary border border-border rounded-lg shadow-lg py-1 z-50;
-}
+/* 右键菜单的视觉/交互样式已随组件迁至 menu/FinderContextMenu.vue + FinderMenuNode.vue */
 
-.context-menu-item {
-  @apply flex items-center justify-between px-3 py-2 text-base text-text-primary hover:bg-accent-blue hover:text-white transition-colors relative;
-}
-
-.context-menu-item.disabled {
-  @apply opacity-50 cursor-not-allowed hover:bg-transparent hover:text-text-primary;
-}
-
-.context-menu-item .shortcut {
-  @apply text-sm text-text-tertiary ml-4;
-}
-
-.context-menu-item:hover .shortcut {
-  @apply text-white/70;
-}
-
-/* Submenu styles */
-.context-menu-item:has(.context-submenu) {
-  @apply relative;
-}
-
-.context-submenu {
-  @apply hidden absolute left-full top-0 min-w-[160px] bg-bg-secondary border border-border rounded-lg shadow-lg py-1;
-}
-
-.context-menu-item:hover .context-submenu {
-  @apply block;
-}
-
-/* 主菜单贴近视口右边缘时，子菜单改为向左弹出，避免被遮挡 */
-.context-menu-flipped .context-submenu {
-  left: auto;
-  right: 100%;
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.1s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* Rubber-band selection rectangle */
 .rubber-band-rect {

@@ -10,9 +10,7 @@
 
     <!-- Error State -->
     <div v-else-if="hasError" class="flex flex-col items-center justify-center h-full text-text-tertiary p-4">
-      <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
+      <CautionIcon class="w-12 h-12 mb-3 text-red-400" />
       <p class="text-sm font-medium text-text-primary mb-1">{{ $t('preview.video.playbackFailed') }}</p>
       <p class="text-xs">{{ errorMessage }}</p>
       <div class="flex items-center gap-2 mt-4">
@@ -58,7 +56,7 @@
           @click="togglePiP"
           :title="$t('preview.video.pipTip')"
         >
-          <IconfontIcon name="pip" />
+          <PipIcon class="w-4 h-4" />
         </button>
 
         <div class="finder-toolbar-divider"></div>
@@ -69,7 +67,7 @@
           @click="toggleFullscreen"
           :title="$t('preview.video.fullscreenTip')"
         >
-          <IconfontIcon name="expand" />
+          <FullScreenIcon class="w-4 h-4" />
         </button>
 
         <div class="finder-toolbar-divider"></div>
@@ -139,9 +137,7 @@
               @click="skipBackward"
               :title="$t('preview.video.back10Tip')"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 9.106a1 1 0 000 1.414L9.586 12l1.894 1.894a1 1 0 01-1.414 1.414l-2.83-2.83a1 1 0 010-1.414l2.83-2.83zM15.5 12a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0z" />
-              </svg>
+              <SkipBackIcon class="w-5 h-5" />
             </button>
 
             <!-- Play/Pause (prominent) -->
@@ -149,12 +145,8 @@
               class="w-10 h-10 rounded-full bg-white text-gray-900 flex items-center justify-center hover:bg-white/90 transition-all shadow-md"
               @click="togglePlay"
             >
-              <svg v-if="isPlaying" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-              </svg>
-              <svg v-else class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
+              <PauseIcon v-if="isPlaying" class="w-5 h-5" />
+              <PlayIcon v-else class="w-5 h-5 ml-0.5" />
             </button>
 
             <!-- Skip Forward +10s -->
@@ -163,9 +155,7 @@
               @click="skipForward"
               :title="$t('preview.video.forward10Tip')"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.934 9.106a1 1 0 00-1.414 1.414L13.414 12l-1.894 1.894a1 1 0 001.414 1.414l2.83-2.83a1 1 0 000-1.414l-2.83-2.83zM8.5 12a3.5 3.5 0 10-7 0 3.5 3.5 0 017 0z" />
-              </svg>
+              <SkipForwardIcon class="w-5 h-5" />
             </button>
 
             <!-- Time Display -->
@@ -180,13 +170,8 @@
                 @click="toggleMute"
                 :title="$t('preview.video.muteTip')"
               >
-                <svg v-if="isMuted || volume === 0" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.535 3.051 12 3.686 12 5v14c0 1.314-1.465 1.949-2.707.707L4.586 15z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                </svg>
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.535 3.051 12 3.686 12 5v14c0 1.314-1.465 1.949-2.707.707L5.586 15z" />
-                </svg>
+                <VolumeMuteIcon v-if="isMuted || volume === 0" class="w-4 h-4" />
+                <VolumeIcon v-else class="w-4 h-4" />
               </button>
               <input
                 v-model="volume"
@@ -211,7 +196,17 @@ import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import { usePreviewStore } from '@/stores/preview'
-import IconfontIcon from './IconfontIcon.vue'
+import {
+  CautionIcon,
+  FullScreenIcon,
+  PauseIcon,
+  PipIcon,
+  PlayIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
+  VolumeIcon,
+  VolumeMuteIcon
+} from '@/components/icons/videoPlayerIcons'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewVideoContent] ${message}`, ...args)

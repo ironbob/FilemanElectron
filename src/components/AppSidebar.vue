@@ -3,7 +3,7 @@
     <div class="finder-sidebar-content flex-1 min-h-0 overflow-y-auto">
     <!-- Devices Section -->
     <div class="py-3">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.locations') }}</div>
+      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.locations') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="device in devicesStore.devices"
@@ -24,7 +24,7 @@
     </div>
 
     <!-- Add Device Button -->
-    <div class="px-4 py-2 border-t border-border">
+    <div class="px-4 py-2">
       <button
         class="w-full flex items-center justify-center gap-2.5 px-3 py-2 rounded-md text-base text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
         @click="showAddDeviceMenu = !showAddDeviceMenu"
@@ -66,8 +66,8 @@
     </div>
 
     <!-- External Volumes Section (mounted on local filesystem, e.g. /Volumes/*) -->
-    <div v-if="volumesStore.volumes.length > 0" class="py-3 border-t border-border">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.externalVolumes') }}</div>
+    <div v-if="volumesStore.volumes.length > 0" class="py-3">
+      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.externalVolumes') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="volume in volumesStore.volumes"
@@ -84,8 +84,8 @@
     </div>
 
     <!-- Mobile Devices Section -->
-    <div class="py-3 border-t border-border">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.mobileDevices') }}</div>
+    <div class="py-3">
+      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.mobileDevices') }}</div>
       <!-- Scanning indicator -->
       <div v-if="mobileScanInProgress" class="px-2 py-1.5 text-text-secondary italic animate-pulse">
         {{ $t('sidebar.scanning') }}
@@ -193,8 +193,8 @@
     </div>
 
     <!-- Places (system locations: Home / Desktop / ...) -->
-    <div class="py-3 border-t border-border">
-      <div class="px-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.places') }}</div>
+    <div class="py-3">
+      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.places') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="fav in favorites"
@@ -210,11 +210,11 @@
 
       <!-- Favorites (user bookmarks, device-scoped, grouped by device platform).
            未连接设备的收藏不渲染(整组随之消失),连上后自动回归。 -->
-      <div class="px-4 mt-4 mb-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{{ $t('sidebar.favorites') }}</div>
+      <div class="sidebar-section-title px-4 mt-4 mb-2">{{ $t('sidebar.favorites') }}</div>
       <template v-for="group in groupedFavorites" :key="group.type">
         <div
           v-if="group.type !== 'local'"
-          class="px-4 mt-2 mb-1 text-[10px] font-medium text-text-tertiary/80 tracking-wide"
+          class="sidebar-subgroup-title px-4 mt-2 mb-1"
         >{{ group.label }}</div>
         <div class="space-y-0.5 px-2">
           <div

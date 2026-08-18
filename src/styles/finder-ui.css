@@ -15,6 +15,10 @@
   --finder-divider: rgba(60, 60, 67, 0.12);
   --finder-label: #1d1d1f;
   --finder-secondary-label: #6e6e73;
+  /* 分组/列头标题：比次级文字略深（≈ rgba(0,0,0,0.62)），小字号 semibold 下仍可读 */
+  --finder-header-label: rgba(0, 0, 0, 0.62);
+  /* 侧边栏导航图标：统一稳定深灰线性（激活态白色），彩色只留给状态点/徽标 */
+  --finder-nav-icon: rgba(60, 60, 67, 0.78);
   --finder-selection: #0a84ff;
   --finder-control: rgba(118, 118, 128, 0.10);
   --finder-control-strong: rgba(118, 118, 128, 0.16);
@@ -45,6 +49,8 @@
   --finder-divider: rgba(255, 255, 255, 0.12);
   --finder-label: #f5f5f7;
   --finder-secondary-label: #a1a1a6;
+  --finder-header-label: rgba(255, 255, 255, 0.62);
+  --finder-nav-icon: rgba(235, 235, 245, 0.72);
   --finder-selection: #0a84ff;
   --finder-control: rgba(118, 118, 128, 0.28);
   --finder-control-strong: rgba(118, 118, 128, 0.38);
@@ -104,6 +110,36 @@
 .finder-shell .finder-sidebar .sidebar-item-active {
   background: color-mix(in srgb, var(--finder-selection) 82%, transparent) !important;
   box-shadow: none;
+}
+
+/* ── 侧边栏文字层级（Finder 式）─────────────────────────────────────────────
+   导航项 13px Medium 主标签色 > 分组标题 11px semibold 头标签色 > 状态文字次级灰。
+   分组间用标题 + 留白分隔，不再画 border-t 硬线（markup 已移除）。 */
+
+.finder-shell .sidebar-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--finder-header-label);
+}
+
+/* 收藏夹平台子分组（Android/iOS…品牌名）：不 uppercase，仅字重+颜色对齐 */
+.finder-shell .sidebar-subgroup-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--finder-header-label);
+}
+
+/* 导航图标统一为稳定深灰线性（Finder 侧边栏无彩色导航图标）；
+   !important 压过 markup 的 text-[#xxx] 工具类；激活态白色在后、同权重更高特异性 */
+.finder-shell .finder-sidebar .sidebar-item > svg {
+  color: var(--finder-nav-icon) !important;
+}
+
+.finder-shell .finder-sidebar .sidebar-item-active > svg {
+  color: #fff !important;
 }
 
 .finder-shell .finder-sidebar .sidebar-item-inactive:hover,
@@ -282,6 +318,8 @@
   background: var(--finder-list-header) !important;
   font-size: 11px;
   font-weight: 500;
+  /* 覆盖 markup 的 text-text-tertiary（经 !important 重映射为次级灰） */
+  color: var(--finder-header-label) !important;
 }
 
 .finder-shell .finder-list-row {
@@ -289,10 +327,16 @@
   border-radius: 6px;
 }
 
-.finder-shell .finder-list-row .text-base,
+/* 文件名（列表/网格/分栏三视图统一）：Finder 列表行主字号 + Medium 视觉重量。
+   颜色由调用方 text-text-primary / 选中白字控制，这里只管字重字号。 */
+.finder-shell .finder-name-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 元数据列（修改时间/大小/种类/权限）：保持 12px regular，走次级灰 */
 .finder-shell .finder-list-row .text-sm {
   font-size: 12px;
-  font-weight: 400;
 }
 
 .finder-shell .vue-recycle-scroller__item-view:nth-child(even) .finder-list-row:not(.bg-accent-blue) {

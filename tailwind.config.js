@@ -73,7 +73,7 @@ export default {
         'xl': '12px',
       },
       fontFamily: {
-        'sans': ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Helvetica Neue', 'sans-serif'],
+        'sans': ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'PingFang SC', 'Helvetica Neue', 'sans-serif'],
       },
       fontSize: {
         'xs': '11px',
