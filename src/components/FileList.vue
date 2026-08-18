@@ -53,13 +53,18 @@
     <!-- List View -->
     <template v-else-if="viewMode === 'list'">
       <!-- Header 固定在顶部，不随列表滚动 -->
+      <!-- 表头与列表行共用同一套列宽（w-6 / flex-1 / w-40 / w-20 / w-24 / w-28）：
+           固定列 shrink-0、名称列 min-w-0 truncate，窄面板时只有名称列收窄，两侧不错位 -->
       <div class="finder-list-header flex-shrink-0 flex items-center gap-2 px-4 bg-bg-secondary border-b border-border text-xs font-medium text-text-tertiary">
-        <span class="w-6"></span>
-        <button class="flex-1 text-left hover:text-text-primary" @click="toggleSort('name')">{{ $t('fileList.columns.name') }} {{ sortIndicator('name') }}</button>
-        <button class="w-40 text-left hover:text-text-primary" @click="toggleSort('modifiedTime')">{{ $t('fileList.columns.dateModified') }} {{ sortIndicator('modifiedTime') }}</button>
-        <button class="w-20 text-right hover:text-text-primary" @click="toggleSort('size')">{{ $t('fileList.columns.size') }} {{ sortIndicator('size') }}</button>
-        <span class="w-24 text-left">{{ $t('fileList.columns.kind') }}</span>
-        <span v-if="showPermissions" class="w-28 text-left">{{ $t('fileList.columns.permissions') }}</span>
+        <span class="w-6 shrink-0"></span>
+        <button class="flex-1 min-w-0 truncate text-left hover:text-text-primary" @click="toggleSort('name')">{{ $t('fileList.columns.name') }} {{ sortIndicator('name') }}</button>
+        <button class="w-40 shrink-0 truncate text-left hover:text-text-primary" @click="toggleSort('modifiedTime')">{{ $t('fileList.columns.dateModified') }} {{ sortIndicator('modifiedTime') }}</button>
+        <button class="w-20 shrink-0 truncate text-right hover:text-text-primary" @click="toggleSort('size')">{{ $t('fileList.columns.size') }} {{ sortIndicator('size') }}</button>
+        <span class="w-24 shrink-0 truncate text-left">{{ $t('fileList.columns.kind') }}</span>
+        <span v-if="showPermissions" class="w-28 shrink-0 truncate text-left">{{ $t('fileList.columns.permissions') }}</span>
+        <!-- 与行尾 finder-rubber-tail 同宽的占位：行内留白会挤占名称列宽度，
+             表头不预留同样空间的话，日期/大小/种类列会整体右偏一截 -->
+        <span class="w-12 shrink-0" aria-hidden="true"></span>
       </div>
 
       <!-- 虚拟滚动列表 -->
@@ -97,34 +102,38 @@
             />
             <component v-else :is="getFileIconComponent(file)" class="w-full h-full" />
           </div>
-          <FileNameMatchLabel
-            class="finder-name-label flex-1 truncate text-base rounded px-1 transition-colors"
-            :class="isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
-            :name="file.name"
-            :highlight-indices="typeaheadHighlightFor(file)"
-            :selected="isSelected(file.path)"
-          />
-          <FileGitBadge v-if="gitStatusOf(file)" :x="gitStatusOf(file)!.x" :y="gitStatusOf(file)!.y" />
-          <svg
-            v-if="file.isSymlink"
-            class="w-3 h-3 flex-shrink-0 text-accent-teal"
-            :title="$t('fileList.symlinkTitle', { target: file.symlinkTarget ?? '' })"
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-          </svg>
-          <span class="w-40 text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
+          <!-- 名称单元格：名称 + git 徽标 + 符号链接角标 共同占位 flex-1，
+               附加标记在单元格内部消化宽度，不再把日期/大小/种类列顶歪（与表头对齐） -->
+          <div class="flex-1 min-w-0 flex items-center gap-2">
+            <FileNameMatchLabel
+              class="finder-name-label flex-1 min-w-0 truncate text-base rounded px-1 transition-colors"
+              :class="isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
+              :name="file.name"
+              :highlight-indices="typeaheadHighlightFor(file)"
+              :selected="isSelected(file.path)"
+            />
+            <FileGitBadge v-if="gitStatusOf(file)" :x="gitStatusOf(file)!.x" :y="gitStatusOf(file)!.y" />
+            <svg
+              v-if="file.isSymlink"
+              class="w-3 h-3 flex-shrink-0 text-accent-teal"
+              :title="$t('fileList.symlinkTitle', { target: file.symlinkTarget ?? '' })"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+            </svg>
+          </div>
+          <span class="w-40 shrink-0 text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ formatDate(file.modifiedTime) }}
           </span>
-          <span class="w-20 text-right text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
+          <span class="w-20 shrink-0 text-right text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ file.isDirectory ? '--' : formatSize(file.size) }}
           </span>
-          <span class="w-24 truncate text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
+          <span class="w-24 shrink-0 truncate text-left text-sm" :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'">
             {{ fileKind(file) }}
           </span>
           <span
             v-if="showPermissions"
-            class="w-28 truncate text-left text-sm font-mono"
+            class="w-28 shrink-0 truncate text-left text-sm font-mono"
             :class="isSelected(file.path) ? 'opacity-70' : 'text-text-tertiary'"
           >
             {{ formatPermissions(file.mode) }}
