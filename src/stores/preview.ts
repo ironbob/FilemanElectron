@@ -111,6 +111,8 @@ export const usePreviewStore = defineStore('preview', () => {
       } else if (existing.preview?.type === 'unknown') {
         void refineUnknownType(existing, file, deviceId)
       }
+      // 从当前活动 tab 再次打开：更新来源记忆，关闭时回到本次打开者
+      tabsStore.retargetTabOrigin(existing.id)
       tabsStore.setActiveTab(existing.id)
       return existing
     }
@@ -129,8 +131,7 @@ export const usePreviewStore = defineStore('preview', () => {
         forceType
       }
     }
-    tabsStore.tabs.push(tab)
-    tabsStore.activeTabId = tab.id
+    tabsStore.pushTab(tab)
     log('Opened preview tab:', tab.id, file.name, 'deviceId:', deviceId)
     if (tab.preview?.type === 'unknown') {
       void refineUnknownType(tab, file, deviceId)
@@ -152,6 +153,7 @@ export const usePreviewStore = defineStore('preview', () => {
       existing.preview.index = 0
       existing.preview.file = files[0]
       existing.title = files[0].name
+      tabsStore.retargetTabOrigin(existing.id)
       tabsStore.setActiveTab(existing.id)
       log('Image collection already open, refreshed:', collectionKey, files.length, 'images')
       return existing
@@ -172,8 +174,7 @@ export const usePreviewStore = defineStore('preview', () => {
         collectionKey
       }
     }
-    tabsStore.tabs.push(tab)
-    tabsStore.activeTabId = tab.id
+    tabsStore.pushTab(tab)
     log('Opened image collection tab:', tab.id, collectionKey, files.length, 'images')
     return tab
   }

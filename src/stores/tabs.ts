@@ -157,6 +157,35 @@ export const useTabsStore = defineStore('tabs', () => {
     activeTabId.value = tab.id
   }
 
+  /** 复用既有 tab（如再次双击同一文件）时更新来源记忆：关闭时回到本次打开者。 */
+  function retargetTabOrigin(tabId: string): void {
+    if (tabId !== activeTabId.value) tabOrigins.set(tabId, activeTabId.value)
+  }
+
+  // ── 面板滚动位置记忆（切 tab 重挂载后恢复；导航/换视图即弃，不持久化） ──────
+  // 与 tabOrigins 同款非响应式 Map：滚动写入不进 tabs ref，避免触发深 watch 的
+  // localStorage 序列化（同 selectedFiles 的高频状态约定）。
+  const paneScrollTops = new Map<string, number>()
+
+  function savePaneScroll(paneId: string, top: number): void {
+    paneScrollTops.set(paneId, top)
+  }
+
+  function getPaneScroll(paneId: string): number | undefined {
+    return paneScrollTops.get(paneId)
+  }
+
+  /** 失效（置 0）而非删除：导航/换视图后 loadFiles 完成时恢复为 0（确定性回顶），
+   * 后续滚动仍会经 save 刷新条目 —— 自动刷新（同路径 reload）因此保位不跳顶。 */
+  function resetPaneScroll(paneId: string): void {
+    paneScrollTops.set(paneId, 0)
+  }
+
+  /** 彻底遗忘（面板销毁）：closeTab 清理用，防 Map 无限增长。 */
+  function forgetPaneScroll(paneId: string): void {
+    paneScrollTops.delete(paneId)
+  }
+
   function createTab(): Tab {
     const tab = createDefaultTab(defaultHomePath)
     pushTab(tab)
@@ -235,7 +264,10 @@ export const useTabsStore = defineStore('tabs', () => {
       return
     }
 
+    const closed = tabs.value[index]
     tabs.value.splice(index, 1)
+    // 滚动记忆随面板一并清理（paneId 不复用，防 Map 无限增长）
+    for (const pane of closed.panes) forgetPaneScroll(pane.id)
     // 关的是最新 tab（原末位）且来源 tab 仍存活 → 回到来源 tab；
     // 其余情况维持默认：激活左侧相邻
     const originId = tabOrigins.get(tabId)
@@ -391,6 +423,7 @@ export const useTabsStore = defineStore('tabs', () => {
     pane.historyIndex = pane.history.length - 1
 
     pane.selectedFiles = []
+    resetPaneScroll(paneId) // 滚动偏移属于旧目录，导航即弃
 
     const tab = tabs.value.find(t => t.panes.some(p => p.id === paneId))
     if (tab) {
@@ -412,6 +445,7 @@ export const useTabsStore = defineStore('tabs', () => {
     pane.historyIndex--
     pane.path = pane.history[pane.historyIndex]
     pane.selectedFiles = []
+    resetPaneScroll(paneId)
 
     const tab = tabs.value.find(t => t.panes.some(p => p.id === paneId))
     if (tab) {
@@ -426,6 +460,7 @@ export const useTabsStore = defineStore('tabs', () => {
     pane.historyIndex++
     pane.path = pane.history[pane.historyIndex]
     pane.selectedFiles = []
+    resetPaneScroll(paneId)
 
     const tab = tabs.value.find(t => t.panes.some(p => p.id === paneId))
     if (tab) {
@@ -457,6 +492,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const pane = findPane(paneId)
     if (pane) {
       pane.viewMode = mode
+      resetPaneScroll(paneId) // 列表/网格/分栏的滚动容器不同，偏移不可比
     }
   }
 
@@ -464,6 +500,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const pane = findPane(paneId)
     if (pane) {
       pane.gridSize = size
+      resetPaneScroll(paneId) // 行高变化使旧偏移失真
     }
   }
 
@@ -489,6 +526,7 @@ export const useTabsStore = defineStore('tabs', () => {
     pane.history = ['/']
     pane.historyIndex = 0
     pane.selectedFiles = []
+    resetPaneScroll(paneId)
   }
 
   function setColumns(paneId: string, columns: Array<{ path: string; selectedPath?: string }>) {
@@ -636,6 +674,12 @@ export const useTabsStore = defineStore('tabs', () => {
     activePane,
     setActiveTab,
     createTab,
+    pushTab,
+    retargetTabOrigin,
+    savePaneScroll,
+    getPaneScroll,
+    resetPaneScroll,
+    forgetPaneScroll,
     closeTab,
     closePreviewSession,
     registerCloseGuard,

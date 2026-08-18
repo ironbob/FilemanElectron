@@ -69,6 +69,7 @@
         :items="displayedFiles"
         :item-size="LIST_ITEM_HEIGHT"
         key-field="path"
+        @scroll.passive="handleScrollSave"
         v-slot="{ item: file }"
       >
         <div
@@ -145,6 +146,7 @@
       :items="gridRows"
       :item-size="gridCfg.rowHeight + gridCfg.rowGap"
       key-field="key"
+      @scroll.passive="handleScrollSave"
       v-slot="{ item: row }"
     >
       <div
@@ -530,8 +532,43 @@ function perfLog(label: string, ...args: unknown[]) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const selectedFilesSet = computed(() => new Set(props.selectedFiles))
-const listScrollerRef = ref<{ scrollToItem?: (index: number) => void } | null>(null)
-const gridScrollerRef = ref<{ scrollToItem?: (index: number) => void } | null>(null)
+const listScrollerRef = ref<{ scrollToItem?: (index: number) => void; $el?: HTMLElement } | null>(null)
+const gridScrollerRef = ref<{ scrollToItem?: (index: number) => void; $el?: HTMLElement } | null>(null)
+
+// ── 滚动位置记忆（切 tab 重挂载后恢复） ───────────────────────────────────────
+// 持续保存（rAF 节流，同框选先例）：键盘 reveal/类型定位等程序滚动同样派发 scroll
+// 事件，故无需卸载兜底。恢复仅在 loadFiles 成功后尝试一次：导航/换视图时条目已被
+// store 侧重置为 0（确定性回顶），切 tab 重挂载则恢复记忆值；首次挂载无条目，
+// 保持自然行为。
+let scrollSaveRaf = 0
+function handleScrollSave(e: Event) {
+  if (scrollSaveRaf) return
+  scrollSaveRaf = requestAnimationFrame(() => {
+    scrollSaveRaf = 0
+    tabsStore.savePaneScroll(props.paneId, (e.target as HTMLElement).scrollTop)
+  })
+}
+
+async function restorePaneScroll() {
+  await nextTick()
+  // 分栏为横向多列容器，各自的滚动语义不同，本次不做恢复
+  if (props.viewMode === 'columns') return
+  const el = (props.viewMode === 'list' ? listScrollerRef.value : gridScrollerRef.value)?.$el
+  if (!el) return
+  const top = tabsStore.getPaneScroll(props.paneId)
+  // 无条目（首次挂载）保持自然行为；有条目（切 tab 回来=记忆值，导航后=0）才落位
+  if (top === undefined) return
+  // RecycleScroller 的内容布局晚于 nextTick 一到两帧完成：过早赋值会被 clamp 成 0
+  // （内容高度仍=视口高时）。逐帧等到偏移可达再赋值；超帧兜底交给浏览器 clamp。
+  for (let frame = 0; frame < 10; frame++) {
+    if (top === 0 || el.scrollHeight - el.clientHeight >= top) {
+      el.scrollTop = top
+      return
+    }
+    await new Promise(resolve => requestAnimationFrame(resolve))
+  }
+  el.scrollTop = top
+}
 
 // ── 选择状态 ──────────────────────────────────────────────────────────────────
 // 锚点：最后一次不带 Shift 的点击项，供 Shift 范围选择使用
@@ -753,6 +790,7 @@ async function loadFiles() {
       files.value = result
       columnFilesMap.value.set(pathSnapshot, result)
       emit('loaded', result)
+      void restorePaneScroll()
       if (props.viewMode === 'columns') {
         columns.value = [{ path: pathSnapshot, files: result }]
       }
@@ -770,6 +808,7 @@ async function loadFiles() {
     files.value = result
     columnFilesMap.value.set(pathSnapshot, result)
     emit('loaded', result)
+    void restorePaneScroll()
 
     if (props.viewMode === 'columns') {
       const storedColumns = pane.value?.columns
@@ -2044,7 +2083,9 @@ async function handleColumnClick(columnIndex: number, file: FileInfo) {
  *   1 打开类（打开/新标签页/双面板/图片集合）
  *   2 危险操作（移到废纸篓）
  *   3 文件管理（显示简介/重新命名/压缩/拷贝/剪切/制作替身/快速查看）
- *   6 扩展能力统一收纳进「快速操作」子菜单（不与基础操作混排）
+ *   6 扩展能力（收藏/宿主集成/hex/校验和/目录对比/拷贝路径）——曾收进
+ *     「快速操作」子菜单，功能被埋两级致「收藏」等入口看似丢失（2026-08-18
+ *     用户裁定回迁顶层直达，门控条件不变）
  *   7 「打开方式」保留为末尾的右箭头子菜单
  * 各项能力的门控条件与旧版一致，只调整了排布与文案。
  */
@@ -2205,18 +2246,8 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
     // 快速查看（与空格键同链路：openQuickLook 集合预览 tab）
     items.push({ label: t('fileList.menu.quickLook'), action: 'quick-look', shortcut: 'Space', icon: 'quickLook' })
 
-    // ── 快速操作：扩展能力统一收纳，不与基础操作混排 ──
-    const quickActions: FinderMenuItem[] = []
-    // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
-    if (isHostShellAvailable()) {
-      quickActions.push({ label: t('fileList.menu.revealInFinder'), action: 'reveal-in-finder', icon: 'finder' })
-      quickActions.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal', icon: 'terminal' })
-    }
-    // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制；
-    // 本地 ZIP 族已并入 ZIP 子菜单）
-    if (!contextMenuTargetFile.value?.isDirectory && !isLocalZipFamily) {
-      quickActions.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex', icon: 'hex' })
-    }
+    // ── 扩展能力（顶层直达——曾收入「快速操作」子菜单两级深，收藏等入口
+    //    被埋致用户感知「功能丢失」，2026-08-18 回迁；门控与 697b331^ 一致） ──
     // 校验和：恰好选中 1-2 个文件（单哈希 / 对比）。
     // 用打开瞬间的快照而非 props.selectedFiles：右键未选中文件时
     // emit('select') 的 prop 回填是异步的，同步构建会读到旧值漏掉本项
@@ -2225,7 +2256,7 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
         .map(p => files.value.find(f => f.path === p))
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === selectedAtMenuOpen.length && selectedInfos.every(f => !f.isDirectory)) {
-        quickActions.push({
+        items.push({
           label: selectedAtMenuOpen.length === 2 ? t('fileList.menu.checksumCompare') : t('fileList.menu.checksumSingle'),
           action: 'checksum',
           icon: 'checksum'
@@ -2238,20 +2269,28 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
         .map(p => files.value.find(f => f.path === p))
         .filter(Boolean) as FileInfo[]
       if (selectedInfos.length === 2 && selectedInfos.every(f => f.isDirectory)) {
-        quickActions.push({ label: t('fileList.menu.compareDirs'), action: 'compare-dirs', shortcut: '⌘⇧D', icon: 'compare' })
+        items.push({ label: '---', action: '__divider__' })
+        items.push({ label: t('fileList.menu.compareDirs'), action: 'compare-dirs', shortcut: '⌘⇧D', icon: 'compare' })
       }
     }
     // 收藏夹：右键命中的是文件夹时可收藏（本地/远程均可）
     if (contextMenuTargetFile.value?.isDirectory) {
-      quickActions.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite', icon: 'star' })
-    }
-    // 拷贝路径（选中条目；作为「快速操作」内的嵌套子菜单）
-    quickActions.push(...buildCopyPathMenuItems())
-
-    if (quickActions.length > 0) {
       items.push({ label: '---', action: '__divider__' })
-      items.push({ label: t('fileList.menu.quickActions'), action: 'quick-actions', icon: 'quickActions', children: quickActions })
+      items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite', icon: 'star' })
     }
+    // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
+    if (isHostShellAvailable()) {
+      items.push({ label: '---', action: '__divider__' })
+      items.push({ label: t('fileList.menu.revealInFinder'), action: 'reveal-in-finder', icon: 'finder' })
+      items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal', icon: 'terminal' })
+    }
+    // 显式 hex 入口：任意文件强制以十六进制查看（不受扩展名白名单限制；
+    // 本地 ZIP 族已并入 ZIP 子菜单）
+    if (!contextMenuTargetFile.value?.isDirectory && !isLocalZipFamily) {
+      items.push({ label: t('fileList.menu.openAsHex'), action: 'open-as-hex', icon: 'hex' })
+    }
+    // 拷贝路径（选中条目）
+    items.push(...buildCopyPathMenuItems())
 
     // ── 打开方式（保留为带右箭头的子菜单） ──
     if (isHostShellAvailable()) {
