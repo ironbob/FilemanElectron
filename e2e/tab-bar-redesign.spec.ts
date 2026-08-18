@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test'
 // 4. 快捷键（⌘T 复制当前位 / ⌘W never-empty / ⌘2 ⌘9 直达）
 // 5. 文本预览脏态（圆点 + 三键确认条，经 localStorage 种子直接开预览标签）
 // 6. 指针拖拽重排
+// 7. 同路径重复标签保持裸叶子（不把全路径当文件名升级展示）
 //
 // 词表硬约束：断言的中文串须与 shared/locales/zh-CN.ts 逐字节一致。
 
@@ -228,6 +229,34 @@ test('dirty text preview shows dot and guard strip, discard closes', async ({ pa
   await expect(page.getByText('存在未保存修改，关闭前如何处理？')).toBeVisible()
   await page.getByRole('button', { name: '放弃修改' }).click()
   await expect(tabs(page)).toHaveCount(1)
+})
+
+// ============ 同路径重复标签（全路径误作文件名回归） ============
+
+test('identical-path duplicate tabs keep bare leaf, not full path', async ({ page }) => {
+  // 同设备同路径的两个标签（安卓浏览中 ⌘T 复制当前位置的典型形态）：
+  // 任何前缀都必然相同、毫无区分度，必须保持裸叶子——不得升级成
+  // 「… › sdcard › DCIM」把全路径当文件名展示。
+  const androidTabAt = (id: string, path: string) => {
+    const pane: SeedPane = {
+      id: `${id}-p`, deviceId: 'android-abc', path, history: [path], historyIndex: 0,
+      viewMode: 'list', selectedFiles: [], gridSize: 'large'
+    }
+    return { id, title: 'DCIM', panes: [pane], activePaneId: pane.id }
+  }
+  await setup(page, {
+    tabs: [androidTabAt('t1', '/sdcard/DCIM'), androidTabAt('t2', '/sdcard/DCIM')],
+    activeTabId: 't1'
+  })
+  await expect(tabs(page).nth(0)).toHaveText(/^DCIM/)
+  await expect(tabs(page).nth(1)).toHaveText(/^DCIM/)
+  // ⌘T（复制当前位置）再开一个同路径标签，仍保持裸叶子
+  await page.keyboard.press('Meta+T')
+  await page.waitForTimeout(200)
+  await expect(tabs(page)).toHaveCount(3)
+  for (let i = 0; i < 3; i++) {
+    await expect(tabs(page).nth(i)).toHaveText(/^DCIM/)
+  }
 })
 
 // ============ 拖拽重排 ============

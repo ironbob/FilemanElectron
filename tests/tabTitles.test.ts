@@ -5,7 +5,7 @@
  * test:tab-titles）。不被应用代码引用，不进生产 bundle。
  *
  * 覆盖：tabTitleEntry 提取（浏览/预览/工具/zip/根/双窗格）、
- * disambiguateTabTitles 逐级升级（父 → 祖父 → 设备名 → '…' 头）、
+ * disambiguateTabTitles 逐级升级（父 → 祖父 → 设备名 → 不可分则裸叶子）、
  * 工具页排除、大小写敏感分组。
  */
 
@@ -128,17 +128,18 @@ assert.equal(tabKindOf(toolTab('搜索 · x', 'tabs.title.grep')), 'tool')
   assert.equal(prefixOf([a, b], b), 'y › a')
 }
 
-// 层级上限：完全同路径 → '…' 头封顶
+// 层级上限：完全同路径（同设备）→ 前缀必然相同毫无区分度，保持裸叶子
+// （2026-08-18 修订：原「… › a」把全路径当文件名展示，安卓 ⌘T 复制当前位置即触发）
 {
   const a = browseTab('/a/report'), b = browseTab('/a/report')
-  assert.equal(prefixOf([a, b], a), '… › a')
-  assert.equal(prefixOf([a, b], b), '… › a')
+  assert.equal(prefixOf([a, b], a), null)
+  assert.equal(prefixOf([a, b], b), null)
 }
 
-// 根目录同名（无祖先、同设备、无解析器）→ '…'
+// 根目录同名（无祖先、同设备、无解析器）→ 裸叶子
 {
   const a = browseTab('/'), b = browseTab('/')
-  assert.equal(prefixOf([a, b], a), '…')
+  assert.equal(prefixOf([a, b], a), null)
 }
 
 // 深路径：两级封顶语义（zip 例）— 祖先用尽后走 '…'
@@ -177,10 +178,10 @@ assert.equal(tabKindOf(toolTab('搜索 · x', 'tabs.title.grep')), 'tool')
   assert.equal(prefixOf([l, s], l, resolve), '本机 › d')
   assert.equal(prefixOf([l, s], s, resolve), 'NAS › d')
 }
-// 设备名不可区分（同名解析）→ 不引入设备层，'…' 封顶
+// 设备名不可区分（同设备同路径）→ 不引入设备层，保持裸叶子
 {
   const l = browseTab('/d/files', 'local'), s = browseTab('/d/files', 'local')
-  assert.equal(prefixOf([l, s], l, () => '本机'), '… › d')
+  assert.equal(prefixOf([l, s], l, () => '本机'), null)
 }
 
 // 工具页永不参与：即使标题与浏览页叶子同名，浏览页也不升级前缀

@@ -4,7 +4,7 @@
  * 渲染层契约：叶子名（leaf）永远主色显示；发生同名冲突的标签整体升级为
  * 「前缀 › 叶子」，前缀次要色、空间不足时先牺牲外层前缀（组件侧用
  * flex-shrink 差异实现）。前缀层级逐级升级（仅在仍冲突时加深）：父 →
- * 祖父 → … → 设备名（作最外层）→ 头部省略号。
+ * 祖父 → … → 设备名（作最外层）→ 仍不可分（同设备同路径）则保持裸叶子。
  *
  * 关键约束：结果只在渲染层 computed 消费，绝不写回 Tab——标题在每次
  * 导航时都会变化，写回会持续触发 tabs store 的 300ms 防抖持久化。
@@ -25,7 +25,7 @@ export interface TabTitleEntry {
   tool: boolean
 }
 
-/** 消歧输出。prefix = null 表示无冲突；'…' 前缀表示已到层级上限仍冲突。 */
+/** 消歧输出。prefix = null 表示无冲突（或冲突不可分：同设备同路径的重复标签）。 */
 export interface DisambiguatedTitle {
   tabId: string
   leaf: string
@@ -143,7 +143,10 @@ export function disambiguateTabTitles(
         continue
       }
 
-      // 仍冲突：优先加祖先层；祖先耗尽且设备名可区分时加设备名；到顶 → '…' 头。
+      // 仍冲突：优先加祖先层；祖先耗尽且设备名可区分时加设备名；到顶（同设备
+      // 同路径等真正不可分的重复标签）保持裸叶子——此前会升级成「… › a › b ›
+      // 叶子」把全路径当文件名展示，但重复标签拿到的是同一个全路径，升级毫无
+      // 区分度，只剩噪音。
       const extensible = group.filter(w => w.depth < w.entry.ancestorSegments.length)
       if (extensible.length > 0) {
         for (const w of extensible) {
@@ -168,13 +171,13 @@ export function disambiguateTabTitles(
         }
       }
 
-      // 层级用尽仍无法区分（完全同路径）：头部省略号标记封顶。
+      // 层级用尽仍无法区分（同设备同路径的重复标签）：双方任何前缀都必然相同，
+      // 保持裸叶子（Finder 语义：同一目录的两个标签都只显示目录名）。
       for (const w of group) {
-        const joined = w.parts.join(PREFIX_SEP)
         result.set(w.entry.tabId, {
           tabId: w.entry.tabId,
           leaf: w.entry.leaf,
-          prefix: joined ? `…${PREFIX_SEP}${joined}` : '…'
+          prefix: null
         })
       }
     }
