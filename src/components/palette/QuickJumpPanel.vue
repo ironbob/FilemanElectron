@@ -78,6 +78,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { useFileBrowserStore } from '@/stores/fileBrowser'
 import { useRecentLocationEntries } from '@/composables/useRecentLocationEntries'
@@ -102,6 +103,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ close: [] }>()
+
+// 存续期间放行标题栏拖拽区（v-if 挂载即打开），否则点标题栏的外点关闭收不到事件
+useAppDragSuspend()
 
 const browserStore = useFileBrowserStore()
 const entries = useRecentLocationEntries()

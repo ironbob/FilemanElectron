@@ -416,6 +416,7 @@ import FinderToolbarButton from './toolbar/FinderToolbarButton.vue'
 import FinderToolbarGroup from './toolbar/FinderToolbarGroup.vue'
 import FinderSearchField from './toolbar/FinderSearchField.vue'
 import FinderContextMenu, { type FinderMenuItem } from '@/components/menu/FinderContextMenu.vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { useTabsStore } from '@/stores/tabs'
 import { useGitStatusStore } from '@/stores/gitStatus'
 import { usePreviewStore } from '@/stores/preview'
@@ -503,6 +504,9 @@ function closeSearchHistoryOnOutsideClick(event: MouseEvent) {
 }
 const recentMenuOpen = ref(false)
 const recentMenuRef = ref<HTMLElement | null>(null)
+
+// 任一下拉（最近访问/搜索历史）打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
+useAppDragSuspend(() => recentMenuOpen.value || searchHistoryOpen.value)
 const loadedFiles = ref<FileInfo[]>([])
 const directoryLoadKey = ref(0)
 const createNameInputRef = ref<HTMLInputElement | null>(null)

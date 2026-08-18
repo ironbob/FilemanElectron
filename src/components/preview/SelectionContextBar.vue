@@ -62,6 +62,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import type { AnnoStylePatch } from '@/composables/useImageEdit'
 
 defineProps<{
@@ -78,6 +79,9 @@ const emit = defineEmits<{
 }>()
 
 const paletteOpen = ref(false)
+
+// 色板展开期间放行标题栏拖拽区，否则点标题栏的外点收起收不到事件
+useAppDragSuspend(() => paletteOpen.value)
 
 function pickColor(c: string) {
   paletteOpen.value = false

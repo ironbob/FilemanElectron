@@ -75,6 +75,7 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 
 /** 一条历史目录记录（展示字段已由父组件算好：叶子名 + 副行文本）。 */
 export interface TabHistoryEntry {
@@ -97,6 +98,9 @@ const emit = defineEmits<{
   clear: []
   close: []
 }>()
+
+// 存续期间放行标题栏拖拽区（v-if 挂载即打开），否则点标题栏的外点关闭收不到事件
+useAppDragSuspend()
 
 const menuEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)

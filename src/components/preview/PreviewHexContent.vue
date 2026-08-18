@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import type { HexRegion } from '@/utils/hexCursor'
@@ -409,6 +410,9 @@ function hexSpaceAfter(total: number, indexInRow: number): boolean {
 // ── 视图设置弹出层（每行字节 / 字号 / ASCII 列） ─────────────────────────────
 
 const viewMenuOpen = ref(false)
+
+// 菜单打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
+useAppDragSuspend(() => viewMenuOpen.value)
 
 function onDocumentMouseDownForMenu(event: MouseEvent): void {
   const target = event.target as HTMLElement | null

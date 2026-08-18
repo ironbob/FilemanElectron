@@ -274,6 +274,17 @@ html, body, #app {
   -webkit-app-region: no-drag;
 }
 
+/* 弹层打开期间（useAppDragSuspend 在 <html> 置 data-app-drag-suspended）：
+   拖拽区临时放行鼠标事件。macOS 上 app-region: drag 区域由窗口层整片吞掉
+   点击（pointerdown/click 不进渲染进程），document 级外点关闭因此收不到
+   标题栏/标签栏的点击——放行后恢复派发，行为对齐原生菜单「点哪儿都先
+   收起」；弹层关闭、引用计数归零后拖拽自动还原。cursor 兜底 default，
+   避免放行期间悬停标题文字出 I-beam。 */
+html[data-app-drag-suspended] .app-drag {
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
 /* ========================================
    Scrollbar Styling (macOS style)
    ======================================== */

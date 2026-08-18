@@ -131,6 +131,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { t } from '@/i18n'
 import type { ImageEditMode } from '@/composables/useImageEdit'
 import IconfontIcon from './IconfontIcon.vue'
@@ -169,6 +170,9 @@ const ZOOM_STEPS = [25, 50, 100, 200, 400]
 
 const zoomMenuOpen = ref(false)
 const moreMenuOpen = ref(false)
+
+// 任一菜单打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
+useAppDragSuspend(() => zoomMenuOpen.value || moreMenuOpen.value)
 
 /** 裁剪模式几何与旋转互斥（进入裁剪已复位视图）；缩放保持可用。 */
 const zoomDisabled = computed(() => props.mode === 'crop')

@@ -30,6 +30,7 @@ export interface FinderMenuItem {
  * · Enter 激活（父项则进入子菜单）· Esc 关闭整个菜单。
  */
 import { ref, watch, onMounted, nextTick } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import FinderMenuNode from './FinderMenuNode.vue'
 
@@ -45,6 +46,9 @@ const emit = defineEmits<{
   /** 请求关闭整个菜单（Esc） */
   close: []
 }>()
+
+// 存续期间放行标题栏拖拽区（v-if 挂载即打开；宿主的外点关闭同样收不到标题栏点击）
+useAppDragSuspend()
 
 // ── 定位：渲染后测量实际尺寸，钳制在视口内；右侧空间不足时子菜单向左弹 ──────
 const rootEl = ref<HTMLElement | null>(null)

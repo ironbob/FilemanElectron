@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { t } from '@/i18n'
 
 const props = defineProps<{
@@ -42,6 +43,9 @@ const emit = defineEmits<{
   'cancel-all': []
   close: []
 }>()
+
+// 存续期间放行标题栏拖拽区（v-if 挂载即打开），否则点标题栏的外点关闭收不到事件
+useAppDragSuspend()
 
 const menuEl = ref<HTMLElement | null>(null)
 const pos = reactive({ right: 0, top: 0 })

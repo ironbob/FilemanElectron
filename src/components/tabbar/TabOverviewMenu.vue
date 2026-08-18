@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import type { Tab } from '@/types'
 import TabIcon from './TabIcon.vue'
 import type { TabIconName } from './tabIcons'
@@ -126,6 +127,9 @@ const emit = defineEmits<{
   'new-tab': []
   close: []
 }>()
+
+// 存续期间放行标题栏拖拽区（v-if 挂载即打开），否则点标题栏的外点关闭收不到事件
+useAppDragSuspend()
 
 const menuEl = ref<HTMLElement | null>(null)
 const searchInput = ref<HTMLInputElement | null>(null)

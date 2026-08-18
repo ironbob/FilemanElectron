@@ -269,6 +269,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import {
   SearchIcon, ClearIcon, ChevronUpIcon, ChevronDownIcon,
   CopyIcon, MoreIcon, ExportIcon, WrapIcon
@@ -339,6 +340,9 @@ const findOptionsOpen = ref(false)
 const syntaxOpen = ref(false)
 const exportOpen = ref(false)
 const moreOpen = ref(false)
+
+// 任一菜单打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
+useAppDragSuspend(() => findOptionsOpen.value || syntaxOpen.value || exportOpen.value || moreOpen.value)
 
 function closeMenus(): void {
   findOptionsOpen.value = false
