@@ -7,10 +7,12 @@
       <!-- 半透明遮罩：点击关闭 -->
       <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px] app-no-drag" @click="close" />
 
-      <!-- 居中预览卡片 -->
+      <!-- 居中预览卡片：占内容区 70% 宽高。
+           表面语言对齐 finder-ui-standard：canvas 实色内容面 + chrome 工具栏 +
+           1px 发丝线 + 12px 圆角 + NSMenu 柔和双影（--menu-shadow）。 -->
       <div
-        class="relative flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden app-no-drag"
-        style="width: min(760px, 80%); height: min(540px, 72%)"
+        class="quick-look-card relative flex flex-col rounded-xl border border-border bg-bg-primary overflow-hidden app-no-drag"
+        style="width: 70%; height: 70%"
         role="dialog"
         :aria-label="$t('preview.quickLook.dialogAria')"
       >
@@ -18,8 +20,8 @@
         <div class="finder-preview-toolbar flex items-center justify-between border-b border-border">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-sm font-medium text-text-primary truncate">{{ currentFile.name }}</span>
-            <span class="text-xs text-text-tertiary flex-shrink-0">{{ sizeLabel }}</span>
-            <span v-if="total > 1" class="text-xs text-text-tertiary flex-shrink-0">{{ index + 1 }} / {{ total }}</span>
+            <span class="finder-preview-badge flex-shrink-0">{{ sizeLabel }}</span>
+            <span v-if="total > 1" class="finder-preview-badge flex-shrink-0">{{ index + 1 }} / {{ total }}</span>
           </div>
           <div class="finder-control-group">
             <button
@@ -48,12 +50,20 @@
           </div>
         </div>
 
-        <!-- Content -->
-        <div class="flex-1 overflow-hidden bg-bg-primary">
+        <!-- Content：Quick Look 只承载 文本/图片/视频 三类（对齐 Finder 空格预览
+             的轻量定位，完整预览能力走预览 tab），其余类型直接呈现「不支持」。 -->
+        <div v-if="kindSupported" class="flex-1 min-h-0 overflow-hidden bg-bg-primary">
           <PreviewContentRouter
             :file="currentFile"
             :device-id="deviceId"
           />
+        </div>
+        <div v-else class="flex-1 min-h-0 flex flex-col items-center justify-center px-6 text-center bg-bg-primary select-none">
+          <svg class="w-16 h-16 mb-4 text-text-tertiary opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p class="text-sm text-text-primary break-all">{{ currentFile.name }}</p>
+          <p class="text-xs text-text-tertiary mt-1.5">{{ $t('preview.quickLook.unsupported') }}</p>
         </div>
       </div>
     </div>
@@ -67,6 +77,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import PreviewContentRouter from './PreviewContentRouter.vue'
 import IconfontIcon from './IconfontIcon.vue'
+import { getPreviewType, type PreviewType } from '@/types/preview'
 
 const previewStore = usePreviewStore()
 const tabsStore = useTabsStore()
@@ -76,6 +87,13 @@ const currentFile = computed(() => previewStore.quickLookFile)
 const deviceId = computed(() => session.value?.deviceId || 'local')
 const index = computed(() => session.value?.index ?? 0)
 const total = computed(() => session.value?.files.length ?? 0)
+
+/** Quick Look 仅承载 文本/图片/视频；其余（目录、音频、PDF、ZIP、二进制…）显示「不支持」。 */
+const QUICK_LOOK_KINDS: ReadonlySet<PreviewType> = new Set(['text', 'image', 'video'])
+const kindSupported = computed(() => {
+  const file = currentFile.value
+  return !!file && QUICK_LOOK_KINDS.has(getPreviewType(file))
+})
 
 const sizeLabel = computed(() => {
   const size = currentFile.value?.size ?? 0
@@ -134,6 +152,12 @@ function step(delta: number) {
 </script>
 
 <style scoped>
+/* 浮层卡片投影：沿用 NSMenu 的柔和扩散双影（finder-ui-standard §11.1），
+   不用 Tailwind shadow-2xl 的硬投影。 */
+.quick-look-card {
+  box-shadow: var(--menu-shadow);
+}
+
 .quicklook-fade-enter-active,
 .quicklook-fade-leave-active {
   transition: opacity 0.15s ease-out;

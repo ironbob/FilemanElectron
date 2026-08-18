@@ -5,6 +5,9 @@ import { expect, test } from '@playwright/test'
 //    （stopImmediatePropagation 只拦监听器，不拦默认滚动——必须 preventDefault）
 // 2. ↑↓ 步进必须刷新浮窗内容——包括用户点击预览内容使 Monaco 获得焦点之后
 //    （模态期间 Space/↑↓/Esc 归浮层所有，不得落入 Monaco 的隐藏 textarea）
+// 3. 打开瞬间列表不得滚动（Quick Look ↑↓ 步进跟随滚动是步进专属行为；
+//    打开时 scrollToItem 会把选中行顶到视口首行——已修复，此为回归锁）
+// 4. Quick Look 只承载 文本/图片/视频；其余类型直接显示「不支持」
 
 const N_FILES = 40
 
@@ -20,10 +23,13 @@ test.beforeEach(async ({ page }) => {
       listFiles: async () => {
         ;(window as any).__listCalls = ((window as any).__listCalls ?? 0) + 1
         return Array.from({ length: fileCount }, (_, i) => {
-          const name = `file-${String(i + 1).padStart(2, '0')}.txt`
+          // 最后一项为 zip：Quick Look 不支持的类型（不支持态断言用）
+          const name = i === fileCount - 1
+            ? 'archive.zip'
+            : `file-${String(i + 1).padStart(2, '0')}.txt`
           return {
             name, path: `/${name}`, isDirectory: false, isFile: true, size: 12,
-            modifiedTime: '2026-08-14T10:00:00Z', extension: '.txt'
+            modifiedTime: '2026-08-14T10:00:00Z', extension: i === fileCount - 1 ? '.zip' : '.txt'
           }
         })
       },
@@ -133,4 +139,41 @@ test('selected rows keep the accent-blue background while hovered', async ({ pag
   })
   // hover 中的选中行与未 hover 的选中行背景必须完全一致（蓝底）
   expect(colors.hovered).toBe(colors.idle)
+})
+
+test('opening Quick Look keeps the list scroll position', async ({ page }) => {
+  // 点击视口中部可见行（非首行）再按 Space：打开前后列表滚动位置必须一致。
+  // 曾为 bug：打开瞬间跟随reveal → scrollToItem 把选中行顶到视口首行。
+  const row = page.locator('[data-file-path="/file-15.txt"]')
+  await row.click()
+  const scrollTop = () => page.evaluate(() => {
+    const scroller = document.querySelector('.vue-recycle-scroller') as HTMLElement | null
+    return scroller ? scroller.scrollTop : -1
+  })
+  const before = await scrollTop()
+
+  await page.keyboard.press('Space')
+  const overlay = page.getByRole('dialog', { name: '快速预览' })
+  await expect(overlay).toBeVisible()
+  await expect(headerName(overlay)).toHaveText('file-15.txt')
+  // reveal 走 nextTick 异步滚动，等待窗口期确认没有迟到的滚动
+  await page.waitForTimeout(300)
+  expect(await scrollTop()).toBe(before)
+})
+
+test('unsupported file types show the unsupported message', async ({ page }) => {
+  // Quick Look 仅承载 文本/图片/视频；zip 等其余类型直接呈现「不支持」占位。
+  // 列表按名称排序，archive.zip 排在首位 → Home 选中它。
+  await page.locator('[data-file-path="/file-01.txt"]').click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Space')
+
+  const overlay = page.getByRole('dialog', { name: '快速预览' })
+  await expect(overlay).toBeVisible()
+  await expect(headerName(overlay)).toHaveText('archive.zip')
+  await expect(overlay.getByText('此文件类型不支持快速预览')).toBeVisible()
+
+  // ↑↓ 步进回到支持的类型时恢复内容预览（门控按当前文件逐项判定）
+  await page.keyboard.press('ArrowDown')
+  await expect(overlay.locator('.monaco-editor').first()).toBeVisible()
 })

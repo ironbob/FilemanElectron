@@ -1229,7 +1229,8 @@ const enUS: MessageSchema = {
       dialogAria: 'Quick Look',
       prevTip: 'Previous (↑)',
       nextTip: 'Next (↓)',
-      closeTip: 'Close (Esc / Space)'
+      closeTip: 'Close (Esc / Space)',
+      unsupported: 'Quick Look is unavailable for this file type'
     },
     logview: {
       filterPlaceholder: 'Filter (Enter to run): co(error) and level(warn)',

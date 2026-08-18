@@ -705,9 +705,12 @@ watch(typeahead.activeMatch, match => {
   if (match) void revealTypeaheadMatch(match.file)
 })
 
-// Quick Look ↑↓ 步进时列表滚动跟随（仅 session 归属的 pane 响应）
-watch(() => (previewStore.quickLookOpen ? previewStore.quickLookFile?.path ?? null : null), path => {
+// Quick Look ↑↓ 步进时列表滚动跟随（仅 session 归属的 pane 响应）。
+// oldPath === null 是「打开」这一跳变（关闭后 source 归 null，再开又从 null 起）——
+// 打开瞬间不得滚动列表，否则 scrollToItem 会把选中行顶到视口首行（曾为 bug）。
+watch(() => (previewStore.quickLookOpen ? previewStore.quickLookFile?.path ?? null : null), (path, oldPath) => {
   if (!path || !previewStore.quickLookOpen) return
+  if (oldPath === null) return
   if (previewStore.quickLook?.paneId !== props.paneId) return
   if (props.viewMode === 'columns') {
     revealColumnItem(path)

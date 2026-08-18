@@ -1243,7 +1243,8 @@ const zhCN = {
       dialogAria: '快速预览',
       prevTip: '上一项 (↑)',
       nextTip: '下一项 (↓)',
-      closeTip: '关闭 (Esc / 空格)'
+      closeTip: '关闭 (Esc / 空格)',
+      unsupported: '此文件类型不支持快速预览'
     },
     logview: {
       filterPlaceholder: '过滤 (回车执行): co(error) and level(warn)',
