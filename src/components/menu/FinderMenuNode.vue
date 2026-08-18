@@ -206,11 +206,25 @@ function onItemClick(item: FinderMenuItem, path: number[]): void {
   cursor: default;
   user-select: none;
   white-space: nowrap;
+  /* 全局 style.css 的 .context-menu-item 带 0.15s 背景过渡（标签栏菜单在用，
+     不能删）；NSMenu 高亮是即时的，这里显式关掉——也避免过渡中间帧被
+     e2e computed 采样成半透明色 */
+  transition: none;
 }
 
-/* 整行可点击；悬停/键盘焦点共用低对比浅灰高亮（NSMenu 语义） */
+/* 整行可点击；悬停 = 键盘焦点共用系统蓝底白字选中态（与列表 Finder 选中同语言） */
 .context-menu-item.highlighted:not(.disabled) {
-  background-color: var(--menu-item-hover-bg);
+  background-color: var(--menu-item-active-bg);
+  color: var(--menu-item-active-text);
+}
+
+.context-menu-item.highlighted:not(.disabled) .menu-icon {
+  color: var(--menu-item-active-icon);
+}
+
+.context-menu-item.highlighted:not(.disabled) .menu-shortcut,
+.context-menu-item.highlighted:not(.disabled) .menu-chevron {
+  color: var(--menu-item-active-shortcut);
 }
 
 .context-menu-item.disabled {

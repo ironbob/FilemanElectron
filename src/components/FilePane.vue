@@ -357,6 +357,17 @@
       </div>
     </template>
 
+    <!-- Breadcrumb collapsed-segments menu：fixed 浮层须置于工具栏容器之外
+         （container-type 的 containment 会劫持 fixed 后代的定位基准） -->
+    <FinderContextMenu
+      v-if="breadcrumbMenu.visible"
+      :items="hiddenBreadcrumbSegments"
+      :x="breadcrumbMenu.x"
+      :y="breadcrumbMenu.y"
+      @select="onBreadcrumbMenuSelect"
+      @close="breadcrumbMenu.visible = false"
+    />
+
     <!-- Operation Dialog -->
     <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
       <form class="w-80 rounded-lg border border-border bg-bg-secondary p-4 shadow-xl" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
@@ -417,6 +428,7 @@ import FinderIcon from './FinderIcon.vue'
 import FinderToolbarButton from './toolbar/FinderToolbarButton.vue'
 import FinderToolbarGroup from './toolbar/FinderToolbarGroup.vue'
 import FinderSearchField from './toolbar/FinderSearchField.vue'
+import FinderContextMenu, { type FinderMenuItem } from '@/components/menu/FinderContextMenu.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useGitStatusStore } from '@/stores/gitStatus'
 import { usePreviewStore } from '@/stores/preview'
@@ -758,6 +770,121 @@ function navigateToSegment(index: number) {
   tabsStore.navigatePane(props.paneId, newPath)
 }
 
+// ── 面包屑长路径折叠（Finder 式：中段折成 …，首尾段常驻可见） ──────────────────
+// 折叠量按实测宽度自适应：子元素全部 flex-shrink-0，overflow-hidden 下
+// scrollWidth 如实反映内容总宽，溢出则逐级把中间段折进 …。
+const breadcrumbCollapseCount = ref(0)
+const breadcrumbMeasureRef = ref<HTMLElement | null>(null) // 内层 overflow-hidden 容器（测量对象）
+const breadcrumbPillRef = ref<HTMLElement | null>(null)    // 带边框 pill（RO 目标，跨浏览⇄编辑态存活）
+const breadcrumbMenu = reactive({ visible: false, x: 0, y: 0 })
+let breadcrumbObserver: ResizeObserver | null = null
+let breadcrumbAdjustToken = 0
+
+/** 最多可折叠的中间段数：始终保留首段与末段。 */
+const maxBreadcrumbCollapse = computed(() => Math.max(0, pathSegments.value.length - 2))
+
+interface BreadcrumbItem {
+  key: string
+  kind: 'seg' | 'ellipsis'
+  label: string
+  /** 原始分段索引（… 为 -1）；navigateToSegment / isZipBoundarySegment 直接消费 */
+  index: number
+  showSeparator: boolean
+}
+
+/** 渲染用分段序列：c=0 全显；c>0 为 seg0 + … + seg[c+1..]，呈 `Users / … / a / b`。 */
+const visibleBreadcrumb = computed<BreadcrumbItem[]>(() => {
+  const segs = pathSegments.value
+  if (segs.length === 0) return []
+  const c = Math.min(breadcrumbCollapseCount.value, maxBreadcrumbCollapse.value)
+  const items: BreadcrumbItem[] = [
+    { key: 's0', kind: 'seg', label: segs[0], index: 0, showSeparator: c > 0 || segs.length > 1 }
+  ]
+  if (c > 0) {
+    items.push({ key: 'ellipsis', kind: 'ellipsis', label: '…', index: -1, showSeparator: true })
+    for (let i = c + 1; i < segs.length; i++) {
+      items.push({ key: `s${i}`, kind: 'seg', label: segs[i], index: i, showSeparator: i < segs.length - 1 })
+    }
+  } else {
+    for (let i = 1; i < segs.length; i++) {
+      items.push({ key: `s${i}`, kind: 'seg', label: segs[i], index: i, showSeparator: i < segs.length - 1 })
+    }
+  }
+  return items
+})
+
+/** … 菜单项：被折叠的中间段（ZIP 边界段用 zip 图标保持辨识）。 */
+const hiddenBreadcrumbSegments = computed<FinderMenuItem[]>(() => {
+  const c = Math.min(breadcrumbCollapseCount.value, maxBreadcrumbCollapse.value)
+  return pathSegments.value.slice(1, c + 1).map((label, i) => ({
+    label,
+    action: String(i + 1),
+    icon: isZipBoundarySegment(i + 1) ? 'zip' : 'folder'
+  }))
+})
+
+/** 实测自适应折叠：溢出逐级 +1；空闲超过 48px（滞回防抖）才 -1，展开过头则回退。 */
+async function adjustBreadcrumbCollapse() {
+  const token = ++breadcrumbAdjustToken
+  let guard = 0
+  const maxIter = pathSegments.value.length + 4
+  // 路径变短后 c 可能残留越界，先钳回上限
+  breadcrumbCollapseCount.value = Math.min(breadcrumbCollapseCount.value, maxBreadcrumbCollapse.value)
+  await nextTick()
+  if (token !== breadcrumbAdjustToken) return
+
+  // 收缩：放得下即停；到折叠上限仍溢出则交由 overflow-hidden 兜底
+  while (guard++ < maxIter) {
+    const el = breadcrumbMeasureRef.value
+    if (!el || breadcrumbEditing.value || el.clientWidth === 0) return
+    if (el.scrollWidth <= el.clientWidth + 1) break
+    if (breadcrumbCollapseCount.value >= maxBreadcrumbCollapse.value) break
+    breadcrumbCollapseCount.value++
+    await nextTick()
+    if (token !== breadcrumbAdjustToken) return
+  }
+  // 展开滞回：多出 48px 才展开一级；展开后若溢出则回退并停（避免临界抖动）
+  while (guard++ < maxIter && breadcrumbCollapseCount.value > 0) {
+    const el = breadcrumbMeasureRef.value
+    if (!el || breadcrumbEditing.value || el.clientWidth === 0) return
+    if (el.clientWidth - el.scrollWidth <= 48) break
+    breadcrumbCollapseCount.value--
+    await nextTick()
+    if (token !== breadcrumbAdjustToken) return
+    const after = breadcrumbMeasureRef.value
+    if (after && after.scrollWidth > after.clientWidth + 1) {
+      breadcrumbCollapseCount.value++
+      await nextTick()
+      break
+    }
+  }
+}
+
+/** 幂等挂载 ResizeObserver（onMounted 时 pill 可能尚未就绪，watch 里重试）；observe 即触发首调。 */
+function ensureBreadcrumbObserver() {
+  if (breadcrumbObserver || !breadcrumbPillRef.value) return
+  breadcrumbObserver = new ResizeObserver(() => void adjustBreadcrumbCollapse())
+  breadcrumbObserver.observe(breadcrumbPillRef.value)
+}
+
+// ── … 菜单开合（宿主契约同 FileList 右键菜单：document click 冒泡关闭 + 菜单根自带 @click.stop） ──
+function openBreadcrumbEllipsisMenu(event: MouseEvent) {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  breadcrumbMenu.x = rect.left
+  breadcrumbMenu.y = rect.bottom + 4
+  breadcrumbMenu.visible = true
+}
+
+function onBreadcrumbMenuSelect(action: string) {
+  breadcrumbMenu.visible = false
+  navigateToSegment(Number(action))
+}
+
+/** 点外部 / 右键别处时关闭 … 菜单（contextmenu 用捕获：FileList 的菜单互斥句柄是模块局部的，互相不知情）。 */
+function closeBreadcrumbMenu() {
+  breadcrumbMenu.visible = false
+}
+
 function handleSelect(files: string[]) {
   tabsStore.setSelectedFiles(props.paneId, files)
 
@@ -807,6 +934,10 @@ function closeRecentMenuOnOutsideClick(event: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.addEventListener('click', closeSearchHistoryOnOutsideClick, true)
+  // … 菜单：点外部关闭（冒泡，菜单根自带 @click.stop）；右键别处时捕获阶段先行关闭
+  document.addEventListener('click', closeBreadcrumbMenu)
+  document.addEventListener('contextmenu', closeBreadcrumbMenu, true)
+  ensureBreadcrumbObserver()
   // 命令面板「刷新当前目录」的广播（仅活动面板响应）
   document.addEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
   stopFileOperationUpdates = window.fileman.onFileOperationUpdated(task => {
@@ -828,6 +959,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.removeEventListener('click', closeSearchHistoryOnOutsideClick, true)
+  document.removeEventListener('click', closeBreadcrumbMenu)
+  document.removeEventListener('contextmenu', closeBreadcrumbMenu, true)
+  breadcrumbObserver?.disconnect()
+  breadcrumbObserver = null
   document.removeEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
   stopFileOperationUpdates?.()
   stopFileOperationUpdates = null
@@ -923,8 +1058,18 @@ const breadcrumbInputRef = ref<HTMLInputElement | null>(null)
 // 提交校验是异步的：await 期间的失焦不当作「放弃输入」
 let breadcrumbCommitting = false
 
+// 面包屑折叠重测触发：路径变化（computed 只依赖 pane.path，仅真变化才触发）、
+// 编辑态切回、git chip 显隐（chip 占宽但不改 pill 盒子，RO 不会触发，必须单列）。
+// 置于此处因源数组直接引用 breadcrumbEditing（声明序在前）。
+watch([pathSegments, breadcrumbEditing, gitBranchInfo], () => {
+  ensureBreadcrumbObserver()
+  void adjustBreadcrumbCollapse()
+})
+
 function startBreadcrumbEdit() {
   if (!pane.value) return
+  // 进入输入态前收起 … 菜单（fixed 浮层不该残留在输入框上）
+  breadcrumbMenu.visible = false
   // Finder ⇧⌘G 习惯：预填当前路径并全选，直接粘贴/输入即整体替换
   breadcrumbInput.value = pane.value.path
   breadcrumbError.value = ''

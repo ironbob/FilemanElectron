@@ -100,9 +100,15 @@
   --menu-text: rgba(255, 255, 255, 0.92);
   --menu-icon: rgba(255, 255, 255, 0.58);
   --menu-shortcut: rgba(255, 255, 255, 0.42);
-  --menu-item-hover-bg: rgba(255, 255, 255, 0.11);
   --menu-separator: rgba(255, 255, 255, 0.11);
   --menu-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.32);
+
+  /* 菜单选中态（悬停=键盘焦点）：系统蓝底白字，与列表 Finder 选中同语言。
+     引用 accent-blue（主题作用域内重定义），在元素上按当前主题解析。 */
+  --menu-item-active-bg: var(--accent-blue);
+  --menu-item-active-text: #ffffff;
+  --menu-item-active-icon: rgba(255, 255, 255, 0.88);
+  --menu-item-active-shortcut: rgba(255, 255, 255, 0.72);
 
   /* Scrollbar - 更细腻的滚动条 */
   --scrollbar-bg: transparent;
@@ -211,7 +217,6 @@
   --menu-text: #1d1d1f;
   --menu-icon: rgba(0, 0, 0, 0.52);
   --menu-shortcut: rgba(0, 0, 0, 0.40);
-  --menu-item-hover-bg: rgba(0, 0, 0, 0.06);
   --menu-separator: rgba(0, 0, 0, 0.10);
   --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.10);
 
