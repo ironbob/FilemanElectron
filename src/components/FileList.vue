@@ -371,6 +371,8 @@ const props = defineProps<{
   recursiveSearch?: boolean
   sort?: FileSortDescriptor
   gridSize?: 'xlarge' | 'large' | 'medium' | 'small'
+  /** cmd+V 落地揭示：加载成功后滚动定位到该文件（本挂载消费一次，FilePane 持有） */
+  revealPath?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -570,6 +572,27 @@ async function restorePaneScroll() {
   el.scrollTop = top
 }
 
+/** cmd+V 副本落地揭示：本挂载内首次成功加载时消费 revealPath，滚动到新文件；
+ *  目标不在列表（隐藏文件被过滤 / 搜索态）则不消费、回退滚动记忆。
+ *  FileList 每次目录刷新都被 FilePane 以 :key 重挂，消费一次的语义天然成立。 */
+let revealPathConsumed = false
+function revealOrRestoreScroll() {
+  if (!revealPathConsumed && props.revealPath) {
+    const target = props.revealPath
+    const index = displayedFiles.value.findIndex(file => file.path === target)
+    if (index >= 0) {
+      revealPathConsumed = true
+      if (props.viewMode === 'columns') {
+        revealColumnItem(target)
+        return
+      }
+      void revealIndex(index)
+      return
+    }
+  }
+  void restorePaneScroll()
+}
+
 // ── 选择状态 ──────────────────────────────────────────────────────────────────
 // 锚点：最后一次不带 Shift 的点击项，供 Shift 范围选择使用
 const anchorPath = ref<string | null>(null)
@@ -633,9 +656,26 @@ async function revealIndex(index: number): Promise<void> {
   if (index < 0) return
   await nextTick()
   if (props.viewMode === 'list') {
+    // RecycleScroller 内容布局晚一至两帧：刚赋值就 scrollToItem 会被 clamp 回 0
+    // （同 restorePaneScroll 的坑）。逐帧等目标偏移可达后再落位。
+    const el = listScrollerRef.value?.$el
+    const targetTop = index * LIST_ITEM_HEIGHT
+    if (el) {
+      for (let frame = 0; frame < 10 && el.scrollHeight - el.clientHeight < targetTop; frame++) {
+        await new Promise(resolve => requestAnimationFrame(resolve))
+      }
+    }
     listScrollerRef.value?.scrollToItem?.(index)
   } else if (props.viewMode === 'grid') {
-    gridScrollerRef.value?.scrollToItem?.(Math.floor(index / itemsPerRow.value))
+    const row = Math.floor(index / itemsPerRow.value)
+    const el = gridScrollerRef.value?.$el
+    const targetTop = row * (gridCfg.value.rowHeight + gridCfg.value.rowGap)
+    if (el) {
+      for (let frame = 0; frame < 10 && el.scrollHeight - el.clientHeight < targetTop; frame++) {
+        await new Promise(resolve => requestAnimationFrame(resolve))
+      }
+    }
+    gridScrollerRef.value?.scrollToItem?.(row)
   }
 }
 
@@ -790,7 +830,7 @@ async function loadFiles() {
       files.value = result
       columnFilesMap.value.set(pathSnapshot, result)
       emit('loaded', result)
-      void restorePaneScroll()
+      revealOrRestoreScroll()
       if (props.viewMode === 'columns') {
         columns.value = [{ path: pathSnapshot, files: result }]
       }
@@ -808,7 +848,7 @@ async function loadFiles() {
     files.value = result
     columnFilesMap.value.set(pathSnapshot, result)
     emit('loaded', result)
-    void restorePaneScroll()
+    revealOrRestoreScroll()
 
     if (props.viewMode === 'columns') {
       const storedColumns = pane.value?.columns

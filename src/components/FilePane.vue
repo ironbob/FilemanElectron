@@ -303,6 +303,7 @@
         :view-mode="pane.viewMode"
         :grid-size="pane.gridSize"
         :selected-files="pane.selectedFiles"
+        :reveal-path="revealArrivedPath"
         :search-query="searchQuery"
         :recursive-search="browserState.recursiveSearch"
         :sort="browserState.sort"
@@ -533,6 +534,10 @@ const goToDialog = reactive({
   error: ''
 })
 const pendingDirectoryRefreshes = new Set<string>()
+/** 本面板 cmd+V 排队的 copy/move 任务：完成后把落地文件设为选中（Finder 语义）。 */
+const pasteOriginatedTaskIds = new Set<string>()
+/** cmd+V 落地后的一次性揭示目标：随刷新重挂的 FileList 加载成功后滚动定位。 */
+const revealArrivedPath = ref<string | null>(null)
 let stopFileOperationUpdates: (() => void) | null = null
 
 log.info('[FinderFilePane] initialized', { paneId: props.paneId })
@@ -941,8 +946,9 @@ onMounted(() => {
   // 命令面板「刷新当前目录」的广播（仅活动面板响应）
   document.addEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
   stopFileOperationUpdates = window.fileman.onFileOperationUpdated(task => {
-    if (!pendingDirectoryRefreshes.has(task.id) && !taskTouchesThisDirectory(task)) return
     if (!['completed', 'failed', 'cancelled'].includes(task.status)) return
+    selectArrivedFiles(task)
+    if (!pendingDirectoryRefreshes.has(task.id) && !taskTouchesThisDirectory(task)) return
     pendingDirectoryRefreshes.delete(task.id)
     if (task.status === 'completed') {
       log.info('[DnD][FilePane] refreshing directory after task completion', {
@@ -1142,6 +1148,28 @@ function taskTouchesThisDirectory(task: FileOperationTask): boolean {
   return false
 }
 
+/**
+ * cmd+V（含 ⌘X→⌘V）任务完成：把成功落地的目标文件设为面板选中，并让刷新后的
+ * FileList 滚动揭示首个新文件 —— 用户一眼看到「xxx 副本」落在哪。
+ * - itemResults.targetPath 已含 rename 策略生成的「副本」最终名；
+ * - 只认本面板 paste 排队的任务：同目录的另一面板不被抢选中；
+ * - 完成时面板已离开目标目录则放弃（用户在看别处）；
+ * - 全部 skip/failed（如目标已存在被跳过）时保持现有选中，不打扰。
+ */
+function selectArrivedFiles(task: FileOperationTask) {
+  if (!pasteOriginatedTaskIds.delete(task.id)) return
+  // 失败/取消（即使有部分成功项）不抢选中：失败已有抽屉/横幅揭示
+  if (task.status !== 'completed') return
+  if ((task.type !== 'copy' && task.type !== 'move') || !task.targetPath) return
+  if (pane.value?.deviceId !== task.targetDeviceId || pane.value?.path !== task.targetPath) return
+  const arrived = task.progress.itemResults
+    .filter(item => item.status === 'success' && item.targetPath && parentDirectoryOf(item.targetPath) === task.targetPath)
+    .map(item => item.targetPath!)
+  if (arrived.length === 0) return
+  tabsStore.setSelectedFiles(props.paneId, arrived)
+  revealArrivedPath.value = arrived[0]
+}
+
 function trackDirectoryRefresh(task: FileOperationTask) {
   if (['completed', 'failed', 'cancelled'].includes(task.status)) {
     if (task.status === 'completed') refreshCurrentDirectory()
@@ -1256,6 +1284,7 @@ function editSelectedTags() {
 watch(() => pane.value?.path, () => {
   inlinePreviewFile.value = null
   searchQuery.value = ''
+  revealArrivedPath.value = null
 })
 
 async function handleOperation(op: { action: string; files: string[]; target?: string; targetDeviceId?: string; newName?: string; sourceDeviceId?: string; sourcePaneId?: string; mode?: 'copy' | 'move'; checksumItems?: ChecksumItem[] }) {
@@ -1339,12 +1368,13 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         console.log('[FilePane] Executing paste with files:', clipboardStore.files)
         if (clipboardStore.action === 'cut') {
           console.log('[FilePane] Paste as MOVE operation')
-          await fileOpsStore.createMoveTask(
+          const task = await fileOpsStore.createMoveTask(
             clipboardStore.sourceDeviceId,
             clipboardStore.files,
             deviceId,
             targetPath
           )
+          pasteOriginatedTaskIds.add(task.id)
           clipboardStore.clearClipboard()
         } else {
           console.log('[FilePane] Paste as COPY operation')
@@ -1357,13 +1387,14 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
             clipboardStore.files.length > 0 &&
             !isZipVirtualPath(targetPath) &&
             clipboardStore.files.every(p => !isZipVirtualPath(p) && parentDirectoryOf(p) === targetPath)
-          await fileOpsStore.createCopyTask(
+          const task = await fileOpsStore.createCopyTask(
             clipboardStore.sourceDeviceId,
             clipboardStore.files,
             deviceId,
             targetPath,
             sameDirDuplicate ? 'rename' : 'skip'
           )
+          pasteOriginatedTaskIds.add(task.id)
         }
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
       } else {
