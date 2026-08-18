@@ -8,6 +8,7 @@ import { expect, test } from '@playwright/test'
 // 3. 打开瞬间列表不得滚动（Quick Look ↑↓ 步进跟随滚动是步进专属行为；
 //    打开时 scrollToItem 会把选中行顶到视口首行——已修复，此为回归锁）
 // 4. Quick Look 只承载 文本/图片/视频；其余类型直接显示「不支持」
+// 5. 文本面板高度贴合内容（短文件收缩、长文件封顶 70%，对齐 Finder）
 
 const N_FILES = 40
 
@@ -33,7 +34,11 @@ test.beforeEach(async ({ page }) => {
           }
         })
       },
-      readFile: async () => btoa('hello quick look'),
+      // file-02 为长文本（200 行），其余 1 行：高度贴合回归用
+      readFile: async (_d: string, path: string) =>
+        btoa(path === '/file-02.txt'
+          ? Array.from({ length: 200 }, (_, i) => `long line ${i + 1}`).join('\n')
+          : 'hello quick look'),
       getStats: async () => ({ size: 12, isDirectory: false, isFile: true, modifiedTime: '', createdTime: '', mode: 0 }),
       exists: async () => true,
       getFileOperationQueue: async () => [],
@@ -176,4 +181,28 @@ test('unsupported file types show the unsupported message', async ({ page }) => 
   // ↑↓ 步进回到支持的类型时恢复内容预览（门控按当前文件逐项判定）
   await page.keyboard.press('ArrowDown')
   await expect(overlay.locator('.monaco-editor').first()).toBeVisible()
+})
+
+test('text panel height fits content and caps at 70% (Finder fit)', async ({ page }) => {
+  // 对齐 Finder 空格预览：短文本面板收缩贴合内容（不再留下方大段空白），
+  // 长文本封顶内容区 70%。高度经 fit-height 上报链（Monaco 内容高 + chrome 实测）。
+  const geo = () => page.evaluate(() => {
+    const card = document.querySelector('.quick-look-card') as HTMLElement | null
+    const overlayH = card?.parentElement?.clientHeight ?? 0
+    return { overlayH, cardH: card?.getBoundingClientRect().height ?? 0 }
+  })
+
+  const overlay = await openQuickLook(page) // file-01：1 行短文本
+  await expect(overlay.locator('.monaco-editor').first()).toBeVisible()
+  await page.waitForTimeout(800) // 高度过渡 150ms + 载入后收缩
+  const short = await geo()
+  expect(short.cardH).toBeLessThan(short.overlayH * 0.7 - 40)
+  expect(short.cardH).toBeGreaterThan(120)
+
+  // file-02：200 行长文本 → 封顶 70%
+  await page.keyboard.press('ArrowDown')
+  await expect(headerName(overlay)).toHaveText('file-02.txt')
+  await page.waitForTimeout(800)
+  const long = await geo()
+  expect(Math.abs(long.cardH - long.overlayH * 0.7)).toBeLessThan(3)
 })
