@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 
 // 复制路径变体（右键菜单）回归：
-// 1. 文件右键 → 复制路径 ▸ POSIX 路径 → 剪贴板得到绝对路径
+// 1. 文件右键 → 拷贝路径 ▸ POSIX 路径 → 剪贴板得到绝对路径
+//    （2026-08-18 扩展能力回迁顶层，不再经由「快速操作」中转）
 // 2. file:// URI 变体 → 剪贴板得到转义后的 URI
 // 3. 文件名变体 → 剪贴板得到纯文件名
 // 4. 双面板下「相对另一面板」→ 剪贴板得到相对路径
@@ -60,9 +61,10 @@ test.beforeEach(async ({ page }) => {
 
 async function copyViaMenu(page: import('@playwright/test').Page, submenuLabel: string): Promise<string> {
   await page.locator('[data-file-path="/alpha/file with space.txt"]').click({ button: 'right' })
-  const parent = page.locator('.context-menu .context-menu-item.has-submenu', { hasText: '复制路径' })
-  await expect(parent).toBeVisible()
-  await parent.hover()
+  // 拷贝路径是顶层项的右箭头子菜单，悬停展开后点变体
+  const copyPath = page.locator('.context-menu > .context-menu-item.has-submenu', { hasText: '拷贝路径' })
+  await expect(copyPath).toBeVisible()
+  await copyPath.hover()
   await page.locator('.context-submenu .context-menu-item', { hasText: submenuLabel }).click()
   return page.evaluate(() => navigator.clipboard.readText())
 }

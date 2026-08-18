@@ -94,9 +94,10 @@ test('previewing a .bin file renders the hex view', async ({ page }) => {
 })
 
 test('explicit entry forces hex view on a text file', async ({ page }) => {
-  // 右键 .txt（扩展名推断本应是 text）→ 以十六进制查看 → 强制 hex
+  // 右键 .txt（扩展名推断本应是 text）→ 以十六进制查看（顶层直达，
+  // 2026-08-18 扩展能力回迁，不再经由「快速操作」子菜单）→ 强制 hex
   await page.locator('[data-file-path="/fw/notes.txt"]').click({ button: 'right' })
-  await page.locator('.context-menu .context-menu-item', { hasText: '以十六进制查看' }).click()
+  await page.locator('.context-menu > .context-menu-item', { hasText: '以十六进制查看' }).click()
 
   await expect(page.locator('.hex-offset', { hasText: '00000000' }).first()).toBeVisible({ timeout: 5000 })
   await expect(page.getByText('48 65 6c 6c 6f').first()).toBeVisible()
