@@ -72,13 +72,10 @@
         v-slot="{ item: file }"
       >
         <div
-          class="finder-list-row file-item flex items-center gap-2 px-4 rounded-md transition-colors duration-100"
+          class="finder-list-row file-item flex items-center gap-2 px-4 rounded-md transition-colors duration-100 text-text-primary"
           :data-file-path="file.path"
           :style="{ height: LIST_ITEM_HEIGHT + 'px' }"
-          :class="[
-            isSelected(file.path) ? 'finder-selected finder-selected-text' : 'text-text-primary',
-            dropTargetPath === file.path ? 'drop-target-row' : ''
-          ]"
+          :class="dropTargetPath === file.path ? 'drop-target-row' : ''"
           draggable="true"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
@@ -86,17 +83,22 @@
           @drop="handleRowDrop(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
-          <div class="w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded">
+          <!-- Finder 式选中（与 grid/分栏统一）：图标一圈略大浅灰圆角底 + 名称蓝底白字 -->
+          <div
+            class="w-6 h-6 flex-shrink-0 flex items-center justify-center overflow-hidden rounded p-0.5 transition-colors"
+            :class="isSelected(file.path) ? 'finder-selected' : ''"
+          >
             <img
               v-if="getThumbnailUrl(file, 'small')"
               :src="getThumbnailUrl(file, 'small')!"
               class="w-full h-full object-cover"
               @error="thumbnailUrls.delete(`${file.path}:small`)"
             />
-            <component v-else :is="getFileIconComponent(file)" class="w-6 h-6" />
+            <component v-else :is="getFileIconComponent(file)" class="w-full h-full" />
           </div>
           <FileNameMatchLabel
-            class="flex-1 truncate text-base"
+            class="flex-1 truncate text-base rounded px-1 transition-colors"
+            :class="isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
@@ -162,7 +164,7 @@
           @drop="handleRowDrop(file, $event)"
           @contextmenu.prevent.stop="showFileContextMenu($event, file)"
         >
-          <!-- Finder 式选中：仅图标周围一圈略大的灰色圆角底，未选中时无底色 -->
+          <!-- Finder 式选中：仅图标周围一圈略大的灰色圆角底，未选中时无底色；文字底为系统蓝 -->
           <div
             class="flex items-center justify-center rounded-lg mb-2 flex-shrink-0 p-1.5 transition-colors duration-100"
             :class="isSelected(file.path) ? 'finder-selected' : ''"
@@ -178,7 +180,7 @@
             </div>
           </div>
           <FileNameMatchLabel
-            :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected finder-selected-text' : 'text-text-primary']"
+            :class="[gridCfg.nameClass, 'text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary']"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
             :selected="isSelected(file.path)"
@@ -215,18 +217,22 @@
           <div
             v-for="file in column.files"
             :key="file.path"
-            class="flex items-center gap-2.5 px-3 py-2 transition-colors duration-100"
+            class="flex items-center gap-2.5 px-3 py-2 transition-colors duration-100 text-text-primary"
             :data-file-path="file.path"
-            :class="[
-              column.selectedPath === file.path ? 'finder-selected finder-selected-text' : 'text-text-primary',
-              isSelected(file.path) && column.selectedPath !== file.path ? 'bg-bg-active' : ''
-            ]"
+            :class="isSelected(file.path) && column.selectedPath !== file.path ? 'bg-bg-active' : ''"
             @click="handleColumnClick(index, file)"
             @dblclick="handleDoubleClick(file)"
           >
-            <component :is="getFileIconComponent(file)" class="w-5 h-5 flex-shrink-0" />
+            <!-- Finder 式选中（与 list/grid 统一）：图标一圈略大浅灰圆角底 + 名称蓝底白字 -->
+            <div
+              class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded p-0.5 transition-colors"
+              :class="column.selectedPath === file.path ? 'finder-selected' : ''"
+            >
+              <component :is="getFileIconComponent(file)" class="w-full h-full" />
+            </div>
             <FileNameMatchLabel
-              class="flex-1 truncate text-base"
+              class="flex-1 truncate text-base rounded px-1 transition-colors"
+              :class="column.selectedPath === file.path ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
               :name="file.name"
               :highlight-indices="typeaheadHighlightFor(file)"
               :selected="isSelected(file.path)"
@@ -2682,9 +2688,15 @@ function handleContextMenuAction(action: string) {
 </script>
 
 <style scoped>
-/* Finder 式灰色选中：图标底/文字底/整行高亮共用（颜色随主题变量） */
+/* Finder 式选中（与 Finder 图标视图一致，三视图统一）：
+   图标底浅灰圆角（finder-selected）+ 名称文字底系统蓝圆角白字
+   （finder-selected-label / finder-selected-text），颜色随主题变量 */
 .finder-selected {
   background-color: var(--finder-selection-bg);
+}
+
+.finder-selected-label {
+  background-color: var(--finder-selection-text-bg);
 }
 
 .finder-selected-text {

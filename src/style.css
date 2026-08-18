@@ -23,8 +23,9 @@
   --bg-hover: rgba(255, 255, 255, 0.06);  /* 悬停 - 半透明白 */
   --bg-active: rgba(255, 255, 255, 0.1);  /* 激活状态 */
 
-  /* Finder 式灰色选中（图标/文字各自独立的浅灰底） */
+  /* Finder 式选中：图标底浅灰、文字底系统蓝（白字），列表/网格/分栏三视图共用 */
   --finder-selection-bg: rgba(255, 255, 255, 0.18);
+  --finder-selection-text-bg: var(--accent-blue);
   --finder-selection-text: #ffffff;
   --finder-mark-bg: rgba(255, 255, 255, 0.35);
 
@@ -123,9 +124,10 @@
   --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-active: rgba(0, 0, 0, 0.08);
 
-  /* Finder 式灰色选中：浅灰底 + 黑字 */
+  /* Finder 式选中：图标底浅灰、文字底系统蓝（白字） */
   --finder-selection-bg: rgba(0, 0, 0, 0.09);
-  --finder-selection-text: #000000;
+  --finder-selection-text-bg: var(--accent-blue);
+  --finder-selection-text: #ffffff;
   --finder-mark-bg: rgba(0, 0, 0, 0.14);
 
   /* Text Colors */
