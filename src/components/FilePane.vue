@@ -12,31 +12,22 @@
          pane 成为 position:fixed 后代（右键菜单、模态弹窗）的包含块，
          导致 fixed 定位相对 pane 而非视口，菜单位置随侧边栏宽度偏移 -->
     <div class="file-pane-toolbar-container">
-      <div class="finder-pane-toolbar file-pane-toolbar h-10 min-w-0 bg-bg-toolbar flex items-center px-2 gap-1.5 border-b border-border">
-      <!-- Navigation Buttons -->
-      <FinderToolbarGroup class="file-pane-toolbar-nav flex-shrink-0">
-        <FinderToolbarButton v-if="fileOpsStore.undoRecycle" class="text-accent-blue" :label="$t('filePane.toolbar.undoRemoteDelete')" @click="undoRecycle">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 101.9-5.2M4 4v4h4"/></svg>
-        </FinderToolbarButton>
+      <!-- 工具栏条透明：导航/标题/视图/排序/操作/搜索各自成为独立浮动胶囊
+           （.finder-toolbar-capsule），分组感由胶囊材质+阴影+留白承担 -->
+      <div class="finder-pane-toolbar file-pane-toolbar min-w-0 flex items-center">
+      <!-- 导航胶囊：后退/前进/上级直达（最近访问与前往文件夹已在全局菜单与 ⌘⇧P，
+           不在工具栏重复） -->
+      <FinderToolbarGroup capsule class="file-pane-toolbar-nav flex-shrink-0">
         <FinderToolbarButton
+          variant="pill"
           :disabled="pane.historyIndex <= 0"
           @click="tabsStore.goBack(paneId)"
           :label="$t('filePane.toolbar.goBack')"
         >
           <FinderIcon name="arrowLeft" />
         </FinderToolbarButton>
-        <div ref="recentMenuRef" class="relative flex-shrink-0">
-          <FinderToolbarButton :label="$t('filePane.toolbar.recentLocations')" :aria-expanded="recentMenuOpen" :open="recentMenuOpen" @click="recentMenuOpen = !recentMenuOpen">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </FinderToolbarButton>
-          <div v-if="recentMenuOpen" class="recent-locations-menu absolute left-0 top-9 z-50 max-h-64 w-72 overflow-y-auto py-1.5" role="menu" :aria-label="$t('filePane.toolbar.recentLocations')">
-            <div v-if="browserStore.recent.length === 0" class="px-3 py-2 text-xs text-text-secondary">{{ $t('filePane.toolbar.noRecentLocations') }}</div>
-            <button v-for="location in browserStore.recent" :key="`${location.deviceId}:${location.path}`" class="group flex w-full flex-col gap-0.5 px-3 py-1.5 text-left hover:bg-accent-blue" role="menuitem" @click="openRecentLocation(location.deviceId, location.path)">
-              <span class="truncate text-[13px] font-medium text-text-primary group-hover:text-white">{{ location.path }}</span><span class="truncate text-[11px] text-text-secondary group-hover:text-white/80">{{ location.deviceId }}</span>
-            </button>
-          </div>
-        </div>
         <FinderToolbarButton
+          variant="pill"
           :disabled="pane.historyIndex >= pane.history.length - 1"
           @click="tabsStore.goForward(paneId)"
           :label="$t('filePane.toolbar.goForward')"
@@ -44,23 +35,22 @@
           <FinderIcon name="arrowRight" />
         </FinderToolbarButton>
         <FinderToolbarButton
+          variant="pill"
           @click="tabsStore.goUp(paneId)"
           :label="$t('filePane.toolbar.goUp')"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-          </svg>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
         </FinderToolbarButton>
       </FinderToolbarGroup>
 
-      <!-- Path Breadcrumb：浏览态（分段面包屑）⇄ 输入态（粘贴路径回车前往） -->
-      <div class="file-pane-toolbar-breadcrumb min-w-0 flex-1 mx-2 flex items-center">
+      <!-- 当前位置：浏览态 = 低对比父级分段 + 当前目录名主标题（无边框无底色，
+           完整路径经标题 tooltip / 分段点击 / 尾部铅笔进入输入态）；
+           输入态 = 轻量输入材质（粘贴路径回车前往） -->
+      <div class="file-pane-toolbar-breadcrumb min-w-0 flex-1 flex items-center px-1">
         <div
           ref="breadcrumbPillRef"
-          class="file-pane-toolbar-breadcrumb-content relative min-w-0 w-full flex items-center gap-1 px-3 py-1.5 bg-bg-secondary/50 rounded-lg border transition-colors"
-          :class="breadcrumbEditing
-            ? (breadcrumbError ? 'border-accent-red' : 'border-accent-blue')
-            : 'border-border/50 hover:border-border'"
+          class="file-pane-toolbar-breadcrumb-content relative min-w-0 w-full flex items-center gap-1 px-2 py-1 transition-shadow"
+          :class="breadcrumbEditing ? ['finder-path-field-editing', breadcrumbError ? 'is-error' : ''] : []"
         >
           <!-- 浏览态：长路径中段折叠成 …（Finder 式），首尾段与尾部按钮常驻可见 -->
           <template v-if="!breadcrumbEditing">
@@ -83,11 +73,15 @@
               <template v-for="item in visibleBreadcrumb" :key="item.key">
                 <button
                   v-if="item.kind === 'seg'"
-                  class="max-w-32 truncate text-[13px] transition-colors font-medium flex-shrink-0"
-                  :class="isZipBoundarySegment(item.index)
-                    ? 'text-orange-400 hover:text-orange-300'
-                    : (item.index === pathSegments.length - 1 ? 'text-text-primary' : 'text-text-secondary hover:text-accent-blue')"
-                  :title="item.label"
+                  class="max-w-32 truncate transition-colors font-medium flex-shrink-0"
+                  :class="[
+                    isZipBoundarySegment(item.index)
+                      ? 'text-orange-400 hover:text-orange-300 text-[13px]'
+                      : item.index === pathSegments.length - 1
+                        ? 'text-text-primary text-[15px] font-semibold'
+                        : 'text-text-secondary hover:text-accent-blue text-[13px]'
+                  ]"
+                  :title="item.index === pathSegments.length - 1 ? pane.path : item.label"
                   @click="navigateToSegment(item.index)"
                 >
                   {{ item.label }}
@@ -146,18 +140,94 @@
         </div>
       </div>
 
-      <!-- Search (含历史下拉:聚焦/输入时展示,点击回填) -->
+      <!-- 视图胶囊：列表/图标/分栏（激活态为 Finder 式浅灰）+ 双面板切换 -->
+      <FinderToolbarGroup capsule class="file-pane-toolbar-view flex-shrink-0">
+        <FinderToolbarButton
+          v-for="mode in viewModes"
+          :key="mode.value"
+          variant="segment"
+          :active="pane.viewMode === mode.value"
+          :label="mode.value === 'grid' ? $t('filePane.view.gridHint', { label: mode.label }) : mode.label"
+          @click="tabsStore.setViewMode(paneId, mode.value)"
+          @contextmenu.prevent="onViewButtonContextMenu(mode.value, $event)"
+        >
+          <component :is="mode.icon" class="w-3.5 h-3.5" />
+        </FinderToolbarButton>
+        <!-- Dual Pane Toggle：开启=克隆当前路径出第二面板；已开启=点击收起 -->
+        <FinderToolbarButton
+          variant="segment"
+          class="file-pane-toolbar-split flex-shrink-0"
+          :active-quiet="isDualPane"
+          :label="isDualPane ? $t('filePane.toolbar.closeDualPane') : $t('filePane.toolbar.openDualPane')"
+          @click="toggleDualPane"
+        >
+          <DualPaneIcon class="w-4 h-4" />
+        </FinderToolbarButton>
+      </FinderToolbarGroup>
+
+      <!-- 排序胶囊：当前排序字段文字 + 下拉菜单（字段/方向/文件夹置顶） -->
+      <FinderToolbarGroup capsule class="file-pane-toolbar-sort flex-shrink-0">
+        <FinderToolbarButton
+          variant="pill"
+          :open="sortMenu.visible"
+          :label="$t('filePane.toolbar.sortMenu')"
+          aria-haspopup="menu"
+          :aria-expanded="sortMenu.visible"
+          @click.stop="toggleSortMenu"
+        >
+          <FinderIcon name="arrowUpDown" />
+          <span class="file-pane-toolbar-sort-label">{{ sortFieldLabel }}</span>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:10px;height:10px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 9l6 6 6-6"/></svg>
+        </FinderToolbarButton>
+      </FinderToolbarGroup>
+
+      <!-- 操作胶囊：分享/标签常用直达 + 更多菜单收纳低频操作 -->
+      <FinderToolbarGroup capsule class="file-pane-toolbar-actions flex-shrink-0">
+        <FinderToolbarButton
+          variant="pill"
+          class="file-pane-toolbar-share"
+          :label="$t('filePane.toolbar.copyCurrentPath')"
+          @click="copyCurrentPath"
+        >
+          <FinderIcon name="share" />
+        </FinderToolbarButton>
+        <FinderToolbarButton
+          variant="pill"
+          class="file-pane-toolbar-tags"
+          :disabled="!pane?.selectedFiles.length"
+          :label="$t('filePane.toolbar.editTags')"
+          @click="editSelectedTags"
+        >
+          <FinderIcon name="tags" />
+        </FinderToolbarButton>
+        <FinderToolbarButton
+          variant="pill"
+          :open="actionsMenu.visible"
+          :label="$t('filePane.toolbar.moreActions')"
+          aria-haspopup="menu"
+          :aria-expanded="actionsMenu.visible"
+          @click.stop="toggleActionsMenu"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2.5" d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
+        </FinderToolbarButton>
+      </FinderToolbarGroup>
+
+      <!-- 搜索胶囊（右侧宽胶囊，聚焦克制的系统蓝焦点环；含历史下拉） -->
       <div ref="searchBoxRef" class="file-pane-toolbar-search relative flex-shrink-0">
         <FinderSearchField
           ref="searchInputRef"
           v-model="searchQuery"
-          class="w-36 focus-within:w-52"
+          capsule
+          class="file-pane-toolbar-search-field"
           :placeholder="$t('filePane.toolbar.searchPlaceholder')"
           @focus="searchHistoryOpen = true"
           @blur="searchHistoryOpen = false"
           @enter="commitSearch"
           @escape="clearSearch"
         >
+          <template #leading>
+            <FinderIcon name="search" />
+          </template>
           <template #trailing>
             <button
               v-if="searchQuery"
@@ -173,7 +243,7 @@
         </FinderSearchField>
         <div
           v-if="searchHistoryOpen && filteredSearchHistory.length > 0"
-          class="search-history-menu absolute right-0 top-9 z-50 max-h-64 w-64 overflow-y-auto py-1.5"
+          class="search-history-menu absolute right-0 top-10 z-50 max-h-64 w-64 overflow-y-auto py-1.5"
           role="menu"
           :aria-label="$t('filePane.toolbar.searchHistory')"
         >
@@ -197,92 +267,6 @@
           </button>
         </div>
       </div>
-      <FinderToolbarButton class="file-pane-toolbar-search-mode flex-shrink-0" :active="browserState.recursiveSearch" :label="$t('filePane.toolbar.recursiveSearch')" @click="browserStore.toggleRecursiveSearch(paneId)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
-      </FinderToolbarButton>
-
-      <!-- View Mode -->
-      <FinderToolbarGroup bordered class="file-pane-toolbar-view flex-shrink-0">
-        <FinderToolbarButton
-          v-for="mode in viewModes"
-          :key="mode.value"
-          variant="segment"
-          :active="pane.viewMode === mode.value"
-          :label="mode.value === 'grid' ? $t('filePane.view.gridHint', { label: mode.label }) : mode.label"
-          @click="tabsStore.setViewMode(paneId, mode.value)"
-          @contextmenu.prevent="onViewButtonContextMenu(mode.value, $event)"
-        >
-          <component :is="mode.icon" class="w-3.5 h-3.5" />
-        </FinderToolbarButton>
-      </FinderToolbarGroup>
-
-      <!-- Dual Pane Toggle：开启=克隆当前路径出第二面板；已开启（蓝激活态）=点击收起 -->
-      <FinderToolbarButton
-        class="file-pane-toolbar-split flex-shrink-0"
-        :active="isDualPane"
-        :label="isDualPane ? $t('filePane.toolbar.closeDualPane') : $t('filePane.toolbar.openDualPane')"
-        @click="toggleDualPane"
-      >
-        <DualPaneIcon class="w-4 h-4" />
-      </FinderToolbarButton>
-
-      <FinderToolbarButton
-        class="file-pane-toolbar-optional flex-shrink-0"
-        :label="$t('filePane.toolbar.copyCurrentPath')"
-        @click="copyCurrentPath"
-      >
-        <FinderIcon name="share" />
-      </FinderToolbarButton>
-      <FinderToolbarButton
-        class="file-pane-toolbar-optional flex-shrink-0"
-        :disabled="!pane?.selectedFiles.length"
-        :label="$t('filePane.toolbar.editTags')"
-        @click="editSelectedTags"
-      >
-        <FinderIcon name="tags" />
-      </FinderToolbarButton>
-
-      <!-- Inline Preview Toggle -->
-      <FinderToolbarButton
-        class="file-pane-toolbar-optional flex-shrink-0"
-        :active="inlinePreviewEnabled"
-        :label="$t('filePane.toolbar.inlinePreviewTip')"
-        @click="toggleInlinePreview"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2"/>
-          <line x1="15" y1="4" x2="15" y2="20" stroke-width="2"/>
-        </svg>
-      </FinderToolbarButton>
-
-      <!-- Actions -->
-      <FinderToolbarGroup class="file-pane-toolbar-actions flex-shrink-0">
-        <FinderToolbarButton v-if="canCaptureScreenshot" :label="$t('filePane.toolbar.screenshot')" @click="captureScreenshot">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 5l1-2h6l1 2M12 10v4m-2-2h4"/></svg>
-        </FinderToolbarButton>
-        <FinderToolbarButton
-          :disabled="!canRevealInFinder"
-          :label="canRevealInFinder ? $t('filePane.toolbar.revealInFinder') : $t('filePane.toolbar.revealInFinderLocalOnly')"
-          @click="revealCurrentFolderInFinder"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h3l2 2h7a2 2 0 012 2v0" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v8a2 2 0 002 2h6" />
-            <circle cx="16" cy="15.5" r="2.5" stroke-width="2" />
-            <path stroke-linecap="round" stroke-width="2" d="M18 17.5l1.5 1.5" />
-          </svg>
-        </FinderToolbarButton>
-        <FinderToolbarButton :label="$t('filePane.toolbar.newFolder')" @click="openCreateDialog('folder')">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-          </svg>
-        </FinderToolbarButton>
-        <FinderToolbarButton :label="$t('filePane.toolbar.newFile')" @click="openCreateDialog('file')">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </FinderToolbarButton>
-      </FinderToolbarGroup>
       </div>
     </div>
 
@@ -355,6 +339,25 @@
       @close="breadcrumbMenu.visible = false"
     />
 
+    <!-- 排序菜单、操作更多菜单：fixed NSMenu 浮层须置于工具栏容器之外
+         （container-type 的 containment 会劫持 fixed 后代的定位基准） -->
+    <FinderContextMenu
+      v-if="sortMenu.visible"
+      :items="sortMenuItems"
+      :x="sortMenu.x"
+      :y="sortMenu.y"
+      @select="onSortMenuSelect"
+      @close="sortMenu.visible = false"
+    />
+    <FinderContextMenu
+      v-if="actionsMenu.visible"
+      :items="actionsMenuItems"
+      :x="actionsMenu.x"
+      :y="actionsMenu.y"
+      @select="onActionsMenuSelect"
+      @close="actionsMenu.visible = false"
+    />
+
     <!-- Operation Dialog -->
     <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
       <form class="finder-sheet w-80 p-4" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
@@ -424,6 +427,7 @@ import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useClipboardStore } from '@/stores/clipboard'
 import { useDevicesStore } from '@/stores/devices'
 import { useFileBrowserStore } from '@/stores/fileBrowser'
+import { useFavoritesStore } from '@/stores/favorites'
 import FileList from './FileList.vue'
 import InlinePreview from './preview/InlinePreview.vue'
 import { DualPaneIcon } from './icons/sidebarIcons'
@@ -454,6 +458,7 @@ const fileOpsStore = useFileOperationsStore()
 const clipboardStore = useClipboardStore()
 const devicesStore = useDevicesStore()
 const browserStore = useFileBrowserStore()
+const favoritesStore = useFavoritesStore()
 const dragSessionStore = useDragSessionStore()
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
@@ -502,11 +507,15 @@ function closeSearchHistoryOnOutsideClick(event: MouseEvent) {
     searchHistoryOpen.value = false
   }
 }
-const recentMenuOpen = ref(false)
-const recentMenuRef = ref<HTMLElement | null>(null)
 
-// 任一下拉（最近访问/搜索历史）打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
-useAppDragSuspend(() => recentMenuOpen.value || searchHistoryOpen.value)
+// ── 工具栏 NSMenu 菜单（FinderContextMenu 浮层）：排序 / 操作更多 ──────────
+// 定位与外点关闭沿用面包屑 … 菜单的宿主契约（document click 冒泡 + 菜单根自带
+// @click.stop；右键别处捕获阶段先行关闭）；组件内部自管标题栏拖拽区放行。
+const sortMenu = reactive({ visible: false, x: 0, y: 0 })
+const actionsMenu = reactive({ visible: false, x: 0, y: 0 })
+
+// 搜索历史下拉（自定义浮层，非 FinderContextMenu）打开期间放行标题栏拖拽区
+useAppDragSuspend(() => searchHistoryOpen.value)
 const loadedFiles = ref<FileInfo[]>([])
 const directoryLoadKey = ref(0)
 const createNameInputRef = ref<HTMLInputElement | null>(null)
@@ -544,9 +553,8 @@ function activatePane() {
   tabsStore.setActivePane(props.paneId)
 }
 
-function handlePaneMouseDown(event: MouseEvent) {
+function handlePaneMouseDown() {
   activatePane()
-  closeRecentMenuOnOutsideClick(event)
 }
 
 function handleDragEnter(event: DragEvent) {
@@ -874,6 +882,14 @@ function closeBreadcrumbMenu() {
   breadcrumbMenu.visible = false
 }
 
+function closeSortMenu() {
+  sortMenu.visible = false
+}
+
+function closeActionsMenu() {
+  actionsMenu.visible = false
+}
+
 function handleSelect(files: string[]) {
   tabsStore.setSelectedFiles(props.paneId, files)
 
@@ -904,30 +920,129 @@ function handleNavigate(path: string) {
   previewStore.clearInlinePreview()
 }
 
-function openRecentLocation(deviceId: string, path: string) {
-  if (!pane.value) return
-  if (pane.value.deviceId !== deviceId) tabsStore.setPaneDevice(props.paneId, deviceId)
-  tabsStore.navigatePane(props.paneId, path)
-  browserStore.rememberLocation(deviceId, path)
-  recentMenuOpen.value = false
+// ── 排序菜单：字段（名称/修改日期/大小/种类）+ 方向 + 文件夹置顶 ─────────────
+// 与 FileList 列头排序同一份 browserState.sort，两条入口改的是同一状态。
+const SORT_FIELD_KEYS: Array<{ field: 'name' | 'modifiedTime' | 'size' | 'extension'; key: string }> = [
+  { field: 'name', key: 'name' },
+  { field: 'modifiedTime', key: 'dateModified' },
+  { field: 'size', key: 'size' },
+  { field: 'extension', key: 'kind' }
+]
+
+/** 当前排序字段的菜单文案（胶囊上弱一级显示） */
+const sortFieldLabel = computed(() => {
+  const match = SORT_FIELD_KEYS.find(f => f.field === browserState.value.sort.field)
+  return match ? t(`fileList.columns.${match.key}`) : ''
+})
+
+const sortMenuItems = computed<FinderMenuItem[]>(() => {
+  const sort = browserState.value.sort
+  return [
+    ...SORT_FIELD_KEYS.map(f => ({
+      label: t(`fileList.columns.${f.key}`),
+      action: `sort-field:${f.field}`,
+      icon: sort.field === f.field ? 'check' : undefined
+    })),
+    { label: '', action: '__divider__' },
+    { label: t('filePane.toolbar.sortAscending'), action: 'sort-dir:asc', icon: sort.direction === 'asc' ? 'check' : undefined },
+    { label: t('filePane.toolbar.sortDescending'), action: 'sort-dir:desc', icon: sort.direction === 'desc' ? 'check' : undefined },
+    { label: '', action: '__divider__' },
+    { label: t('filePane.toolbar.foldersFirst'), action: 'sort-folders', icon: sort.foldersFirst ? 'check' : undefined }
+  ]
+})
+
+function toggleSortMenu(event: MouseEvent) {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  sortMenu.x = rect.left
+  sortMenu.y = rect.bottom + 4
+  sortMenu.visible = !sortMenu.visible
 }
 
-function closeRecentMenuOnOutsideClick(event: MouseEvent) {
-  if (!recentMenuOpen.value) return
-  const target = event.target
-  if (!(target instanceof Node) || !recentMenuRef.value?.contains(target)) {
-    recentMenuOpen.value = false
+function onSortMenuSelect(action: string) {
+  sortMenu.visible = false
+  const sort = browserState.value.sort
+  if (action.startsWith('sort-field:')) {
+    const field = action.slice('sort-field:'.length) as typeof sort.field
+    browserStore.setSort(props.paneId, { ...sort, field })
+  } else if (action === 'sort-dir:asc' || action === 'sort-dir:desc') {
+    browserStore.setSort(props.paneId, { ...sort, direction: action === 'sort-dir:asc' ? 'asc' : 'desc' })
+  } else if (action === 'sort-folders') {
+    browserStore.setSort(props.paneId, { ...sort, foldersFirst: !sort.foldersFirst })
   }
 }
 
+// ── 操作更多菜单：新建 / 在 Finder 中显示 / 截屏 / 内联预览 / 递归搜索 / 撤销 ──
+const actionsMenuItems = computed<FinderMenuItem[]>(() => {
+  const items: FinderMenuItem[] = [
+    { label: t('filePane.toolbar.newFolder'), action: 'new-folder', icon: 'newFolder' },
+    { label: t('filePane.toolbar.newFile'), action: 'new-file', icon: 'newFile' },
+    { label: '', action: '__divider__' },
+    { label: t('filePane.toolbar.favoriteCurrentDir'), action: 'add-favorite-current', icon: 'star' },
+    {
+      label: canRevealInFinder.value ? t('filePane.toolbar.revealInFinder') : t('filePane.toolbar.revealInFinderLocalOnly'),
+      action: 'reveal',
+      icon: 'finder',
+      disabled: !canRevealInFinder.value
+    }
+  ]
+  if (canCaptureScreenshot.value) {
+    items.push({ label: t('filePane.toolbar.screenshot'), action: 'screenshot' })
+  }
+  items.push(
+    { label: '', action: '__divider__' },
+    { label: t('filePane.toolbar.inlinePreview'), action: 'toggle-inline-preview', icon: inlinePreviewEnabled.value ? 'check' : undefined },
+    { label: t('filePane.toolbar.recursiveSearch'), action: 'toggle-recursive-search', icon: browserState.value.recursiveSearch ? 'check' : undefined }
+  )
+  if (fileOpsStore.undoRecycle) {
+    items.push(
+      { label: '', action: '__divider__' },
+      { label: t('filePane.toolbar.undoRemoteDelete'), action: 'undo-recycle' }
+    )
+  }
+  return items
+})
+
+function toggleActionsMenu(event: MouseEvent) {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  actionsMenu.x = rect.left
+  actionsMenu.y = rect.bottom + 4
+  actionsMenu.visible = !actionsMenu.visible
+}
+
+function onActionsMenuSelect(action: string) {
+  actionsMenu.visible = false
+  switch (action) {
+    case 'new-folder': openCreateDialog('folder'); break
+    case 'new-file': openCreateDialog('file'); break
+    case 'add-favorite-current': addCurrentDirToFavorites(); break
+    case 'reveal': revealCurrentFolderInFinder(); break
+    case 'screenshot': void captureScreenshot(); break
+    case 'toggle-inline-preview': toggleInlinePreview(); break
+    case 'toggle-recursive-search': browserStore.toggleRecursiveSearch(props.paneId); break
+    case 'undo-recycle': void undoRecycle(); break
+  }
+}
+
+/** 收藏当前目录（与 FileList 空白右键同语义：名称取路径末段，根目录用路径本身）。 */
+function addCurrentDirToFavorites() {
+  if (!pane.value) return
+  const segs = pane.value.path.split('/').filter(Boolean)
+  const name = segs.length > 0 ? segs[segs.length - 1] : (pane.value.path || '/')
+  void favoritesStore.add({ deviceId: pane.value.deviceId, path: pane.value.path, name })
+}
+
 onMounted(() => {
-  document.addEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.addEventListener('click', closeSearchHistoryOnOutsideClick, true)
-  // … 菜单 / 网格规格菜单：点外部关闭（冒泡，菜单根自带 @click.stop）；右键别处时捕获阶段先行关闭
+  // … 菜单 / 网格规格菜单 / 排序 / 操作更多：点外部关闭（冒泡，菜单根自带
+  // @click.stop）；右键别处时捕获阶段先行关闭
   document.addEventListener('click', closeBreadcrumbMenu)
   document.addEventListener('contextmenu', closeBreadcrumbMenu, true)
   document.addEventListener('click', closeGridSizeMenu)
   document.addEventListener('contextmenu', closeGridSizeMenu, true)
+  document.addEventListener('click', closeSortMenu)
+  document.addEventListener('contextmenu', closeSortMenu, true)
+  document.addEventListener('click', closeActionsMenu)
+  document.addEventListener('contextmenu', closeActionsMenu, true)
   ensureBreadcrumbObserver()
   // 命令面板「刷新当前目录」的广播（仅活动面板响应）
   document.addEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
@@ -949,12 +1064,15 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', closeRecentMenuOnOutsideClick, true)
   document.removeEventListener('click', closeSearchHistoryOnOutsideClick, true)
   document.removeEventListener('click', closeBreadcrumbMenu)
   document.removeEventListener('contextmenu', closeBreadcrumbMenu, true)
   document.removeEventListener('click', closeGridSizeMenu)
   document.removeEventListener('contextmenu', closeGridSizeMenu, true)
+  document.removeEventListener('click', closeSortMenu)
+  document.removeEventListener('contextmenu', closeSortMenu, true)
+  document.removeEventListener('click', closeActionsMenu)
+  document.removeEventListener('contextmenu', closeActionsMenu, true)
   breadcrumbObserver?.disconnect()
   breadcrumbObserver = null
   document.removeEventListener('fileman:refresh-active-pane', handleRefreshBroadcast)
@@ -1654,35 +1772,42 @@ function handleDrop() {
   flex-wrap: nowrap;
 }
 
-@container (max-width: 760px) {
-  .file-pane-toolbar {
-    gap: 0.25rem;
-    padding-inline: 0.5rem !important;
-  }
+/* 搜索胶囊：宽度随窗口自适应，窄窗收缩但绝不成孤立图标（2026-08-19 应用户
+   要求改短：原 clamp(260px, 28vw, 520px) 过长挤占标题区） */
+.file-pane-toolbar-search-field {
+  width: clamp(200px, 22vw, 340px);
+}
 
+/* 窄窗降级：优先隐藏低频控件（排序文字 → 标题/分享/标签 → 排序胶囊），
+   导航/视图/操作(⋯)/搜索常驻 */
+@container (max-width: 860px) {
+  .file-pane-toolbar-sort-label {
+    display: none;
+  }
+}
+
+@container (max-width: 760px) {
   .file-pane-toolbar-breadcrumb,
-  .file-pane-toolbar-optional {
+  .file-pane-toolbar-share,
+  .file-pane-toolbar-tags {
     display: none;
   }
 
-  .file-pane-toolbar-search :deep(.finder-search-control),
-  .file-pane-toolbar-search :deep(.finder-search-control):focus-within {
-    width: 7.5rem;
+  .file-pane-toolbar-search-field {
+    width: 200px;
   }
 }
 
 @container (max-width: 540px) {
-  .file-pane-toolbar-search-mode {
+  .file-pane-toolbar-sort {
     display: none;
   }
 
-  .file-pane-toolbar-search :deep(.finder-search-control),
-  .file-pane-toolbar-search :deep(.finder-search-control):focus-within {
-    width: 6rem;
+  .file-pane-toolbar-search-field {
+    width: 180px;
   }
 }
 
-.recent-locations-menu,
 .search-history-menu {
   /* Finder 浮层材质（与标签总览弹层同体系）：高不透明度 + backdrop blur，
      底层文件列表透过时不可辨认；12px 圆角、发丝边、柔和阴影。 */

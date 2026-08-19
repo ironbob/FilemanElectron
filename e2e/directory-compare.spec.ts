@@ -53,7 +53,10 @@ test.beforeEach(async ({ page }) => {
       onFileOperationUpdated: (callback: (task: any) => void) => {
         operationCallbacks.push(callback)
         return () => operationCallbacks.splice(operationCallbacks.indexOf(callback), 1)
-      }
+      },
+      // volumes 缺失会让 AppSidebar 挂载即抛错，Vue 渲染后队列被中断，
+      // FilePane 的 onMounted（工具栏菜单外点关闭监听）不会执行
+      volumes: { list: async () => [], onChanged: () => () => undefined }
     }
     ;(window as any).fileman = new Proxy(api, {
       get(target, property) {
@@ -102,33 +105,21 @@ test('keeps the new-tab control available with a single tab', async ({ page }) =
   await expect(page.locator('.finder-tab-strip .tab-item')).toHaveCount(2)
 })
 
-test('renders recent locations on an opaque popup surface', async ({ page }) => {
-  await page.getByRole('button', { name: '新建标签页' }).click()
-  await page.getByRole('button', { name: '最近访问的位置' }).click()
-  const menu = page.getByRole('menu', { name: '最近访问的位置' })
-  await expect(menu).toBeVisible()
-  // Finder 浮层材质：背景不透明度 ≥0.9（底层列表不可辨认）+ backdrop blur
-  const bg = await menu.evaluate(el => getComputedStyle(el).backgroundColor)
-  expect(bg).toMatch(/^rgba?\(/)
-  const alpha = bg.startsWith('rgba') ? Number(bg.match(/,\s*([\d.]+)\)$/)![1]) : 1
-  expect(alpha).toBeGreaterThanOrEqual(0.9)
-  await expect(menu).toHaveCSS('backdrop-filter', /blur/)
-  await expect(menu.getByText('/Volumes/JINGZAO/avideo')).toBeVisible()
-  await page.getByPlaceholder('搜索或 tag:work').click()
-  await expect(menu).toBeHidden()
-})
+// 「最近访问的位置」已从工具栏移除（2026-08-19）：与全局历史菜单、⌘⇧P 快速
+// 跳转重复，不再保留工具栏入口。
 
 test('keeps navigation and search available in a narrow file pane', async ({ page }) => {
   await page.setViewportSize({ width: 700, height: 700 })
   await page.getByRole('button', { name: '新建标签页' }).click()
   await expect(page.getByRole('button', { name: '后退' })).toBeVisible()
-  await expect(page.getByPlaceholder('搜索或 tag:work')).toBeVisible()
+  await expect(page.getByPlaceholder('搜索')).toBeVisible()
   await expect(page.locator('.file-pane-toolbar-breadcrumb')).toBeHidden()
 })
 
-test('creates a file through the toolbar and refreshes the directory', async ({ page }) => {
+test('creates a file through the toolbar actions menu and refreshes the directory', async ({ page }) => {
   await page.getByRole('button', { name: '新建标签页' }).click()
-  await page.getByRole('button', { name: '新建文件', exact: true }).click()
+  await page.getByRole('button', { name: '更多操作' }).click()
+  await page.getByRole('menuitem', { name: '新建文件', exact: true }).click()
 
   const dialog = page.getByRole('dialog', { name: '创建文件' })
   await expect(dialog).toBeVisible()
@@ -144,6 +135,9 @@ test('creates a file through the toolbar and refreshes the directory', async ({ 
 })
 
 test('filters differences and submits an explicit copy plan', async ({ page }) => {
+  // 先清空计数再手动刷新：健康的应用会在挂载时自动刷新一次对比，
+  // 这里只断言手动点击「刷新对比」各拉取左右目录一次
+  await page.evaluate(() => { (window as any).__listCalls = [] })
   await page.getByRole('button', { name: '刷新对比' }).click()
   await expect.poll(() => page.evaluate(() => (window as any).__listCalls?.length ?? 0)).toBe(2)
   await page.getByTitle('仅显示差异').click()

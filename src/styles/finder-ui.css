@@ -56,10 +56,6 @@
      12px 圆角 + 1px 轻边框 + 柔和窗口投影；头部/内容/状态同属一张材质 */
   --quicklook-bg: rgba(248, 248, 250, 0.94);
   --quicklook-border: rgba(0, 0, 0, 0.12);
-  --quicklook-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);  /* Quick Look 文本浮窗材质（2026-08-19）：半透明系统材质 + blur(20px)，
-     12px 圆角 + 1px 轻边框 + 柔和窗口投影；头部/内容/状态同属一张材质 */
-  --quicklook-bg: rgba(248, 248, 250, 0.94);
-  --quicklook-border: rgba(0, 0, 0, 0.12);
   --quicklook-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   /* Hex 编辑器（v2）状态 token —— 全部为字节/行级局部反馈，无大面积描边 */
   --hex-selection: rgba(10, 132, 255, 0.22);
@@ -112,9 +108,6 @@
   --finder-capsule-press: rgba(255, 255, 255, 0.13);
   --finder-capsule-seg-active: rgba(255, 255, 255, 0.16);
   /* Quick Look 文本浮窗材质（暗色）：不透明度抬高，深底透字更明显 */
-  --quicklook-bg: rgba(40, 40, 42, 0.94);
-  --quicklook-border: rgba(255, 255, 255, 0.14);
-  --quicklook-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);  /* Quick Look 文本浮窗材质（暗色）：不透明度抬高，深底透字更明显 */
   --quicklook-bg: rgba(40, 40, 42, 0.94);
   --quicklook-border: rgba(255, 255, 255, 0.14);
   --quicklook-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
@@ -300,11 +293,17 @@
   transform: none;
 }
 
+/* ── 工具栏（Finder 式浮动胶囊重设计，2026-08-19）──────────────────────────
+   工具栏条本身透明（无底色/无底边框），上下 10px 内边距防贴边；导航/视图/
+   排序/操作/搜索各自成为独立胶囊（.finder-toolbar-capsule），组间留白 ≥10px，
+   层级感由胶囊材质 + 阴影承担，不再画连续灰条与竖向分隔线。 */
 .finder-shell .finder-pane-toolbar {
-  height: 40px !important;
-  padding: 0 14px;
-  background: var(--finder-chrome) !important;
-  border-color: var(--finder-divider) !important;
+  height: auto !important;
+  min-height: 56px;
+  padding: 10px 14px;
+  gap: 10px;
+  background: transparent !important;
+  border: 0 !important;
 }
 
 /* 浮动胶囊托盘：18px 圆角（36px 高即全圆端）、半透明材质 + blur、发丝边、柔和投影 */
@@ -398,6 +397,35 @@
 .finder-shell .finder-search-control:focus-within {
   box-shadow: 0 0 0 1.5px var(--finder-selection);
 }
+
+/* 大型搜索胶囊（FilePane 工具栏右侧，2026-08-19）：FinderSearchField capsule
+   变体 —— 36px 高、18px 圆角、胶囊材质 + blur，聚焦时叠加克制的系统蓝焦点环
+   （30% 透明度 3px 环，不整圈实蓝）。宽度由调用方 clamp() 控制。 */
+.finder-shell .finder-search-capsule {
+  height: 36px;
+  border-radius: 18px;
+  background-color: var(--finder-capsule-bg);
+  border: 1px solid var(--finder-capsule-border);
+  box-shadow: var(--finder-capsule-shadow);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transition: box-shadow 150ms ease;
+}
+.finder-shell .finder-search-capsule:focus-within {
+  box-shadow: var(--finder-capsule-shadow), 0 0 0 3px color-mix(in srgb, var(--finder-selection) 30%, transparent);
+}
+.finder-shell .finder-search-capsule.is-invalid {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-red) 35%, transparent);
+}
+
+/* 路径输入态（面包屑 ⇄ 输入框）：轻量输入材质，不再是浏览态的大灰胶囊；
+   浏览态的面包屑完全透明，直接坐在工具栏上（标题式呈现） */
+.finder-shell .finder-path-field-editing {
+  background-color: var(--finder-control);
+  border: 1px solid var(--finder-divider);
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--finder-selection) 22%, transparent);
+}
 .finder-shell .finder-search-control.is-invalid {
   box-shadow: 0 0 0 1.5px var(--accent-red);
 }
@@ -449,8 +477,8 @@
   color: var(--finder-label);
 }
 .finder-shell .finder-segment-btn.active {
-  background: var(--finder-selection);
-  color: #fff;
+  background: var(--finder-capsule-seg-active);
+  color: var(--finder-label);
   box-shadow: none;
 }
 .finder-shell .finder-segment-btn:disabled {
