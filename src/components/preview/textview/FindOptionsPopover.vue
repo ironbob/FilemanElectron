@@ -41,7 +41,7 @@
 
     <div class="edit-sep-h" />
 
-    <!-- 高级：排除 / 着色方案 / 历史 -->
+    <!-- 高级：排除 / 历史（着色方案已上移工具栏常驻菜单，2026-08-19） -->
     <div class="menu-section-title">{{ $t('preview.text.advancedSection') }}</div>
     <button
       class="menu-row"
@@ -54,26 +54,16 @@
       <span class="menu-switch" :aria-checked="vm.invert.value ? 'true' : 'false'" />
     </button>
 
-    <div v-if="!historyOpen" class="menu-row" style="cursor: default">
-      <span>{{ $t('preview.logview.schemeTip') }}</span>
-      <select
-        class="ml-auto text-xs rounded border px-1 py-0.5"
-        style="border-color: var(--finder-divider); background: var(--finder-control); color: var(--finder-label)"
-        :value="store.activeSchemeId"
-        :title="$t('preview.logview.schemeTip')"
-        @change="onSchemeChange"
-      >
-        <option value="">{{ $t('preview.logview.noScheme') }}</option>
-        <option v-for="s in store.schemes" :key="s.id" :value="s.id">{{ schemeLabel(s) }}</option>
-      </select>
-      <button class="finder-search-chip" :title="$t('preview.logview.manageSchemes')" @click.stop="emit('open-scheme-editor')">
-        {{ $t('preview.logview.schemesButton') }}
-      </button>
-    </div>
-
-    <button v-if="!historyOpen" class="menu-row" :title="$t('preview.logview.historyTip')" @click="historyOpen = true">
+    <button v-if="!historyOpen && !syntaxOpen" class="menu-row" :title="$t('preview.logview.historyTip')" @click="historyOpen = true">
       <span>{{ $t('preview.logview.history') }}</span>
       <span class="menu-row-value">{{ store.filterHistory.length }}</span>
+    </button>
+
+    <!-- 表达式语法（二级面板，2026-08-19）：谓词清单速查——表达式能力
+         在 08-19 收纳化后仅剩 placeholder 一处弱提示，此处补回可发现性。 -->
+    <button v-if="!historyOpen && !syntaxOpen" class="menu-row" :title="$t('preview.text.syntaxHelpTip')" @click="syntaxOpen = true">
+      <span>{{ $t('preview.text.syntaxHelpEntry') }}</span>
+      <span class="menu-row-value">co()</span>
     </button>
 
     <!-- 历史面板（二级） -->
@@ -122,6 +112,23 @@
         </div>
       </div>
     </template>
+
+    <!-- 表达式语法面板（二级）——谓词速查，源自 src/components/filter/SYNTAX.md -->
+    <template v-if="syntaxOpen">
+      <button class="menu-row" @click="syntaxOpen = false">‹ {{ $t('preview.text.syntaxHelpEntry') }}</button>
+      <div class="px-2.5 py-1.5 text-[11px] leading-relaxed" style="color: var(--finder-secondary-label)" data-testid="syntax-help-panel">
+        {{ $t('preview.text.syntaxHelpIntro') }}
+      </div>
+      <div class="max-h-72 overflow-auto">
+        <div v-for="row in SYNTAX_ROWS" :key="row.key" class="menu-row" style="cursor: default">
+          <span class="font-mono text-xs flex-shrink-0" style="color: var(--finder-label)">{{ row.syntax }}</span>
+          <span class="ml-auto text-right text-[11px]" style="color: var(--finder-secondary-label)">{{ $t(row.descKey) }}</span>
+        </div>
+        <div class="px-2.5 py-1.5 text-[11px] leading-relaxed" style="color: var(--finder-secondary-label)">
+          {{ $t('preview.text.syntaxHelpCase') }}
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -129,7 +136,6 @@
 import { computed, ref } from 'vue'
 import { t } from '@/i18n'
 import type { PlainQueryMode } from '@/utils/textFilter'
-import { HighlightScheme } from '@/utils/logAnalysis/schemeModel'
 import { useLogAnalysisStore } from '@/stores/logAnalysis'
 import type { LogAnalysisViewModel } from '@/components/preview/composables/useLogAnalysis'
 
@@ -139,11 +145,22 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  'open-scheme-editor': []
 }>()
 
 const store = useLogAnalysisStore()
 const historyOpen = ref(false)
+const syntaxOpen = ref(false)
+
+/** 谓词速查行（SYNTAX.md §二的浓缩；desc 走 i18n key） */
+const SYNTAX_ROWS: Array<{ key: string; syntax: string; descKey: string }> = [
+  { key: 'contains', syntax: 'co(x) / CO(x)', descKey: 'preview.text.predContains' },
+  { key: 'equals', syntax: 'eq(x) / EQ(x)', descKey: 'preview.text.predEquals' },
+  { key: 'word', syntax: 'word(x) / WORD(x)', descKey: 'preview.text.predWord' },
+  { key: 'regex', syntax: 'reg(x) / REG(x)', descKey: 'preview.text.predRegex' },
+  { key: 'level', syntax: 'level(a,b)', descKey: 'preview.text.predLevel' },
+  { key: 'lines', syntax: 'lines(n-m)', descKey: 'preview.text.predLines' },
+  { key: 'combine', syntax: 'and / or / not / ()', descKey: 'preview.text.predCombine' }
+]
 
 const isExpression = computed(() => props.vm.isExpressionQuery.value)
 
@@ -191,14 +208,7 @@ const ruleToggles = computed(() => [
 function useExpression(expr: string): void {
   props.vm.expression.value = expr
   historyOpen.value = false
+  syntaxOpen.value = false
   void props.vm.applyFilter(true)
-}
-
-function onSchemeChange(event: Event): void {
-  store.setActiveScheme((event.target as HTMLSelectElement).value)
-}
-
-function schemeLabel(s: HighlightScheme): string {
-  return s.builtin ? t('preview.logview.builtinSchemeLabel', { name: s.name }) : s.name
 }
 </script>

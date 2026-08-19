@@ -105,7 +105,6 @@
           class="text-menu-popover"
           :vm="vm"
           @close="findOptionsOpen = false"
-          @open-scheme-editor="emit('open-scheme-editor')"
         />
       </div>
     </div>
@@ -158,6 +157,46 @@
             >
               <span>{{ lang.label }}</span>
               <span v-if="syntaxOverride === lang.id" class="menu-row-value">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 着色方案（2026-08-19 常驻回迁）：与过滤独立（PRD R3），入口曾随
+             LogAnalysisToolbar 删除被埋进查找选项 Popover 三级深——恢复工具栏
+             常驻菜单钮（与语法菜单同 idiom），active-quiet 亮显当前方案。 -->
+        <div v-if="density !== 'compact'" class="relative">
+          <FinderToolbarButton
+            :variant="btnVariant"
+            :active-quiet="store.activeSchemeId !== ''"
+            :open="schemeOpen"
+            :label="schemeTipLabel"
+            data-testid="text-scheme-menu"
+            @click="schemeOpen = !schemeOpen"
+          >
+            <PaletteIcon class="w-4 h-4" />
+          </FinderToolbarButton>
+          <div v-if="schemeOpen" class="text-menu-popover min-w-[220px] max-h-80 overflow-auto" data-testid="text-scheme-popover">
+            <button
+              class="menu-row"
+              :class="{ 'is-checked': store.activeSchemeId === '' }"
+              @click="selectScheme('')"
+            >
+              <span>{{ $t('preview.logview.noScheme') }}</span>
+              <span v-if="store.activeSchemeId === ''" class="menu-row-value">✓</span>
+            </button>
+            <button
+              v-for="s in store.schemes"
+              :key="s.id"
+              class="menu-row"
+              :class="{ 'is-checked': store.activeSchemeId === s.id }"
+              @click="selectScheme(s.id)"
+            >
+              <span class="truncate">{{ schemeOptionLabel(s) }}</span>
+              <span v-if="store.activeSchemeId === s.id" class="menu-row-value">✓</span>
+            </button>
+            <div class="edit-sep-h" />
+            <button class="menu-row" @click="manageSchemes()">
+              <span>{{ $t('preview.logview.manageSchemes') }}</span>
             </button>
           </div>
         </div>
@@ -307,6 +346,29 @@
               <div class="edit-sep-h" />
             </template>
 
+            <!-- <840：着色迁入（与语法同模式） -->
+            <template v-if="showSourceTools && density === 'compact'">
+              <div class="menu-section-title">{{ $t('preview.logview.schemeTip') }}</div>
+              <button class="menu-row" :class="{ 'is-checked': store.activeSchemeId === '' }" @click="selectScheme('')">
+                <span>{{ $t('preview.logview.noScheme') }}</span>
+                <span v-if="store.activeSchemeId === ''" class="menu-row-value">✓</span>
+              </button>
+              <button
+                v-for="s in store.schemes"
+                :key="s.id"
+                class="menu-row"
+                :class="{ 'is-checked': store.activeSchemeId === s.id }"
+                @click="selectScheme(s.id)"
+              >
+                <span class="truncate">{{ schemeOptionLabel(s) }}</span>
+                <span v-if="store.activeSchemeId === s.id" class="menu-row-value">✓</span>
+              </button>
+              <button class="menu-row" @click="manageSchemes()">
+                <span>{{ $t('preview.logview.manageSchemes') }}</span>
+              </button>
+              <div class="edit-sep-h" />
+            </template>
+
             <!-- 常驻低频项 -->
             <div class="menu-row" style="cursor: default">
               <span>{{ $t('preview.text.encodingRow') }}</span>
@@ -376,13 +438,15 @@ import { useI18n } from 'vue-i18n'
 import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import {
   SearchIcon, ClearIcon, ChevronUpIcon, ChevronDownIcon,
-  CopyIcon, MoreIcon, ExportIcon, WrapIcon, PencilIcon,
+  CopyIcon, MoreIcon, ExportIcon, WrapIcon, PencilIcon, PaletteIcon,
   StepUpIcon, StepDownIcon, CloseXIcon
 } from '@/components/icons/previewToolIcons'
 import FinderToolbarButton from '@/components/toolbar/FinderToolbarButton.vue'
 import FinderToolbarGroup from '@/components/toolbar/FinderToolbarGroup.vue'
 import FinderSearchField from '@/components/toolbar/FinderSearchField.vue'
 import FindOptionsPopover from '@/components/preview/textview/FindOptionsPopover.vue'
+import { useLogAnalysisStore } from '@/stores/logAnalysis'
+import type { HighlightScheme } from '@/utils/logAnalysis/schemeModel'
 import type { LogAnalysisViewModel } from '@/components/preview/composables/useLogAnalysis'
 import type { QuickLookControls } from '@/types/preview'
 
@@ -437,6 +501,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+// 着色方案库/激活态（全局 store；着色与过滤独立，2026-08-19 常驻入口）
+const store = useLogAnalysisStore()
+
 /** QL=胶囊内透明 pill 钮；tab=原 30px 圆钮（toolbar-btn-enhanced） */
 const btnVariant = computed(() => (props.quickLook ? 'pill' : 'round') as 'pill' | 'round')
 
@@ -475,15 +542,17 @@ function collapseSearch(): void {
 // ── 菜单开合（统一外点关闭） ──
 const findOptionsOpen = ref(false)
 const syntaxOpen = ref(false)
+const schemeOpen = ref(false)
 const exportOpen = ref(false)
 const moreOpen = ref(false)
 
 // 任一菜单打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
-useAppDragSuspend(() => findOptionsOpen.value || syntaxOpen.value || exportOpen.value || moreOpen.value)
+useAppDragSuspend(() => findOptionsOpen.value || syntaxOpen.value || schemeOpen.value || exportOpen.value || moreOpen.value)
 
 function closeMenus(): void {
   findOptionsOpen.value = false
   syntaxOpen.value = false
+  schemeOpen.value = false
   exportOpen.value = false
   moreOpen.value = false
 }
@@ -545,6 +614,28 @@ function selectSyntax(id: string | null): void {
   moreOpen.value = false
 }
 
+/** 着色钮 tooltip：无方案=「着色方案」；激活=「着色方案:{name}」 */
+const schemeTipLabel = computed(() => {
+  const scheme = store.schemes.find(s => s.id === store.activeSchemeId)
+  return scheme ? t('preview.text.schemeActiveTip', { name: scheme.name }) : t('preview.logview.schemeTip')
+})
+
+function schemeOptionLabel(s: HighlightScheme): string {
+  return s.builtin ? t('preview.logview.builtinSchemeLabel', { name: s.name }) : s.name
+}
+
+function selectScheme(id: string): void {
+  store.setActiveScheme(id)
+  schemeOpen.value = false
+  moreOpen.value = false
+}
+
+function manageSchemes(): void {
+  schemeOpen.value = false
+  moreOpen.value = false
+  emit('open-scheme-editor')
+}
+
 function doExport(kind: 'full' | 'matches' | 'selection'): void {
   exportOpen.value = false
   moreOpen.value = false
@@ -574,7 +665,7 @@ function openFindOptions(): void {
 
 /** Esc 链一环：菜单开着 → 全部收起；搜索展开且已清空 → 收纳；否则交下一环 */
 function handleEscape(): boolean {
-  const hadOpen = findOptionsOpen.value || syntaxOpen.value || exportOpen.value || moreOpen.value
+  const hadOpen = findOptionsOpen.value || syntaxOpen.value || schemeOpen.value || exportOpen.value || moreOpen.value
   closeMenus()
   if (hadOpen) return true
   if (searchOpen.value && props.vm.expression.value === '') {

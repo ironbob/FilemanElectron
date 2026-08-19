@@ -207,6 +207,7 @@ const zhCN = {
     newTab: "新建标签页",
     stripAriaLabel: "标签栏",
     overviewButton: "标签总览",
+    historyButton: "历史目录",
     renamePlaceholder: "重命名标签",
     ariaTabLabel: "{name}，{type}标签，第 {index} 项，共 {total} 项",
     tabType: {
@@ -228,6 +229,11 @@ const zhCN = {
       current: "当前标签",
       closeRowAria: "关闭 {name}"
     },
+    history: {
+      title: "最近访问 · {count}",
+      empty: "暂无访问记录",
+      clear: "清除历史记录"
+    },
     menu: {
       close: "关闭标签",
       closeOthers: "关闭其他标签",
@@ -239,35 +245,13 @@ const zhCN = {
     }
   },
   palette: {
-    ariaLabel: "命令面板",
-    placeholder: "输入命令、收藏名称或绝对路径（/开头）…",
-    goto: "前往",
-    noMatch: "无匹配命令",
-    favoritesGroup: "收藏目录",
-    hintSelect: "↑↓ 选择",
-    hintRun: "↩ 执行",
-    hintClose: "Esc 关闭",
-    hintOpen: "⌘⇧P 呼出",
-    cmd: {
-      newTab: "新建标签页",
-      closeTab: "关闭当前标签页",
-      toggleDualPane: "切换双面板",
-      viewList: "切换为列表视图",
-      viewGrid: "切换为图标视图",
-      viewColumns: "切换为分栏视图",
-      toggleHidden: "显示/隐藏隐藏文件",
-      toggleTheme: "切换深/浅色主题",
-      openSettings: "打开设置",
-      refresh: "刷新当前目录",
-      toggleTaskDrawer: "打开/关闭任务抽屉"
-    },
-    group: {
-      tabs: "标签页",
-      view: "视图",
-      appearance: "外观",
-      files: "文件",
-      tasks: "任务"
-    }
+    /** 快速跳转面板（⌘⇧P）：搜索/跳转最近打开过的目录；/ 开头输入出绝对路径直达行。 */
+    ariaLabel: "快速跳转目录",
+    placeholder: "搜索最近打开的目录",
+    groupJump: "跳转到",
+    noMatch: "无匹配目录",
+    empty: "暂无最近打开的目录",
+    directGo: "按路径前往"
   },
   sidebar: {
     locations: "位置",
@@ -315,9 +299,13 @@ const zhCN = {
       goBack: "后退",
       goForward: "前进",
       goUp: "前往上级文件夹",
-      recentLocations: "最近访问的位置",
-      noRecentLocations: "暂无最近访问的位置",
-      searchPlaceholder: "搜索或 tag:work",
+      favoriteCurrentDir: "收藏当前目录",
+      sortMenu: "排序方式",
+      sortAscending: "升序",
+      sortDescending: "降序",
+      foldersFirst: "文件夹置顶",
+      moreActions: "更多操作",
+      searchPlaceholder: "搜索",
       clearSearch: "清除搜索",
       searchHistory: "搜索历史",
       history: "历史记录",
@@ -818,10 +806,6 @@ const zhCN = {
   },
   grep: {
     /** 内容搜索工具页（src/components/grep/）。 */
-    cmd: {
-      rerun: "重新执行内容搜索"
-    },
-    cmdGroup: "内容搜索",
     placeholder: "搜索内容…（⏎ 执行）",
     regexTip: "作为正则表达式搜索",
     caseTip: "区分大小写",
@@ -840,10 +824,6 @@ const zhCN = {
   },
   dupes: {
     /** 重复文件查找工具页（src/components/dupes/）。 */
-    cmd: {
-      rescan: "重新扫描重复文件"
-    },
-    cmdGroup: "重复文件",
     phaseIdle: "未开始",
     selectOlder: "勾选旧副本",
     rescan: "重新扫描",
@@ -872,10 +852,6 @@ const zhCN = {
   },
   treemap: {
     /** 空间分析工具页（src/components/treemap/）。 */
-    cmd: {
-      rerun: "重新分析空间"
-    },
-    cmdGroup: "空间分析",
     analyzing: "分析中 · {path}",
     summary: "{count} 文件 · {size}",
     rerun: "重新分析",
@@ -1042,6 +1018,8 @@ const zhCN = {
       nextImageTip: "下一张 (→)",
       nextImageAria: "下一张图片",
       unknownError: "未知错误",
+      prevPageTip: "上一页",
+      nextPageTip: "下一页",
       zoomInTip: "放大",
       zoomOutTip: "缩小",
       expandAll: "全部展开",
@@ -1216,6 +1194,11 @@ const zhCN = {
       playbackFailed: "无法播放视频",
       pipTip: "画中画",
       fullscreenTip: "全屏",
+      playTip: "播放",
+      pauseTip: "暂停",
+      speedTip: "播放速度",
+      progressAria: "播放进度",
+      volumeAria: "音量",
       back10Tip: "后退 10 秒",
       forward10Tip: "前进 10 秒",
       muteTip: "静音",
@@ -1255,6 +1238,12 @@ const zhCN = {
       wordWrapEnable: "开启自动换行",
       wordWrapDisable: "关闭自动换行",
       minimapTip: "迷你地图",
+      editTip: "编辑",
+      editActiveTip: "完成编辑",
+      editBlockedTip: "分片加载中，加载全部后才能编辑",
+      editBlockedFilteredTip: "过滤视图激活时不可编辑，Esc 清除搜索后可编辑",
+      emptyFile: "空文件",
+      emptyFileHint: "该文件没有内容",
       modifiedBadge: "已修改",
       diffLabel: "Diff",
       save: "保存",
@@ -1266,8 +1255,22 @@ const zhCN = {
       saveFailed: "保存文件失败",
       // ── Finder 式工具栏（重设计 2026-08-17）──────────────────────────────
       toolbarAriaLabel: "文本预览工具栏",
-      searchPlaceholder: "在本文中查找：文本或 co()/reg() 表达式",
+      searchPlaceholder: "查找或过滤，如 co(err) and level(warn)",
       searchTip: "查找 (⌘F)",
+      searchSyntaxTip: "支持文本或表达式：co/eq/word/reg/level/lines + and/or/not",
+      // ── 着色方案（2026-08-19 常驻回迁工具栏）／表达式语法帮助 ──
+      schemeActiveTip: "着色方案：{name}（点击更换）",
+      syntaxHelpEntry: "表达式语法…",
+      syntaxHelpTip: "过滤表达式谓词速查",
+      syntaxHelpIntro: "输入即过滤。纯文本按包含匹配；谓词表达式按行匹配：",
+      syntaxHelpCase: "小写 = 不区分大小写，大写 = 区分；and/or/not 与括号可组合。",
+      predContains: "包含 x",
+      predEquals: "整行等于 x",
+      predWord: "整词匹配 x",
+      predRegex: "正则匹配 x",
+      predLevel: "任一级别词整词命中",
+      predLines: "原始行号 n 或区间 n-m",
+      predCombine: "布尔组合与分组",
       findOptionsTip: "查找选项",
       matchCountTotal: "{n} 个匹配",
       matchCountCurrent: "{i} / {n} 个匹配",
@@ -1388,11 +1391,10 @@ const zhCN = {
       dialogAria: "快速预览",
       prevTip: "上一项 (↑)",
       nextTip: "下一项 (↓)",
-      closeTip: "关闭 (Esc / 空格)"
+      closeTip: "关闭 (Esc / 空格)",
+      unsupported: "此文件类型不支持快速预览"
     },
     logview: {
-      filterPlaceholder: "过滤 (回车执行): co(error) and level(warn)",
-      syntaxTip: "语法: co/eq/word/reg/level/lines + and/or/not",
       matchCount: "{n} 命中",
       clearTip: "清除过滤 (Esc)",
       exclude: "排除",
@@ -1410,7 +1412,6 @@ const zhCN = {
       schemeTip: "着色方案",
       noScheme: "无着色",
       manageSchemes: "管理着色方案",
-      schemesButton: "方案…",
       history: "历史 ▾",
       historyTip: "历史与收藏",
       favorites: "收藏",
@@ -1622,6 +1623,7 @@ const enUS = {
     newTab: "New Tab",
     stripAriaLabel: "Tab bar",
     overviewButton: "Show tab overview",
+    historyButton: "Recent folders",
     renamePlaceholder: "Rename tab",
     ariaTabLabel: "{name}, {type} tab, item {index} of {total}",
     tabType: {
@@ -1643,6 +1645,11 @@ const enUS = {
       current: "Current tab",
       closeRowAria: "Close {name}"
     },
+    history: {
+      title: "Recent · {count}",
+      empty: "No recent locations yet",
+      clear: "Clear history"
+    },
     menu: {
       close: "Close Tab",
       closeOthers: "Close Other Tabs",
@@ -1654,35 +1661,13 @@ const enUS = {
     }
   },
   palette: {
-    ariaLabel: "Command Palette",
-    placeholder: "Type a command, favorite name, or absolute path (starting with /)…",
-    goto: "Go to",
-    noMatch: "No matching commands",
-    favoritesGroup: "Favorites",
-    hintSelect: "↑↓ Navigate",
-    hintRun: "↩ Run",
-    hintClose: "Esc Close",
-    hintOpen: "⌘⇧P Open",
-    cmd: {
-      newTab: "New Tab",
-      closeTab: "Close Current Tab",
-      toggleDualPane: "Toggle Dual Pane",
-      viewList: "Switch to List View",
-      viewGrid: "Switch to Icon View",
-      viewColumns: "Switch to Columns View",
-      toggleHidden: "Show/Hide Hidden Files",
-      toggleTheme: "Toggle Light/Dark Theme",
-      openSettings: "Open Settings",
-      refresh: "Refresh Current Directory",
-      toggleTaskDrawer: "Toggle Task Drawer"
-    },
-    group: {
-      tabs: "Tabs",
-      view: "View",
-      appearance: "Appearance",
-      files: "Files",
-      tasks: "Tasks"
-    }
+    /** Quick jump panel (⌘⇧P): searches/jumps recent folders; "/…" input offers an absolute-path direct-go row. */
+    ariaLabel: "Quick Jump",
+    placeholder: "Search recent folders",
+    groupJump: "Go To",
+    noMatch: "No matching folders",
+    empty: "No recently opened folders",
+    directGo: "Go to this path"
   },
   sidebar: {
     locations: "Locations",
@@ -1730,9 +1715,13 @@ const enUS = {
       goBack: "Go Back",
       goForward: "Go Forward",
       goUp: "Go to Parent Folder",
-      recentLocations: "Recent locations",
-      noRecentLocations: "No recent locations",
-      searchPlaceholder: "Search or tag:work",
+      favoriteCurrentDir: "Favorite Current Folder",
+      sortMenu: "Sort By",
+      sortAscending: "Ascending",
+      sortDescending: "Descending",
+      foldersFirst: "Folders on Top",
+      moreActions: "More actions",
+      searchPlaceholder: "Search",
       clearSearch: "Clear search",
       searchHistory: "Search history",
       history: "History",
@@ -2231,10 +2220,6 @@ const enUS = {
     }
   },
   grep: {
-    cmd: {
-      rerun: "Re-run Content Search"
-    },
-    cmdGroup: "Content Search",
     placeholder: "Search content… (⏎ Run)",
     regexTip: "Search as regular expression",
     caseTip: "Case sensitive",
@@ -2252,10 +2237,6 @@ const enUS = {
     cancelled: "Cancelled"
   },
   dupes: {
-    cmd: {
-      rescan: "Rescan Duplicate Files"
-    },
-    cmdGroup: "Duplicate Files",
     phaseIdle: "Not started",
     selectOlder: "Select Older Copies",
     rescan: "Rescan",
@@ -2283,10 +2264,6 @@ const enUS = {
     }
   },
   treemap: {
-    cmd: {
-      rerun: "Re-analyze Space"
-    },
-    cmdGroup: "Space Analysis",
     analyzing: "Analyzing · {path}",
     summary: "{count} file · {size} | {count} files · {size}",
     rerun: "Re-analyze",
@@ -2451,6 +2428,8 @@ const enUS = {
       nextImageTip: "Next (→)",
       nextImageAria: "Next image",
       unknownError: "Unknown error",
+      prevPageTip: "Previous Page",
+      nextPageTip: "Next Page",
       zoomInTip: "Zoom In",
       zoomOutTip: "Zoom Out",
       expandAll: "Expand All",
@@ -2623,6 +2602,11 @@ const enUS = {
       playbackFailed: "Cannot play video",
       pipTip: "Picture-in-Picture",
       fullscreenTip: "Fullscreen",
+      playTip: "Play",
+      pauseTip: "Pause",
+      speedTip: "Playback Speed",
+      progressAria: "Playback progress",
+      volumeAria: "Volume",
       back10Tip: "Back 10s",
       forward10Tip: "Forward 10s",
       muteTip: "Mute",
@@ -2662,6 +2646,12 @@ const enUS = {
       wordWrapEnable: "Enable Word Wrap",
       wordWrapDisable: "Disable Word Wrap",
       minimapTip: "Toggle Minimap",
+      editTip: "Edit",
+      editActiveTip: "Done Editing",
+      editBlockedTip: "Partially loaded — load everything before editing",
+      editBlockedFilteredTip: "Cannot edit while a filtered view is active — press Esc to clear the search",
+      emptyFile: "Empty File",
+      emptyFileHint: "This file has no content",
       modifiedBadge: "Modified",
       diffLabel: "Diff",
       save: "Save",
@@ -2673,8 +2663,22 @@ const enUS = {
       saveFailed: "Failed to save file",
       // ── Finder-style toolbar (redesign 2026-08-17) ────────────────────────
       toolbarAriaLabel: "Text preview toolbar",
-      searchPlaceholder: "Find in file: plain text or co()/reg() expression",
+      searchPlaceholder: "Find or filter, e.g. co(err) and level(warn)",
       searchTip: "Find (⌘F)",
+      searchSyntaxTip: "Plain text or expression: co/eq/word/reg/level/lines + and/or/not",
+      // ── Color scheme (toolbar-resident, 2026-08-19) / expression syntax help ──
+      schemeActiveTip: "Color scheme: {name} (click to change)",
+      syntaxHelpEntry: "Expression syntax…",
+      syntaxHelpTip: "Filter expression predicate cheat sheet",
+      syntaxHelpIntro: "Typing filters live. Plain text matches by contains; predicate expressions match per line:",
+      syntaxHelpCase: "lowercase = case-insensitive, UPPERCASE = case-sensitive; combine with and/or/not and parentheses.",
+      predContains: "contains x",
+      predEquals: "whole line equals x",
+      predWord: "whole-word match x",
+      predRegex: "regex match x",
+      predLevel: "any level keyword (whole word)",
+      predLines: "source line n or range n-m",
+      predCombine: "boolean combine & group",
       findOptionsTip: "Find options",
       matchCountTotal: "{n} match | {n} matches",
       matchCountCurrent: "{i} / {n} matches",
@@ -2795,11 +2799,10 @@ const enUS = {
       dialogAria: "Quick Look",
       prevTip: "Previous (↑)",
       nextTip: "Next (↓)",
-      closeTip: "Close (Esc / Space)"
+      closeTip: "Close (Esc / Space)",
+      unsupported: "Quick Look is unavailable for this file type"
     },
     logview: {
-      filterPlaceholder: "Filter (Enter to run): co(error) and level(warn)",
-      syntaxTip: "Syntax: co/eq/word/reg/level/lines + and/or/not",
       matchCount: "{n} match | {n} matches",
       clearTip: "Clear filter (Esc)",
       exclude: "Exclude",
@@ -2817,7 +2820,6 @@ const enUS = {
       schemeTip: "Color scheme",
       noScheme: "No coloring",
       manageSchemes: "Manage color schemes",
-      schemesButton: "Schemes…",
       history: "History ▾",
       historyTip: "History and favorites",
       favorites: "Favorites",
@@ -6173,6 +6175,10 @@ const CH = {
     systemGetHomeDir: "system:getHomeDir",
     systemSaveFileDialog: "system:saveFileDialog",
     systemPickDirectory: "system:pickDirectory",
+    // 系统剪贴板文件引用读写（应用内复制 ↔ Finder 粘贴互通）
+    systemWriteFileClipboard: "system:writeFileClipboard",
+    systemReadFileClipboard: "system:readFileClipboard",
+    systemClearFileClipboard: "system:clearFileClipboard",
     // window:
     fileInfoWindowOpen: "window:fileInfo:open",
     fileInfoWindowGetContext: "window:fileInfo:getContext",
@@ -8225,7 +8231,7 @@ const JUNK_APP_PATH_PATTERNS = [
   /\/Library\/Caches\//i,
   /\/private\/var\//i
 ];
-const OSASCRIPT_BIN = "/usr/bin/osascript";
+const OSASCRIPT_BIN$1 = "/usr/bin/osascript";
 class HostShellService {
   /** 「打开方式」查询缓存：目录 → '<dir>'，文件 → 小写扩展名；无扩展名不缓存（内容嗅探结果可能逐文件不同）。 */
   openWithCache = /* @__PURE__ */ new Map();
@@ -8380,7 +8386,7 @@ end tell`;
   queryLaunchServices(normalizedPath) {
     return new Promise((resolve) => {
       execFile(
-        OSASCRIPT_BIN,
+        OSASCRIPT_BIN$1,
         ["-l", "JavaScript", "-e", LS_QUERY_SCRIPT, "--", normalizedPath],
         { timeout: 1e4 },
         (err, stdout, stderr) => {
@@ -8408,6 +8414,149 @@ end tell`;
           } catch (e) {
             console.error("[HostShellService] LS query JSON parse failed:", e.message);
             resolve(null);
+          }
+        }
+      );
+    });
+  }
+}
+const WRITE_SCRIPT = `
+function runSafe() {
+  try {
+    ObjC.import('AppKit')
+    const argv = ObjC.deepUnwrap($.NSProcessInfo.processInfo.arguments)
+    const mark = argv.indexOf('--')
+    const paths = mark >= 0 ? argv.slice(mark + 1) : []
+    const pb = $.NSPasteboard.generalPasteboard
+    pb.clearContents
+    const types = $.NSMutableArray.alloc.init
+    types.addObject('NSFilenamesPboardType')
+    pb.declareTypesOwner(types, null)
+    const plist = $.NSMutableArray.alloc.init
+    for (const p of paths) plist.addObject(p)
+    const ok = pb.setPropertyListForType(plist, 'NSFilenamesPboardType')
+    return JSON.stringify({ ok: !!ok, itemCount: '' + pb.pasteboardItems.count })
+  } catch (e) { return JSON.stringify({ ok: false, error: String(e) }) }
+}
+runSafe()
+`;
+const READ_SCRIPT = `
+function runSafe() {
+  try {
+    ObjC.import('AppKit')
+    const pb = $.NSPasteboard.generalPasteboard
+    const items = pb.pasteboardItems
+    const paths = []
+    for (let i = 0; i < items.count; i++) {
+      const it = items.objectAtIndex(i)
+      const s = it.stringForType('public.file-url')
+      if (s && !s.isNil()) {
+        const u = $.NSURL.URLWithString(s)
+        if (u && !u.isNil() && u.path) paths.push('' + u.path.js)
+      }
+    }
+    return JSON.stringify({ paths })
+  } catch (e) { return JSON.stringify({ paths: [], error: String(e) }) }
+}
+runSafe()
+`;
+const CLEAR_SCRIPT = `
+function runSafe() {
+  try {
+    ObjC.import('AppKit')
+    $.NSPasteboard.generalPasteboard.clearContents
+    return JSON.stringify({ ok: true })
+  } catch (e) { return JSON.stringify({ ok: false, error: String(e) }) }
+}
+runSafe()
+`;
+const OSASCRIPT_BIN = "/usr/bin/osascript";
+class SystemClipboardService {
+  /**
+   * 把一组本地绝对路径写入系统剪贴板（file URL items，Finder 可 ⌘V）。
+   * 非绝对路径直接过滤；全部被过滤或非 darwin 平台返回 false（调用方静默降级）。
+   */
+  writeLocalFiles(paths) {
+    if (process.platform !== "darwin") return Promise.resolve(false);
+    const absolute = paths.filter((p) => typeof p === "string" && path__default.isAbsolute(p) && !p.includes("\0"));
+    if (absolute.length === 0) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      execFile(
+        OSASCRIPT_BIN,
+        ["-l", "JavaScript", "-e", WRITE_SCRIPT, "--", ...absolute],
+        { timeout: 5e3, maxBuffer: 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err) {
+            console.error("[SystemClipboardService] write osascript failed:", err.message, stderr?.trim());
+            resolve(false);
+            return;
+          }
+          try {
+            const parsed = JSON.parse(stdout.trim());
+            if (parsed.error) {
+              console.error("[SystemClipboardService] write script error:", parsed.error);
+              resolve(false);
+              return;
+            }
+            resolve(parsed.ok === true);
+          } catch (e) {
+            console.error("[SystemClipboardService] write JSON parse failed:", e.message);
+            resolve(false);
+          }
+        }
+      );
+    });
+  }
+  /**
+   * 清空系统剪贴板（应用内 cut 粘贴消费后调用：源文件已移走，残留引用再粘会悬空；
+   * Finder 自身 cut 粘贴后同样清板）。失败静默（返回 false），调用方不重试。
+   */
+  clearFileClipboard() {
+    if (process.platform !== "darwin") return Promise.resolve(false);
+    return new Promise((resolve) => {
+      execFile(
+        OSASCRIPT_BIN,
+        ["-l", "JavaScript", "-e", CLEAR_SCRIPT],
+        { timeout: 5e3 },
+        (err, _stdout, stderr) => {
+          if (err) {
+            console.error("[SystemClipboardService] clear osascript failed:", err.message, stderr?.trim());
+            resolve(false);
+            return;
+          }
+          resolve(true);
+        }
+      );
+    });
+  }
+  /**
+   * 读取系统剪贴板中当前的全部文件引用（本地绝对路径；Finder 复制的文件在此列）。
+   * 无文件 / 非 darwin / 任何失败 → []（调用方按空处理，退回应用内剪贴板）。
+   */
+  readLocalFiles() {
+    if (process.platform !== "darwin") return Promise.resolve([]);
+    return new Promise((resolve) => {
+      execFile(
+        OSASCRIPT_BIN,
+        ["-l", "JavaScript", "-e", READ_SCRIPT],
+        { timeout: 5e3, maxBuffer: 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err) {
+            console.error("[SystemClipboardService] read osascript failed:", err.message, stderr?.trim());
+            resolve([]);
+            return;
+          }
+          try {
+            const parsed = JSON.parse(stdout.trim());
+            if (parsed.error) {
+              console.error("[SystemClipboardService] read script error:", parsed.error);
+              resolve([]);
+              return;
+            }
+            resolve(Array.isArray(parsed.paths) ? parsed.paths.filter((p) => typeof p === "string") : []);
+          } catch (e) {
+            console.error("[SystemClipboardService] read JSON parse failed:", e.message);
+            resolve([]);
           }
         }
       );
@@ -10246,6 +10395,9 @@ class CancelledError3 extends Error {
 }
 const isDev = !app.isPackaged;
 const log = console;
+if (process.env.FILEMAN_USER_DATA_DIR) {
+  app.setPath("userData", process.env.FILEMAN_USER_DATA_DIR);
+}
 let mainWindow = null;
 const fileInfoWindowContexts = /* @__PURE__ */ new Map();
 const configService = new ConfigService();
@@ -10259,6 +10411,7 @@ const imageEditService = new ImageEditService(imageDecodeService);
 const zipService = new ZipService();
 const volumeScanner = new VolumeScanner({ scanInterval: 4e3 });
 const hostShellService = new HostShellService();
+const systemClipboardService = new SystemClipboardService();
 const fileMetadataService = new FileMetadataService(configService);
 const archiveService = new ArchiveService(deviceManager);
 fileOperationManager.setArchiveService(archiveService);
@@ -10351,6 +10504,15 @@ function createFileInfoWindow(parent, context) {
 }
 ipcMain.handle(CH.invoke.systemGetHomeDir, () => {
   return os__default.homedir();
+});
+ipcMain.handle(CH.invoke.systemWriteFileClipboard, async (_, paths) => {
+  return systemClipboardService.writeLocalFiles(paths);
+});
+ipcMain.handle(CH.invoke.systemReadFileClipboard, async () => {
+  return systemClipboardService.readLocalFiles();
+});
+ipcMain.handle(CH.invoke.systemClearFileClipboard, async () => {
+  return systemClipboardService.clearFileClipboard();
 });
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context) => {
   if (!context || !Array.isArray(context.files) || context.files.length === 0) {
