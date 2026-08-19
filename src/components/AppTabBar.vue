@@ -12,6 +12,7 @@
     @dragleave="onFolderDragLeave"
     @drop.prevent="onFolderDrop"
     @keydown="onStripKeydown"
+    @wheel="onStripWheel"
   >
     <div ref="scrollerEl" class="tab-scroll" @scroll="updateEdgeFades">
       <template v-for="(tab, i) in tabsStore.tabs" :key="tab.id">
@@ -359,6 +360,24 @@ watch(
 // 窗口尺寸变化时重算渐隐
 function onResize() {
   updateEdgeFades()
+}
+
+// ── 滚轮：溢出时垂直滚轮转横向滚动（Chrome 标签条语义） ──────────────────────
+// Chromium 不把垂直 wheel 重定向到「仅横向可滚」的容器，横向滚动条又是隐藏的
+// ——不接管时普通滚轮/触控板上下滑在标签溢出后完全无法移动标签条。真机已验证
+// （CGEvent 实测 2026-08-19）：垂直滚轮 scrollLeft 纹丝不动。接管规则：
+// ① 未溢出放行原生行为；② ctrl+滚轮（捏合缩放）放行；③ 溢出时 preventDefault
+// 并把 deltaY（+ deltaX，shift+滚轮已被 Chromium 折算进 deltaX）累进 scrollLeft。
+// 注意 app-drag 区（条上空白/tab 间隙）的 wheel 被 macOS 窗口层吞掉、根本进
+// 不了渲染层——本处理实际覆盖 no-drag 的 tab 本体与 ⊕🕐⌄ 按钮簇，即条高
+// 28px 的主命中带；空白区保留窗口拖拽语义，不动 app-region。
+function onStripWheel(e: WheelEvent) {
+  if (e.ctrlKey) return // 捏合缩放不劫持
+  const el = scrollerEl.value
+  if (!el || el.scrollWidth <= el.clientWidth + 1) return
+  e.preventDefault()
+  const unit = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1
+  el.scrollLeft += (e.deltaY + e.deltaX) * unit
 }
 
 onMounted(() => {

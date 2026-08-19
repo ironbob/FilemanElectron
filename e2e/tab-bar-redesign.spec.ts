@@ -271,3 +271,49 @@ test('pointer drag reorders tabs', async ({ page }) => {
   await expect(tabs(page).nth(0)).toHaveText(/beta/)
   await expect(tabs(page).nth(1)).toHaveText(/alpha/)
 })
+
+// ============ 溢出滚轮（很多打开项时「无法活动」回归） ============
+// Chromium 不把垂直 wheel 重定向到仅横向可滚的容器、横向滚动条又隐藏——
+// 原生行为下普通滚轮/触控板上下滑在标签溢出后完全无法移动标签条。
+// 真机已验证（CGEvent 实测）：接管前 scrollLeft 纹丝不动。
+
+test('vertical wheel scrolls the overflowing strip horizontally', async ({ page }) => {
+  // 20 个长名标签 → 必然溢出（min-width 96px × 20 > 视口宽）
+  const many = Array.from({ length: 20 }, (_, i) => browseTab(`t${i}`, `/workspace-${i}/folder-number-${i}`))
+  await setup(page, { tabs: many, activeTabId: 't0' })
+
+  const overflowing = await page.evaluate(() => {
+    const el = document.querySelector('.finder-tab-strip .tab-scroll') as HTMLElement
+    return el.scrollWidth > el.clientWidth + 1
+  })
+  expect(overflowing).toBe(true)
+
+  // 垂直滚轮（dy>0，触控板/滚轮最自然的手势）→ 横向滚动
+  const box = await tabs(page).first().boundingBox()
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.wheel(0, 600)
+  await expect.poll(() =>
+    page.evaluate(() => (document.querySelector('.finder-tab-strip .tab-scroll') as HTMLElement).scrollLeft)
+  ).toBeGreaterThan(0)
+
+  // 反向滚回左缘（clamp 到 0，不越界）
+  await page.mouse.wheel(0, -6000)
+  await expect.poll(() =>
+    page.evaluate(() => (document.querySelector('.finder-tab-strip .tab-scroll') as HTMLElement).scrollLeft)
+  ).toBe(0)
+})
+
+test('wheel is not hijacked when strip does not overflow', async ({ page }) => {
+  await setup(page, {
+    tabs: [browseTab('t1', '/a'), browseTab('t2', '/b')],
+    activeTabId: 't1'
+  })
+  const box = await tabs(page).first().boundingBox()
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.wheel(0, 600)
+  await page.waitForTimeout(150)
+  const scrollLeft = await page.evaluate(() =>
+    (document.querySelector('.finder-tab-strip .tab-scroll') as HTMLElement).scrollLeft
+  )
+  expect(scrollLeft).toBe(0)
+})
