@@ -341,8 +341,12 @@ textarea,
   user-select: text;
 }
 
-/* Readable / copyable rendered content (markdown, plain text, code blocks) */
-.markdown-body,
+/* Readable / copyable rendered content (markdown, plain text, code blocks).
+   .md-rendered 是 Markdown 渲染视图的容器类（PreviewTextContent v-html 注入，
+   user-select 可继承，容器开启即正文/标题/列表/表格全可选）；此前的
+   .markdown-body 是零使用的遗留类，渲染视图从未命中过白名单——这是
+   「Markdown 预览经常选不中文字」的根因（仅 pre/code 代码块元素级命中可选中）。 */
+.md-rendered,
 pre,
 code {
   -webkit-user-select: text;

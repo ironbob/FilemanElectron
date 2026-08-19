@@ -196,9 +196,13 @@
       </div>
 
       <!-- ── Rendered Markdown ── -->
+      <!-- @dragstart.prevent：从已有选区内起拖时浏览器会转为「拖拽所选文本」
+           （HTML5 DnD），本应用没有文本放置目标，落空即清空选区——表现为
+           「想扩选却把选区拖没了」。阻断后拖拽始终是重新选择，复制走 ⌘C。 -->
       <div
         v-if="viewMode === 'rendered'"
         class="flex-1 overflow-auto px-8 py-6 md-rendered"
+        @dragstart.prevent
       >
         <div class="max-w-3xl mx-auto" v-html="renderedHtml"></div>
       </div>
