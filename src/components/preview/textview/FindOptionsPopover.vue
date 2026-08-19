@@ -1,6 +1,7 @@
 <template>
+  <!-- 定位与表面视觉（text-menu-popover w-[280px] py-1）由宿主 TextPreviewToolbar
+       的 AnchoredPopover 承载——本组件只出内容（防裁剪锚定弹层范式，2026-08-19） -->
   <div
-    class="text-menu-popover w-[280px] py-1"
     data-testid="find-options-popover"
     @keydown.esc.stop.prevent="emit('close')"
   >

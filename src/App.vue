@@ -5,6 +5,10 @@
     :data-theme="theme"
     :style="{ '--task-drawer-width': (fileOpsStore.isDrawerOpen ? taskDrawerWidth : 0) + 'px' }"
   >
+    <!-- 锚定浮层专用层：弹出菜单 Teleport 目标（首子节点，先于一切子组件存在）。
+         fixed inset-0 不参与布局；见 style.css .finder-popover-layer 注释 -->
+    <div id="popover-layer" class="finder-popover-layer"></div>
+
     <!-- Title bar: tabs share this row with the native window controls. -->
     <div
       ref="titlebarRef"

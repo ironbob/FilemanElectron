@@ -63,13 +63,22 @@ async function clampToViewport(): Promise<void> {
   await nextTick()
   const el = rootEl.value
   if (!el) return
-  const rect = el.getBoundingClientRect()
-  flipped.value = window.innerWidth - rect.right < SUBMENU_RESERVE
-  if (rect.left < VIEWPORT_MARGIN || rect.right > window.innerWidth - VIEWPORT_MARGIN) {
-    left.value = Math.max(VIEWPORT_MARGIN, Math.min(left.value, window.innerWidth - rect.width - VIEWPORT_MARGIN))
+  // 尺寸取 offsetWidth/offsetHeight（布局尺寸）：menu-pop 入场动画带 scale 变换，
+  // 此刻 getBoundingClientRect 量到的是缩放中间态，会让底部钳制差出几个像素
+  const w = el.offsetWidth
+  const h = el.offsetHeight
+  flipped.value = window.innerWidth - (left.value + w) < SUBMENU_RESERVE
+  if (left.value < VIEWPORT_MARGIN || left.value + w > window.innerWidth - VIEWPORT_MARGIN) {
+    left.value = Math.max(VIEWPORT_MARGIN, Math.min(left.value, window.innerWidth - w - VIEWPORT_MARGIN))
   }
-  if (rect.top < VIEWPORT_MARGIN || rect.bottom > window.innerHeight - VIEWPORT_MARGIN) {
-    top.value = Math.max(VIEWPORT_MARGIN, Math.min(top.value, window.innerHeight - rect.height - VIEWPORT_MARGIN))
+  if (top.value < VIEWPORT_MARGIN || top.value + h > window.innerHeight - VIEWPORT_MARGIN) {
+    top.value = Math.max(VIEWPORT_MARGIN, Math.min(top.value, window.innerHeight - h - VIEWPORT_MARGIN))
+    // 菜单比视口还高（极矮窗口）：顶部对齐并压缩 + 内滚，而非溢出裁剪
+    if (top.value + h > window.innerHeight - VIEWPORT_MARGIN) {
+      top.value = VIEWPORT_MARGIN
+      el.style.maxHeight = `${window.innerHeight - VIEWPORT_MARGIN * 2}px`
+      el.style.overflowY = 'auto'
+    }
   }
 }
 
@@ -208,18 +217,23 @@ function onActivate(item: FinderMenuItem): void {
 </script>
 
 <template>
-  <div
-    ref="rootEl"
-    class="context-menu"
-    :class="{ 'context-menu-flipped': flipped }"
-    :style="{ left: left + 'px', top: top + 'px' }"
-    role="menu"
-    aria-orientation="vertical"
-    @click.stop
-    @contextmenu.prevent
-  >
-    <FinderMenuNode :items="items" :hl="highlight" :suppress="suppressedAt" :path-prefix="[]" @hover="onHover" @activate="onActivate" />
-  </div>
+  <!-- Teleport 到 shell 级浮层层：脱离宿主组件树的 overflow-hidden 祖先与
+       backdrop-filter/container-type 包含块（TabContextMenu 在标题栏 backdrop-filter
+       内、面包屑菜单在工具栏容器旁——fixed 坐标恒为视口系，不再依赖巧合） -->
+  <Teleport to="#popover-layer">
+    <div
+      ref="rootEl"
+      class="context-menu"
+      :class="{ 'context-menu-flipped': flipped }"
+      :style="{ left: left + 'px', top: top + 'px' }"
+      role="menu"
+      aria-orientation="vertical"
+      @click.stop
+      @contextmenu.prevent
+    >
+      <FinderMenuNode :items="items" :hl="highlight" :suppress="suppressedAt" :path-prefix="[]" @hover="onHover" @activate="onActivate" />
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

@@ -44,6 +44,10 @@
 
 - 菜单：全局 `.context-menu*` 规则与 `suppressedAt` 状态机被 TabContextMenu 复用，勿删；
   e2e 依赖菜单类名契约。
+- 锚定弹层（2026-08-19 防裁剪范式，规范 patterns.md §6.1）：`#popover-layer`
+  （App.vue 首子节点）是所有弹出菜单的 Teleport 目标，勿删勿挪；`AnchoredPopover`
+  承载 锚点定位/翻转/钳制/外点注册表（`isInsideAnchoredPopover`）——新增下拉菜单
+  一律走它，勿在 overflow-hidden 容器内直接 absolute；外点判定必须补注册表查询。
 - 侧边栏：窄窗 overlay 阈值 900px（与 panes 最小内容宽差 10px，勿加宽）；
   `sidebar-item` 勿加 `w-full`。
 - 标签栏：关闭按钮常驻 DOM（仅视觉隐藏）；`⌘W` 菜单打开期间放行；标题栏 z-index:30 契约。

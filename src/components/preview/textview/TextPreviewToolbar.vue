@@ -34,7 +34,7 @@
 
     <!-- ── 中段：查找组（默认收纳为右段图标入口；⌘F/点击展开，Esc 清空后收纳）── -->
     <div v-if="showSearch && searchVisible" class="flex-1 flex items-center justify-center min-w-0">
-      <div class="relative flex items-center gap-1.5">
+      <div ref="searchGroupAnchor" class="relative flex items-center gap-1.5">
         <FinderSearchField
           ref="searchFieldRef"
           v-model="vm.expression.value"
@@ -100,12 +100,13 @@
           </FinderToolbarButton>
         </FinderToolbarGroup>
 
-        <FindOptionsPopover
+        <AnchoredPopover
           v-if="findOptionsOpen"
-          class="text-menu-popover"
-          :vm="vm"
-          @close="findOptionsOpen = false"
-        />
+          :anchor="searchGroupAnchor"
+          class="text-menu-popover w-[280px] py-1"
+        >
+          <FindOptionsPopover :vm="vm" @close="findOptionsOpen = false" />
+        </AnchoredPopover>
       </div>
     </div>
     <div v-else class="flex-1"></div>
@@ -125,7 +126,7 @@
           <WrapIcon class="w-4 h-4" />
         </FinderToolbarButton>
 
-        <div v-if="density !== 'compact'" class="relative">
+        <div v-if="density !== 'compact'" ref="syntaxAnchor" class="relative">
           <button
             :class="quickLook
               ? ['finder-pill-btn ql-syntax-btn', { 'is-open': syntaxOpen }]
@@ -139,7 +140,7 @@
             <span class="truncate max-w-[140px]">{{ $t('preview.text.syntaxMenuLabel', { lang: syntaxLabel }) }}</span>
             <ChevronDownIcon class="w-2.5 h-2.5 flex-shrink-0" />
           </button>
-          <div v-if="syntaxOpen" class="text-menu-popover max-h-80 overflow-auto" data-testid="text-syntax-popover">
+          <AnchoredPopover v-if="syntaxOpen" :anchor="syntaxAnchor" class="text-menu-popover max-h-80 overflow-auto" data-testid="text-syntax-popover">
             <button
               class="menu-row"
               :class="{ 'is-checked': !syntaxOverride }"
@@ -158,13 +159,13 @@
               <span>{{ lang.label }}</span>
               <span v-if="syntaxOverride === lang.id" class="menu-row-value">✓</span>
             </button>
-          </div>
+          </AnchoredPopover>
         </div>
 
         <!-- 着色方案（2026-08-19 常驻回迁）：与过滤独立（PRD R3），入口曾随
              LogAnalysisToolbar 删除被埋进查找选项 Popover 三级深——恢复工具栏
              常驻菜单钮（与语法菜单同 idiom），active-quiet 亮显当前方案。 -->
-        <div v-if="density !== 'compact'" class="relative">
+        <div v-if="density !== 'compact'" ref="schemeAnchor" class="relative">
           <FinderToolbarButton
             :variant="btnVariant"
             :active-quiet="store.activeSchemeId !== ''"
@@ -175,7 +176,7 @@
           >
             <PaletteIcon class="w-4 h-4" />
           </FinderToolbarButton>
-          <div v-if="schemeOpen" class="text-menu-popover min-w-[220px] max-h-80 overflow-auto" data-testid="text-scheme-popover">
+          <AnchoredPopover v-if="schemeOpen" :anchor="schemeAnchor" class="text-menu-popover min-w-[220px] max-h-80 overflow-auto" data-testid="text-scheme-popover">
             <button
               class="menu-row"
               :class="{ 'is-checked': store.activeSchemeId === '' }"
@@ -198,7 +199,7 @@
             <button class="menu-row" @click="manageSchemes()">
               <span>{{ $t('preview.logview.manageSchemes') }}</span>
             </button>
-          </div>
+          </AnchoredPopover>
         </div>
       </div>
 
@@ -226,7 +227,7 @@
         >
           <CopyIcon class="w-4 h-4" />
         </FinderToolbarButton>
-        <div v-if="density === 'full'" class="relative">
+        <div v-if="density === 'full'" ref="exportAnchor" class="relative">
           <FinderToolbarButton
             :variant="btnVariant"
             :open="exportOpen"
@@ -237,7 +238,7 @@
           >
             <ExportIcon class="w-4 h-4" />
           </FinderToolbarButton>
-          <div v-if="exportOpen" class="text-menu-popover" data-testid="text-export-popover">
+          <AnchoredPopover v-if="exportOpen" :anchor="exportAnchor" class="text-menu-popover" data-testid="text-export-popover">
             <button class="menu-row" @click="doExport('full')">
               <span>{{ $t('preview.text.exportFull') }}</span>
             </button>
@@ -247,7 +248,7 @@
             <button v-if="hasSelection" class="menu-row" @click="doExport('selection')">
               <span>{{ $t('preview.text.exportSelection') }}</span>
             </button>
-          </div>
+          </AnchoredPopover>
         </div>
 
         <span v-if="showSourceTools && !quickLook" class="finder-toolbar-divider" />
@@ -286,7 +287,7 @@
         <span v-if="!quickLook" class="finder-toolbar-divider" />
 
         <!-- 更多 ⋯ -->
-        <div class="relative">
+        <div ref="moreAnchor" class="relative">
           <FinderToolbarButton
             :variant="btnVariant"
             :open="moreOpen"
@@ -296,7 +297,7 @@
           >
             <MoreIcon class="w-4 h-4" />
           </FinderToolbarButton>
-          <div v-if="moreOpen" class="text-menu-popover min-w-[220px] max-h-[420px] overflow-auto" data-testid="text-more-popover">
+          <AnchoredPopover v-if="moreOpen" :anchor="moreAnchor" class="text-menu-popover min-w-[220px] max-h-[420px] overflow-auto" data-testid="text-more-popover">
             <!-- 修改中：Diff 入口（原底部信息栏） -->
             <template v-if="isModified">
               <button class="menu-row" @click="moreOpen = false; emit('show-diff')">
@@ -395,7 +396,7 @@
               <span>{{ $t('preview.text.jumpToLineRow') }}</span>
               <span class="menu-row-value">⌘L</span>
             </button>
-          </div>
+          </AnchoredPopover>
         </div>
       </div>
 
@@ -444,6 +445,7 @@ import {
 import FinderToolbarButton from '@/components/toolbar/FinderToolbarButton.vue'
 import FinderToolbarGroup from '@/components/toolbar/FinderToolbarGroup.vue'
 import FinderSearchField from '@/components/toolbar/FinderSearchField.vue'
+import AnchoredPopover, { isInsideAnchoredPopover } from '@/components/menu/AnchoredPopover.vue'
 import FindOptionsPopover from '@/components/preview/textview/FindOptionsPopover.vue'
 import { useLogAnalysisStore } from '@/stores/logAnalysis'
 import type { HighlightScheme } from '@/utils/logAnalysis/schemeModel'
@@ -546,6 +548,13 @@ const schemeOpen = ref(false)
 const exportOpen = ref(false)
 const moreOpen = ref(false)
 
+// 各菜单的锚点（触发钮外包的 .relative 容器）：AnchoredPopover 以其 rect 定位
+const searchGroupAnchor = ref<HTMLElement | null>(null)
+const syntaxAnchor = ref<HTMLElement | null>(null)
+const schemeAnchor = ref<HTMLElement | null>(null)
+const exportAnchor = ref<HTMLElement | null>(null)
+const moreAnchor = ref<HTMLElement | null>(null)
+
 // 任一菜单打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
 useAppDragSuspend(() => findOptionsOpen.value || syntaxOpen.value || schemeOpen.value || exportOpen.value || moreOpen.value)
 
@@ -558,7 +567,9 @@ function closeMenus(): void {
 }
 
 function onWindowPointerDown(event: PointerEvent): void {
-  if (event.target instanceof Node && rootEl.value?.contains(event.target)) return
+  // 锚定弹层已 Teleport 出工具牌子树，须补判其内部点击（否则点菜单内容即收起）
+  if (event.target instanceof Node
+    && (rootEl.value?.contains(event.target) || isInsideAnchoredPopover(event.target))) return
   closeMenus()
 }
 onMounted(() => window.addEventListener('pointerdown', onWindowPointerDown, true))

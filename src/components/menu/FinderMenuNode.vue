@@ -138,6 +138,28 @@ function onItemClick(item: FinderMenuItem, path: number[]): void {
   }
   emit('activate', item)
 }
+
+/**
+ * 子菜单垂直防裁剪（函数 ref，v-if 重挂载自然复位）：默认顶部对齐父项所在行
+ * （top: -6px），挂载后测量——底部溢出视口则整层上移；高于视口时压缩 + 内滚。
+ * 视口系计算不受层级影响（祖先链 teleported 后均为视口坐标）。
+ */
+function clampSubmenuRef(el: unknown): void {
+  const node = el as HTMLElement | null
+  if (!node) return
+  requestAnimationFrame(() => {
+    const rect = node.getBoundingClientRect()
+    if (rect.height === 0) return
+    let delta = 0
+    if (rect.bottom > window.innerHeight - 8) delta = rect.bottom - (window.innerHeight - 8)
+    if (rect.top - delta < 8) delta = rect.top - 8
+    if (delta !== 0) node.style.top = `${node.offsetTop - delta}px`
+    if (rect.height > window.innerHeight - 16) {
+      node.style.maxHeight = `${window.innerHeight - 16}px`
+      node.style.overflowY = 'auto'
+    }
+  })
+}
 </script>
 
 <template>
@@ -180,6 +202,7 @@ function onItemClick(item: FinderMenuItem, path: number[]): void {
       <!-- 递归子菜单：仅在展开路径上渲染（未展开不占 DOM，避免隐藏层误命中） -->
       <div
         v-if="item.children && item.children.length > 0 && isSubmenuOpen(hl, suppress, [...pathPrefix, i])"
+        :ref="clampSubmenuRef"
         class="context-submenu"
         role="menu"
       >

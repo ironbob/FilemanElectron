@@ -71,7 +71,7 @@
         >
           <div class="video-glass video-glass-chip flex items-center gap-0.5 px-1">
             <!-- Playback Speed（紧凑下拉，NSMenu 观感） -->
-            <div class="relative">
+            <div ref="speedAnchor" class="relative">
               <button
                 ref="speedTriggerRef"
                 class="video-tool-button video-speed-trigger"
@@ -87,8 +87,8 @@
                 </svg>
               </button>
 
-              <!-- 倍速菜单（Finder 半透明 NSMenu 材质；当前档位打勾） -->
-              <div v-if="speedMenuOpen" class="video-menu" role="menu" :aria-label="$t('preview.video.speedTip')">
+              <!-- 倍速菜单（Finder 半透明 NSMenu 材质；当前档位打勾）——锚定弹层防裁剪 -->
+              <AnchoredPopover v-if="speedMenuOpen" :anchor="speedAnchor" align="right" class="video-menu" role="menu" :aria-label="$t('preview.video.speedTip')">
                 <button
                   v-for="rate in SPEED_OPTIONS"
                   :key="rate"
@@ -112,7 +112,7 @@
                   </svg>
                   <span class="tabular-nums">{{ rate }}x</span>
                 </button>
-              </div>
+              </AnchoredPopover>
             </div>
 
             <!-- Picture-in-Picture -->
@@ -264,6 +264,7 @@ import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
 import { usePreviewStore } from '@/stores/preview'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import AnchoredPopover from '@/components/menu/AnchoredPopover.vue'
 import {
   CautionIcon,
   FullScreenIcon,
@@ -308,6 +309,8 @@ const volume = ref(1)
 const isMuted = ref(false)
 const isDragging = ref(false)
 const controlsVisible = ref(true)
+// 倍速菜单锚点（触发钮外包 .relative 容器）——AnchoredPopover 以其 rect 定位
+const speedAnchor = ref<HTMLElement | null>(null)
 const controlsHovered = ref(false)
 const speedMenuOpen = ref(false)
 /** 舞台内视频贴合框（contain 计算；null = 元数据未就绪不渲染） */

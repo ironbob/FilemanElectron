@@ -246,3 +246,31 @@ test('text window keeps stable responsive geometry (one line / empty / long)', a
   const empty = await geo()
   expect(Math.abs(empty.cardH - short.cardH)).toBeLessThan(3)
 })
+
+// 防裁剪回归锁（2026-08-19）：文本窗工具栏弹层走锚定弹层范式——teleport 出
+// QuickLook 卡片（overflow-hidden + backdrop-filter 包含块），不再被卡片底边
+// 裁掉；窗口缩放时锚点跟随重定位
+test('text toolbar menu anchors to viewport, never clipped by the card', async ({ page }) => {
+  const overlay = await openQuickLook(page)
+  await overlay.locator('[data-testid="text-more-btn"]').click()
+  const popover = page.locator('[data-testid="text-more-popover"]')
+  await expect(popover).toBeVisible()
+  await expect(popover.getByText('跳转到行…')).toBeVisible()
+  let box = (await popover.boundingBox())!
+  expect(box.y).toBeGreaterThanOrEqual(0)
+  expect(box.y + box.height).toBeLessThanOrEqual(716)
+
+  // 窄矮窗（500×500）：卡片 420px 装不下 compact 密度的 ⋯ 菜单——弹层压缩/翻转，
+  // 完整留在视口内而非被卡片或窗口底边裁掉
+  await page.keyboard.press('Escape')
+  await expect(popover).toBeHidden()
+  await page.setViewportSize({ width: 500, height: 500 })
+  await overlay.locator('[data-testid="text-more-btn"]').click()
+  await expect(popover).toBeVisible()
+  await expect.poll(async () => {
+    const b = await popover.boundingBox()
+    return b ? b.y + b.height : 0
+  }).toBeLessThanOrEqual(496)
+  const smallBox = await popover.boundingBox()
+  expect(smallBox!.y).toBeGreaterThanOrEqual(0)
+})

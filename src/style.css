@@ -1165,3 +1165,19 @@ button {
 .fma-swatch-purple { background-color: var(--fma-purple-fg); }
 .fma-swatch-pink   { background-color: var(--fma-pink-fg); }
 .fma-swatch-gray   { background-color: var(--fma-gray-fg); }
+
+/* ══ 锚定浮层专用层（防裁剪统一范式 2026-08-19）═════════════════════════════
+   所有「锚点定位的弹出菜单」（AnchoredPopover / FinderContextMenu）Teleport 到
+   #popover-layer：位于 .finder-shell 内（保住 .finder-shell 前缀样式的命中），
+   但脱离一切 overflow-hidden 祖先与 backdrop-filter / container-type / transform
+   形成的包含块（QuickLook 卡片、工具栏容器等不再裁剪或劫持 fixed 坐标）。
+   层自身 fixed inset-0：不参与布局、不拦截事件（子元素恢复 pointer-events）。 */
+.finder-popover-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;            /* 高于 QuickLook 遮罩 z-[70]/QuickJumpPanel z-70 */
+  pointer-events: none;
+}
+.finder-popover-layer > * {
+  pointer-events: auto;
+}

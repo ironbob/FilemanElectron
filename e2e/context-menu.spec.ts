@@ -180,3 +180,29 @@ test('mouse: clicking blank area closes the menu', async ({ page }) => {
   await page.locator('.vue-recycle-scroller').click({ position: { x: 200, y: 260 } })
   await expect(page.locator('.context-menu')).toHaveCount(0)
 })
+
+// 防裁剪回归锁（2026-08-19）：列表底部右键时，根菜单上翻钳制、子菜单垂直钳制，
+// 两者都必须完整落在视口内（8px 安全边距），不再被窗口底边裁掉
+test('menu opened near viewport bottom stays fully visible (root + submenu clamp)', async ({ page }) => {
+  // 空白区右键在视口右下角（720 高视口的 y=680）：菜单高度 > 剩余空间必然上翻
+  await page.mouse.click(900, 680, { button: 'right' })
+  const menu = page.locator('.context-menu')
+  await expect(menu).toBeVisible()
+  await expect.poll(async () => {
+    const b = await menu.boundingBox()
+    return b ? b.y + b.height : 0
+  }).toBeLessThanOrEqual(712)
+  const rootBox = await menu.boundingBox()
+  expect(rootBox!.y).toBeGreaterThanOrEqual(0)
+
+  // 展开靠近菜单底部的「拷贝路径 ▸」：子菜单默认顶部对齐父项，越出视口须上移钳制
+  await menu.locator('> .context-menu-item:has(.menu-label:text-is("拷贝路径"))').hover()
+  const submenu = menu.locator('.context-submenu')
+  await expect(submenu).toBeVisible()
+  await expect.poll(async () => {
+    const b = await submenu.boundingBox()
+    return b ? b.y + b.height : 0
+  }).toBeLessThanOrEqual(712)
+  const subBox = await submenu.boundingBox()
+  expect(subBox!.y).toBeGreaterThanOrEqual(0)
+})

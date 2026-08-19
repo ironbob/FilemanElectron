@@ -133,6 +133,10 @@ onUnmounted(() => window.removeEventListener('pointerdown', onWindowPointerDown,
 <style scoped>
 .tool-param-popover {
   width: 232px;
+  /* 宿主以 absolute top-1/2 垂直居中锚定：容器过矮时收缩 + 内滚，
+     不再被预览区 overflow-hidden 裁掉上下端（防裁剪审计 2026-08-19） */
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
 }
 
 .popover-label {

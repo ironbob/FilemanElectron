@@ -7,6 +7,7 @@ import type { HexRegion } from '@/utils/hexCursor'
 import { formatOffset } from '@/utils/hexFormat'
 import { formatSize } from '@/utils/path'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import AnchoredPopover from '@/components/menu/AnchoredPopover.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useHexViewer } from './composables/useHexViewer'
 import HexIcon from './HexIcon.vue'
@@ -410,6 +411,8 @@ function hexSpaceAfter(total: number, indexInRow: number): boolean {
 // ── 视图设置弹出层（每行字节 / 字号 / ASCII 列） ─────────────────────────────
 
 const viewMenuOpen = ref(false)
+// 视图菜单锚点（触发钮外包 .relative 容器）——AnchoredPopover 以其 rect 定位
+const viewMenuAnchor = ref<HTMLElement | null>(null)
 
 // 菜单打开期间放行标题栏拖拽区，否则点标题栏的外点关闭收不到事件
 useAppDragSuspend(() => viewMenuOpen.value)
@@ -613,7 +616,7 @@ const rootClass = computed(() => ({
       <span class="hex-tb-sep" />
 
       <!-- 视图设置 + Inspector 开关 -->
-      <div class="relative">
+      <div ref="viewMenuAnchor" class="relative">
         <button
           class="hex-tb-btn"
           data-view-toggle
@@ -621,7 +624,7 @@ const rootClass = computed(() => ({
           :title="$t('preview.hex.viewSettingsTip')"
           @click="viewMenuOpen = !viewMenuOpen"
         ><HexIcon name="sliders" /></button>
-        <div v-if="viewMenuOpen" class="hex-view-menu">
+        <AnchoredPopover v-if="viewMenuOpen" :anchor="viewMenuAnchor" align="right" class="hex-view-menu">
           <div class="hex-view-menu-row">
             <span>{{ $t('preview.hex.bytesPerRow') }}</span>
             <div class="hex-seg hex-seg-mini">
@@ -638,7 +641,7 @@ const rootClass = computed(() => ({
             <span>{{ $t('preview.hex.showAsciiColumn') }}</span>
             <button class="hex-seg-item hex-view-ascii-toggle" :class="{ 'is-active': showAscii }" @click="showAscii = !showAscii">{{ showAscii ? $t('common.on') : $t('common.off') }}</button>
           </div>
-        </div>
+        </AnchoredPopover>
       </div>
       <button
         class="hex-tb-btn"
