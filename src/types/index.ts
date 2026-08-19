@@ -98,6 +98,13 @@ export interface Favorite {
   name: string
 }
 
+/** 颜色标记（Finder 式彩色标签）：color 为色板 key（'red'…'teal'），见 @/utils/colorTags。 */
+export interface ColorTag {
+  deviceId: string
+  path: string
+  color: string
+}
+
 export interface AppSettings {
   defaultView: 'list' | 'grid' | 'columns'
   showHiddenFiles: boolean

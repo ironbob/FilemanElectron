@@ -2,6 +2,8 @@
 /**
  * 菜单项模型。action === '__divider__' 渲染为语义组分隔线（无图标/快捷键）。
  * icon 取 FinderMenuNode 的 ICONS 键名；children 非空即子菜单（可任意嵌套）。
+ * swatch 为 CSS 颜色值（如 'var(--accent-red)'）：图标列改渲染实心色点，
+ * 用于颜色标记色板项；与 icon 互斥，swatch 优先。
  */
 export interface FinderMenuItem {
   label: string
@@ -9,6 +11,7 @@ export interface FinderMenuItem {
   shortcut?: string
   disabled?: boolean
   icon?: string
+  swatch?: string
   children?: FinderMenuItem[]
 }
 </script>

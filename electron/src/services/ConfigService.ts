@@ -4,6 +4,8 @@ interface AppConfig {
   devices: unknown[]
   favorites: unknown[]
   fileMetadata?: unknown[]
+  /** 颜色标记（渲染层 colorTags store 持有，按 key 非破坏写入）。 */
+  colorTags?: unknown[]
   settings: {
     defaultView: string
     showHiddenFiles: boolean
@@ -52,6 +54,9 @@ export class ConfigService {
     }
     if (config.fileMetadata !== undefined) {
       this.store.set('fileMetadata', config.fileMetadata)
+    }
+    if (config.colorTags !== undefined) {
+      this.store.set('colorTags', config.colorTags)
     }
   }
 

@@ -223,6 +223,7 @@ import { useDevicesStore } from './stores/devices'
 import { useFileOperationsStore } from './stores/fileOperations'
 import { usePreviewStore } from './stores/preview'
 import { useSettingsStore } from './stores/settings'
+import { useColorTagsStore } from './stores/colorTags'
 import { useGitStatusStore } from './stores/gitStatus'
 import { useDragSessionStore } from './stores/dragSession'
 import { getParentPath } from './utils/path'
@@ -294,6 +295,9 @@ onMounted(() => {
 
   // Git 状态徽标：订阅 watch:changed 做缓存失效（本地仓库目录）
   useGitStatusStore().initialize()
+
+  // 颜色标记：FileList 行圆点与主 tab 圆点都消费，须在渲染前就位
+  void useColorTagsStore().load()
 
   // Load app settings (hidden-files toggle etc.)
   void settingsStore.load().then(() => {

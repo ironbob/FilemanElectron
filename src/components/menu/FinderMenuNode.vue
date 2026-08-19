@@ -111,6 +111,8 @@ const ICONS: Record<string, string> = {
   folder: '<path d="M2.2 12.6V4.6a1 1 0 0 1 1-1h3l1.4 1.8h5.2a1 1 0 0 1 1 1v6.2a1 1 0 0 1-1 1H3.2a1 1 0 0 1-1-1z"/>',
   // 发送到设备：纸飞机
   send: '<path d="M14 2 2.4 6.8l4.4 2.1 2.1 4.7z"/><path d="M14 2 6.8 8.9"/>',
+  // 颜色标记：标签（斜置圆角方块 + 圆孔）
+  tag: '<path d="M8.5 2.2h3.1a2.2 2.2 0 0 1 2.2 2.2v3.1a2.2 2.2 0 0 1-.65 1.56l-4.6 4.6a2.2 2.2 0 0 1-3.1 0L2.34 10.6a2.2 2.2 0 0 1 0-3.1l4.6-4.6a2.2 2.2 0 0 1 1.56-.7z"/><circle cx="10.9" cy="5.1" r="1"/>',
 }
 
 /** 该项的子菜单是否展开：highlight 落在它自身或其后代上，且未被 ← 收起覆盖。 */
@@ -182,9 +184,10 @@ function clampSubmenuRef(el: unknown): void {
       @mouseenter="onItemEnter([...pathPrefix, i])"
       @click="onItemClick(item, [...pathPrefix, i])"
     >
-      <!-- 图标列（无图标也占位，保持三列对齐体系） -->
+      <!-- 图标列（无图标也占位，保持三列对齐体系）；swatch = 实心色点（颜色标记色板） -->
       <span class="menu-icon">
-        <svg v-if="item.icon && ICONS[item.icon]" viewBox="0 0 16 16" aria-hidden="true" v-html="ICONS[item.icon]" />
+        <span v-if="item.swatch" class="menu-swatch" :style="{ backgroundColor: item.swatch }" />
+        <svg v-else-if="item.icon && ICONS[item.icon]" viewBox="0 0 16 16" aria-hidden="true" v-html="ICONS[item.icon]" />
       </span>
       <!-- 文本列 -->
       <span class="menu-label">{{ item.label }}</span>
@@ -276,6 +279,15 @@ function clampSubmenuRef(el: unknown): void {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* 色板实心圆点：居中占满图标列（10px，不随高亮变白） */
+.menu-swatch {
+  width: 10px;
+  height: 10px;
+  margin: auto;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08); /* 深底色上的发丝描边 */
 }
 
 /* 文本列：超宽截断（菜单宽度钳制在 224px 内） */

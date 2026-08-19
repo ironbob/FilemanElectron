@@ -105,6 +105,13 @@
           <!-- 名称单元格：名称 + git 徽标 + 符号链接角标 共同占位 flex-1，
                附加标记在单元格内部消化宽度，不再把日期/大小/种类列顶歪（与表头对齐） -->
           <div class="flex-1 min-w-0 flex items-center gap-2">
+            <!-- 颜色标记圆点（Finder 式，名称左前） -->
+            <span
+              v-if="colorTagOf(file)"
+              class="color-tag-dot flex-shrink-0"
+              :style="{ backgroundColor: colorTagOf(file)! }"
+              :title="colorTagTitle(file)"
+            />
             <FileNameMatchLabel
               class="finder-name-label flex-1 min-w-0 truncate text-base rounded px-1 transition-colors"
               :class="isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
@@ -190,6 +197,13 @@
               <component v-else :is="getFileIconComponent(file)" :class="gridCfg.iconClass" />
             </div>
           </div>
+          <!-- 颜色标记圆点（居中，名称上方） -->
+          <span
+            v-if="colorTagOf(file)"
+            class="color-tag-dot flex-shrink-0 -mb-1"
+            :style="{ backgroundColor: colorTagOf(file)! }"
+            :title="colorTagTitle(file)"
+          />
           <FileNameMatchLabel
             :class="[gridCfg.nameClass, 'finder-name-label text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary']"
             :name="file.name"
@@ -241,6 +255,12 @@
             >
               <component :is="getFileIconComponent(file)" class="w-full h-full" />
             </div>
+            <span
+              v-if="colorTagOf(file)"
+              class="color-tag-dot flex-shrink-0"
+              :style="{ backgroundColor: colorTagOf(file)! }"
+              :title="colorTagTitle(file)"
+            />
             <FileNameMatchLabel
               class="finder-name-label flex-1 truncate text-base rounded px-1 transition-colors"
               :class="column.selectedPath === file.path ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
@@ -365,6 +385,8 @@ import FileNameMatchLabel from '@/components/FileNameMatchLabel.vue'
 import FileGitBadge from '@/components/FileGitBadge.vue'
 import FinderContextMenu, { type FinderMenuItem } from '@/components/menu/FinderContextMenu.vue'
 import { useGitStatusStore } from '@/stores/gitStatus'
+import { useColorTagsStore } from '@/stores/colorTags'
+import { COLOR_TAG_PALETTE, colorTagCssVar, colorTagLabelKey } from '@/utils/colorTags'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
@@ -397,6 +419,7 @@ const devicesStore = useDevicesStore()
 const thumbnailStore = useThumbnailStore()
 const tabsStore = useTabsStore()
 const favoritesStore = useFavoritesStore()
+const colorTagsStore = useColorTagsStore()
 const settingsStore = useSettingsStore()
 const gitStatusStore = useGitStatusStore()
 const previewStore = usePreviewStore()
@@ -421,6 +444,19 @@ watch(
   },
   { immediate: true }
 )
+
+// ── 颜色标记（Finder 式彩色标签；store 内存 Map，本地/远程全设备）──────────
+/** 行圆点颜色（CSS 变量值）；未标记返回 null 不渲染。 */
+function colorTagOf(file: FileInfo): string | null {
+  return colorTagCssVar(colorTagsStore.colorOf(props.deviceId, file.path))
+}
+
+/** 圆点悬停提示：色名（色板 i18n）。 */
+function colorTagTitle(file: FileInfo): string {
+  const key = colorTagLabelKey(colorTagsStore.colorOf(props.deviceId, file.path))
+  return key ? t(key) : ''
+}
+
 const loading = ref(false)
 const columnFilesMap = ref<Map<string, FileInfo[]>>(new Map())
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
@@ -2197,6 +2233,9 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
     })
     items.push({ label: t('fileList.menu.goToFolder'), action: 'goto', shortcut: '⇧⌘G', icon: 'goto' })
 
+    // 标记当前目录颜色（tab 圆点即时可见；应用本地元数据，全设备可用）
+    items.push(...buildColorTagMenuItems([props.path]))
+
     // 目录级工具页（瞬态工具 tab）；grep 与查重/空间同组，组内不再插分隔线
     let toolsDividerPushed = false
     if (!caps || (caps.canList && caps.canStat)) {
@@ -2353,6 +2392,12 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
       items.push({ label: '---', action: '__divider__' })
       items.push({ label: t('fileList.menu.addFavorite'), action: 'add-favorite', icon: 'star' })
     }
+    // 标记颜色：选中集批量（右键未选中条目时回退到命中条目）；全设备可用
+    items.push(...buildColorTagMenuItems(
+      selectedAtMenuOpen.length > 0
+        ? selectedAtMenuOpen
+        : (contextMenuTargetFile.value ? [contextMenuTargetFile.value.path] : [])
+    ))
     // 宿主集成：在 Finder 中显示 / 在终端打开（仅本地、非 ZIP）
     if (isHostShellAvailable()) {
       items.push({ label: '---', action: '__divider__' })
@@ -2420,6 +2465,30 @@ function buildCopyPathMenuItems(): FinderMenuItem[] {
   ]
   if (otherPane) children.splice(2, 0, { label: t('fileList.menu.copyPathRelative'), action: 'copy-path:relative' })
   return [{ label: t('fileList.menu.copyPath'), action: 'copy-path-menu', icon: 'copyPath', children }]
+}
+
+/**
+ * 「标记颜色 ▸」子菜单：固定 7 色色板 + 清除标记。目标为空（构建方保证不会）
+ * 返回空数组整项隐藏。当前色判定用打开瞬间快照——选中集去重后恰 1 色才打 ✓
+ * （混色/无色不打）。全设备可用（应用本地元数据，无 caps 门控）。
+ */
+function buildColorTagMenuItems(targets: string[]): FinderMenuItem[] {
+  if (targets.length === 0) return []
+  const colors = colorTagsStore.colorsOf(props.deviceId, targets)
+  const current = colors.size === 1 ? [...colors][0] : null
+  const children: FinderMenuItem[] = COLOR_TAG_PALETTE.map(entry => ({
+    label: t(entry.labelKey),
+    action: `color-tag:${entry.key}`,
+    swatch: entry.cssVar,
+    shortcut: entry.key === current ? '✓' : undefined
+  }))
+  children.push({ label: '---', action: '__divider__' })
+  children.push({
+    label: t('fileList.menu.clearTag'),
+    action: 'color-tag:none',
+    disabled: !colorTagsStore.hasAny(props.deviceId, targets)
+  })
+  return [{ label: t('fileList.menu.tagColor'), action: 'color-tag-menu', icon: 'tag', children }]
 }
 
 /**
@@ -2710,6 +2779,24 @@ function handleContextMenuAction(action: string) {
     return
   }
 
+  // 颜色标记：'color-tag:<key>' 设色 / 'color-tag:none' 清除。应用本地元数据，
+  // store 即时更新（行/tab 圆点响应式），不经文件操作队列。空白菜单→当前目录；
+  // 文件菜单→打开瞬间选中快照（右键未选中条目时回退命中条目，与构建时一致）
+  if (action.startsWith('color-tag:')) {
+    const color = action.slice('color-tag:'.length)
+    if (color === 'none' || COLOR_TAG_PALETTE.some(e => e.key === color)) {
+      const targets = contextMenuLastIsBackground.value
+        ? [props.path]
+        : (contextMenuSelectedFiles.value.length > 0
+          ? contextMenuSelectedFiles.value
+          : (contextMenuTargetFile.value ? [contextMenuTargetFile.value.path] : []))
+      if (targets.length > 0) {
+        void colorTagsStore.setColor(props.deviceId, targets, color === 'none' ? null : color)
+      }
+    }
+    return
+  }
+
   // 发送到设备收藏目录（action 索引指向构建时快照；与菜单打开时看到的选中集一致，
   // 再过滤一次 ZIP 虚拟路径，全被滤掉则忽略）
   if (action.startsWith('send-to:')) {
@@ -2895,6 +2982,14 @@ function handleContextMenuAction(action: string) {
 
 .finder-selected-text {
   color: var(--finder-selection-text);
+}
+
+/* 颜色标记圆点：三视图共用几何；颜色走内联 backgroundColor（CSS accent 变量） */
+.color-tag-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08); /* 深底色上的发丝描边 */
 }
 
 /* 拖拽悬停的文件夹行高亮：Finder 选中式圆角蓝底 + 内侧微光（描边/光晕用 inset，

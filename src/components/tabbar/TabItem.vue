@@ -25,6 +25,13 @@
       :class="active && icon === 'folder' ? 'text-accent-blue' : 'text-text-secondary'"
     />
 
+    <!-- 颜色标记圆点：活动面板当前目录被标记时着色（pinned 紧凑态走右下角角标） -->
+    <span
+      v-if="colorTag && !tab.pinned"
+      class="tab-color-dot shrink-0"
+      :style="{ backgroundColor: colorTag }"
+    />
+
     <!-- 目录失效标记（pane.loadError）：常驻显示，hover 不让位（与脏点不同，
          错误需要持续可见）；pinned 紧凑态改走角标 -->
     <svg
@@ -79,7 +86,8 @@
       </span>
     </template>
 
-    <!-- pinned 紧凑态：脏点角标 + 目录失效角标 -->
+    <!-- pinned 紧凑态：颜色标记角标 + 脏点角标 + 目录失效角标 -->
+    <span v-if="tab.pinned && colorTag" class="tab-color-dot tab-color-badge" :style="{ backgroundColor: colorTag }" />
     <span v-if="tab.pinned && dirty" class="tab-dirty-dot tab-dirty-badge" />
     <span v-if="tab.pinned && error" class="tab-error-badge" :title="$t('fileList.loadError.missingTitle')">
       <svg class="tab-error-icon w-3 h-3 text-accent-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,6 +102,8 @@ import { computed, nextTick, ref } from 'vue'
 import type { Tab } from '@/types'
 import TabIcon from './TabIcon.vue'
 import { iconForTab } from './tabIcons'
+import { useColorTagsStore } from '@/stores/colorTags'
+import { colorTagCssVar } from '@/utils/colorTags'
 
 export interface TabLabel {
   /** 同名消歧前缀（如 'Downloads'）；无冲突为 null。 */
@@ -124,6 +134,14 @@ const emit = defineEmits<{
 }>()
 
 const icon = computed(() => iconForTab(props.tab))
+
+// 颜色标记：跟随活动面板当前目录（与标题显示的面板一致）；工具页 tab
+// panes 为空 → 无圆点。store 内存 Map 响应式，标记变更即时反映到圆点。
+const colorTagsStore = useColorTagsStore()
+const colorTag = computed(() => {
+  const pane = props.tab.panes.find(p => p.id === props.tab.activePaneId)
+  return pane ? colorTagCssVar(colorTagsStore.colorOf(pane.deviceId, pane.path)) : null
+})
 
 // ── 别名重命名 ────────────────────────────────────────────────────────────────
 const renaming = ref(false)
@@ -232,6 +250,22 @@ const hovered = ref(false)
 .tab-dirty-badge {
   position: absolute;
   top: 3px;
+  right: 3px;
+}
+
+/* 颜色标记圆点：常规态行内 7px（图标与标题之间）；颜色走内联 backgroundColor */
+.tab-color-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+
+/* pinned 紧凑态：右下角角标（与脏点角标错位——脏点在右上） */
+.tab-color-badge {
+  position: absolute;
+  bottom: 3px;
   right: 3px;
 }
 
