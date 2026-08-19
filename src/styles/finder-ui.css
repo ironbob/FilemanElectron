@@ -11,7 +11,14 @@
 .finder-shell {
   --finder-canvas: #ffffff;
   --finder-chrome: rgba(255, 255, 255, 0.76);
-  --finder-sidebar: #ffffff;
+  /* 浮层侧边栏材质（Finder 式高低层级，2026-08-19）：半透明系统灰 + 模糊，
+     配发丝边框与柔和阴影浮于主内容之上，不再画硬分割竖线 */
+  --finder-sidebar: rgba(248, 248, 250, 0.90);
+  --finder-sidebar-border: rgba(0, 0, 0, 0.10);
+  --finder-sidebar-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
+  --finder-sidebar-hover: rgba(0, 0, 0, 0.06);
+  /* 窗口失焦时的选中底（Finder：灰底蓝字） */
+  --finder-sidebar-inactive-sel: #e5e5e7;
   --finder-divider: rgba(60, 60, 67, 0.12);
   --finder-label: #1d1d1f;
   --finder-secondary-label: #6e6e73;
@@ -36,6 +43,11 @@
   --finder-popover-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
   --finder-popover-hover: rgba(0, 0, 0, 0.06);
   --finder-popover-path: rgba(0, 0, 0, 0.58);
+  /* Quick Look 文本浮窗材质（2026-08-19）：半透明系统材质 + blur(20px)，
+     12px 圆角 + 1px 轻边框 + 柔和窗口投影；头部/内容/状态同属一张材质 */
+  --quicklook-bg: rgba(248, 248, 250, 0.94);
+  --quicklook-border: rgba(0, 0, 0, 0.12);
+  --quicklook-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   /* Hex 编辑器（v2）状态 token —— 全部为字节/行级局部反馈，无大面积描边 */
   --hex-selection: rgba(10, 132, 255, 0.22);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
@@ -52,7 +64,12 @@
 .finder-shell[data-theme='dark'] {
   --finder-canvas: #1e1e20;
   --finder-chrome: rgba(40, 40, 42, 0.92);
-  --finder-sidebar: rgba(30, 30, 32, 0.86);
+  /* 浮层侧边栏材质（暗色）：深灰半透明 + 模糊，阴影加深保证在深底可辨 */
+  --finder-sidebar: rgba(34, 34, 38, 0.92);
+  --finder-sidebar-border: rgba(255, 255, 255, 0.10);
+  --finder-sidebar-shadow: 0 4px 18px rgba(0, 0, 0, 0.42);
+  --finder-sidebar-hover: rgba(255, 255, 255, 0.07);
+  --finder-sidebar-inactive-sel: rgba(255, 255, 255, 0.12);
   --finder-divider: rgba(255, 255, 255, 0.12);
   --finder-label: #f5f5f7;
   --finder-secondary-label: #a1a1a6;
@@ -74,6 +91,10 @@
   --finder-popover-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   --finder-popover-hover: rgba(255, 255, 255, 0.07);
   --finder-popover-path: rgba(235, 235, 245, 0.62);
+  /* Quick Look 文本浮窗材质（暗色）：不透明度抬高，深底透字更明显 */
+  --quicklook-bg: rgba(40, 40, 42, 0.94);
+  --quicklook-border: rgba(255, 255, 255, 0.14);
+  --quicklook-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   --hex-selection: rgba(10, 132, 255, 0.30);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
   --hex-match: rgba(255, 214, 10, 0.28);
@@ -105,44 +126,113 @@
   z-index: 30;
 }
 
+/* ── 侧边栏浮层卡片（Finder 式高低层级，2026-08-19）──────────────────────────
+   dock 在窗口左/上/下保留 10px 内缩；卡片以半透明材质 + 模糊 + 发丝边框 +
+   柔和阴影浮于主内容之上。与主内容的分割只靠卡片阴影与留白，不画硬竖线。 */
+.finder-shell .sidebar-dock {
+  position: relative;
+  flex-shrink: 0;
+  padding: 10px 0 10px 10px;
+}
+
+/* 窄窗降级：dock 转 absolute 浮层覆盖，panes 保持全宽（与任务抽屉 overlay 同语义） */
+.finder-shell .sidebar-dock-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-sidebar);
+}
+
 .finder-shell .finder-sidebar {
-  border-right: 1px solid var(--finder-divider);
+  height: 100%;
+  border: 1px solid var(--finder-sidebar-border);
+  border-radius: 14px;
   background-color: var(--finder-sidebar) !important;
   backdrop-filter: saturate(150%) blur(20px);
   -webkit-backdrop-filter: saturate(150%) blur(20px);
+  box-shadow: var(--finder-sidebar-shadow);
+  /* 内容必须被圆角容器正确裁剪 */
+  overflow: hidden;
+}
+
+/* 分割器：10px 拖拽热区，视觉仅靠卡片右缘 1px 低对比线；
+   hover / 拖拽中给一线轻系统蓝反馈 */
+.finder-shell .sidebar-splitter {
+  position: relative;
+  width: 10px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.finder-shell .sidebar-splitter::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 3px;
+  width: 1px;
+  border-radius: 1px;
+  background: var(--finder-divider);
+  opacity: 0.55;
+  transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.finder-shell .sidebar-splitter:hover::before,
+.finder-shell .sidebar-splitter.is-resizing::before {
+  background: color-mix(in srgb, var(--finder-selection) 55%, transparent);
+  opacity: 1;
+}
+
+.finder-shell .sidebar-splitter-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: calc(var(--z-sidebar) + 1);
 }
 
 .finder-shell .finder-sidebar .sidebar-item {
-  min-height: 25px;
+  min-height: 30px;
   gap: 8px;
   margin: 1px 8px;
-  padding: 3px 7px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 10px;
 }
 
+/* 激活选中：系统蓝实底 + 白字白图标（扁平，无渐变无发光） */
 .finder-shell .finder-sidebar .sidebar-item-active {
-  background: color-mix(in srgb, var(--finder-selection) 82%, transparent) !important;
+  background: var(--finder-selection) !important;
+  color: #fff;
   box-shadow: none;
 }
 
 /* ── 侧边栏文字层级（Finder 式）─────────────────────────────────────────────
-   导航项 13px Medium 主标签色 > 分组标题 11px semibold 头标签色 > 状态文字次级灰。
-   分组间用标题 + 留白分隔，不再画 border-t 硬线（markup 已移除）。 */
+   导航项 13px Medium 主标签色 > 分组标题 12px semibold 头标签色 > 状态文字次级灰。
+   分组间用标题 + 留白分隔，不画 border-t 硬线；标题左缘对齐条目文字列（图标列右侧）。 */
 
 .finder-shell .sidebar-section-title {
-  font-size: 11px;
+  padding: 0 16px 0 46px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--finder-header-label);
 }
 
-/* 收藏夹平台子分组（Android/iOS…品牌名）：不 uppercase，仅字重+颜色对齐 */
+/* 收藏夹平台子分组（Android/iOS…品牌名）：同几何，字号再小一档 */
 .finder-shell .sidebar-subgroup-title {
-  font-size: 10px;
+  padding: 0 16px 0 46px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   color: var(--finder-header-label);
+}
+
+/* 空收藏提示行：缩进与条目文字列对齐的低层级说明文字 */
+.finder-shell .sidebar-hint {
+  padding: 0 16px 0 46px;
+  font-size: 12px;
+  color: var(--finder-secondary-label);
 }
 
 /* 导航图标统一为稳定深灰线性（Finder 侧边栏无彩色导航图标）；
@@ -155,7 +245,31 @@
   color: #fff !important;
 }
 
-.finder-shell .finder-sidebar .sidebar-item-inactive:hover,
+/* 窗口失焦（App.vue 根节点挂 is-window-inactive）：Finder 语义——选中行退为
+   浅灰底 + 蓝字蓝图标，不再整行系统蓝 */
+.finder-shell.is-window-inactive .finder-sidebar .sidebar-item-active {
+  background: var(--finder-sidebar-inactive-sel) !important;
+  color: var(--finder-selection);
+}
+
+.finder-shell.is-window-inactive .finder-sidebar .sidebar-item-active > svg,
+.finder-shell.is-window-inactive .finder-sidebar .sidebar-item-active .sidebar-icon {
+  color: var(--finder-selection) !important;
+}
+
+/* 暗色失焦蓝略提亮，保证在深灰底上可读 */
+.finder-shell[data-theme='dark'].is-window-inactive .finder-sidebar .sidebar-item-active,
+.finder-shell[data-theme='dark'].is-window-inactive .finder-sidebar .sidebar-item-active > svg,
+.finder-shell[data-theme='dark'].is-window-inactive .finder-sidebar .sidebar-item-active .sidebar-icon {
+  color: #7cb4ff !important;
+}
+
+/* 导航项 hover：低对比浅灰（不抢激活蓝）；工具钮沿用 --finder-control */
+.finder-shell .finder-sidebar .sidebar-item-inactive:hover {
+  background: var(--finder-sidebar-hover) !important;
+  color: var(--finder-label) !important;
+}
+
 .finder-shell .toolbar-btn-enhanced:hover,
 .finder-shell .action-button:hover {
   background: var(--finder-control) !important;
@@ -264,19 +378,26 @@
   background: transparent !important;
 }
 
+/* ── 侧边栏底部工具区（低层级，2026-08-19）──────────────────────────────────
+   ghost 图标钮 + 极轻上边线：不与列表争夺视觉，不做成第二块独立浮窗。 */
+.finder-shell .sidebar-utility-bar {
+  padding: 6px 14px 8px;
+  border-top: 1px solid var(--finder-sidebar-hover);
+  background: transparent;
+}
+
 .finder-shell .sidebar-utility-button {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(60, 60, 67, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.52);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--finder-secondary-label);
-  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .finder-shell .sidebar-utility-badge {
@@ -299,9 +420,9 @@
 }
 
 .finder-shell .sidebar-utility-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--finder-sidebar-hover);
   color: var(--finder-label);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .finder-shell .sidebar-utility-button.active {
@@ -315,8 +436,7 @@
   opacity: 0.42;
 }
 
-.finder-shell[data-theme='dark'] .toolbar-btn-enhanced,
-.finder-shell[data-theme='dark'] .sidebar-utility-button {
+.finder-shell[data-theme='dark'] .toolbar-btn-enhanced {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.08);
 }
@@ -1425,4 +1545,66 @@
   margin: 6px 10px;
   background: var(--finder-divider);
   flex-shrink: 0;
+}
+
+/* ========================================
+   Quick Look 文本浮窗 —— Finder 式材质窗口（2026-08-19）
+   稳定响应式几何（宽 min(90vw,1200px) / 高 clamp(420px,70%,760px)，内联注入）+
+   半透明系统材质；头部/内容/底部 chrome 全部透明化，同属一张窗口面。
+   ======================================== */
+.finder-shell .quick-look-card--text {
+  background: var(--quicklook-bg);
+  border-color: var(--quicklook-border);
+  box-shadow: var(--quicklook-shadow);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: saturate(150%) blur(20px);
+}
+
+/* 材质窗口内的实色底全部让位（finder-preview 的 canvas 底 + 各 chrome 条） */
+.finder-shell .quick-look-card--text .finder-preview { background: transparent !important; }
+.finder-shell .quick-look-card--text .finder-preview-toolbar,
+.finder-shell .quick-look-card--text .text-view-toolbar,
+.finder-shell .quick-look-card--text .text-filter-statusbar,
+.finder-shell .quick-look-card--text .text-load-footer { background: transparent !important; }
+
+/* ── 工具栏保存钮（2026-08-19 上移）：系统蓝、克制尺寸，⌘S 内嵌辅助提示 ── */
+.finder-shell .text-save-btn {
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--finder-selection);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  transition: filter 130ms ease, opacity 130ms ease;
+}
+.finder-shell .text-save-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.finder-shell .text-save-btn:active:not(:disabled) { filter: brightness(0.92); }
+.finder-shell .text-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.finder-shell .text-save-btn .text-save-kbd {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.75;
+  letter-spacing: 0.02em;
+}
+
+/* ── 只读预览：隐藏编辑器光标（阅读面无 IDE 装饰；选区保留供复制） ── */
+.finder-shell .text-editor-readonly .monaco-editor .cursor { display: none !important; }
+
+/* ── 低调开启态（2026-08-19）：aria-pressed 语义保留，视觉 control-strong 深灰 ──
+   文本预览「自动换行」这类默认即开的开关不得常驻长蓝（蓝色只给焦点/选中/主操作） */
+.finder-shell .toolbar-btn-enhanced.is-quiet-active,
+.finder-shell .toolbar-btn-enhanced.is-quiet-active:hover:not(:disabled) {
+  background: var(--finder-control-strong) !important;
+  color: var(--finder-label) !important;
+}
+.finder-shell .finder-segment-btn.is-quiet-active,
+.finder-shell .finder-segment-btn.is-quiet-active:hover:not(:disabled) {
+  background: var(--finder-control-strong) !important;
+  color: var(--finder-label) !important;
 }

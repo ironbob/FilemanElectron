@@ -110,10 +110,10 @@
   --menu-item-active-icon: rgba(255, 255, 255, 0.88);
   --menu-item-active-shortcut: rgba(255, 255, 255, 0.72);
 
-  /* Scrollbar - 更细腻的滚动条 */
+  /* Scrollbar - Finder 式：静止低透明度，滚动/hover 加深（12px 轨道全圆角 thumb） */
   --scrollbar-bg: transparent;
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.24);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.50);
 
   /* Z-Index Scale */
   --z-base: 0;
@@ -220,10 +220,10 @@
   --menu-separator: rgba(0, 0, 0, 0.10);
   --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.10);
 
-  /* Scrollbar */
+  /* Scrollbar - Finder 式：静止低透明度，滚动/hover 加深 */
   --scrollbar-bg: transparent;
-  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.24);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.50);
 
   /* Z-Index Scale */
   --z-base: 0;
@@ -286,12 +286,15 @@ html[data-app-drag-suspended] .app-drag {
 }
 
 /* ========================================
-   Scrollbar Styling (macOS style)
+   Scrollbar Styling (macOS overlay style)
+   12px 轨道 + 全圆角深灰 thumb：静止态降到 0.24 透明度（不喧宾夺主），
+   hover 提到 0.50 形成清晰对比；轨道透明、无上下箭头（::-webkit-scrollbar
+   自绘滚动条本体即无箭头按钮）。1px 透明边让 thumb 与边缘留出呼吸。
    ======================================== */
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
@@ -299,16 +302,14 @@ html[data-app-drag-suspended] .app-drag {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 4px;
-  border: 2px solid transparent;
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 1px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar-corner {
@@ -881,10 +882,10 @@ button {
 .sidebar-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .sidebar-item-inactive {
@@ -895,10 +896,10 @@ button {
   background-color: var(--bg-hover);
 }
 
+/* 激活选中：系统蓝实底白字（扁平；finder-ui.css 在 .finder-sidebar 作用域内接管几何） */
 .sidebar-item-active {
-  background: linear-gradient(135deg, var(--accent-blue) 0%, #0066cc 100%);
+  background-color: var(--bg-selected);
   color: white;
-  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
 }
 
 .sidebar-item-active .sidebar-icon {

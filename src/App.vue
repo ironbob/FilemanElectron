@@ -1,6 +1,7 @@
 <template>
   <div
     class="h-screen flex flex-col bg-bg-primary finder-shell"
+    :class="{ 'is-window-inactive': !windowActive }"
     :data-theme="theme"
     :style="{ '--task-drawer-width': (fileOpsStore.isDrawerOpen ? taskDrawerWidth : 0) + 'px' }"
   >
@@ -20,21 +21,27 @@
       <TaskTitlebarButton class="app-no-drag" />
     </div>
 
-    <!-- Main Content（relative：窄窗时任务抽屉 overlay 模式的定位锚） -->
+    <!-- Main Content（relative：窄窗时任务抽屉/侧边栏 overlay 模式的定位锚） -->
     <div ref="mainRowRef" class="flex-1 flex overflow-hidden relative">
-      <!-- Sidebar -->
-      <AppSidebar
-        class="flex-shrink-0 overflow-hidden"
-        :style="{ width: sidebarWidth + 'px' }"
-        :theme="theme"
-        @toggle-theme="toggleTheme"
-        @open-settings="showSettingsDialog = true"
-      />
-
-      <!-- Sidebar Resize Handle -->
+      <!-- Sidebar dock：浮层卡片容器（内缩 + 圆角材质见 finder-ui.css；
+           窄窗 sidebarOverlay 时转 absolute 覆盖，panes 保持全宽） -->
       <div
-        class="w-1 bg-border hover:bg-accent-blue cursor-col-resize flex-shrink-0 transition-colors"
-        :class="{ 'bg-accent-blue': isSidebarResizing }"
+        class="sidebar-dock"
+        :class="{ 'sidebar-dock-overlay': sidebarOverlay }"
+        :style="{ width: sidebarWidth + SIDEBAR_DOCK_INSET + 'px' }"
+      >
+        <AppSidebar
+          :theme="theme"
+          @toggle-theme="toggleTheme"
+          @open-settings="showSettingsDialog = true"
+        />
+      </div>
+
+      <!-- Sidebar Resize Handle（10px 拖拽热区，视觉仅 1px 低对比线） -->
+      <div
+        class="sidebar-splitter"
+        :class="{ 'is-resizing': isSidebarResizing, 'sidebar-splitter-overlay': sidebarOverlay }"
+        :style="sidebarOverlay ? { left: sidebarWidth + SIDEBAR_DOCK_INSET + 'px' } : undefined"
         title="Drag to resize sidebar"
         @mousedown="startSidebarResize"
       ></div>
@@ -243,14 +250,22 @@ const titlebarRef = ref<HTMLElement | null>(null)
 /** 打开面板时量取的标题栏 rect（锚点；取不到时兜底窗口顶部 48px 条带）。 */
 const paletteAnchor = ref(new DOMRect(0, 0, window.innerWidth, 48))
 
-// The reference Finder sidebar occupies about 15% of its window width.
-// This default keeps that ratio at the app's normal 1152px launch viewport.
-const SIDEBAR_DEFAULT_WIDTH = 176
-const SIDEBAR_MIN_WIDTH = 168
-const SIDEBAR_MAX_WIDTH = 480
+// Finder 式浮层侧边栏：卡片宽度 240–360（dock 另有 10px 内缩，见 SIDEBAR_DOCK_INSET）。
+// Finder 侧边栏常规档位约 15–25% 窗宽，240 在 1152px 视口下约 21%。
+const SIDEBAR_DEFAULT_WIDTH = 240
+const SIDEBAR_MIN_WIDTH = 240
+const SIDEBAR_MAX_WIDTH = 360
+/** dock 左/上/下的窗口内缩量（浮层卡片与窗口边缘的呼吸空间）。 */
+const SIDEBAR_DOCK_INSET = 10
 const SIDEBAR_WIDTH_KEY = 'fileman-finder-sidebar-width'
 const sidebarWidth = ref(SIDEBAR_DEFAULT_WIDTH)
 const isSidebarResizing = ref(false)
+
+// ── 窗口失焦态（Finder 语义：侧边栏选中从蓝底白字退为灰底蓝字）──
+// 与 PreviewHexContent 的 is-window-inactive 同一套 blur/focus 驱动。
+const windowActive = ref(document.hasFocus())
+function onWindowFocus() { windowActive.value = true }
+function onWindowBlur() { windowActive.value = false }
 
 // 任务抽屉宽度（照抄 sidebar 的 localStorage 持久化模式）
 const TASK_DRAWER_DEFAULT_WIDTH = 340
@@ -316,6 +331,8 @@ onMounted(() => {
   window.addEventListener('dragend', clearDragSession, true)
   window.addEventListener('drop', clearDragSession)
   window.addEventListener('blur', clearDragSession)
+  window.addEventListener('focus', onWindowFocus)
+  window.addEventListener('blur', onWindowBlur)
 
   log.info('[FinderShell] initialized', { theme: theme.value, sidebarWidth: sidebarWidth.value })
 })
@@ -330,6 +347,8 @@ onUnmounted(() => {
   window.removeEventListener('dragend', clearDragSession, true)
   window.removeEventListener('drop', clearDragSession)
   window.removeEventListener('blur', clearDragSession)
+  window.removeEventListener('focus', onWindowFocus)
+  window.removeEventListener('blur', onWindowBlur)
   mainRowObserver?.disconnect()
   mainRowObserver = null
 })
@@ -485,6 +504,13 @@ function resetTaskDrawerWidth() {
 const taskDrawerOverlay = computed(() => {
   const minPanesWidth = activePanes.value.length === 2 ? 640 : 360
   return mainRowWidth.value - sidebarWidth.value - taskDrawerWidth.value < minPanesWidth
+})
+
+/** 窄窗降级（侧边栏）：dock（卡片 + 内缩）挤掉 panes 最小内容宽度时，
+ *  整个 dock 转 absolute 浮层覆盖主内容，panes 保持全宽不被挤压。 */
+const sidebarOverlay = computed(() => {
+  const minPanesWidth = activePanes.value.length === 2 ? 640 : 360
+  return mainRowWidth.value - (sidebarWidth.value + SIDEBAR_DOCK_INSET) < minPanesWidth
 })
 
 const activeTab = computed(() => tabsStore.activeTab)

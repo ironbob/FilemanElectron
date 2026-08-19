@@ -2,8 +2,8 @@
   <div class="finder-sidebar h-full bg-bg-sidebar flex flex-col overflow-hidden">
     <div class="finder-sidebar-content flex-1 min-h-0 overflow-y-auto">
     <!-- Devices Section -->
-    <div class="py-3">
-      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.locations') }}</div>
+    <div class="pt-4">
+      <div class="sidebar-section-title mb-2">{{ $t('sidebar.locations') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="device in devicesStore.devices"
@@ -23,51 +23,39 @@
       </div>
     </div>
 
-    <!-- Add Device Button -->
-    <div class="px-4 py-2">
+    <!-- Add Device（紧凑辅助行：Finder 式组内单行入口，不做大号居中按钮） -->
+    <div class="px-2 pt-1">
       <button
-        class="w-full flex items-center justify-center gap-2.5 px-3 py-2 rounded-md text-base text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
-        @click="showAddDeviceMenu = !showAddDeviceMenu"
+        class="sidebar-item sidebar-item-inactive"
         :aria-label="$t('sidebar.addDevice')"
+        @click="showAddDeviceMenu = !showAddDeviceMenu"
       >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
-        <span>{{ $t('sidebar.addDevice') }}</span>
+        <span class="text-[13px] truncate font-medium">{{ $t('sidebar.addDevice') }}</span>
       </button>
 
-      <!-- Add Device Menu -->
-      <div
-        v-if="showAddDeviceMenu"
-        class="mt-1 bg-bg-secondary rounded-lg border border-border shadow-lg overflow-hidden animate-fade-in"
-      >
-        <div
-          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
-          @click="addDevice('smb')"
-        >
-          <component :is="SmbIcon" class="w-5 h-5 text-text-secondary" />
-          <span>{{ $t('sidebar.addSmb') }}</span>
+      <!-- Add Device Menu（与导航项同几何的紧凑行） -->
+      <div v-if="showAddDeviceMenu" class="mt-0.5 animate-fade-in">
+        <div class="sidebar-item sidebar-item-inactive" @click="addDevice('smb')">
+          <component :is="SmbIcon" class="w-5 h-5 flex-shrink-0" />
+          <span class="text-[13px] truncate font-medium">{{ $t('sidebar.addSmb') }}</span>
         </div>
-        <div
-          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
-          @click="addDevice('ssh')"
-        >
-          <component :is="SshIcon" class="w-5 h-5 text-text-secondary" />
-          <span>{{ $t('sidebar.addSsh') }}</span>
+        <div class="sidebar-item sidebar-item-inactive" @click="addDevice('ssh')">
+          <component :is="SshIcon" class="w-5 h-5 flex-shrink-0" />
+          <span class="text-[13px] truncate font-medium">{{ $t('sidebar.addSsh') }}</span>
         </div>
-        <div
-          class="px-3 py-2 text-base text-text-primary hover:bg-bg-hover flex items-center gap-2.5 transition-colors duration-100"
-          @click="addDevice('webdav')"
-        >
-          <component :is="WebDavIcon" class="w-5 h-5 text-text-secondary" />
-          <span>{{ $t('sidebar.addWebdav') }}</span>
+        <div class="sidebar-item sidebar-item-inactive" @click="addDevice('webdav')">
+          <component :is="WebDavIcon" class="w-5 h-5 flex-shrink-0" />
+          <span class="text-[13px] truncate font-medium">{{ $t('sidebar.addWebdav') }}</span>
         </div>
       </div>
     </div>
 
     <!-- External Volumes Section (mounted on local filesystem, e.g. /Volumes/*) -->
-    <div v-if="volumesStore.volumes.length > 0" class="py-3">
-      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.externalVolumes') }}</div>
+    <div v-if="volumesStore.volumes.length > 0" class="pt-5">
+      <div class="sidebar-section-title mb-2">{{ $t('sidebar.externalVolumes') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="volume in volumesStore.volumes"
@@ -83,9 +71,10 @@
       </div>
     </div>
 
-    <!-- Mobile Devices Section -->
-    <div class="py-3">
-      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.mobileDevices') }}</div>
+    <!-- Mobile Devices Section（空组整组隐藏——Finder 式：空分类不占位；
+         扫描中或已有设备时才渲染，libimobiledevice 警告随之只在组内出现） -->
+    <div v-if="mobileDevices.length > 0 || mobileScanInProgress" class="pt-5">
+      <div class="sidebar-section-title mb-2">{{ $t('sidebar.mobileDevices') }}</div>
       <!-- Scanning indicator -->
       <div v-if="mobileScanInProgress" class="px-2 py-1.5 text-text-secondary italic animate-pulse">
         {{ $t('sidebar.scanning') }}
@@ -157,8 +146,8 @@
           </div>
         </div>
 
-        <!-- 设备工具栏:第一项「截图」(Android/OHOS/iOS 通用) -->
-        <div class="flex items-center gap-1 pl-9 pr-2 py-0.5">
+        <!-- 设备工具栏:第一项「截图」(Android/OHOS/iOS 通用)，缩进与上方条目文字列对齐 -->
+        <div class="flex items-center gap-1 pl-10 pr-2 py-0.5">
           <button
             class="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-40 disabled:cursor-default"
             :disabled="!canScreenshot(device) || deviceScreenshot.isCapturing(device.id)"
@@ -173,13 +162,8 @@
         </div>
       </div>
 
-      <!-- Empty state -->
-      <div v-if="mobileDevices.length === 0" class="px-4 py-3 text-center text-text-tertiary text-sm">
-        <span>{{ $t('sidebar.noMobileDevices') }}</span>
-      </div>
-
       <!-- libimobiledevice warning -->
-      <div v-if="!libimobiledeviceInstalled" class="px-4 py-3">
+      <div v-if="!libimobiledeviceInstalled" class="px-4 pt-2">
         <div class="flex items-center gap-2 p-2 bg-accent-orange/10 border border-accent-orange/40 rounded">
           <svg class="w-5 h-5 text-accent-orange flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -193,8 +177,8 @@
     </div>
 
     <!-- Places (system locations: Home / Desktop / ...) -->
-    <div class="py-3">
-      <div class="sidebar-section-title px-4 mb-2">{{ $t('sidebar.places') }}</div>
+    <div class="pt-5 pb-6">
+      <div class="sidebar-section-title mb-2">{{ $t('sidebar.places') }}</div>
       <div class="space-y-0.5 px-2">
         <div
           v-for="fav in favorites"
@@ -210,11 +194,11 @@
 
       <!-- Favorites (user bookmarks, device-scoped, grouped by device platform).
            未连接设备的收藏不渲染(整组随之消失),连上后自动回归。 -->
-      <div class="sidebar-section-title px-4 mt-4 mb-2">{{ $t('sidebar.favorites') }}</div>
+      <div class="sidebar-section-title mt-5 mb-2">{{ $t('sidebar.favorites') }}</div>
       <template v-for="group in groupedFavorites" :key="group.type">
         <div
           v-if="group.type !== 'local'"
-          class="sidebar-subgroup-title px-4 mt-2 mb-1"
+          class="sidebar-subgroup-title mt-2 mb-1"
         >{{ group.label }}</div>
         <div class="space-y-0.5 px-2">
           <div
@@ -239,21 +223,22 @@
           </div>
         </div>
       </template>
-      <div v-if="favoritesStore.favorites.length === 0" class="px-4 py-2 text-xs text-text-tertiary">
+      <div v-if="favoritesStore.favorites.length === 0" class="sidebar-hint py-1.5">
         {{ $t('sidebar.favoritesHint') }}
       </div>
     </div>
 
     </div>
 
-    <div class="sidebar-utility-bar flex items-center gap-1 px-3 py-2 border-t border-border" :aria-label="$t('sidebar.toolsAria')">
+    <!-- 底部低层级工具区：ghost 图标钮 + 极轻上边线，不与列表争夺视觉 -->
+    <div class="sidebar-utility-bar flex items-center gap-1" :aria-label="$t('sidebar.toolsAria')">
       <button
         class="sidebar-utility-button"
         @click="emit('toggle-theme')"
         :title="theme === 'dark' ? $t('sidebar.switchToLight') : $t('sidebar.switchToDark')"
         :aria-label="theme === 'dark' ? $t('sidebar.switchToLight') : $t('sidebar.switchToDark')"
       >
-        <component :is="theme === 'dark' ? SunIcon : MoonIcon" class="w-4 h-4" :class="theme === 'dark' ? 'text-accent-orange' : 'text-accent-indigo'" />
+        <component :is="theme === 'dark' ? SunIcon : MoonIcon" class="w-4 h-4" />
       </button>
       <button class="sidebar-utility-button" @click="emit('open-settings')" :title="$t('sidebar.settings')" :aria-label="$t('sidebar.settings')">
         <component :is="SettingsIcon" class="w-4 h-4" />
