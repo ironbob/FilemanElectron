@@ -58,6 +58,9 @@ const filemanAPI = {
   /** 清空系统剪贴板文件引用（cut 消费后防悬空）；失败返回 false。 */
   clearFileClipboard: (): Promise<boolean> =>
     ipcRenderer.invoke(CH.invoke.systemClearFileClipboard),
+  /** 图片数据（base64，PNG/JPEG）写系统剪贴板，任何应用可 ⌘V；失败返回 false。 */
+  writeImageClipboard: (base64: string, mime: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.invoke.systemWriteImageClipboard, base64, mime),
 
   // ============ Windows ============
   openFileInfoWindow: (context: FileInfoWindowContext): Promise<void> =>

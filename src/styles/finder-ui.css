@@ -808,6 +808,17 @@
 .finder-shell .finder-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .finder-shell .finder-btn-primary.is-danger { background: var(--accent-red); }
 
+/* ── 设备截屏展示层（mobile/ScreenshotOverlay，2026-08-19 Finder 化）──────────
+   卡片走 finder-sheet（popover 材质）；一张材质规则——头部工具栏与底栏的
+   实色底全部透明化，分隔线用 divider，按钮用 Sheet 规格 secondary/primary。 */
+.finder-shell .screenshot-card .finder-preview-toolbar {
+  background: transparent !important;
+}
+.finder-shell .screenshot-card .screenshot-footer {
+  background: transparent;
+  border-color: var(--finder-divider) !important;
+}
+
 .finder-shell .finder-preview-badge {
   display: inline-flex;
   align-items: center;

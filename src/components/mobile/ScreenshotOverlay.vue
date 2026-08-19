@@ -7,9 +7,11 @@
       <!-- 半透明遮罩：点击关闭(保存中禁点) -->
       <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px] app-no-drag" @click="close" />
 
-      <!-- 居中展示卡片 -->
+      <!-- 居中展示卡片（2026-08-19 Finder 化）：Sheet 形材质卡——
+           finder-sheet 提供 popover 材质/12px 圆角/窗口阴影，头部工具栏与
+           底栏透明化，全卡一张材质（见 finder-ui.css screenshot-card 节）。 -->
       <div
-        class="relative flex flex-col rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden app-no-drag"
+        class="screenshot-card finder-sheet relative flex flex-col overflow-hidden app-no-drag"
         style="width: min(760px, 80%); height: min(560px, 76%)"
         role="dialog"
         :aria-label="$t('mobile.screenshot.previewAria')"
@@ -27,31 +29,41 @@
           </div>
         </div>
 
-        <!-- 图片体 -->
-        <div class="flex-1 min-h-0 overflow-hidden bg-bg-primary flex items-center justify-center">
+        <!-- 图片体：材质透出，不加实色底（一张材质规则） -->
+        <div class="flex-1 min-h-0 overflow-hidden flex items-center justify-center p-4">
           <img
             v-if="objectUrl"
             :src="objectUrl"
-            class="max-w-full max-h-full object-contain"
+            class="max-w-full max-h-full object-contain rounded-[4px]"
             :alt="$t('mobile.screenshot.previewAria')"
           />
         </div>
 
-        <!-- Footer：保存 / 重新截取 / 关闭 -->
-        <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border">
+        <!-- Footer：Sheet 规格按钮组（次=描边+control 底 / 主=系统蓝，右对齐） -->
+        <div class="screenshot-footer flex items-center justify-end gap-2 px-4 py-3 border-t border-border">
           <button
-            class="px-3 py-1.5 text-sm rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default"
-            :disabled="saving"
-            @click="close"
-          >{{ $t('common.close') }}</button>
+            class="finder-btn-secondary gap-1.5"
+            :disabled="copying || saving"
+            data-testid="screenshot-copy"
+            @click="copy"
+          >
+            <IconfontIcon name="copy" size="sm" />
+            <span>{{ justCopied ? $t('mobile.screenshot.copied') : $t('mobile.screenshot.copy') }}</span>
+          </button>
           <button
-            class="px-3 py-1.5 text-sm rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-default"
+            class="finder-btn-secondary"
             :disabled="saving || capturing"
             @click="retake"
           >{{ capturing ? $t('mobile.screenshot.capturing') : $t('mobile.screenshot.retake') }}</button>
           <button
-            class="px-3.5 py-1.5 text-sm rounded-md bg-accent-blue text-white hover:bg-accent-blue/85 transition-colors disabled:opacity-40 disabled:cursor-default"
+            class="finder-btn-secondary"
             :disabled="saving"
+            @click="close"
+          >{{ $t('common.close') }}</button>
+          <button
+            class="finder-btn-primary"
+            :disabled="saving"
+            data-testid="screenshot-save"
             @click="save"
           >{{ saving ? $t('mobile.screenshot.saving') : $t('mobile.screenshot.save') }}</button>
         </div>
@@ -67,12 +79,23 @@ import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import IconfontIcon from '@/components/preview/IconfontIcon.vue'
 import { formatDateTime } from '@/utils/formatDate'
 
-const { shot, saving, capturingDeviceIds, close, retake, save } = useDeviceScreenshot()
+const { shot, saving, copying, copiedAt, capturingDeviceIds, close, retake, copy, save } = useDeviceScreenshot()
 
 const capturing = computed(() => shot.value !== null && capturingDeviceIds.value.includes(shot.value.deviceId))
 
 const capturedAtLabel = computed(() => {
   return shot.value ? formatDateTime(shot.value.capturedAt) : ''
+})
+
+// ── 拷贝成功反馈：文案短暂切「已拷贝」（1.5s，同 ChecksumDialog 先例）──
+const justCopied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(copiedAt, (stamp) => {
+  if (!stamp) return
+  justCopied.value = true
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { justCopied.value = false }, 1500)
 })
 
 // ── blob URL 生命周期：shot 变化重建，旧的立即 revoke，卸载兜底 revoke ──
@@ -90,6 +113,7 @@ watch(() => shot.value, (newShot, oldShot) => {
 }, { immediate: true })
 
 onUnmounted(() => {
+  if (copiedTimer) clearTimeout(copiedTimer)
   if (objectUrl.value) {
     URL.revokeObjectURL(objectUrl.value)
     objectUrl.value = null
@@ -121,7 +145,6 @@ useKeyInterceptor((e) => {
 .screenshot-fade-leave-active {
   transition: opacity 0.15s ease;
 }
-
 .screenshot-fade-enter-from,
 .screenshot-fade-leave-to {
   opacity: 0;

@@ -842,6 +842,10 @@ const enUS: MessageSchema = {
       closeTip: 'Close (Esc)',
       retake: 'Retake',
       capturing: 'Capturing…',
+      copy: 'Copy',
+      copied: 'Copied',
+      copyFailedPlain: 'Failed to write to the system clipboard',
+      copyFailed: 'Copy failed: {message}',
       saving: 'Saving…',
       save: 'Save…'
     }

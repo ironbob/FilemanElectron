@@ -25,6 +25,8 @@ export const CH = {
     systemWriteFileClipboard: 'system:writeFileClipboard',
     systemReadFileClipboard: 'system:readFileClipboard',
     systemClearFileClipboard: 'system:clearFileClipboard',
+    // 图片数据写系统剪贴板（设备截屏 ⌘C 直拷，任意应用可粘）
+    systemWriteImageClipboard: 'system:writeImageClipboard',
     // window:
     fileInfoWindowOpen: 'window:fileInfo:open',
     fileInfoWindowGetContext: 'window:fileInfo:getContext',

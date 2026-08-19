@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
 import path from 'path'
+import { clipboard, nativeImage } from 'electron'
 
 /**
  * SystemClipboardService
@@ -99,6 +100,30 @@ runSafe()
 const OSASCRIPT_BIN = '/usr/bin/osascript'
 
 export class SystemClipboardService {
+  /**
+   * 把一张位图写入系统剪贴板（设备截屏「拷贝」直出，任何应用 ⌘V 可粘）。
+   *
+   * 与文件引用不同，纯图片数据用 Electron clipboard API 是可靠路径：
+   * writeImage 单 item 单表示，不存在多文件 URL 的先清后写覆盖问题
+   * （见类头注释的 JXA 逃逸原因），且自动落 TIFF+PNG 双表示（macOS 惯例）。
+   * 输入为 base64（PNG/JPEG，移动截屏链路的数据形态）。
+   */
+  writeImage(base64: string, mime: string): boolean {
+    try {
+      const buffer = Buffer.from(base64, 'base64')
+      const image = nativeImage.createFromBuffer(buffer, { scaleFactor: 1.0 })
+      if (image.isEmpty()) {
+        console.error('[SystemClipboardService] writeImage: decoded image is empty', { mime, bytes: buffer.length })
+        return false
+      }
+      clipboard.writeImage(image)
+      return true
+    } catch (e) {
+      console.error('[SystemClipboardService] writeImage failed:', (e as Error).message)
+      return false
+    }
+  }
+
   /**
    * 把一组本地绝对路径写入系统剪贴板（file URL items，Finder 可 ⌘V）。
    * 非绝对路径直接过滤；全部被过滤或非 darwin 平台返回 false（调用方静默降级）。

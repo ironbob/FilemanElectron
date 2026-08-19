@@ -199,6 +199,11 @@ ipcMain.handle(CH.invoke.systemClearFileClipboard, async (): Promise<boolean> =>
   return systemClipboardService.clearFileClipboard()
 })
 
+// 图片数据写系统剪贴板（设备截屏「拷贝」）：失败返回 false，渲染层提示不中断弹层
+ipcMain.handle(CH.invoke.systemWriteImageClipboard, (_, base64: string, mime: string): boolean => {
+  return systemClipboardService.writeImage(base64, mime)
+})
+
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context: FileInfoWindowContext): void => {
   if (!context || !Array.isArray(context.files) || context.files.length === 0) {
     throw new Error(t('errors.main.fileInfoNoSelection'))

@@ -19,6 +19,9 @@ export interface CapturedShot {
 const capturingDeviceIds = ref<string[]>([])
 const shot = ref<CapturedShot | null>(null)
 const saving = ref(false)
+const copying = ref(false)
+/** 拷贝成功反馈戳（Date.now()）：弹层按钮据此短暂显示「已拷贝」，0 = 无反馈中。 */
+const copiedAt = ref(0)
 
 const log = console
 
@@ -69,6 +72,27 @@ function screenshotFileName(shotToSave: CapturedShot): string {
   return `Screenshot-${stamp}.${ext}`
 }
 
+/** 图片数据写系统剪贴板（任何应用可 ⌘V）；不关弹层——拷贝后可能仍要保存。 */
+async function copy(): Promise<void> {
+  const current = shot.value
+  if (!current || copying.value) return
+  copying.value = true
+  try {
+    const ok = await window.fileman.writeImageClipboard(current.base64, current.mime)
+    if (ok) {
+      copiedAt.value = Date.now()
+      log.info('[useDeviceScreenshot] copied to clipboard', { deviceId: current.deviceId })
+    } else {
+      alert(t('mobile.screenshot.copyFailedPlain'))
+    }
+  } catch (error) {
+    log.error('[useDeviceScreenshot] copy failed', { deviceId: current.deviceId, error })
+    alert(t('mobile.screenshot.copyFailed', { message: error instanceof Error ? error.message : String(error) }))
+  } finally {
+    copying.value = false
+  }
+}
+
 /** 原生「另存为」→ 写入 local 设备;取消则留在弹层。 */
 async function save(): Promise<void> {
   const current = shot.value
@@ -100,5 +124,5 @@ async function save(): Promise<void> {
 }
 
 export function useDeviceScreenshot() {
-  return { capturingDeviceIds, shot, saving, isCapturing, capture, close, retake, save }
+  return { capturingDeviceIds, shot, saving, copying, copiedAt, isCapturing, capture, close, retake, copy, save }
 }

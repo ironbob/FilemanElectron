@@ -75,6 +75,8 @@ interface Window {
     readFileClipboard: () => Promise<string[]>
     /** 清空系统剪贴板文件引用（cut 消费后防悬空）；失败返回 false。 */
     clearFileClipboard: () => Promise<boolean>
+    /** 图片数据（base64，PNG/JPEG）写系统剪贴板，任何应用可 ⌘V；失败返回 false。 */
+    writeImageClipboard: (base64: string, mime: string) => Promise<boolean>
     openFileInfoWindow: (context: FileInfoWindowContext) => Promise<void>
     getFileInfoWindowContext: () => Promise<FileInfoWindowContext>
 

@@ -854,6 +854,10 @@ const zhCN = {
       closeTip: '关闭 (Esc)',
       retake: '重新截取',
       capturing: '截图中…',
+      copy: '拷贝',
+      copied: '已拷贝',
+      copyFailedPlain: '写入系统剪贴板失败',
+      copyFailed: '拷贝失败：{message}',
       saving: '保存中…',
       save: '保存…'
     }
