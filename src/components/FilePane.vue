@@ -636,14 +636,14 @@ const gitBranchInfo = computed<{ label: string; title: string } | null>(() => {
 })
 
 /**
- * 宿主集成（Finder）是否可用：仅本地设备、且不在 ZIP 虚拟路径内。
- * 远程设备与 ZIP 内部路径在本机 Finder 中无对应实体。
+ * 宿主集成（Finder/Terminal）是否可用：仅本地设备、且不在 ZIP 虚拟路径内。
+ * 远程设备与 ZIP 内部路径在本机无 Finder/Terminal 对应实体（与 FileList 同名门控一致）。
  */
-const canRevealInFinder = computed(() => pane.value?.deviceId === 'local' && !isInsideZip.value)
+const isHostShellAvailable = computed(() => pane.value?.deviceId === 'local' && !isInsideZip.value)
 
 /** 工具栏按钮：在 Finder 中定位当前目录（主进程 shell.showItemInFolder 选中该目录于其父窗口）。 */
 function revealCurrentFolderInFinder() {
-  if (!canRevealInFinder.value) return
+  if (!isHostShellAvailable.value) return
   const currentPath = pane.value?.path
   if (currentPath) {
     window.fileman.showInFolder(currentPath).catch(err => {
@@ -810,14 +810,20 @@ const visibleBreadcrumb = computed<BreadcrumbItem[]>(() => {
   return items
 })
 
-/** … 菜单项：被折叠的中间段（ZIP 边界段用 zip 图标保持辨识）。 */
+/** … 菜单项：被折叠的中间段（ZIP 边界段用 zip 图标保持辨识）+ 尾部「在终端中打开」。 */
 const hiddenBreadcrumbSegments = computed<FinderMenuItem[]>(() => {
   const c = Math.min(breadcrumbCollapseCount.value, maxBreadcrumbCollapse.value)
-  return pathSegments.value.slice(1, c + 1).map((label, i) => ({
+  const items: FinderMenuItem[] = pathSegments.value.slice(1, c + 1).map((label, i) => ({
     label,
     action: String(i + 1),
     icon: isZipBoundarySegment(i + 1) ? 'zip' : 'folder'
   }))
+  // 宿主集成：在终端打开当前目录（与 FileList 右键菜单同门控同链路，仅本地、非 ZIP）
+  if (isHostShellAvailable.value) {
+    items.push({ label: '---', action: '__divider__' })
+    items.push({ label: t('fileList.menu.openInTerminal'), action: 'open-in-terminal', icon: 'terminal' })
+  }
+  return items
 })
 
 /** 实测自适应折叠：溢出逐级 +1；空闲超过 48px（滞回防抖）才 -1，展开过头则回退。 */
@@ -874,6 +880,16 @@ function openBreadcrumbEllipsisMenu(event: MouseEvent) {
 
 function onBreadcrumbMenuSelect(action: string) {
   breadcrumbMenu.visible = false
+  if (action === 'open-in-terminal') {
+    // 折叠段 action 均为纯数字，此项是唯一字符串项
+    const dir = pane.value?.path
+    if (dir) {
+      window.fileman.openInTerminal(dir).catch(err => {
+        console.error('[FilePane] openInTerminal failed for', dir, err)
+      })
+    }
+    return
+  }
   navigateToSegment(Number(action))
 }
 
@@ -979,10 +995,10 @@ const actionsMenuItems = computed<FinderMenuItem[]>(() => {
     { label: '', action: '__divider__' },
     { label: t('filePane.toolbar.favoriteCurrentDir'), action: 'add-favorite-current', icon: 'star' },
     {
-      label: canRevealInFinder.value ? t('filePane.toolbar.revealInFinder') : t('filePane.toolbar.revealInFinderLocalOnly'),
+      label: isHostShellAvailable.value ? t('filePane.toolbar.revealInFinder') : t('filePane.toolbar.revealInFinderLocalOnly'),
       action: 'reveal',
       icon: 'finder',
-      disabled: !canRevealInFinder.value
+      disabled: !isHostShellAvailable.value
     }
   ]
   if (canCaptureScreenshot.value) {
