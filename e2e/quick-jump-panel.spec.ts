@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test'
 
-// 快速跳转面板（⌘⇧P）回归——只做「最近打开目录」的搜索与跳转：
-// 1. 快捷键呼出/关闭；输入框自动聚焦；面板只有「跳转到」分组（无命令/收藏/路径入口）
+// 快速跳转面板（⌘⇧P）回归——「最近打开目录」的搜索与跳转 + 绝对路径直达：
+// 1. 快捷键呼出/关闭；输入框自动聚焦；面板只有「跳转到」分组（无命令/收藏入口）
 // 2. MRU 倒序双行条目（名称 + 完整路径）
 // 3. 目录名/路径片段实时过滤 + ↑↓ 键盘导航 + Enter 跳转当前面板
 // 4. 无历史时的 Finder 式空状态
 // 5. 点击面板外部关闭
+// 6. / 开头输入出直达行：校验通过跳转；路径不存在内联报错不关闭
 //
 // initScript 内定义 mock（initScript 内定义 mock 配方）；数组每次 concat
 // 新数组（fileman mock 数组必须拷贝，防 Pinia 持原引用双倍计数）。
@@ -31,7 +32,11 @@ test.beforeEach(async ({ page }) => {
       getGitStatus: async () => ({ isRepo: false, entries: [] }),
       watchSubscribe: async () => ({ ok: true }),
       watchUnsubscribe: async () => undefined,
-      getStats: async () => ({ size: 12, isDirectory: true, isFile: false, modifiedTime: '', createdTime: '', mode: 0 }),
+      getStats: async (_d: string, p: string) => {
+        // 直达行校验用：约定路径抛错模拟「不存在」，其余一律为目录
+        if (p === '/no/such') throw new Error('ENOENT')
+        return { size: 12, isDirectory: true, isFile: false, modifiedTime: '', createdTime: '', mode: 0 }
+      },
       exists: async () => true,
       getFileOperationQueue: async () => [],
       getFileOperationHistory: async () => [],
@@ -150,4 +155,44 @@ test('clicking outside closes the panel without touching the background list', a
   await page.locator('[data-file-path="/home.txt"]').click({ position: { x: 30, y: 10 } })
   await expect(panel).toBeHidden()
   await expect(page.locator('[data-file-path="/home.txt"]')).toBeVisible()
+})
+
+test('absolute-path input offers a direct-go row; Enter navigates after validation', async ({ page }) => {
+  await page.keyboard.press('Meta+Shift+KeyP')
+  const panel = page.getByRole('dialog', { name: '快速跳转目录' })
+  const rows = panel.locator('.qj-row')
+
+  // / 开头（含尾部斜杠）→ 结果首位出直达行：主行规范化后的路径、副行「按路径前往」
+  await panel.locator('input').fill('/Users/demo/项目/')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first().locator('.qj-row-name')).toHaveText('/Users/demo/项目')
+  await expect(rows.first().locator('.qj-row-path')).toHaveText('按路径前往')
+  // 直达行在场时不显示「无匹配目录」
+  await expect(panel.getByText('无匹配目录')).toHaveCount(0)
+
+  // Enter：校验通过（getStats 目录）→ 关闭面板并跳转活动面板
+  await page.keyboard.press('Enter')
+  await expect(panel).toBeHidden()
+  await expect(page.locator('[data-file-path="/Users/demo/项目/a.ts"]')).toBeVisible()
+})
+
+test('direct-go to a missing path shows inline error and keeps the panel open', async ({ page }) => {
+  await page.keyboard.press('Meta+Shift+KeyP')
+  const panel = page.getByRole('dialog', { name: '快速跳转目录' })
+  const rows = panel.locator('.qj-row')
+
+  // /no/such 在 mock getStats 中抛错：Enter 后内联红字、面板不关闭、行保留
+  await panel.locator('input').fill('/no/such')
+  await expect(rows).toHaveCount(1)
+  await page.keyboard.press('Enter')
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText('未找到文件夹：/no/such')).toBeVisible()
+  await expect(rows).toHaveCount(1)
+
+  // 改输入即清错误；修正为有效路径后可继续跳转（Finder ⇧⌘G 同款恢复路径）
+  await panel.locator('input').fill('/Users/demo/Downloads/线稿')
+  await expect(panel.getByText('未找到文件夹：/no/such')).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(panel).toBeHidden()
+  await expect(page.locator('[data-file-path="/Users/demo/Downloads/线稿/sketch.png"]')).toBeVisible()
 })
