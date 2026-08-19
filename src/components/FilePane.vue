@@ -1469,6 +1469,30 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       break
     }
 
+    case 'send-to': {
+      // 右键「发送到 ▸ 设备 ▸ 收藏路径」：把选中文件拷贝到远程设备收藏目录
+      // （与 drop-transfer 同链路：任务队列 + toast/抽屉自动驱动，默认 skip 冲突策略）
+      if (!op.targetDeviceId || !op.target || op.files.length === 0) break
+      try {
+        const task = await fileOpsStore.createCopyTask(deviceId, op.files, op.targetDeviceId, op.target)
+        log.info('[FilePane] send-to → task queued', {
+          taskId: task.id,
+          type: task.type,
+          targetDeviceId: op.targetDeviceId,
+          targetPath: op.target,
+          fileCount: op.files.length
+        })
+        trackDirectoryRefresh(task)
+      } catch (error) {
+        log.error('[FilePane] Failed to queue send-to transfer', {
+          targetDeviceId: op.targetDeviceId,
+          targetPath: op.target,
+          error
+        })
+      }
+      break
+    }
+
     case 'copy':
       console.log('[FilePane] Copy action - setting clipboard:', {
         files: op.files,

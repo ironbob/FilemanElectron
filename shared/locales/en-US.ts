@@ -264,6 +264,7 @@ const enUS: MessageSchema = {
       previewImagesRecursive: 'Preview Images (Recursive)',
       copy: 'Copy',
       cut: 'Cut',
+      sendTo: 'Send To',
       rename: 'Rename…',
       info: 'Get Info',
       openAsHex: 'View as Hex',

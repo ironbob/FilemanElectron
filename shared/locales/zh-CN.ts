@@ -270,6 +270,7 @@ const zhCN = {
       previewImagesRecursive: '预览图片（递归）',
       copy: '拷贝',
       cut: '剪切',
+      sendTo: '发送到',
       rename: '重新命名…',
       info: '显示简介',
       openAsHex: '以十六进制查看',

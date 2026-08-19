@@ -2309,6 +2309,9 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
       items.push({ label: t('fileList.menu.cut'), action: 'cut', shortcut: '⌘X', icon: 'cut' })
     }
 
+    // 发送到▸ 设备▸ 收藏路径：拷贝到已连接远程设备的收藏目录（无合格目标时整项隐藏）
+    items.push(...buildSendToMenuItems())
+
     // 制作替身：同目录创建指向该条目的符号链接（Finder「xxx 的替身」语义；
     // 复用 createSymlink，本地/SSH 等 canSymlink 设备，ZIP 虚拟目录内不适用）
     if ((!caps || caps.canSymlink) && !isZipVirtualPath(props.path) && selectedAtMenuOpen.length === 1) {
@@ -2376,6 +2379,9 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
 
 // 上下文菜单打开时对选中文件的快照，防止 mouseup 清空选中后 action 拿不到文件
 const contextMenuSelectedFiles = ref<string[]>([])
+// 「发送到」目标快照：action 索引指向它。设备 id（如 smb://…）与路径天然含 ':'，
+// 不能像 open-with:${bundlePath} 那样内嵌 action 字符串，改用构建时快照 + 全局下标
+const sendToTargets = ref<Array<{ deviceId: string; path: string }>>([])
 // 右键命中的具体文件（reveal/terminal 针对它）；空白菜单时为 null（terminal 改用当前目录）
 const contextMenuTargetFile = ref<FileInfo | null>(null)
 // 菜单打开时「另一面板」路径快照（同设备才有相对路径语义），供「相对另一面板复制」
@@ -2414,6 +2420,43 @@ function buildCopyPathMenuItems(): FinderMenuItem[] {
   ]
   if (otherPane) children.splice(2, 0, { label: t('fileList.menu.copyPathRelative'), action: 'copy-path:relative' })
   return [{ label: t('fileList.menu.copyPath'), action: 'copy-path-menu', icon: 'copyPath', children }]
+}
+
+/**
+ * 「发送到 ▸ 设备 ▸ 收藏路径」子菜单：把选中文件拷贝到远程设备的收藏目录。
+ * 目标仅限已连接远程设备（本机排除）的非 ZIP 收藏路径；收藏的设备已删除/掉线
+ * 则静默过滤。无合格目标时返回空数组（顶层项整项隐藏，勿留空 children 占位——
+ * e2e 对菜单 IA 有精确断言）。选中快照全为 ZIP 虚拟路径或源端不可拷贝时同样隐藏。
+ */
+function buildSendToMenuItems(): FinderMenuItem[] {
+  sendToTargets.value = []
+  const caps = deviceCapabilities.value
+  const files = contextMenuSelectedFiles.value.filter(p => !isZipVirtualPath(p))
+  if (files.length === 0 || !caps?.canCopyFrom) return []
+  const groups: Array<{ deviceId: string; name: string; favs: Array<{ name: string; path: string }> }> = []
+  for (const fav of favoritesStore.favorites) {
+    if (fav.deviceId === 'local' || isZipVirtualPath(fav.path)) continue
+    const dev = devicesStore.devices.find(d => d.id === fav.deviceId)
+    if (!dev || dev.type === 'local' || dev.status !== 'connected') continue
+    let group = groups.find(g => g.deviceId === fav.deviceId)
+    if (!group) {
+      group = { deviceId: fav.deviceId, name: dev.name, favs: [] }
+      groups.push(group)
+    }
+    group.favs.push({ name: fav.name, path: fav.path })
+  }
+  if (groups.length === 0) return []
+  const targets: Array<{ deviceId: string; path: string }> = []
+  const children: FinderMenuItem[] = groups.map(group => ({
+    label: group.name,
+    action: 'send-to-group', // 带子菜单的节点只展开不触发
+    children: group.favs.map(fav => {
+      targets.push({ deviceId: group.deviceId, path: fav.path })
+      return { label: fav.name, action: `send-to:${targets.length - 1}` }
+    })
+  }))
+  sendToTargets.value = targets
+  return [{ label: t('fileList.menu.sendTo'), action: 'send-to-menu', icon: 'send', children }]
 }
 
 /** 「打开方式」子菜单（仅本地非 ZIP；列表 = 右键目标的 LaunchServices 适用应用）。 */
@@ -2664,6 +2707,17 @@ function handleContextMenuAction(action: string) {
   // 复制路径变体（posix / uri / relative / name）——剪贴板即时写入，不经操作队列
   if (action.startsWith('copy-path:')) {
     void handleCopyPath(action.slice('copy-path:'.length))
+    return
+  }
+
+  // 发送到设备收藏目录（action 索引指向构建时快照；与菜单打开时看到的选中集一致，
+  // 再过滤一次 ZIP 虚拟路径，全被滤掉则忽略）
+  if (action.startsWith('send-to:')) {
+    const target = sendToTargets.value[Number(action.slice('send-to:'.length))]
+    const files = contextMenuSelectedFiles.value.filter(p => !isZipVirtualPath(p))
+    if (target && files.length > 0) {
+      emit('operation', { action: 'send-to', files, targetDeviceId: target.deviceId, target: target.path })
+    }
     return
   }
 
