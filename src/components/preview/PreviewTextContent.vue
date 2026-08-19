@@ -44,14 +44,16 @@
         >{{ $t('common.cancel') }}</button>
       </div>
 
-      <!-- ── Finder 式三段工具栏（重设计 2026-08-17）── -->
-      <!-- topChromeEl：Quick Look fit 模式实测顶部chrome高度（工具栏+过滤状态条） -->
-      <div ref="topChromeEl" class="flex flex-col flex-shrink-0">
+      <!-- ── Finder 式三段工具栏（重设计 2026-08-17；2026-08-19 Quick Look 化：
+           搜索默认收纳/⌘F 展开，编辑+保存上移，元信息单行低层级） ── -->
+      <div class="flex flex-col flex-shrink-0">
         <TextPreviewToolbar
           ref="toolbarRef"
           :vm="logAnalysis"
-          :badge="displayLanguage"
-          :meta-detail="metaDetail"
+          :meta-detail="metaInfo"
+          :quick-look="quickLook"
+          :ql-info="qlInfo"
+          :ql-controls="quickLookControls"
           :show-search="viewMode === 'source'"
           :show-source-tools="viewMode === 'source'"
           :word-wrap-on="wordWrap"
@@ -62,6 +64,12 @@
           :font-size="fontSize"
           :show-line-numbers="showLineNumbers"
           :show-minimap="showMinimap"
+          :editing="editing"
+          :can-edit="editBlockedReason === null"
+          :edit-blocked-reason="editBlockedReason"
+          :is-modified="isModified"
+          :is-saving="isSaving"
+          :save-blocked-reason="saveBlockedReason"
           encoding="UTF-8"
           @toggle-wrap="toggleWordWrap"
           @set-syntax="setSyntaxOverride"
@@ -72,6 +80,9 @@
           @toggle-minimap="toggleMinimap"
           @jump-to-line="openJumpPanel"
           @open-scheme-editor="schemeEditorVisible = true"
+          @toggle-edit="toggleEditing"
+          @save="saveFile"
+          @show-diff="showDiff"
         >
         <template #left-extra>
           <!-- Markdown: Preview ↔ Source -->
@@ -256,7 +267,19 @@
 
       <!-- ── Monaco Editor (source view) ── -->
       <div v-else class="flex-1 overflow-hidden relative">
-        <div ref="editorContainer" class="absolute inset-0"></div>
+        <!-- 空文件：完整窗口态（不缩成矮条）；进入编辑后让位给编辑器 -->
+        <div
+          v-if="isEmptyFile && !editing"
+          class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 select-none"
+          data-testid="text-empty-state"
+        >
+          <svg class="w-10 h-10 mb-1 opacity-40" style="color: var(--finder-secondary-label)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p class="text-sm font-medium text-text-primary">{{ $t('preview.text.emptyFile') }}</p>
+          <p class="text-xs text-text-tertiary">{{ $t('preview.text.emptyFileHint') }}</p>
+        </div>
+        <div ref="editorContainer" class="absolute inset-0" :class="{ 'text-editor-readonly': editorReadOnly }"></div>
 
         <!-- 0 匹配空态（非错误样式） -->
         <div
@@ -289,56 +312,11 @@
         </div>
       </div>
 
-      <!-- ── File Info Bar ── -->
-      <div ref="infoBarEl" class="flex-shrink-0 px-4 py-2 bg-bg-tertiary border-t border-border">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="text-sm font-medium text-text-primary">{{ file.name }}</span>
-            <span class="text-xs text-text-tertiary">{{ formatSize(file.size) }}</span>
-            <!-- Modified indicator -->
-            <span
-              v-if="isModified"
-              class="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-500 font-medium"
-            >{{ $t('preview.text.modifiedBadge') }}</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <!-- Diff button -->
-            <button
-              v-if="isModified"
-              class="px-3 py-1 text-xs bg-bg-hover text-text-primary rounded hover:bg-bg-secondary transition-colors flex items-center gap-1.5"
-              @click="showDiff"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              {{ $t('preview.text.diffLabel') }}
-            </button>
-            <!-- Save button (disabled while a filtered view is active or the file is partially loaded) -->
-            <button
-              class="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors flex items-center gap-1.5"
-              :class="{ 'opacity-50 cursor-not-allowed': !isModified || isSaving || logAnalysis.isViewTransformed.value || !isFullyLoaded }"
-              :disabled="!isModified || isSaving || logAnalysis.isViewTransformed.value || !isFullyLoaded"
-              :title="logAnalysis.isViewTransformed.value ? $t('preview.text.saveBlockedTip') : !isFullyLoaded ? $t('preview.text.saveBlockedPartialTip') : $t('preview.text.save')"
-              @click="saveFile"
-            >
-              <svg v-if="isSaving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-              </svg>
-              {{ $t('preview.text.save') }}
-              <span class="text-[10px] opacity-70">⌘S</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── 分片加载脚注（大文件渐进加载；未全量 = 只读 + 禁保存） ── -->
+      <!-- ── 分片加载脚注（大文件渐进加载；未全量 = 只读 + 禁保存）──
+           原「文件信息栏」已删（2026-08-19）：文件名/大小与工具栏元信息重复，
+           保存/Diff 上移工具栏，底部仅留轻量状态（此脚注 + 过滤状态条）。 -->
       <div
         v-if="!isFullyLoaded && !loading"
-        ref="loadFooterEl"
         class="text-load-footer flex items-center gap-3 flex-shrink-0"
         data-testid="text-load-footer"
       >
@@ -395,6 +373,7 @@ import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { useTabsStore } from '@/stores/tabs'
 import type { FileInfo } from '@/types'
 import { useLogAnalysis } from '@/components/preview/composables/useLogAnalysis'
+import type { QuickLookControls } from '@/types/preview'
 import TextPreviewToolbar from '@/components/preview/textview/TextPreviewToolbar.vue'
 import TextFilterStatusBar from '@/components/preview/textview/TextFilterStatusBar.vue'
 import { queryJson } from '@/utils/jsonQuery'
@@ -480,6 +459,42 @@ import 'monaco-editor/esm/vs/basic-languages/cameligo/cameligo.contribution'
 // NOTE: findController (Monaco 内置查找) 已按重设计移除 —— ⌘F/⌘G/⇧⌘G 统一走
 // 自定义搜索框（docs/superpowers/specs/2026-08-17-text-preview-finder-redesign.md 决策②）
 
+// ── Quick Look 阅读面主题（2026-08-19）───────────────────────────────────────
+// 透明编辑器底（容器材质/画布透出，三区同属一张窗口面）+ 低对比灰色行号，
+// 去行高亮描边——只读预览默认无 IDE 装饰；语法 token 色继承 vs / vs-dark。
+monaco.editor.defineTheme('fma-text', {
+  base: 'vs',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#00000000',
+    'editorLineNumber.foreground': '#8E8E93',
+    'editorLineNumber.activeForeground': '#6E6E73',
+    'editor.lineHighlightBorder': '#00000000',
+    'editor.lineHighlightBackground': '#00000000',
+  },
+})
+monaco.editor.defineTheme('fma-text-dark', {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#00000000',
+    'editorLineNumber.foreground': '#5B5B62',
+    'editorLineNumber.activeForeground': '#A1A1A6',
+    'editor.lineHighlightBorder': '#00000000',
+    'editor.lineHighlightBackground': '#00000000',
+  },
+})
+
+/** App 主题（data-theme on .finder-shell）优先，系统偏好兜底 */
+function monacoThemeName(): 'fma-text' | 'fma-text-dark' {
+  const theme = document.querySelector('.finder-shell')?.getAttribute('data-theme')
+  if (theme === 'light') return 'fma-text'
+  if (theme === 'dark') return 'fma-text-dark'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'fma-text-dark' : 'fma-text'
+}
+
 // ── Marked setup (singleton at module level) ──────────────────────────────────
 const markedInstance = new Marked(
   markedHighlight({
@@ -544,14 +559,10 @@ const props = defineProps<{
   sessionId?: string
   /** 初始定位行号（grep 命中跳入；仅首次创建编辑器时消费一次）。 */
   initialLine?: number
-  /** 高度贴合内容（Quick Look 传入；预览 tab 不传=填满视口）。
-   *  激活时按 chrome 实测高度 + Monaco 内容高度上报 fit-height，
-   *  宿主据此收缩浮层卡片（Finder 短文本 Quick Look 的贴内容行为）。 */
-  fitContent?: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'fit-height', height: number | null): void
+  /** Quick Look 浮层模式：材质窗口内 chrome 透明、工具栏元信息收纳（头部已示）。 */
+  quickLook?: boolean
+  /** Quick Look 步进/关闭控件（单行合并后经工具栏右端胶囊呈现）。 */
+  quickLookControls?: QuickLookControls
 }>()
 
 const tabsStore = useTabsStore()
@@ -577,6 +588,11 @@ const lineCount = ref(0)
 const wordWrap = ref(false)
 const showMinimap = ref(false)
 
+// ── 编辑模式（2026-08-19 Finder Quick Look 化）───────────────────────────────
+// 默认只读预览（无光标/无行高亮的干净阅读面）；工具栏「编辑」显式进入可写状态，
+// Esc 退出编辑态（修改保留，⌘S 仍可保存）。分片未全量/过滤视图期间强制只读。
+const editing = ref(false)
+
 // ── 阅读区设置（⋯ 菜单 / ⌘ 快捷键驱动；会话级，不持久化） ────────────────────
 const fontSize = ref(14)                    // 设计默认 14（12–18，⌘±0）
 const showLineNumbers = ref(true)
@@ -597,28 +613,6 @@ const loadingMore = ref(false)
 const fullLineCount = ref(0)
 
 const toolbarRef = ref<InstanceType<typeof TextPreviewToolbar> | null>(null)
-
-// ── Quick Look fit 模式：chrome 实测锚点（offsetHeight 求和 = 非编辑器高度） ──
-const topChromeEl = ref<HTMLElement | null>(null)
-const infoBarEl = ref<HTMLElement | null>(null)
-const loadFooterEl = ref<HTMLElement | null>(null)
-
-/**
- * 上报贴合高度：顶部chrome（工具栏+过滤条）+ Monaco 内容高度 + 信息栏/脚注。
- * 仅 source 视图可贴合；loading/错误/其余视图（渲染MD/JSON树/CSV表）上报 null
- * （宿主回退到默认固定高度）。非 fit 模式不上报。
- */
-function emitFitHeight(): void {
-  if (!props.fitContent) return
-  const editor = editorInstance.value
-  if (loading.value || hasError.value || !editor || viewMode.value !== 'source') {
-    emit('fit-height', null)
-    return
-  }
-  const chrome = [topChromeEl, infoBarEl, loadFooterEl]
-    .reduce((sum, el) => sum + (el.value?.offsetHeight ?? 0), 0)
-  emit('fit-height', chrome + editor.getContentHeight())
-}
 
 type ViewMode = 'source' | 'rendered' | 'table' | 'tree'
 const viewMode = ref<ViewMode>('source')
@@ -683,12 +677,39 @@ const logAnalysis = useLogAnalysis({
   canWrite: () => true // adapters expose writeFile; per-device failures surface on export
 })
 
-// 视图形态变化（加载态/错误/视图切换/过滤条与分片脚注显隐）→ 重新上报贴合高度。
+// 视图形态变化 → 同步编辑器只读态（编辑开关 / 分片未全量 / 过滤视图变换）。
 // （须在 logAnalysis 之后注册：watch 注册即求值源，提前会触发 TDZ。）
-watch(
-  [loading, hasError, viewMode, () => logAnalysis.hasResult.value, isFullyLoaded],
-  () => { void nextTick(() => emitFitHeight()) }
+const editorReadOnly = computed(() => !editing.value || !isFullyLoaded.value || logAnalysis.isViewTransformed.value)
+watch(editorReadOnly, (readOnly) => {
+  editorInstance.value?.updateOptions({ readOnly })
+})
+
+/** 空文件（source 视图且无内容）：完整窗口态而非矮条；进入编辑后隐藏。 */
+const isEmptyFile = computed(() =>
+  !loading.value && !hasError.value && viewMode.value === 'source' && preparedContent.value === ''
 )
+
+/** 编辑入口：进入时聚焦编辑器（空文件态同时让位）；退出时修改保留（⌘S 仍可存）。 */
+function toggleEditing(): void {
+  editing.value = !editing.value
+  if (editing.value) {
+    editorInstance.value?.focus()
+  }
+}
+
+/** 保存按钮 title：被阻断原因优先，否则「保存 (⌘S)」 */
+const saveBlockedReason = computed(() => {
+  if (logAnalysis.isViewTransformed.value) return t('preview.text.saveBlockedTip')
+  if (!isFullyLoaded.value) return t('preview.text.saveBlockedPartialTip')
+  return null
+})
+
+/** 编辑入口被阻断原因（分片未全量 / 过滤视图）；null = 可进入编辑 */
+const editBlockedReason = computed(() => {
+  if (!isFullyLoaded.value) return t('preview.text.editBlockedTip')
+  if (logAnalysis.isViewTransformed.value) return t('preview.text.editBlockedFilteredTip')
+  return null
+})
 
 // ── Edit & Save State ─────────────────────────────────────────────────────────
 const isModified = ref(false)
@@ -766,6 +787,23 @@ const metaDetail = computed(() => {
     return t('preview.json.nodeCount', jsonNodeCount.value)
   }
   return null
+})
+
+/** 单行低层级元信息：类型 · 统计（如 "Plain Text · 54 行 · 2.1 KB"）。
+ *  Quick Look 模式整体隐藏——改为左段文件名 + "大小 · i / n"（见 qlInfo）。 */
+const metaInfo = computed(() => {
+  if (props.quickLook) return null
+  const parts = [displayLanguage.value, metaDetail.value].filter((s): s is string => !!s)
+  return parts.length > 0 ? parts.join(' · ') : null
+})
+
+/** Quick Look 单行合并（2026-08-19）：工具栏左段文件信息（名 + 大小 · 序号） */
+const qlInfo = computed(() => {
+  if (!props.quickLook) return null
+  const parts = [formatSize(props.file.size)]
+  const controls = props.quickLookControls
+  if (controls && controls.total > 1) parts.push(`${controls.index + 1} / ${controls.total}`)
+  return { name: props.file.name, meta: parts.join(' · ') }
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -904,28 +942,30 @@ function processCsv(raw: string): void {
 // ── Editor lifecycle ──────────────────────────────────────────────────────────
 function createEditor(content: string) {
   if (!editorContainer.value) return
-  const isDark = document.documentElement.classList.contains('dark') ||
-    window.matchMedia('(prefers-color-scheme: dark)').matches
 
   editorInstance.value = monaco.editor.create(editorContainer.value, {
     value: content,
     language: effectiveLanguage.value,
-    theme: isDark ? 'vs-dark' : 'vs',
+    theme: monacoThemeName(),
     automaticLayout: true,
     minimap: { enabled: showMinimap.value },
     wordWrap: wordWrap.value ? 'on' : 'off',
     scrollBeyondLastLine: false,
-    renderLineHighlight: 'line',
+    // Quick Look 阅读面：无行高亮（不渲染表格感）；行号对比度由主题降灰
+    renderLineHighlight: 'none',
     lineNumbers: showLineNumbers.value ? 'on' : 'off',
     glyphMargin: false,
     folding: true,
     foldingHighlight: true,
+    // 顶部对齐 + 24px 上下留白（内容少时不压缩、不拉伸行高）
+    padding: { top: 24, bottom: 24 },
+    overviewRulerLanes: 0,
     // 设计默认：SF Mono 栈 · 14px · 行高 ≈ 字号×1.6（22–24px 区间）
     fontSize: fontSize.value,
     lineHeight: Math.round(fontSize.value * 1.6),
     fontFamily: "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace",
-    // 分片未全量时只读（防截断写回；过滤视图由 adapter/watcher 置只读）
-    readOnly: !isFullyLoaded.value,
+    // 默认只读预览（编辑开关/分片未全量/过滤视图 → editorReadOnly 收口）
+    readOnly: editorReadOnly.value,
     smoothScrolling: false,
     hover: { enabled: false },
     quickSuggestions: false,
@@ -1011,10 +1051,6 @@ function createEditor(content: string) {
   lineCount.value = model?.getLineCount() ?? 0
   log(`Editor created: lang=${effectiveLanguage.value} lines=${lineCount.value}`)
   logAnalysis.onEditorReady()
-
-  // Quick Look fit 模式：内容高度变化（载入/续载/换行/字号/过滤变换）即时上报
-  editorInstance.value.onDidContentSizeChange(() => emitFitHeight())
-  emitFitHeight()
 }
 
 function destroyEditor() {
@@ -1142,6 +1178,7 @@ async function loadFile() {
   csvHeaders.value = []
   csvRows.value = []
   wordWrap.value = false
+  editing.value = false
   // Reset log analysis session (filter state, hit navigation)
   logAnalysis.reset()
   destroyEditor()
@@ -1158,13 +1195,8 @@ async function loadFile() {
   }
 }
 
-// 只读总闸：过滤视图 OR 未全量 ⇒ 只读（filterView.restore 会无条件解锁，此处收口）
-watch(
-  [() => logAnalysis.isViewTransformed.value, isFullyLoaded],
-  ([transformed, full]) => {
-    editorInstance.value?.updateOptions({ readOnly: transformed || !full })
-  }
-)
+// 只读总闸已上移至 editorReadOnly（2026-08-19）：编辑开关 OR 过滤视图 OR 未全量 ⇒ 只读。
+// （filterView.restore 会无条件解锁，editorReadOnly watch 是唯一收口。）
 
 // ── View mode switching ───────────────────────────────────────────────────────
 async function setViewMode(mode: ViewMode) {
@@ -1444,8 +1476,14 @@ useKeyInterceptor((e: KeyboardEvent) => {
       return true
     }
     if (logAnalysis.hasResult.value || logAnalysis.expression.value !== '') {
-      // 两段式 Esc：清除查询并立即恢复全文
+      // 两段式 Esc：清除查询并立即恢复全文（搜索框随之收纳）
       logAnalysis.clearFilter()
+      toolbarRef.value?.collapseSearch()
+      return true
+    }
+    if (editing.value) {
+      // 退出编辑态（修改保留，⌘S 仍可保存）
+      editing.value = false
       return true
     }
     return undefined

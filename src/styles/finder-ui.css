@@ -43,7 +43,20 @@
   --finder-popover-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
   --finder-popover-hover: rgba(0, 0, 0, 0.06);
   --finder-popover-path: rgba(0, 0, 0, 0.58);
+  /* 工具栏浮动胶囊（Finder 式重设计，2026-08-19）：半透明系统材质 + blur(20px)
+     saturate(160%)、发丝边、柔和投影；控件以独立胶囊浮于透明工具栏条上，
+     不再共享一整条灰色背景。激活/悬停全部用克制浅灰，系统蓝只留给焦点环。 */
+  --finder-capsule-bg: rgba(255, 255, 255, 0.72);
+  --finder-capsule-border: rgba(0, 0, 0, 0.08);
+  --finder-capsule-shadow: 0 3px 12px rgba(0, 0, 0, 0.10);
+  --finder-capsule-hover: rgba(0, 0, 0, 0.05);
+  --finder-capsule-press: rgba(0, 0, 0, 0.09);
+  --finder-capsule-seg-active: rgba(0, 0, 0, 0.08);
   /* Quick Look 文本浮窗材质（2026-08-19）：半透明系统材质 + blur(20px)，
+     12px 圆角 + 1px 轻边框 + 柔和窗口投影；头部/内容/状态同属一张材质 */
+  --quicklook-bg: rgba(248, 248, 250, 0.94);
+  --quicklook-border: rgba(0, 0, 0, 0.12);
+  --quicklook-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);  /* Quick Look 文本浮窗材质（2026-08-19）：半透明系统材质 + blur(20px)，
      12px 圆角 + 1px 轻边框 + 柔和窗口投影；头部/内容/状态同属一张材质 */
   --quicklook-bg: rgba(248, 248, 250, 0.94);
   --quicklook-border: rgba(0, 0, 0, 0.12);
@@ -91,7 +104,17 @@
   --finder-popover-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   --finder-popover-hover: rgba(255, 255, 255, 0.07);
   --finder-popover-path: rgba(235, 235, 245, 0.62);
+  /* 工具栏浮动胶囊（暗色）：深灰半透明材质，投影加深保证深底上浮起可辨 */
+  --finder-capsule-bg: rgba(52, 52, 55, 0.72);
+  --finder-capsule-border: rgba(255, 255, 255, 0.10);
+  --finder-capsule-shadow: 0 3px 12px rgba(0, 0, 0, 0.32);
+  --finder-capsule-hover: rgba(255, 255, 255, 0.09);
+  --finder-capsule-press: rgba(255, 255, 255, 0.13);
+  --finder-capsule-seg-active: rgba(255, 255, 255, 0.16);
   /* Quick Look 文本浮窗材质（暗色）：不透明度抬高，深底透字更明显 */
+  --quicklook-bg: rgba(40, 40, 42, 0.94);
+  --quicklook-border: rgba(255, 255, 255, 0.14);
+  --quicklook-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);  /* Quick Look 文本浮窗材质（暗色）：不透明度抬高，深底透字更明显 */
   --quicklook-bg: rgba(40, 40, 42, 0.94);
   --quicklook-border: rgba(255, 255, 255, 0.14);
   --quicklook-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
@@ -282,6 +305,84 @@
   padding: 0 14px;
   background: var(--finder-chrome) !important;
   border-color: var(--finder-divider) !important;
+}
+
+/* 浮动胶囊托盘：18px 圆角（36px 高即全圆端）、半透明材质 + blur、发丝边、柔和投影 */
+.finder-shell .finder-toolbar-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 18px;
+  background-color: var(--finder-capsule-bg);
+  border: 1px solid var(--finder-capsule-border);
+  box-shadow: var(--finder-capsule-shadow);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+/* 胶囊内按钮：透明底圆钮，hover 浅灰、按压加深、打开态浅灰（不占长蓝语义） */
+.finder-shell .finder-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--finder-secondary-label);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 150ms ease, color 150ms ease;
+  outline: none;
+}
+.finder-shell .finder-pill-btn:hover:not(:disabled) {
+  background: var(--finder-capsule-hover);
+  color: var(--finder-label);
+}
+.finder-shell .finder-pill-btn:active:not(:disabled) {
+  background: var(--finder-capsule-press);
+}
+.finder-shell .finder-pill-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.finder-shell .finder-pill-btn:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--finder-selection) 55%, transparent);
+}
+.finder-shell .finder-pill-btn.is-open {
+  background: var(--finder-capsule-seg-active);
+  color: var(--finder-label);
+}
+.finder-shell .finder-pill-btn.is-quiet-active,
+.finder-shell .finder-pill-btn.is-quiet-active:hover:not(:disabled) {
+  background: var(--finder-capsule-seg-active);
+  color: var(--finder-label);
+}
+.finder-shell .finder-pill-btn.active,
+.finder-shell .finder-pill-btn.active:hover:not(:disabled) {
+  background: var(--finder-selection);
+  color: #fff;
+}
+
+/* 胶囊内分段钮（视图切换）：圆形 hover/激活几何，激活态为克制浅灰（Finder 式），
+   不再使用高饱和系统蓝方块 */
+.finder-shell .finder-toolbar-capsule .finder-segment-btn {
+  border-radius: 999px;
+}
+
+/* 胶囊内图标统一 18px 线性重量（FinderToolbarButton 内 svg/img 均命中） */
+.finder-shell .finder-pill-btn svg,
+.finder-shell .finder-pill-btn .finder-icon {
+  width: 18px;
+  height: 18px;
+}
+.finder-shell .finder-toolbar-capsule .finder-segment-btn svg {
+  width: 17px;
+  height: 17px;
 }
 
 /* bg-bg-secondary/50 工具类经颜色变量无法解析透明度（渲染为透明），实际着色
@@ -1607,4 +1708,36 @@
 .finder-shell .finder-segment-btn.is-quiet-active:hover:not(:disabled) {
   background: var(--finder-control-strong) !important;
   color: var(--finder-label) !important;
+}
+
+/* ========================================
+   Quick Look 文本窗·单行合并工具栏（2026-08-19）
+   头部并入内容工具栏：52–60px 单行、左文件信息/中弹性/右胶囊分组
+   （复用 FilePane 浮动胶囊体系 finder-toolbar-capsule + finder-pill-btn）。
+   组间仅留白（10px），无竖线；与内容区无硬分割线（Monaco 24px 顶留白承担分隔）。
+   z-40：胶囊 backdrop-filter 形成独立层叠上下文，弹出的菜单须盖过下方编辑器。
+   ======================================== */
+.finder-shell .quick-look-card--text .text-view-toolbar {
+  position: relative;
+  z-index: 40;
+  min-height: 56px;
+  padding: 0 14px;
+  background: transparent !important;
+  border-bottom-color: transparent !important;
+}
+
+/* 语法轻量入口（胶囊内）：pill 钮几何 + 文字钮加宽内边距，深灰文字/次要灰箭头 */
+.finder-shell .finder-pill-btn.ql-syntax-btn {
+  padding: 0 10px;
+}
+
+/* ── 底部分片加载脚注弱化（2026-08-19）：低对比文字 + 极浅分隔，
+      不与顶部胶囊同语言；QL 材质窗内透明底 ── */
+.finder-shell .text-load-footer {
+  border-top: 1px solid color-mix(in srgb, var(--finder-divider) 55%, transparent);
+  font-size: 11px;
+}
+.finder-shell .quick-look-card--text .text-load-footer {
+  background: transparent !important;
+  border-top-color: color-mix(in srgb, var(--finder-divider) 45%, transparent);
 }

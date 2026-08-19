@@ -15,8 +15,8 @@
     :device-id="deviceId"
     :session-id="sessionId"
     :initial-line="initialLine"
-    :fit-content="fitContent"
-    @fit-height="emit('fit-height', $event)"
+    :quick-look="quickLook"
+    :quick-look-controls="quickLookControls"
   />
   <PreviewImageContent
     v-else-if="type === 'image'"
@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FileInfo } from '@/types'
-import { getPreviewType, type PreviewType } from '@/types/preview'
+import { getPreviewType, type PreviewType, type QuickLookControls } from '@/types/preview'
 import PreviewTextContent from './PreviewTextContent.vue'
 import PreviewImageContent from './PreviewImageContent.vue'
 import PreviewVideoContent from './PreviewVideoContent.vue'
@@ -99,12 +99,10 @@ const props = defineProps<{
   collection?: { index: number; total: number } | null
   /** 集合步进（dirty 标注由 VM 弹未保存确认后执行）。 */
   stepCollection?: (delta: number) => void
-  /** 高度贴合内容（QuickLook 传入；转发给 text 内容上报 fit-height）。 */
-  fitContent?: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'fit-height', height: number | null): void
+  /** Quick Look 浮层模式（材质透明、工具栏元信息收纳、保存入口上移等）。 */
+  quickLook?: boolean
+  /** Quick Look 步进/关闭控件（单行合并后经工具栏右端胶囊呈现；仅 text 消费）。 */
+  quickLookControls?: QuickLookControls
 }>()
 
 // 优先级：forceType > initialLine（grep 命中按文本渲染——grep 已证明内容

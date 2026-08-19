@@ -44,6 +44,18 @@ export interface QuickLookSession {
   index: number
 }
 
+/**
+ * Quick Look 浮层控件（2026-08-19 单行合并）：文本类头部并入内容工具栏后，
+ * 步进/关闭经 QuickLookOverlay → PreviewContentRouter → PreviewTextContent
+ * → TextPreviewToolbar 逐层下发（右端三钮胶囊）。
+ */
+export interface QuickLookControls {
+  index: number
+  total: number
+  step: (delta: number) => void
+  close: () => void
+}
+
 export interface MediaMetadata {
   duration?: number
   width?: number

@@ -8,7 +8,8 @@ import { expect, test } from '@playwright/test'
 // 3. 打开瞬间列表不得滚动（Quick Look ↑↓ 步进跟随滚动是步进专属行为；
 //    打开时 scrollToItem 会把选中行顶到视口首行——已修复，此为回归锁）
 // 4. Quick Look 只承载 文本/图片/视频；其余类型直接显示「不支持」
-// 5. 文本面板高度贴合内容（短文件收缩、长文件封顶 70%，对齐 Finder）
+// 5. 文本窗口稳定响应式几何（2026-08-19 Finder Quick Look 化）：宽 min(90%,1200px)、
+//    高 clamp(420px, 遮罩区70%, 760px)——一行/空文件/长文本同高，不再贴合收缩
 
 const N_FILES = 40
 
@@ -34,10 +35,11 @@ test.beforeEach(async ({ page }) => {
           }
         })
       },
-      // file-02 为长文本（200 行），其余 1 行：高度贴合回归用
+      // file-02 为长文本（200 行）、file-03 为空文件，其余 1 行：稳定窗口几何回归用
       readFile: async (_d: string, path: string) =>
         btoa(path === '/file-02.txt'
           ? Array.from({ length: 200 }, (_, i) => `long line ${i + 1}`).join('\n')
+          : path === '/file-03.txt' ? ''
           : 'hello quick look'),
       getStats: async () => ({ size: 12, isDirectory: false, isFile: true, modifiedTime: '', createdTime: '', mode: 0 }),
       exists: async () => true,
@@ -68,7 +70,7 @@ async function openQuickLook(page: import('@playwright/test').Page) {
 }
 
 function headerName(overlay: import('@playwright/test').Locator) {
-  return overlay.locator('.text-sm.font-medium').first()
+  return overlay.locator('[data-testid="quick-look-name"]')
 }
 
 test('Space toggles Quick Look without scrolling the file list', async ({ page }) => {
@@ -183,26 +185,64 @@ test('unsupported file types show the unsupported message', async ({ page }) => 
   await expect(overlay.locator('.monaco-editor').first()).toBeVisible()
 })
 
-test('text panel height fits content and caps at 70% (Finder fit)', async ({ page }) => {
-  // 对齐 Finder 空格预览：短文本面板收缩贴合内容（不再留下方大段空白），
-  // 长文本封顶内容区 70%。高度经 fit-height 上报链（Monaco 内容高 + chrome 实测）。
+test('text window keeps stable responsive geometry (one line / empty / long)', async ({ page }) => {
+  // 2026-08-19 Finder Quick Look 化：高度与文本行数解耦——
+  // 高 clamp(420px, 遮罩区70%, 760px)、宽 min(遮罩区90%, 1200px)。
+  // 一行短文本与 200 行长文本必须呈现完全相同的高宽（长文本在内容区内部滚动）。
   const geo = () => page.evaluate(() => {
     const card = document.querySelector('.quick-look-card') as HTMLElement | null
-    const overlayH = card?.parentElement?.clientHeight ?? 0
-    return { overlayH, cardH: card?.getBoundingClientRect().height ?? 0 }
+    const parent = card?.parentElement
+    const rect = card?.getBoundingClientRect()
+    return {
+      overlayH: parent?.clientHeight ?? 0,
+      overlayW: parent?.clientWidth ?? 0,
+      cardH: rect?.height ?? 0,
+      cardW: rect?.width ?? 0
+    }
   })
+  const expectedHeight = (overlayH: number) =>
+    Math.max(420, Math.min(Math.floor(overlayH * 0.7), 760))
 
   const overlay = await openQuickLook(page) // file-01：1 行短文本
   await expect(overlay.locator('.monaco-editor').first()).toBeVisible()
-  await page.waitForTimeout(800) // 高度过渡 150ms + 载入后收缩
-  const short = await geo()
-  expect(short.cardH).toBeLessThan(short.overlayH * 0.7 - 40)
-  expect(short.cardH).toBeGreaterThan(120)
+  await page.waitForTimeout(300) // 载入稳定
 
-  // file-02：200 行长文本 → 封顶 70%
+  // 单行合并（2026-08-19）：文件名/元信息并入工具栏，浮层内不再有独立头部行；
+  // 右端三钮胶囊（步进/关闭）同基线呈现
+  await expect(overlay.locator('.finder-preview-toolbar')).toHaveCount(0)
+  await expect(overlay.locator('.text-view-toolbar [data-testid="quick-look-name"]')).toHaveText('file-01.txt')
+  // 显示序按名称排序：archive.zip 排首位，file-01 实为第 2 项（前有可步进项）
+  await expect(overlay.locator('[data-testid="quick-look-meta"]')).toHaveText('12 B · 2 / 40')
+  await expect(overlay.locator('[data-testid="ql-step-prev"]')).toBeEnabled()
+  await expect(overlay.locator('[data-testid="ql-step-next"]')).toBeEnabled()
+  await overlay.locator('[data-testid="ql-step-next"]').click()
+  await expect(overlay.locator('.text-view-toolbar [data-testid="quick-look-name"]')).toHaveText('file-02.txt')
+  await overlay.locator('[data-testid="ql-close"]').click()
+  await expect(overlay).toBeHidden()
+  await page.locator('[data-file-path="/file-01.txt"]').click()
+  await page.keyboard.press('Space')
+  await expect(overlay).toBeVisible()
+  const short = await geo()
+  // 一行文本不缩成矮条：不小于 420px 最小高度，且等于 clamp 期望值
+  expect(short.cardH).toBeGreaterThanOrEqual(420)
+  expect(Math.abs(short.cardH - expectedHeight(short.overlayH))).toBeLessThan(3)
+  // 宽度封顶 1200 且不超过遮罩区 90%
+  expect(short.cardW).toBeLessThanOrEqual(1200.5)
+  expect(short.cardW).toBeLessThanOrEqual(short.overlayW * 0.9 + 1.5)
+
+  // file-02：200 行长文本 → 同一稳定高宽（内容区内部滚动）
   await page.keyboard.press('ArrowDown')
   await expect(headerName(overlay)).toHaveText('file-02.txt')
-  await page.waitForTimeout(800)
+  await page.waitForTimeout(300)
   const long = await geo()
-  expect(Math.abs(long.cardH - long.overlayH * 0.7)).toBeLessThan(3)
+  expect(Math.abs(long.cardH - short.cardH)).toBeLessThan(3)
+  expect(Math.abs(long.cardW - short.cardW)).toBeLessThan(3)
+
+  // file-03：空文件 → 完整窗口 + 「空文件」状态（不缩成极小高度）
+  await page.keyboard.press('ArrowDown')
+  await expect(headerName(overlay)).toHaveText('file-03.txt')
+  await expect(overlay.locator('[data-testid="text-empty-state"]')).toBeVisible()
+  await expect(overlay.getByText('空文件')).toBeVisible()
+  const empty = await geo()
+  expect(Math.abs(empty.cardH - short.cardH)).toBeLessThan(3)
 })

@@ -8,22 +8,30 @@
       <!-- 半透明遮罩：点击关闭 -->
       <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px] app-no-drag" @click="close" />
 
-      <!-- 居中预览卡片：占内容区 70% 宽高；文本类按内容自适应高度
-           （Fit：短文件收缩贴合、长文件封顶 70%，对齐 Finder 空格预览行为）。
-           表面语言对齐 finder-ui-standard：canvas 实色内容面 + chrome 工具栏 +
-           1px 发丝线 + 12px 圆角 + NSMenu 柔和双影（--menu-shadow）。 -->
+      <!-- 居中预览卡片。文本类（2026-08-19 Finder Quick Look 重设计）：
+           稳定响应式窗口 —— 宽 min(90vw, 1200px)、高 clamp(420px, 内容区70%, 760px)，
+           高度不再由文本行数决定（一行/空文件不缩成矮条，长文本内部滚动）；
+           半透明系统材质（blur 20px + saturate 150%），工具栏/内容/状态同属一张材质。
+           图片/视频维持 70%×70% 实色画布（各自内容面自管背景）。 -->
       <div
-        class="quick-look-card relative flex flex-col rounded-xl border border-border bg-bg-primary overflow-hidden app-no-drag"
+        class="quick-look-card relative flex flex-col rounded-xl border overflow-hidden app-no-drag"
+        :class="isTextKind ? 'quick-look-card--text' : 'border-border bg-bg-primary'"
         :style="cardStyle"
         role="dialog"
         :aria-label="$t('preview.quickLook.dialogAria')"
       >
-        <!-- Header -->
-        <div ref="headerEl" class="finder-preview-toolbar flex items-center justify-between border-b border-border">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="text-sm font-medium text-text-primary truncate">{{ currentFile.name }}</span>
-            <span class="finder-preview-badge flex-shrink-0">{{ sizeLabel }}</span>
-            <span v-if="total > 1" class="finder-preview-badge flex-shrink-0">{{ index + 1 }} / {{ total }}</span>
+        <!-- Header：仅非文本类（图片/视频/不支持态）。
+             文本类头部已并入内容工具栏单行（2026-08-19 合并重设计）：
+             文件名/元信息/查找/语法/操作/步进关闭全部同基线，右端三钮胶囊。 -->
+        <div v-if="!isTextKind" class="finder-preview-toolbar flex items-center justify-between border-b border-border">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="text-[15px] font-medium text-text-primary truncate" data-testid="quick-look-name">{{ currentFile.name }}</span>
+            <span
+              v-if="headerMeta"
+              class="text-xs whitespace-nowrap flex-shrink-0"
+              style="color: var(--finder-secondary-label)"
+              data-testid="quick-look-meta"
+            >{{ headerMeta }}</span>
           </div>
           <div class="finder-control-group">
             <button
@@ -53,13 +61,14 @@
         </div>
 
         <!-- Content：Quick Look 只承载 文本/图片/视频 三类（对齐 Finder 空格预览
-             的轻量定位，完整预览能力走预览 tab），其余类型直接呈现「不支持」。 -->
-        <div v-if="kindSupported" class="flex-1 min-h-0 overflow-hidden bg-bg-primary">
+             的轻量定位，完整预览能力走预览 tab），其余类型直接呈现「不支持」。
+             文本类不铺实色底——材质透出由 quick-look-card--text 统一提供。 -->
+        <div v-if="kindSupported" class="flex-1 min-h-0 overflow-hidden" :class="isTextKind ? '' : 'bg-bg-primary'">
           <PreviewContentRouter
             :file="currentFile"
             :device-id="deviceId"
-            :fit-content="isTextKind"
-            @fit-height="onFitHeight"
+            :quick-look="isTextKind"
+            :quick-look-controls="isTextKind ? qlControls : undefined"
           />
         </div>
         <div v-else class="flex-1 min-h-0 flex flex-col items-center justify-center px-6 text-center bg-bg-primary select-none">
@@ -81,7 +90,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import PreviewContentRouter from './PreviewContentRouter.vue'
 import IconfontIcon from './IconfontIcon.vue'
-import { getPreviewType, type PreviewType } from '@/types/preview'
+import { getPreviewType, type PreviewType, type QuickLookControls } from '@/types/preview'
 
 const previewStore = usePreviewStore()
 const tabsStore = useTabsStore()
@@ -99,38 +108,46 @@ const kindSupported = computed(() => {
   return !!file && QUICK_LOOK_KINDS.has(getPreviewType(file))
 })
 
-// ── 文本卡片高度贴合内容（Fit）──────────────────────────────────────────────
-// PreviewTextContent（fit 模式）上报「chrome + Monaco 内容高度」；
-// 此处加上浮层自身 header 实测高度，在 [MIN, 70% 封顶] 内取值。
-// 图片/视频/非 source 视图上报 null → 回退固定 70%。
+// ── 窗口几何（2026-08-19 稳定响应式）────────────────────────────────────────
+// 文本卡片：宽 min(90vw, 1200px)；高 clamp(420px, 遮罩区 70%, 760px)。
+// 高度与文本行数解耦（原 fit-height 收缩链已移除——短文件曾把浮层缩成矮条）；
+// 遮罩区实测高度（ResizeObserver 维护）作为 70% 分母，随窗口尺寸变化。
 const overlayEl = ref<HTMLElement | null>(null)
-const headerEl = ref<HTMLElement | null>(null)
-const fitHeight = ref<number | null>(null)
-/** 遮罩区实测高度（ResizeObserver 维护；封顶 70% 的分母须随窗口变化） */
 const overlayHeight = ref(0)
 const isTextKind = computed(() =>
   kindSupported.value && !!currentFile.value && getPreviewType(currentFile.value) === 'text'
 )
-const MIN_CARD_HEIGHT = 160
+
+const TEXT_MIN_CARD_HEIGHT = 420
+const TEXT_MAX_CARD_HEIGHT = 760
 
 const cardStyle = computed<Record<string, string>>(() => {
-  const width = '70%'
-  if (!isTextKind.value || fitHeight.value == null || overlayHeight.value <= 0) {
-    return { width, height: '70%' }
+  if (!isTextKind.value) {
+    return { width: '70%', height: '70%' }
   }
-  const cap = Math.floor(overlayHeight.value * 0.7)
-  const headerH = headerEl.value?.offsetHeight ?? 0
-  const height = Math.max(MIN_CARD_HEIGHT, Math.min(fitHeight.value + headerH, cap))
-  return { width, height: `${height}px` }
+  const cap = overlayHeight.value > 0 ? Math.floor(overlayHeight.value * 0.7) : 460
+  const height = Math.max(TEXT_MIN_CARD_HEIGHT, Math.min(cap, TEXT_MAX_CARD_HEIGHT))
+  // 宽度相对遮罩区取 90%（≈90vw，主区内不溢出），封顶 1200px
+  return { width: 'min(90%, 1200px)', height: `${height}px` }
 })
 
-function onFitHeight(height: number | null): void {
-  fitHeight.value = height
-}
+/** 头部元信息：大小 · n / n（单一低层级辅助文字；行数等细节归内容工具栏/状态区） */
+const headerMeta = computed(() => {
+  const parts: string[] = [sizeLabel.value]
+  if (total.value > 1) parts.push(`${index.value + 1} / ${total.value}`)
+  return parts.join(' · ')
+})
+
+/** 单行合并（2026-08-19）：文本类的步进/关闭控件经 Router 下发到内容工具栏右端胶囊 */
+const qlControls = computed<QuickLookControls>(() => ({
+  index: index.value,
+  total: total.value,
+  step: (delta: number) => step(delta),
+  close: () => close()
+}))
 
 let overlayRo: ResizeObserver | null = null
 watch(() => previewStore.quickLookOpen, (open) => {
-  fitHeight.value = null
   overlayRo?.disconnect()
   overlayRo = null
   if (open) {
@@ -212,11 +229,10 @@ function step(delta: number) {
 
 <style scoped>
 /* 浮层卡片投影：沿用 NSMenu 的柔和扩散双影（finder-ui-standard §11.1），
-   不用 Tailwind shadow-2xl 的硬投影。 */
+   不用 Tailwind shadow-2xl 的硬投影。文本/非文本切换时几何平滑过渡。 */
 .quick-look-card {
   box-shadow: var(--menu-shadow);
-  /* 文本 fit 收缩/封顶切换时高度平滑过渡（宽度恒为 70% 不参与） */
-  transition: height 0.15s ease-out;
+  transition: height 0.15s ease-out, width 0.15s ease-out;
 }
 
 .quicklook-fade-enter-active,
