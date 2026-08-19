@@ -95,6 +95,10 @@ const ICONS: Record<string, string> = {
   link: '<rect x="1.8" y="6.2" width="6.4" height="3.6" rx="1.8"/><rect x="7.8" y="6.2" width="6.4" height="3.6" rx="1.8"/>',
   // 粘贴：剪贴板
   paste: '<rect x="3.6" y="3" width="8.8" height="11" rx="1.2"/><rect x="6" y="1.8" width="4" height="2.2" rx="1"/><path d="M6 7.2h4M6 9.6h4"/>',
+  // 从剪贴板新建·文本：剪贴板 + 三行文本（末行短，与 paste 的两行区分）
+  clipboardText: '<rect x="3.6" y="3" width="8.8" height="11" rx="1.2"/><rect x="6" y="1.8" width="4" height="2.2" rx="1"/><path d="M5.6 7h5M5.6 9.2h5M5.6 11.4h3"/>',
+  // 从剪贴板新建·图片：剪贴板 + 太阳圆点 + 山形线
+  clipboardImage: '<rect x="3.6" y="3" width="8.8" height="11" rx="1.2"/><rect x="6" y="1.8" width="4" height="2.2" rx="1"/><circle cx="6.4" cy="8" r=".9"/><path d="M5.6 12.2l2.2-2.4 1.7 1.7 1-1 1.9 1.7"/>',
   // 显示/隐藏隐藏文件：眼睛 + 斜杠
   hidden: '<path d="M2.2 8s2.3-3.6 5.8-3.6c1 0 1.9.3 2.7.8M13 9.4c.4-.6.8-1.4.8-1.4S11.7 4.4 8 4.4"/><path d="M6.6 9.8c.4.3.9.4 1.4.4 1.6 0 2.8-1 3.6-1.9"/><path d="M2.5 2.8l11 10.4"/>',
   // 前往文件夹：文件夹 + 指入箭头

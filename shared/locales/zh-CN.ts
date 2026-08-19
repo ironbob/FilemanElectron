@@ -175,7 +175,9 @@ const zhCN = {
       revealInFinder: '在 Finder 中显示',
       revealInFinderLocalOnly: '在 Finder 中显示（仅限本地文件夹）',
       newFolder: '新建文件夹',
-      newFile: '新建文件'
+      newFile: '新建文件',
+      newFromClipboardText: '新建文本文件（来自剪贴板）',
+      newFromClipboardImage: '新建图片文件（来自剪贴板）'
     },
     view: {
       list: '列表视图',
@@ -197,7 +199,9 @@ const zhCN = {
       folderPlaceholder: '文件夹名称',
       create: '创建',
       invalidName: '请输入不含斜杠的有效名称。',
-      createFailed: '无法创建该项目。'
+      createFailed: '无法创建该项目。',
+      clipboardTitle: '新建文件（剪贴板内容）',
+      nameExists: '该名称已被使用，请换一个名称。'
     },
     goToDialog: {
       title: '前往文件夹',
@@ -252,6 +256,9 @@ const zhCN = {
       refresh: '刷新',
       newFolder: '新建文件夹',
       newFile: '新建文件',
+      newFromClipboardText: '新建文本文件（来自剪贴板）',
+      newFromClipboardImage: '新建图片文件（来自剪贴板）',
+      clipboardChanged: '剪贴板内容已变化，请重试。',
       newSymlink: '新建符号链接…',
       paste: '粘贴',
       addFavorite: '添加到收藏夹',
@@ -839,7 +846,9 @@ const zhCN = {
     },
     toast: {
       show: '显示',
-      undo: '撤销'
+      undo: '撤销',
+      clipboardFileCreated: '已创建 {name}',
+      clipboardFileFailed: '创建文件失败'
     },
     badge: {
       failure: '{count} 个任务失败',

@@ -360,9 +360,12 @@
 
     <!-- Operation Dialog -->
     <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
-      <form class="finder-sheet w-80 p-4" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
-        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.kind === 'file' ? $t('filePane.toolbar.newFile') : $t('filePane.toolbar.newFolder') }}</h3>
+      <form class="finder-sheet p-4" :class="createDialog.source === 'clipboard' ? 'w-96' : 'w-80'" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
+        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.source === 'clipboard' ? $t('filePane.createDialog.clipboardTitle') : (createDialog.kind === 'file' ? $t('filePane.toolbar.newFile') : $t('filePane.toolbar.newFolder')) }}</h3>
         <p class="mb-4 text-sm text-text-tertiary">{{ $t('filePane.createDialog.createdIn', { path: pane?.path || '/' }) }}</p>
+        <!-- 剪贴板内容预览：文本前 200 字符（截断加 …）/ 320px 缩略图 -->
+        <pre v-if="createDialog.source === 'clipboard' && createDialog.clipKind === 'text'" class="mb-3 max-h-28 overflow-hidden whitespace-pre-wrap break-all rounded border border-border bg-bg-tertiary px-2 py-1.5 font-mono text-xs leading-relaxed text-text-secondary">{{ createDialog.previewText }}<span v-if="createDialog.previewTruncated" class="text-text-tertiary">…</span></pre>
+        <img v-else-if="createDialog.source === 'clipboard' && createDialog.previewDataUrl" :src="createDialog.previewDataUrl" :alt="$t('filePane.createDialog.clipboardTitle')" class="mb-3 max-h-40 rounded border border-border bg-bg-tertiary object-contain" />
         <input ref="createNameInputRef" v-model="createDialog.name" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none" :placeholder="createDialog.kind === 'file' ? 'example.txt' : $t('filePane.createDialog.folderPlaceholder')" @input="createDialog.error = ''" @keydown.escape.prevent="closeCreateDialog" />
         <p v-if="createDialog.error" class="mt-2 text-xs text-accent-red">{{ createDialog.error }}</p>
         <div class="mt-4 flex justify-end gap-2">
@@ -438,6 +441,7 @@ import SymlinkDialog from './dialogs/SymlinkDialog.vue'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
 import { hideDropHint } from '@/utils/dropHint'
 import { useDragSessionStore } from '@/stores/dragSession'
+import { useClipboardContentStore } from '@/stores/clipboardContent'
 import { t } from '@/i18n'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
@@ -460,6 +464,7 @@ const devicesStore = useDevicesStore()
 const browserStore = useFileBrowserStore()
 const favoritesStore = useFavoritesStore()
 const dragSessionStore = useDragSessionStore()
+const clipboardContentStore = useClipboardContentStore()
 
 const pane = computed(() => tabsStore.findPane(props.paneId))
 const browserState = computed(() => browserStore.stateFor(props.paneId))
@@ -522,8 +527,15 @@ const createNameInputRef = ref<HTMLInputElement | null>(null)
 const createDialog = reactive({
   visible: false,
   kind: 'file' as 'file' | 'folder',
+  /** manual=普通新建（空文件/文件夹）；clipboard=从剪贴板新建（带内容预览与直写）。 */
+  source: 'manual' as 'manual' | 'clipboard',
   name: '',
-  error: ''
+  error: '',
+  // source='clipboard' 的预览数据（探针快照，打开对话框时冻结）
+  clipKind: 'text' as 'text' | 'image',
+  previewText: '',
+  previewTruncated: false,
+  previewDataUrl: ''
 })
 // ⇧⌘G 前往文件夹对话框
 const goToNameInputRef = ref<HTMLInputElement | null>(null)
@@ -1001,6 +1013,20 @@ const actionsMenuItems = computed<FinderMenuItem[]>(() => {
       disabled: !isHostShellAvailable.value
     }
   ]
+  // 从剪贴板新建文件（与 FileList 空白菜单同一探测缓存与门控）
+  const clipProbe = clipboardContentStore.currentProbe
+  const clipInsertAt = 2 // new-folder / new-file 之后
+  if ((clipProbe?.kind === 'text' || clipProbe?.kind === 'image') && !isZipVirtualPath(pane.value?.path || '')) {
+    const isText = clipProbe.kind === 'text'
+    items.splice(clipInsertAt, 0, {
+      label: isText
+        ? t('filePane.toolbar.newFromClipboardText')
+        : t('filePane.toolbar.newFromClipboardImage'),
+      action: 'new-from-clipboard',
+      icon: isText ? 'clipboardText' : 'clipboardImage',
+      disabled: clipProbe.tooLarge === true
+    })
+  }
   if (canCaptureScreenshot.value) {
     items.push({ label: t('filePane.toolbar.screenshot'), action: 'screenshot' })
   }
@@ -1023,6 +1049,9 @@ function toggleActionsMenu(event: MouseEvent) {
   actionsMenu.x = rect.left
   actionsMenu.y = rect.bottom + 4
   actionsMenu.visible = !actionsMenu.visible
+  // 打开时兜底刷新剪贴板探测（focus 是主刷新时机；items 是 computed 绑定，
+  // probe 回填后菜单自动重算，无须重建快照）
+  if (actionsMenu.visible) void clipboardContentStore.refresh()
 }
 
 function onActionsMenuSelect(action: string) {
@@ -1030,6 +1059,7 @@ function onActionsMenuSelect(action: string) {
   switch (action) {
     case 'new-folder': openCreateDialog('folder'); break
     case 'new-file': openCreateDialog('file'); break
+    case 'new-from-clipboard': openCreateFromClipboardDialog(); break
     case 'add-favorite-current': addCurrentDirToFavorites(); break
     case 'reveal': revealCurrentFolderInFinder(); break
     case 'screenshot': void captureScreenshot(); break
@@ -1105,10 +1135,39 @@ function handleRefreshBroadcast(): void {
 
 function openCreateDialog(kind: 'file' | 'folder') {
   createDialog.kind = kind
+  createDialog.source = 'manual'
   createDialog.name = kind === 'file' ? 'untitled.txt' : t('filePane.toolbar.newFolder')
   createDialog.error = ''
   createDialog.visible = true
   void nextTick(() => createNameInputRef.value?.select())
+}
+
+/**
+ * 从剪贴板新建文件：预填时间戳默认名 + 冻结探针预览（文本前 200 字符 /
+ * 320px 缩略图）。确认时另调 readClipboardData 取全量——对话框打开期间
+ * 剪贴板可能已变，写入以全量读取的实时判定为准。
+ */
+function openCreateFromClipboardDialog() {
+  const probe = clipboardContentStore.currentProbe
+  if (probe?.kind !== 'text' && probe?.kind !== 'image') return
+  createDialog.kind = 'file'
+  createDialog.source = 'clipboard'
+  createDialog.clipKind = probe.kind
+  createDialog.name = clipboardFileName(probe.kind)
+  createDialog.previewText = probe.previewText ?? ''
+  createDialog.previewTruncated = probe.truncated ?? false
+  createDialog.previewDataUrl = probe.previewDataUrl ?? ''
+  createDialog.error = ''
+  createDialog.visible = true
+  void nextTick(() => createNameInputRef.value?.select())
+}
+
+/** 默认名：Clipboard-/Screenshot-YYYY-MM-DD-HH-mm-SS（与设备截屏命名同形）。 */
+function clipboardFileName(kind: 'text' | 'image'): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const d = new Date()
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`
+  return kind === 'text' ? `Clipboard-${stamp}.txt` : `Screenshot-${stamp}.png`
 }
 
 function closeCreateDialog() {
@@ -1319,6 +1378,10 @@ async function confirmCreateDialog() {
 
   const deviceId = pane.value?.deviceId || 'local'
   const targetPath = joinChildPath(pane.value?.path || '/', name)
+  if (createDialog.source === 'clipboard') {
+    await confirmCreateFromClipboard(deviceId, targetPath, name)
+    return
+  }
   try {
     const task = createDialog.kind === 'file'
       ? await fileOpsStore.createTouchTask(deviceId, targetPath)
@@ -1328,6 +1391,47 @@ async function confirmCreateDialog() {
   } catch (error) {
     createDialog.error = error instanceof Error ? error.message : t('filePane.createDialog.createFailed')
   }
+}
+
+/**
+ * 从剪贴板新建的确认链路：exists 重名检查 → readClipboardData 全量读取
+ * （打开对话框到确认之间板内容可能已变，kind 不符/none 即中止）→ fs:writeFile
+ * 直写（瞬时操作不进任务队列）→ 刷新 + toast。文本编码走 TextEncoder——
+ * 剪贴板文本含中文/emoji，裸 btoa(unicode) 会抛 Latin-1 越界。
+ */
+async function confirmCreateFromClipboard(deviceId: string, targetPath: string, name: string): Promise<void> {
+  try {
+    if (await window.fileman.exists(deviceId, targetPath)) {
+      createDialog.error = t('filePane.createDialog.nameExists')
+      return
+    }
+    const data = await window.fileman.readClipboardData()
+    if (data.kind === 'none' || (createDialog.clipKind === 'text' ? data.kind !== 'text' : data.kind !== 'image')) {
+      createDialog.error = t('fileList.menu.clipboardChanged')
+      return
+    }
+    const base64 = data.kind === 'text'
+      ? arrayBufferToBase64(new TextEncoder().encode(data.text))
+      : data.base64
+    await window.fileman.writeFile(deviceId, targetPath, base64)
+    fileOpsStore.pushMessageToast(t('tasks.toast.clipboardFileCreated', { name }), 'completed')
+    refreshCurrentDirectory()
+    closeCreateDialog()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t('filePane.createDialog.createFailed')
+    createDialog.error = message
+    fileOpsStore.pushMessageToast(t('tasks.toast.clipboardFileFailed'), 'failed', message)
+  }
+}
+
+/** Uint8Array → base64（分块转换，绕开 String.fromCharCode 的栈长上限）。 */
+function arrayBufferToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
 }
 
 function handlePreview(file: FileInfo) {
@@ -1729,6 +1833,10 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
 
     case 'touch':
       openCreateDialog('file')
+      break
+
+    case 'new-from-clipboard':
+      openCreateFromClipboardDialog()
       break
 
     case 'open':

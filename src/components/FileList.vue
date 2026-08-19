@@ -364,6 +364,7 @@ import { useFavoritesStore } from '@/stores/favorites'
 import { useSettingsStore } from '@/stores/settings'
 import { usePreviewStore } from '@/stores/preview'
 import { useDragSessionStore } from '@/stores/dragSession'
+import { useClipboardContentStore } from '@/stores/clipboardContent'
 import {
   extractDragSource,
   isFolderDropTarget,
@@ -424,6 +425,7 @@ const settingsStore = useSettingsStore()
 const gitStatusStore = useGitStatusStore()
 const previewStore = usePreviewStore()
 const dragSessionStore = useDragSessionStore()
+const clipboardContentStore = useClipboardContentStore()
 
 const files = ref<FileInfo[]>([])
 const searchResults = ref<FileInfo[] | null>(null)
@@ -2215,6 +2217,24 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
     if (caps?.canWrite) {
       items.push({ label: t('fileList.menu.newFile'), action: 'touch', icon: 'newFile' })
     }
+    // 从剪贴板新建文件：探测缓存命中 text/image 时显示（files 走既有「粘贴」，
+    // none/null 隐藏——宁缺勿假）；ZIP 虚拟目录内 writeFile 无意义，同样隐藏
+    const clipProbe = clipboardContentStore.currentProbe
+    if (
+      caps?.canWrite &&
+      !isZipVirtualPath(props.path) &&
+      (clipProbe?.kind === 'text' || clipProbe?.kind === 'image')
+    ) {
+      const isText = clipProbe.kind === 'text'
+      items.push({
+        label: isText
+          ? t('fileList.menu.newFromClipboardText')
+          : t('fileList.menu.newFromClipboardImage'),
+        action: 'new-from-clipboard',
+        icon: isText ? 'clipboardText' : 'clipboardImage',
+        disabled: clipProbe.tooLarge === true
+      })
+    }
     if (!caps || caps.canSymlink) {
       items.push({ label: t('fileList.menu.newSymlink'), action: 'new-symlink', icon: 'link' })
     }
@@ -2454,6 +2474,14 @@ watch(openWithApps, () => {
   }
 })
 
+// 「从剪贴板新建文件」：probe 缓存异步刷新后同样重建（打开菜单时兜底 refresh，
+// focus 未触发的场景——如菜单开着时别的应用复制完又右键——由本次刷新兜住）
+watch(() => clipboardContentStore.probe, () => {
+  if (contextMenu.visible && contextMenuLastIsBackground.value) {
+    contextMenu.items = buildContextMenuItems(true)
+  }
+})
+
 /** 拷贝路径子菜单（本地/远程通用——路径字符串无宿主依赖）。 */
 function buildCopyPathMenuItems(): FinderMenuItem[] {
   const otherPane = tabsStore.activeTab?.panes.find(p => p.id !== props.paneId && p.deviceId === props.deviceId)
@@ -2593,6 +2621,8 @@ function showContextMenu(event: MouseEvent) {
   contextMenu.items = buildContextMenuItems(true)
   // 「打开方式」按当前目录拉取（异步回填，菜单可见期间由 watch 重建补全）
   if (isHostShellAvailable()) refreshOpenWithApps(props.path)
+  // 剪贴板内容探测兜底刷新（focus 是主刷新时机；此处供下次打开/开着时重建）
+  void clipboardContentStore.refresh()
 }
 
 function showFileContextMenu(event: MouseEvent, file: FileInfo) {

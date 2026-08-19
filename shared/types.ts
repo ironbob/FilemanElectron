@@ -574,3 +574,34 @@ export interface ImageEditBatchRequest {
   ops: EditOps
   save: EditSaveSpec
 }
+
+// ── 系统剪贴板内容（「从剪贴板新建文件」） ──────────────────────────────────
+
+/** 系统剪贴板可保存内容的判定结果；files 优先于 image 优先于 text（防 Finder 复制误判）。 */
+export type ClipboardContentKind = 'text' | 'image' | 'files' | 'none'
+
+/**
+ * 轻量探测结果（只含元数据与预览片段，永不含全量数据）：
+ * 渲染层菜单可见性/预览的依据；writeFile 前须另调 readClipboardData 取全量。
+ */
+export interface ClipboardProbe {
+  kind: ClipboardContentKind
+  /** kind='files' 时的文件引用数。 */
+  fileCount?: number
+  /** 内容字节数（text 按 UTF-8，image 按 PNG 重编码）。 */
+  byteSize?: number
+  /** kind='text'：前 200 字符预览。 */
+  previewText?: string
+  /** kind='text'：预览是否截断自更长文本。 */
+  truncated?: boolean
+  /** kind='image'：320px 宽缩略图的 data:image/png;base64 URL。 */
+  previewDataUrl?: string
+  /** 超限（text >10MB / image >20MB）：菜单项 disabled 的依据。 */
+  tooLarge?: boolean
+}
+
+/** 写入瞬间的全量读取结果；判定顺序与 probe 一致，内容已变（或超限）返回 none。 */
+export type ClipboardData =
+  | { kind: 'text'; text: string }
+  | { kind: 'image'; base64: string }
+  | { kind: 'none' }

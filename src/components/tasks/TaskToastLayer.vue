@@ -21,7 +21,8 @@
           <div v-if="toast.kind === 'failed' && toast.error" class="task-toast-error" :title="toast.error">{{ toast.error }}</div>
         </div>
         <div class="task-toast-actions">
-          <button class="task-toast-btn" data-testid="task-toast-show" @click="showTask(toast)">{{ t('tasks.toast.show') }}</button>
+          <!-- 纯消息型 toast（无任务）不显示「显示」——没有抽屉行可定位 -->
+          <button v-if="toast.taskId" class="task-toast-btn" data-testid="task-toast-show" @click="showTask(toast)">{{ t('tasks.toast.show') }}</button>
           <button
             v-if="toast.canUndo"
             class="task-toast-btn is-undo"
@@ -68,6 +69,8 @@ function resume(id: number): void {
 }
 
 function toastText(toast: TaskToast): string {
+  // 纯消息型 toast（如「从剪贴板新建文件」直写）文案完整给出，不走动词拼句
+  if (toast.message) return toast.message
   const action = t(toast.verbKey)
   if (toast.kind === 'failed') {
     return t('tasks.sentence.failedMultiple', { action, count: toast.count })
@@ -77,7 +80,7 @@ function toastText(toast: TaskToast): string {
 
 function showTask(toast: TaskToast): void {
   fileOps.openDrawer('history')
-  fileOps.revealTaskId = toast.taskId
+  fileOps.revealTaskId = toast.taskId ?? null
   fileOps.dismissToast(toast.id)
 }
 

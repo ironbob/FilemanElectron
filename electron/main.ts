@@ -26,7 +26,7 @@ import { DuplicateFinderService } from './src/services/DuplicateFinderService'
 import { GrepService } from './src/services/GrepService'
 import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
-import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest } from '@shared/types'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ClipboardProbe, ClipboardData } from '@shared/types'
 import { CH } from './src/ipc/channels'
 import { setMainLocale, t } from './src/i18n'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
@@ -202,6 +202,16 @@ ipcMain.handle(CH.invoke.systemClearFileClipboard, async (): Promise<boolean> =>
 // 图片数据写系统剪贴板（设备截屏「拷贝」）：失败返回 false，渲染层提示不中断弹层
 ipcMain.handle(CH.invoke.systemWriteImageClipboard, (_, base64: string, mime: string): boolean => {
   return systemClipboardService.writeImage(base64, mime)
+})
+
+// 「从剪贴板新建文件」读侧：probe 只回元数据+预览片段（菜单可见性/对话框预览），
+// readData 在写入瞬间取全量（判定顺序与 probe 一致，内容已变/超限返回 none）
+ipcMain.handle(CH.invoke.systemProbeClipboardContent, async (): Promise<ClipboardProbe> => {
+  return systemClipboardService.probeContent()
+})
+
+ipcMain.handle(CH.invoke.systemReadClipboardData, async (): Promise<ClipboardData> => {
+  return systemClipboardService.readData()
 })
 
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context: FileInfoWindowContext): void => {

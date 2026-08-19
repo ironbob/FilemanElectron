@@ -41,6 +41,8 @@ import type {
   EditApplyResult,
   ImageEditBatchRequest,
   ImageEditBatchProgress,
+  ClipboardProbe,
+  ClipboardData,
 } from '@shared/types'
 
 const filemanAPI = {
@@ -61,6 +63,12 @@ const filemanAPI = {
   /** 图片数据（base64，PNG/JPEG）写系统剪贴板，任何应用可 ⌘V；失败返回 false。 */
   writeImageClipboard: (base64: string, mime: string): Promise<boolean> =>
     ipcRenderer.invoke(CH.invoke.systemWriteImageClipboard, base64, mime),
+  /** 探测系统剪贴板可保存内容（文本/图片，只回元数据+预览）；失败降级 {kind:'none'}。 */
+  probeClipboardContent: (): Promise<ClipboardProbe> =>
+    ipcRenderer.invoke(CH.invoke.systemProbeClipboardContent),
+  /** 写入瞬间全量读剪贴板（判定顺序与 probe 一致）；内容已变/超限返回 {kind:'none'}。 */
+  readClipboardData: (): Promise<ClipboardData> =>
+    ipcRenderer.invoke(CH.invoke.systemReadClipboardData),
 
   // ============ Windows ============
   openFileInfoWindow: (context: FileInfoWindowContext): Promise<void> =>

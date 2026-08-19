@@ -60,6 +60,8 @@ type Device = import('@shared/types').Device
 type DetectedMobileDevice = import('@shared/types').DetectedMobileDevice
 type DetectedVolume = import('@shared/types').DetectedVolume
 type DeviceCapabilities = import('@shared/types').DeviceCapabilities
+type ClipboardProbe = import('@shared/types').ClipboardProbe
+type ClipboardData = import('@shared/types').ClipboardData
 
 // ============ Window API ============
 
@@ -77,6 +79,10 @@ interface Window {
     clearFileClipboard: () => Promise<boolean>
     /** 图片数据（base64，PNG/JPEG）写系统剪贴板，任何应用可 ⌘V；失败返回 false。 */
     writeImageClipboard: (base64: string, mime: string) => Promise<boolean>
+    /** 探测系统剪贴板可保存内容（文本/图片，只回元数据+预览）；失败降级 {kind:'none'}。 */
+    probeClipboardContent: () => Promise<ClipboardProbe>
+    /** 写入瞬间全量读剪贴板（判定顺序与 probe 一致）；内容已变/超限返回 {kind:'none'}。 */
+    readClipboardData: () => Promise<ClipboardData>
     openFileInfoWindow: (context: FileInfoWindowContext) => Promise<void>
     getFileInfoWindowContext: () => Promise<FileInfoWindowContext>
 

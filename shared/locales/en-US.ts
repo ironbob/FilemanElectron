@@ -169,7 +169,9 @@ const enUS: MessageSchema = {
       revealInFinder: 'Reveal in Finder',
       revealInFinderLocalOnly: 'Reveal in Finder (local folders only)',
       newFolder: 'New Folder',
-      newFile: 'New File'
+      newFile: 'New File',
+      newFromClipboardText: 'New Text File from Clipboard',
+      newFromClipboardImage: 'New Image File from Clipboard'
     },
     view: {
       list: 'List View',
@@ -191,7 +193,9 @@ const enUS: MessageSchema = {
       folderPlaceholder: 'Folder name',
       create: 'Create',
       invalidName: 'Enter a valid name without a slash.',
-      createFailed: 'Could not create the item.'
+      createFailed: 'Could not create the item.',
+      clipboardTitle: 'New File from Clipboard',
+      nameExists: 'That name is already taken. Choose another.'
     },
     goToDialog: {
       title: 'Go to Folder',
@@ -246,6 +250,9 @@ const enUS: MessageSchema = {
       refresh: 'Refresh',
       newFolder: 'New Folder',
       newFile: 'New File',
+      newFromClipboardText: 'New Text File from Clipboard',
+      newFromClipboardImage: 'New Image File from Clipboard',
+      clipboardChanged: 'Clipboard content changed. Please retry.',
       newSymlink: 'New Symlink…',
       paste: 'Paste',
       addFavorite: 'Add to Favorites',
@@ -828,7 +835,9 @@ const enUS: MessageSchema = {
     },
     toast: {
       show: 'Show',
-      undo: 'Undo'
+      undo: 'Undo',
+      clipboardFileCreated: 'Created {name}',
+      clipboardFileFailed: 'Failed to create file'
     },
     badge: {
       failure: '{count} task failed | {count} tasks failed',

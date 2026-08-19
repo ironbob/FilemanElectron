@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import path from 'path'
 import { clipboard, nativeImage } from 'electron'
+import type { ClipboardData, ClipboardProbe } from '@shared/types'
 
 /**
  * SystemClipboardService
@@ -218,5 +219,81 @@ export class SystemClipboardService {
         }
       )
     })
+  }
+
+  /**
+   * 轻量探测系统剪贴板的可保存内容（「从剪贴板新建文件」菜单项的依据）。
+   * 只返回元数据 + 预览片段，永不含全量数据；任何失败静默降级 {kind:'none'}
+   * （与文件引用读侧同一约定：菜单宁缺勿假）。
+   *
+   * 判定顺序（防误判的关键）：文件引用 → 图片 → 文本。Finder 复制文件时
+   * 粘贴板上常同时有文件名文本（甚至图标位图），若文本/图片先判会误显示
+   * 「新建文本文件」；文件引用存在时该场景本就该走既有「粘贴」。
+   */
+  async probeContent(): Promise<ClipboardProbe> {
+    try {
+      const files = await this.readLocalFiles()
+      if (files.length > 0) return { kind: 'files', fileCount: files.length }
+
+      const image = clipboard.readImage()
+      if (!image.isEmpty()) {
+        const png = image.toPNG()
+        // 缩略图只缩不放（resize 会放大小图），预览用；全量数据留给 readData
+        const preview = image.getSize().width > 320 ? image.resize({ width: 320 }).toPNG() : png
+        return {
+          kind: 'image',
+          byteSize: png.length,
+          previewDataUrl: `data:image/png;base64,${preview.toString('base64')}`,
+          tooLarge: png.length > 20 * 1024 * 1024
+        }
+      }
+
+      const text = clipboard.readText()
+      if (text.trim().length > 0) {
+        const byteSize = Buffer.byteLength(text, 'utf8')
+        return {
+          kind: 'text',
+          byteSize,
+          previewText: text.slice(0, 200),
+          truncated: text.length > 200,
+          tooLarge: byteSize > 10 * 1024 * 1024
+        }
+      }
+
+      return { kind: 'none' }
+    } catch (e) {
+      console.error('[SystemClipboardService] probeContent failed:', (e as Error).message)
+      return { kind: 'none' }
+    }
+  }
+
+  /**
+   * 写入瞬间的全量读取（readFile → writeFile 之间板内容可能已变）。
+   * 判定顺序与 probeContent 完全一致（文件引用优先）：确认瞬间用户若从
+   * Finder 复制了文件，板上的文件名文本不是本功能的保存对象，返回 none。
+   * 超限或内容变化同样返回 none，由渲染层提示「剪贴板内容已变化」。
+   */
+  async readData(): Promise<ClipboardData> {
+    try {
+      const files = await this.readLocalFiles()
+      if (files.length > 0) return { kind: 'none' }
+
+      const image = clipboard.readImage()
+      if (!image.isEmpty()) {
+        const png = image.toPNG()
+        if (png.length > 20 * 1024 * 1024) return { kind: 'none' }
+        return { kind: 'image', base64: png.toString('base64') }
+      }
+
+      const text = clipboard.readText()
+      if (text.trim().length > 0 && Buffer.byteLength(text, 'utf8') <= 10 * 1024 * 1024) {
+        return { kind: 'text', text }
+      }
+
+      return { kind: 'none' }
+    } catch (e) {
+      console.error('[SystemClipboardService] readData failed:', (e as Error).message)
+      return { kind: 'none' }
+    }
   }
 }

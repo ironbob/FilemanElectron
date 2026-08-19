@@ -226,6 +226,7 @@ import { useSettingsStore } from './stores/settings'
 import { useColorTagsStore } from './stores/colorTags'
 import { useGitStatusStore } from './stores/gitStatus'
 import { useDragSessionStore } from './stores/dragSession'
+import { useClipboardContentStore } from './stores/clipboardContent'
 import { getParentPath } from './utils/path'
 import { resolveInitialTheme, persistTheme } from './utils/theme'
 import { isAppLocale, LOCALE_STORAGE_KEY, setLocale, t } from './i18n'
@@ -247,6 +248,7 @@ const devicesStore = useDevicesStore()
 const fileOpsStore = useFileOperationsStore()
 const settingsStore = useSettingsStore()
 const dragSessionStore = useDragSessionStore()
+const clipboardContentStore = useClipboardContentStore()
 
 const theme = ref<'light' | 'dark'>('dark')
 const showSettingsDialog = ref(false)
@@ -268,8 +270,13 @@ const isSidebarResizing = ref(false)
 
 // ── 窗口失焦态（Finder 语义：侧边栏选中从蓝底白字退为灰底蓝字）──
 // 与 PreviewHexContent 的 is-window-inactive 同一套 blur/focus 驱动。
+// focus 同时驱动系统剪贴板内容探测刷新：用户在别的应用 ⌘C 后切回是
+// 「从剪贴板新建文件」菜单可见性变化的准确时机（菜单是同步 computed）。
 const windowActive = ref(document.hasFocus())
-function onWindowFocus() { windowActive.value = true }
+function onWindowFocus() {
+  windowActive.value = true
+  void clipboardContentStore.refresh(true)
+}
 function onWindowBlur() { windowActive.value = false }
 
 // 任务抽屉宽度（照抄 sidebar 的 localStorage 持久化模式）
@@ -292,6 +299,9 @@ onMounted(() => {
 
   // Initialize file operations store
   fileOpsStore.initialize()
+
+  // 「从剪贴板新建文件」：初始探测一次（focus 前菜单可见性就有数据）
+  void clipboardContentStore.refresh(true)
 
   // Git 状态徽标：订阅 watch:changed 做缓存失效（本地仓库目录）
   useGitStatusStore().initialize()

@@ -27,6 +27,9 @@ export const CH = {
     systemClearFileClipboard: 'system:clearFileClipboard',
     // 图片数据写系统剪贴板（设备截屏 ⌘C 直拷，任意应用可粘）
     systemWriteImageClipboard: 'system:writeImageClipboard',
+    // 系统剪贴板内容探测/全量读（「从剪贴板新建文件」：文本/图片存新文件）
+    systemProbeClipboardContent: 'system:probeClipboardContent',
+    systemReadClipboardData: 'system:readClipboardData',
     // window:
     fileInfoWindowOpen: 'window:fileInfo:open',
     fileInfoWindowGetContext: 'window:fileInfo:getContext',

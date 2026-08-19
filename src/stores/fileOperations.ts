@@ -8,7 +8,8 @@ const log = console
 /** 完成通知（右上角轻量横幅）。停留计时与淡出归 TaskToastLayer，store 只管队列与内容。 */
 export interface TaskToast {
   id: number
-  taskId: string
+  /** 任务型 toast 的任务 id；纯消息型 toast（如「从剪贴板新建文件」直写）无任务。 */
+  taskId?: string
   verbKey: string
   count: number
   kind: 'completed' | 'failed'
@@ -16,6 +17,8 @@ export interface TaskToast {
   /** canUndo 时的撤销通道：recycle→undoLastRecycle，move→undoLastMove。 */
   undoKind: 'recycle' | 'move' | null
   error?: string
+  /** 纯消息型 toast 的完整文案；设置后优先于 verbKey/count 组合展示。 */
+  message?: string
 }
 
 /** 同设备 move 的反向撤销引用：撤销 = 创建反向 move 任务移回原目录。 */
@@ -422,6 +425,25 @@ export const useFileOperationsStore = defineStore('fileOperations', {
         canUndo,
         undoKind,
         error: task.error
+      })
+      if (this.toasts.length > 3) this.toasts = this.toasts.slice(-3)
+    },
+
+    /**
+     * 纯消息型 toast（非任务链路的轻量操作，如「从剪贴板新建文件」直写）：
+     * 无 taskId/撤销，只展示 message；队列上限与任务型一致。
+     */
+    pushMessageToast(message: string, kind: 'completed' | 'failed', error?: string): void {
+      toastSeq += 1
+      this.toasts.push({
+        id: toastSeq,
+        verbKey: '',
+        count: 1,
+        kind,
+        canUndo: false,
+        undoKind: null,
+        error,
+        message
       })
       if (this.toasts.length > 3) this.toasts = this.toasts.slice(-3)
     },
