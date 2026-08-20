@@ -2,6 +2,9 @@ import { BrowserWindow, shell } from 'electron'
 import type { IFileSystemAdapter } from '../adapters/types'
 import { StreamTransfer, CancelledError } from './StreamTransfer'
 import { ArchiveService } from './ArchiveService'
+import type { SevenZipService } from './SevenZipService'
+import type { ImageEditService } from './ImageEditService'
+import type { ImageConvertSpec } from '@shared/types'
 import { CH } from '../ipc/channels'
 import { t } from '../i18n'
 const log = console
@@ -22,7 +25,7 @@ const log = console
  */
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -54,6 +57,11 @@ export interface FileOperationTask {
   conflictStrategy?: ConflictStrategy
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
+  convert?: ImageConvertSpec
+  /** archive 任务：输出格式（zip 流式 fflate / 7z 走捆绑 7zz，仅本地）。 */
+  format?: 'zip' | '7z'
+  /** 7z 加密口令（连同文件名加密 -mhe=on）。 */
+  password?: string
   status: FileOperationStatus
   progress: FileOperationProgress
   createdAt: number
@@ -72,6 +80,9 @@ export interface CreateTaskParams {
   conflictStrategy?: ConflictStrategy
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
+  convert?: ImageConvertSpec
+  format?: 'zip' | '7z'
+  password?: string
 }
 
 export function generateTaskId(): string {
@@ -103,6 +114,9 @@ class TransferTask implements FileOperationTask {
   conflictStrategy?: ConflictStrategy
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
+  convert?: ImageConvertSpec
+  format?: 'zip' | '7z'
+  password?: string
 
   constructor(params: CreateTaskParams) {
     this.id = generateTaskId()
@@ -115,6 +129,9 @@ class TransferTask implements FileOperationTask {
     this.conflictStrategy = params.conflictStrategy ?? 'skip'
     this.renameItems = params.renameItems
     this.restoreItems = params.restoreItems
+    this.convert = params.convert
+    this.format = params.format
+    this.password = params.password
     this.status = 'pending'
     this.progress = {
       currentFile: '',
@@ -183,6 +200,10 @@ export class FileOperationManager {
   private completionWaiters = new Map<string, (task: FileOperationTask) => void>()
   /** 压缩执行器（组合根注入；archive 任务的实际打包容逻辑在 ArchiveService）。 */
   private archiveService: ArchiveService | null = null
+  /** 7z 执行器（组合根注入；format='7z' 的 archive 任务由 SevenZipService 打包）。 */
+  private sevenZipService: SevenZipService | null = null
+  /** 图片转换执行器（组合根注入；image-convert 任务的编解码逻辑在 ImageEditService）。 */
+  private imageEditService: ImageEditService | null = null
 
   registerAdapter(deviceId: string, adapter: IFileSystemAdapter): void {
     this.adapters.set(deviceId, adapter)
@@ -198,6 +219,14 @@ export class FileOperationManager {
 
   setArchiveService(archiveService: ArchiveService): void {
     this.archiveService = archiveService
+  }
+
+  setSevenZipService(sevenZipService: SevenZipService): void {
+    this.sevenZipService = sevenZipService
+  }
+
+  setImageEditService(imageEditService: ImageEditService): void {
+    this.imageEditService = imageEditService
   }
 
   private notifyTaskUpdate(task: TransferTask): void {
@@ -288,6 +317,9 @@ export class FileOperationManager {
           break
         case 'archive':
           await this.executeArchive(task)
+          break
+        case 'image-convert':
+          await this.executeImageConvert(task)
           break
       }
 
@@ -601,10 +633,11 @@ export class FileOperationManager {
   // ============ 压缩成 ZIP ============
 
   /**
-   * archive 任务：源 → 同设备目标目录下的一个 zip。
+   * archive 任务：源 → 同设备目标目录下的一个压缩包。
    * targetPath 为目标目录，newName 为压缩包名（渲染层按 Finder 规则生成：
    * 单选「a.txt → a.zip」，多选「Archive.zip」）。
-   * 打包只在最后一次性写盘，取消/失败不会留下半成品 zip。
+   * format='7z' 时走捆绑 7zz（仅本地，可选密码连文件名加密）；默认 zip 走
+   * ArchiveService（流式写临时文件后 rename，取消/失败不留半成品）。
    */
   private async executeArchive(task: TransferTask): Promise<void> {
     if (!this.archiveService) throw new Error('ArchiveService not configured')
@@ -612,14 +645,20 @@ export class FileOperationManager {
     if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
 
     const targetDir = task.targetPath || '/'
-    const rawName = task.newName || 'Archive.zip'
-    const safeName = rawName.toLowerCase().endsWith('.zip') ? rawName : `${rawName}.zip`
+    const ext = task.format === '7z' ? '.7z' : '.zip'
+    const rawName = task.newName || `Archive${ext}`
+    const safeName = rawName.toLowerCase().endsWith(ext) ? rawName : `${rawName}${ext}`
     const zipPath = await this.resolveTargetPath(adapter, joinPosix(targetDir, safeName), 'rename')
     // rename 策略不返回 null；守卫仅为收窄类型。
     if (zipPath === null) throw new Error(`Destination conflict: ${safeName}`)
 
     const { bytes, files } = await this.computeTotals(adapter, task.sourcePaths)
     task.setTotals(bytes, files)
+
+    if (task.format === '7z') {
+      await this.executeArchive7z(task, zipPath, safeName)
+      return
+    }
 
     let fileIndex = 0
     try {
@@ -644,6 +683,33 @@ export class FileOperationManager {
     for (const sourcePath of task.sourcePaths) {
       task.recordItem({ sourcePath, targetPath: zipPath, status: 'success' })
     }
+  }
+
+  /** 7z 分支：捆绑 7zz 打包（仅本地）；-bb1 逐文件行驱动进度。 */
+  private async executeArchive7z(task: TransferTask, zipPath: string, safeName: string): Promise<void> {
+    if (!this.sevenZipService) throw new Error('SevenZipService not configured')
+    if (task.sourceDeviceId !== 'local') throw new Error(t('errors.main.sevenZipLocalOnly'))
+    if (!(await this.sevenZipService.isAvailable())) throw new Error(t('errors.main.sevenZipUnavailable'))
+
+    let fileIndex = 0
+    try {
+      await this.sevenZipService.create7z(task.sourcePaths, zipPath, { password: task.password }, {
+        onFileRead: (name, readBytes) => {
+          task.setCurrentFile(name, fileIndex++)
+          task.addBytes(readBytes)
+          this.notifyProgress(task)
+        },
+        shouldCancel: () => this.cancelled
+      })
+    } catch (error) {
+      if (error instanceof CancelledError) return
+      throw error
+    }
+
+    for (const sourcePath of task.sourcePaths) {
+      task.recordItem({ sourcePath, targetPath: zipPath, status: 'success' })
+    }
+    log.info('[FileOperationManager] 7z archive created', { zipPath, safeName })
   }
 
   // ============ 单设备操作 ============
@@ -708,6 +774,45 @@ export class FileOperationManager {
       try {
         if (await adapter.exists(destination)) throw new Error(t('errors.main.batchRenameTargetExists', { name: item.newName }))
         await adapter.rename(item.sourcePath, destination)
+      } catch (error) {
+        result.status = 'failed'
+        result.error = error instanceof Error ? error.message : String(error)
+      }
+      task.recordItem(result)
+      this.notifyTaskUpdate(task)
+    }
+  }
+
+  // ============ 图片批量转换 ============
+
+  /**
+   * image-convert 任务：本地图片批量转格式/缩放。引擎 = ImageEditService.apply
+   * （SIPS heic 解码 + 原子写：overwrite = 临时文件替换，copy = 唯一副本名）。
+   * 进度按文件数（转换耗时与源字节数不成比例，不做字节进度）；
+   * 单项失败记录后继续（与 batch-rename 一致）。
+   */
+  private async executeImageConvert(task: TransferTask): Promise<void> {
+    if (!this.imageEditService) throw new Error('ImageEditService not configured')
+    if (task.sourceDeviceId !== 'local') throw new Error(t('errors.main.imageConvertLocalOnly'))
+    const spec = task.convert
+    if (!spec) throw new Error('Invalid image-convert parameters')
+
+    task.progress.totalFiles = task.sourcePaths.length
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      if (this.cancelled) return
+      const sourcePath = task.sourcePaths[index]
+      task.setCurrentFile(posixBaseName(sourcePath), index)
+      this.notifyTaskUpdate(task)
+
+      const result: FileOperationItemResult = { sourcePath, status: 'success' }
+      try {
+        const applied = await this.imageEditService.apply(
+          sourcePath,
+          { compress: { format: spec.format, quality: spec.quality ?? 85, maxEdge: spec.maxEdge } },
+          { mode: spec.mode, dir: spec.dir, suffix: spec.suffix, format: spec.format }
+        )
+        result.targetPath = applied.writtenPath
+        result.bytesProcessed = applied.bytes
       } catch (error) {
         result.status = 'failed'
         result.error = error instanceof Error ? error.message : String(error)
@@ -852,10 +957,13 @@ export class FileOperationManager {
       targetDeviceId: historyTask.targetDeviceId,
       targetPath: historyTask.targetPath,
       newName: historyTask.newName,
-      // 重建必须携带完整参数，否则 batch-rename/restore 的重试必失败
+      // 重建必须携带完整参数，否则 batch-rename/restore/convert 的重试必失败
       conflictStrategy: historyTask.conflictStrategy,
       renameItems: historyTask.renameItems,
-      restoreItems: historyTask.restoreItems
+      restoreItems: historyTask.restoreItems,
+      convert: historyTask.convert,
+      format: historyTask.format,
+      password: historyTask.password
     })
     this.history = this.history.filter(t => t.id !== taskId)
     return newTask

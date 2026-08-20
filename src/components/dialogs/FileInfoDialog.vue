@@ -145,6 +145,98 @@
           </div>
         </section>
 
+        <!-- ── 扩展属性（仅本机单选非 ZIP；默认折叠，展开时懒加载） ── -->
+        <section v-if="showXattrs">
+          <button
+            type="button"
+            class="mb-2 flex w-full items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary transition-colors hover:text-text-secondary"
+            :aria-expanded="xattrsOpen"
+            @click="toggleXattrs"
+          >
+            <svg class="h-3 w-3 transition-transform duration-150" :class="{ 'rotate-90': xattrsOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" /></svg>
+            {{ $t('dialogs.fileInfo.xattrs') }}
+            <span v-if="xattrs" class="font-normal normal-case tracking-normal">（{{ xattrs.length }}）</span>
+          </button>
+          <div v-if="xattrsOpen" class="space-y-1.5 rounded-lg bg-bg-tertiary/50 p-3">
+            <p v-if="xattrsStatus === 'loading'" class="text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.xattrsLoading') }}</p>
+            <p v-else-if="xattrsStatus === 'failed'" class="text-xs text-accent-red">{{ $t('dialogs.fileInfo.xattrsLoadFailed') }}：{{ xattrsError }}</p>
+            <p v-else-if="xattrsStatus === 'loaded' && xattrs && xattrs.length === 0" class="text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.xattrsEmpty') }}</p>
+            <template v-if="xattrsStatus === 'loaded' && xattrs">
+              <!-- quarantine 专用卡片：来源/时间解码 + 一键移除 -->
+              <div v-if="quarantineEntry" class="space-y-1.5 rounded-lg border border-accent-orange/40 bg-accent-orange/5 p-2.5">
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="rounded bg-accent-orange/15 px-1.5 py-0.5 font-medium text-accent-orange">{{ $t('dialogs.fileInfo.quarantineBadge') }}</span>
+                  <span v-if="quarantineInfo?.agent" class="text-text-secondary">{{ $t('dialogs.fileInfo.quarantineAgent', { agent: quarantineInfo.agent }) }}</span>
+                  <span v-if="quarantineInfo?.time" class="text-text-tertiary">{{ quarantineInfo.time }}</span>
+                </div>
+                <p v-if="quarantineInfo?.url" class="truncate text-[11px] text-text-tertiary" :title="quarantineInfo.url">{{ quarantineInfo.url }}</p>
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    class="rounded bg-accent-blue px-2.5 py-1 text-xs text-white transition-colors hover:bg-accent-blue/90"
+                    :disabled="xattrBusy"
+                    @click="removeQuarantineEntry"
+                  >{{ $t('dialogs.fileInfo.removeQuarantine') }}</button>
+                </div>
+              </div>
+              <!-- 常规属性行：名字 + 文本预览（二进制只显示大小）+ 悬停操作 -->
+              <div v-for="entry in xattrs" :key="entry.name" class="group flex items-start gap-2 text-xs">
+                <span class="w-[46%] flex-shrink-0 truncate font-mono text-text-secondary" :title="entry.name">{{ entry.name }}</span>
+                <template v-if="xattrEditing === entry.name">
+                  <input
+                    v-model="xattrEditValue"
+                    class="min-w-0 flex-1 rounded border border-accent-blue/50 bg-bg-primary px-1.5 py-0.5 font-mono"
+                    @keyup.enter="applyEditXattr(entry.name)"
+                    @keyup.esc="xattrEditing = null"
+                  >
+                  <button type="button" class="flex-shrink-0 text-accent-blue hover:underline" :disabled="xattrBusy" @click="applyEditXattr(entry.name)">{{ $t('dialogs.fileInfo.xattrSave') }}</button>
+                  <button type="button" class="flex-shrink-0 text-text-tertiary hover:underline" @click="xattrEditing = null">{{ $t('dialogs.fileInfo.cancel') }}</button>
+                </template>
+                <template v-else>
+                  <span
+                    v-if="entry.textPreview !== undefined"
+                    class="min-w-0 flex-1 truncate font-mono text-text-tertiary"
+                    :title="entry.textPreview"
+                  >{{ entry.textPreview || '—' }}</span>
+                  <span v-else class="min-w-0 flex-1 font-mono text-text-tertiary">{{ $t('dialogs.fileInfo.xattrBinaryValue', { size: entry.sizeBytes }) }}</span>
+                  <button
+                    v-if="entry.textPreview !== undefined"
+                    type="button"
+                    class="flex-shrink-0 text-text-tertiary opacity-0 transition-opacity hover:text-text-primary group-hover:opacity-100"
+                    @click="startEditXattr(entry)"
+                  >{{ $t('dialogs.fileInfo.xattrEdit') }}</button>
+                  <button
+                    type="button"
+                    class="flex-shrink-0 text-text-tertiary opacity-0 transition-opacity hover:text-accent-red group-hover:opacity-100"
+                    :disabled="xattrBusy"
+                    @click="removeXattrEntry(entry.name)"
+                  >{{ $t('dialogs.fileInfo.xattrRemove') }}</button>
+                </template>
+              </div>
+              <!-- 添加字符串属性 -->
+              <form class="flex items-center gap-2 border-t border-border pt-2" @submit.prevent="addXattr">
+                <input
+                  v-model="xattrNewName"
+                  class="w-[46%] flex-shrink-0 rounded border border-border bg-bg-primary px-1.5 py-0.5 font-mono"
+                  :placeholder="$t('dialogs.fileInfo.xattrAddName')"
+                  spellcheck="false"
+                >
+                <input
+                  v-model="xattrNewValue"
+                  class="min-w-0 flex-1 rounded border border-border bg-bg-primary px-1.5 py-0.5 font-mono"
+                  :placeholder="$t('dialogs.fileInfo.xattrAddValue')"
+                  spellcheck="false"
+                >
+                <button
+                  type="submit"
+                  class="flex-shrink-0 rounded border border-border px-2 py-0.5 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-40"
+                  :disabled="!xattrNewName.trim() || xattrBusy"
+                >{{ $t('dialogs.fileInfo.xattrAdd') }}</button>
+              </form>
+            </template>
+          </div>
+        </section>
+
         <!-- ── 媒体（单选且识别到媒体元数据时显示） ────────────── -->
         <section v-if="isSingle && mediaRows.length > 0">
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.media') }}</h4>
@@ -211,7 +303,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import exifr from 'exifr'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
-import type { FileStats, MediaInfoSummary } from '@shared/types'
+import type { FileStats, MediaInfoSummary, XattrEntry } from '@shared/types'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { formatSize } from '@/utils/path'
 import { formatDateTime } from '@/utils/formatDate'
@@ -388,6 +480,118 @@ const thumbnailSrc = ref<string | null>(null)
 const showPermissions = computed(() =>
   !isZipEntry.value && (props.deviceType === 'local' || props.deviceType === 'ssh')
 )
+
+// ── 扩展属性（macOS xattr；仅本机单选非 ZIP；默认折叠、展开时懒加载） ─────────
+const showXattrs = computed(() =>
+  isSingle.value && props.deviceType === 'local' && !isZipEntry.value
+)
+const xattrsOpen = ref(false)
+const xattrs = ref<XattrEntry[] | null>(null)
+const xattrsStatus = ref<'idle' | 'loading' | 'loaded' | 'failed'>('idle')
+const xattrsError = ref('')
+const xattrBusy = ref(false)
+const xattrNewName = ref('')
+const xattrNewValue = ref('')
+const xattrEditing = ref<string | null>(null)
+const xattrEditValue = ref('')
+
+const quarantineEntry = computed(() => xattrs.value?.find(entry => entry.isQuarantine) ?? null)
+
+/** quarantine 值解码："flag;hex时间戳;来源应用[;uuid[;事件[;bundle[;来源 URL]]]]"。 */
+const quarantineInfo = computed(() => {
+  const value = quarantineEntry.value?.textPreview
+  if (!value) return null
+  const parts = value.split(';')
+  const tsHex = parts[1] ?? ''
+  const timestampMs = /^[0-9a-f]{6,}$/i.test(tsHex) ? parseInt(tsHex, 16) * 1000 : NaN
+  const time = Number.isFinite(timestampMs) ? formatDateTime(new Date(timestampMs).toISOString()) : null
+  const agent = parts[2]?.trim() || null
+  const url = parts.slice(3).find(part => part.startsWith('http://') || part.startsWith('https://') || part.startsWith('file://')) ?? null
+  return { agent, time, url }
+})
+
+async function toggleXattrs(): Promise<void> {
+  xattrsOpen.value = !xattrsOpen.value
+  if (xattrsOpen.value && xattrsStatus.value === 'idle') await loadXattrs()
+}
+
+async function loadXattrs(): Promise<void> {
+  if (!file.value) return
+  xattrsStatus.value = 'loading'
+  try {
+    xattrs.value = await window.fileman.listXattrs(props.deviceId, file.value.path)
+    xattrsStatus.value = 'loaded'
+  } catch (error) {
+    xattrsStatus.value = 'failed'
+    xattrsError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function removeXattrEntry(name: string): Promise<void> {
+  if (!file.value || xattrBusy.value) return
+  xattrBusy.value = true
+  try {
+    await window.fileman.removeXattr(props.deviceId, file.value.path, name, false)
+    xattrEditing.value = null
+    await loadXattrs()
+  } catch (error) {
+    xattrsError.value = error instanceof Error ? error.message : String(error)
+    xattrsStatus.value = 'failed'
+  } finally {
+    xattrBusy.value = false
+  }
+}
+
+async function removeQuarantineEntry(): Promise<void> {
+  if (!file.value || xattrBusy.value) return
+  xattrBusy.value = true
+  try {
+    await window.fileman.removeXattr(props.deviceId, file.value.path, 'com.apple.quarantine', file.value.isDirectory)
+    await loadXattrs()
+  } catch (error) {
+    xattrsError.value = error instanceof Error ? error.message : String(error)
+    xattrsStatus.value = 'failed'
+  } finally {
+    xattrBusy.value = false
+  }
+}
+
+function startEditXattr(entry: XattrEntry): void {
+  xattrEditing.value = entry.name
+  xattrEditValue.value = entry.textPreview ?? ''
+}
+
+async function applyEditXattr(name: string): Promise<void> {
+  if (!file.value || xattrBusy.value) return
+  xattrBusy.value = true
+  try {
+    await window.fileman.setXattr(props.deviceId, file.value.path, name, xattrEditValue.value)
+    xattrEditing.value = null
+    await loadXattrs()
+  } catch (error) {
+    xattrsError.value = error instanceof Error ? error.message : String(error)
+    xattrsStatus.value = 'failed'
+  } finally {
+    xattrBusy.value = false
+  }
+}
+
+async function addXattr(): Promise<void> {
+  const name = xattrNewName.value.trim()
+  if (!file.value || !name || xattrBusy.value) return
+  xattrBusy.value = true
+  try {
+    await window.fileman.setXattr(props.deviceId, file.value.path, name, xattrNewValue.value)
+    xattrNewName.value = ''
+    xattrNewValue.value = ''
+    await loadXattrs()
+  } catch (error) {
+    xattrsError.value = error instanceof Error ? error.message : String(error)
+    xattrsStatus.value = 'failed'
+  } finally {
+    xattrBusy.value = false
+  }
+}
 
 // ── 递归目录统计（含取消） ─────────────────────────────────────────────────────
 const sessionId = crypto.randomUUID()

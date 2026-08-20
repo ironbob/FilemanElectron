@@ -375,7 +375,7 @@ import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHin
 import { extensionCategories, extensionIconMap, isThumbnailable, isImageFile, IMAGE_EXTENSIONS_WITH_DOT } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
-import { resolveFileKind } from '@shared/fileKinds'
+import { resolveFileKind, isEditableImageExt } from '@shared/fileKinds'
 import { listingDiffers } from '@/utils/listingDiff'
 import { toRelativePath, toFileUri, getBaseName, paneParentPath } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -462,6 +462,8 @@ function colorTagTitle(file: FileInfo): string {
 const loading = ref(false)
 const columnFilesMap = ref<Map<string, FileInfo[]>>(new Map())
 const deviceCapabilities = ref<DeviceCapabilities | null>(null)
+/** 7zz 可用性（本机；null = 未探测/不可用，「压缩为 7Z…」与 7z/rar 解压不出现）。 */
+const archiveToolInfo = ref<{ sevenZip: boolean } | null>(null)
 /** 当前拖拽悬停的文件夹行（放置目标高亮） */
 const dropTargetPath = ref<string | null>(null)
 
@@ -858,6 +860,12 @@ async function loadDeviceCapabilities(deviceId: string) {
     // Capabilities only affect contextual actions; a failure must not block the
     // directory listing itself.
     log.warn('[FileList] Could not load device capabilities', { deviceId, error })
+  }
+  // 7zz 可用性（「压缩为 7Z…」与 7z/rar 解压门控）；失败静默 = 入口不出现
+  if (deviceId === 'local') {
+    try { archiveToolInfo.value = await window.fileman.getArchiveToolInfo() } catch { archiveToolInfo.value = null }
+  } else {
+    archiveToolInfo.value = null
   }
 }
 
@@ -2337,6 +2345,12 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
     items.push({ label: '---', action: '__divider__' })
     items.push({ label: t('fileList.menu.info'), action: 'info', shortcut: '⌘I', icon: 'info' })
 
+    // 移除隔离标记（quarantine）：下载文件“已损坏”提示的高频解法；仅本机，
+    // 含目录时递归。无法同步探测是否带标记（菜单同步构建），一律展示。
+    if (props.deviceId === 'local' && !isZipVirtualPath(props.path) && selectedAtMenuOpen.length > 0) {
+      items.push({ label: t('fileList.menu.removeQuarantine'), action: 'remove-quarantine', icon: 'quarantine' })
+    }
+
     if (caps?.canRename) {
       items.push({ label: t('fileList.menu.rename'), action: 'rename', shortcut: 'Return', icon: 'rename' })
     }
@@ -2344,20 +2358,52 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
       items.push({ label: t('fileList.menu.batchRename'), action: 'batch-rename', shortcut: '⇧⌘R', icon: 'batchRename' })
     }
 
+    // 图片批量转换：仅本地（引擎直读本地 fs），选中须全为可编辑图片（含 heic 等 SIPS 格式）
+    if (props.deviceId === 'local' && !isZipVirtualPath(props.path) && selectedAtMenuOpen.length > 0) {
+      const imageInfos = selectedAtMenuOpen
+        .map(p => files.value.find(f => f.path === p))
+        .filter(Boolean) as FileInfo[]
+      if (
+        imageInfos.length === selectedAtMenuOpen.length &&
+        imageInfos.every(f => !f.isDirectory && isEditableImageExt((f.extension ?? '').replace('.', '')))
+      ) {
+        items.push({ label: t('fileList.menu.imageConvert'), action: 'image-convert', icon: 'convert' })
+      }
+    }
+
     if (caps?.canArchive) {
-      // Finder 文案：单选括注文件名（压缩“report.txt”），多选括注数量
+      // Finder 文案：单选括注文件名（压缩“report.txt”），多选括注数量。
+      // 7zz 可用（仅本地）→ 二级菜单「压缩为 ZIP（直建）/ 压缩为 7Z…（可选密码）」；
+      // 否则保持直建 ZIP 单项（e2e/dev 态 7zz 不在 $PATH 时契约不变）。
       const single = selectedAtMenuOpen.length === 1
         ? (files.value.find(f => f.path === selectedAtMenuOpen[0])?.name ?? getBaseName(selectedAtMenuOpen[0]))
         : null
-      items.push({
-        label: single
-          ? t('fileList.menu.archiveItem', { name: single })
-          : t('fileList.menu.archiveMulti', { count: selectedAtMenuOpen.length }),
-        action: 'archive',
-        icon: 'compress'
-      })
+      const archiveLabel = single
+        ? t('fileList.menu.archiveItem', { name: single })
+        : t('fileList.menu.archiveMulti', { count: selectedAtMenuOpen.length })
+      const can7z = props.deviceId === 'local' && !isZipVirtualPath(props.path) && archiveToolInfo.value?.sevenZip === true
+      if (can7z) {
+        items.push({
+          label: archiveLabel,
+          action: 'archive-menu',
+          icon: 'compress',
+          children: [
+            { label: t('fileList.menu.compressZip'), action: 'archive', icon: 'compress' },
+            { label: t('fileList.menu.compress7z'), action: 'archive-7z', icon: 'compress' }
+          ]
+        })
+      } else {
+        items.push({ label: archiveLabel, action: 'archive', icon: 'compress' })
+      }
     }
-    if (!isLocalZipFamily && contextMenuTargetFile.value?.extension?.toLowerCase() === '.zip' && caps?.canArchive) {
+    // 解压：zip 全设备（fflate）；7z/rar 仅本地 + 7zz 可用
+    const targetExtension = contextMenuTargetFile.value?.extension?.toLowerCase()
+    const extractableExtension =
+      targetExtension === '.zip' ||
+      ((targetExtension === '.7z' || targetExtension === '.rar') &&
+        props.deviceId === 'local' &&
+        archiveToolInfo.value?.sevenZip === true)
+    if (!isLocalZipFamily && extractableExtension && caps?.canArchive) {
       items.push({ label: t('fileList.menu.extractZip'), action: 'extract-archive', icon: 'extract' })
     }
 

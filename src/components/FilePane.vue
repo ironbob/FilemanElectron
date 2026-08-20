@@ -399,6 +399,37 @@
       @close="batchRenameDialog.visible = false"
       @confirm="confirmBatchRename"
     />
+    <ImageConvertDialog
+      v-if="imageConvertDialog.visible"
+      :files="imageConvertDialog.files"
+      @close="imageConvertDialog.visible = false"
+      @confirm="confirmImageConvert"
+    />
+    <Archive7zDialog
+      v-if="archive7zDialog.visible"
+      :default-name="archive7zDialog.defaultName"
+      @close="archive7zDialog.visible = false"
+      @confirm="confirmArchive7z"
+    />
+    <!-- 解压加密档密码框：错密码/缺密码时出现，确定后带密码重试 -->
+    <div v-if="extractPasswordDialog.visible" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/45" @click.self="extractPasswordDialog.visible = false">
+      <form class="finder-sheet w-[380px] flex flex-col p-5" @submit.prevent="confirmExtractPassword">
+        <h2 class="text-base font-semibold">{{ t('filePane.extractPasswordTitle', { name: extractPasswordDialog.baseName }) }}</h2>
+        <p v-if="extractPasswordDialog.wrongPassword" class="mt-1 text-xs text-accent-red">{{ t('filePane.extractWrongPassword') }}</p>
+        <input
+          ref="extractPasswordInputRef"
+          v-model="extractPasswordDialog.password"
+          type="password"
+          class="mt-3 rounded border border-border bg-bg-primary px-2 py-1.5 text-sm"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" class="finder-btn-secondary" @click="extractPasswordDialog.visible = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="finder-btn-primary" :disabled="!extractPasswordDialog.password">{{ t('filePane.extractPasswordConfirm') }}</button>
+        </div>
+      </form>
+    </div>
     <ChecksumDialog
       v-if="checksumDialog.visible"
       :items="checksumDialog.items"
@@ -437,6 +468,8 @@ import { DualPaneIcon } from './icons/sidebarIcons'
 import RenameDialog from './dialogs/RenameDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import ChecksumDialog from './dialogs/ChecksumDialog.vue'
+import ImageConvertDialog from './dialogs/ImageConvertDialog.vue'
+import Archive7zDialog from './dialogs/Archive7zDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
 import { hideDropHint } from '@/utils/dropHint'
@@ -445,7 +478,7 @@ import { useClipboardContentStore } from '@/stores/clipboardContent'
 import { t } from '@/i18n'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
-import type { ChecksumAlgo, ChecksumItem } from '@shared/types'
+import type { ChecksumAlgo, ChecksumItem, ImageConvertSpec } from '@shared/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
 import type { FileOperationTask } from '@/types/fileOperation'
 
@@ -618,6 +651,21 @@ const renameDialog = reactive({
   filePath: ''
 })
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
+const imageConvertDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
+const archive7zDialog = reactive<{ visible: boolean; defaultName: string }>({ visible: false, defaultName: 'Archive' })
+/** 7Z 对话框打开瞬间的选中快照（confirm 时使用，避免弹窗期间选择变化）。 */
+let lastArchive7zFiles: string[] = []
+const extractPasswordDialog = reactive({
+  visible: false,
+  password: '',
+  /** 错密码重试标记（区别于首次索密） */
+  wrongPassword: false,
+  baseName: '',
+  deviceId: 'local',
+  archivePath: '',
+  targetDirectory: ''
+})
+const extractPasswordInputRef = ref<HTMLInputElement | null>(null)
 const checksumDialog = reactive<{ visible: boolean; items: ChecksumItem[]; algo: ChecksumAlgo }>({ visible: false, items: [], algo: 'sha256' })
 const symlinkDialog = reactive({ visible: false })
 
@@ -1768,6 +1816,12 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         .filter((file): file is FileInfo => !!file)
       batchRenameDialog.visible = batchRenameDialog.files.length > 1
       break
+    case 'image-convert':
+      imageConvertDialog.files = op.files
+        .map(path => loadedFiles.value.find(file => file.path === path))
+        .filter((file): file is FileInfo => !!file)
+      imageConvertDialog.visible = imageConvertDialog.files.length > 0
+      break
     case 'new-symlink':
       symlinkDialog.visible = true
       break
@@ -1786,12 +1840,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       // 压缩包名冲突由主进程 rename 策略自动「副本」递增；ZIP 虚拟目录不提供压缩。
       if (op.files.length === 0 || isZipVirtualPath(targetPath)) break
       const single = op.files.length === 1 ? op.files[0] : null
-      let baseName = 'Archive'
-      if (single) {
-        const leaf = single.slice(single.lastIndexOf('/') + 1)
-        const dot = leaf.lastIndexOf('.')
-        baseName = dot > 0 ? leaf.slice(0, dot) : leaf
-      }
+      const baseName = single ? archiveStemOf(single) : 'Archive'
       try {
         // [...op.files] 展开成普通数组：op.files 可能是 store 里的 reactive Proxy
         // （选中态右键走 props.selectedFiles 直传），裸 Proxy 过 contextBridge 会抛
@@ -1806,10 +1855,40 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
 
     case 'extract-archive':
       if (op.files[0]) {
-        await window.fileman.extractArchive(deviceId, op.files[0], targetPath)
-        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+        await runExtractArchive(deviceId, op.files[0], targetPath)
       }
       break
+
+    case 'archive-7z': {
+      // 7Z 对话框：默认名沿用 zip Finder 规则（单选 stem / 多选 Archive）
+      if (op.files.length === 0 || isZipVirtualPath(targetPath)) break
+      lastArchive7zFiles = [...op.files]
+      const single7z = op.files.length === 1 ? op.files[0] : null
+      archive7zDialog.defaultName = single7z ? archiveStemOf(single7z) : 'Archive'
+      archive7zDialog.visible = true
+      break
+    }
+
+    case 'remove-quarantine': {
+      // 移除隔离标记：仅本机（FileList 已门控），目录递归；成功/失败 toast 反馈
+      const targets = op.files
+        .map(path => loadedFiles.value.find(file => file.path === path))
+        .filter((file): file is FileInfo => !!file)
+      if (targets.length === 0) break
+      let removed = 0
+      let failed = 0
+      for (const target of targets) {
+        try {
+          await window.fileman.removeXattr(deviceId, target.path, 'com.apple.quarantine', target.isDirectory)
+          removed++
+        } catch {
+          failed++
+        }
+      }
+      if (failed === 0) fileOpsStore.pushMessageToast(t('filePane.quarantineRemoved', removed), 'completed')
+      else fileOpsStore.pushMessageToast(t('filePane.quarantineRemoveFailed', failed), 'failed')
+      break
+    }
 
     case 'rename':
       if (op.files.length > 0) {
@@ -1857,6 +1936,94 @@ async function confirmBatchRename(items: BatchRenameItem[]) {
   await fileOpsStore.createBatchRenameTask(deviceId, items)
   batchRenameDialog.visible = false
   tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+}
+
+async function confirmImageConvert(spec: ImageConvertSpec) {
+  const deviceId = pane.value?.deviceId || 'local'
+  try {
+    const task = await fileOpsStore.createImageConvertTask(
+      deviceId,
+      imageConvertDialog.files.map(file => file.path),
+      spec
+    )
+    imageConvertDialog.visible = false
+    trackDirectoryRefresh(task)
+  } catch (error) {
+    log.error('[FilePane] image convert task failed to queue', { error })
+  }
+}
+
+/** Finder 压缩包名规则：a.txt → a；无扩展名（含目录）→ 原名。 */
+function archiveStemOf(filePath: string): string {
+  const leaf = filePath.slice(filePath.lastIndexOf('/') + 1)
+  const dot = leaf.lastIndexOf('.')
+  return dot > 0 ? leaf.slice(0, dot) : leaf
+}
+
+async function confirmArchive7z(payload: { name: string; password?: string }) {
+  const deviceId = pane.value?.deviceId || 'local'
+  const targetPath = pane.value?.path || '/'
+  const lastSelection = lastArchive7zFiles
+  archive7zDialog.visible = false
+  if (lastSelection.length === 0) return
+  try {
+    const task = await window.fileman.createArchive(deviceId, [...lastSelection], targetPath, `${payload.name}.7z`, '7z', payload.password)
+    trackDirectoryRefresh(task)
+  } catch (error) {
+    log.error('[FilePane] 7z archive task failed to queue', { targetPath, error })
+  }
+}
+
+/**
+ * 解压执行 + 加密档密码重试：SevenZipService 以 message 前缀
+ * ARCHIVE_PASSWORD_MARKER 标记「缺密码/错密码」（instanceof 不能跨 IPC），
+ * 捕获后弹密码框，确定即带密码重试。
+ */
+const ARCHIVE_PASSWORD_MARKER = 'FILEMAN_ARCHIVE_PASSWORD'
+
+async function runExtractArchive(deviceId: string, archivePath: string, targetDirectory: string): Promise<void> {
+  try {
+    await window.fileman.extractArchive(deviceId, archivePath, targetDirectory)
+    tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes(ARCHIVE_PASSWORD_MARKER)) {
+      extractPasswordDialog.wrongPassword = extractPasswordDialog.visible
+      extractPasswordDialog.deviceId = deviceId
+      extractPasswordDialog.archivePath = archivePath
+      extractPasswordDialog.targetDirectory = targetDirectory
+      extractPasswordDialog.baseName = archivePath.slice(archivePath.lastIndexOf('/') + 1)
+      extractPasswordDialog.password = ''
+      extractPasswordDialog.visible = true
+      void nextTick(() => extractPasswordInputRef.value?.focus())
+      return
+    }
+    log.error('[FilePane] extract archive failed', { archivePath, error })
+    fileOpsStore.pushMessageToast(t('filePane.extractFailed'), 'failed', message)
+  }
+}
+
+async function confirmExtractPassword(): Promise<void> {
+  const password = extractPasswordDialog.password
+  if (!password) return
+  const { deviceId, archivePath, targetDirectory } = extractPasswordDialog
+  extractPasswordDialog.visible = false
+  try {
+    await window.fileman.extractArchive(deviceId, archivePath, targetDirectory, password)
+    tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes(ARCHIVE_PASSWORD_MARKER)) {
+      // 密码仍错：回到密码框并标注（不清空其余状态）
+      extractPasswordDialog.password = ''
+      extractPasswordDialog.wrongPassword = true
+      extractPasswordDialog.visible = true
+      void nextTick(() => extractPasswordInputRef.value?.focus())
+      return
+    }
+    log.error('[FilePane] extract archive failed', { archivePath, error })
+    fileOpsStore.pushMessageToast(t('filePane.extractFailed'), 'failed', message)
+  }
 }
 
 async function captureScreenshot() {

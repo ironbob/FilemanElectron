@@ -22,7 +22,11 @@
 #     一键投放（自动按本机架构取最新版 + SHA256 校验）：
 #     bash scripts/fetch-rg.sh          # 或指定版本: bash scripts/fetch-rg.sh 14.1.1
 #     缺省时运行时回退 $PATH 的 rg，再退化为流式扫描。
-#   - build/ios-native    — iOS addon + dylib 链 + libimobiledevice CLI（见步骤 5/6）。
+#   - build/tools/7zz/7zz — 7-Zip 官方 macOS 二进制（universal；7z 创建/解压与
+#     rar 解压引擎）。投放: bash scripts/fetch-7zz.sh（SKIP_7ZZ_FETCH=1 可跳过）。
+#     缺省时运行时回退 $PATH/brew 的 7zz，再缺失则 7z/rar 能力不可用
+#     （zip 流式创建走 fflate，不受影响）。
+#   - build/ios-native    — iOS addon + dylib 链 + libimobiledevice CLI（见步骤 5/7）。
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -35,7 +39,7 @@ for arg in "$@"; do
   esac
 done
 
-echo "==> [1/5] Build app (electron-vite build)"
+echo "==> [1/7] Build app (electron-vite build)"
 if [[ "$DO_BUILD" -eq 1 ]]; then
   npm run build
 else
@@ -43,14 +47,14 @@ else
   [[ -f out/main/index.js ]] || { echo "    out/ is missing — run without --no-build first." >&2; exit 1; }
 fi
 
-echo "==> [2/5] Ensure app icon (build/icon.icns)"
+echo "==> [2/7] Ensure app icon (build/icon.icns)"
 if [[ -f build/icon.icns ]]; then
   echo "    exists; keeping it (delete it to regenerate the placeholder)"
 else
   node scripts/generate-icon.mjs
 fi
 
-echo "==> [3/6] Ensure bundled adb (build/tools/adb)"
+echo "==> [3/7] Ensure bundled adb (build/tools/adb)"
 if [[ "${SKIP_ADB_FETCH:-}" == "1" ]]; then
   echo "    skipped (SKIP_ADB_FETCH=1)"
 elif [[ -f build/tools/adb ]]; then
@@ -64,7 +68,7 @@ else
   fi
 fi
 
-echo "==> [4/6] Ensure bundled hdc (build/tools/hdc)"
+echo "==> [4/7] Ensure bundled hdc (build/tools/hdc)"
 if [[ "${SKIP_HDC_FETCH:-}" == "1" ]]; then
   echo "    skipped (SKIP_HDC_FETCH=1)"
 elif [[ -f build/tools/hdc/hdc ]]; then
@@ -80,7 +84,7 @@ fi
 # extraResources 源目录占位（无 SDK 机器上也能打包，与 ios-native 同语义）
 mkdir -p build/tools/hdc
 
-echo "==> [5/6] Bundle iOS native addon + libimobiledevice dylib chain + iOS CLI (optional)"
+echo "==> [5/7] Bundle iOS native addon + libimobiledevice dylib chain + iOS CLI (optional)"
 # iOS 是可选阶段2;addon 未构建时跳过(打一个空 build/ios-native 占位,electron-builder 不会因此失败)。
 ADDON_NODE="native/iosafc/build/Release/iosafc.node"
 if [[ -f "$ADDON_NODE" ]]; then
@@ -91,7 +95,23 @@ else
   mkdir -p build/ios-native
 fi
 
-echo "==> [6/6] Package DMG (electron-builder --mac)"
+echo "==> [6/7] Ensure bundled 7zz (build/tools/7zz)"
+if [[ "${SKIP_7ZZ_FETCH:-}" == "1" ]]; then
+  echo "    skipped (SKIP_7ZZ_FETCH=1)"
+elif [[ -f build/tools/7zz/7zz ]]; then
+  echo "    exists: build/tools/7zz/7zz ($(build/tools/7zz/7zz i | head -1))"
+else
+  if bash scripts/fetch-7zz.sh; then
+    echo "    ok"
+  else
+    echo "    ⚠ 7zz 投放失败 —— 本次 DMG 的 7z/rar 能力不可用（zip 不受影响）。" >&2
+    echo "      补救: bash scripts/fetch-7zz.sh && npm run dist:mac" >&2
+  fi
+fi
+# extraResources 源目录占位（无网络机器上也能打包，与 hdc 同语义）
+mkdir -p build/tools/7zz
+
+echo "==> [7/7] Package DMG (electron-builder --mac)"
 # Default to an UNSIGNED build. electron-builder otherwise auto-discovers a
 # signing identity; on this machine the "Apple Development" cert is duplicated
 # in the keychain (ambiguous) and can't notarize for general distribution

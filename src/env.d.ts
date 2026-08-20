@@ -150,6 +150,10 @@ interface Window {
     readSymlink: (deviceId: string, linkPath: string) => Promise<string>
     chmod: (deviceId: string, targetPath: string, mode: number, recursive: boolean) => Promise<void>
     chown: (deviceId: string, targetPath: string, uid: number, gid: number) => Promise<void>
+    /** macOS 扩展属性（仅本机设备；二进制值只读展示）。 */
+    listXattrs: (deviceId: string, path: string) => Promise<import('@shared/types').XattrEntry[]>
+    removeXattr: (deviceId: string, path: string, name: string, recursive: boolean) => Promise<void>
+    setXattr: (deviceId: string, path: string, name: string, value: string) => Promise<void>
 
     // Read chunk (分块读取；hex 预览用；本地/流式远程支持区间，非流式整读 slice)
     readChunk: (deviceId: string, path: string, offset: number, length: number) => Promise<ReadChunkResult>
@@ -204,8 +208,12 @@ interface Window {
     getFileMetadata: (deviceId: string, filePath: string) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>
     setFileTags: (deviceId: string, filePath: string, tags: string[]) => Promise<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>
     findFilesByTags: (tags: string[]) => Promise<Array<{ deviceId: string; path: string; tags: string[]; updatedAt: number }>>
-    createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) => Promise<FileOperationTask>
-    extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) => Promise<{ count: number }>
+    createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string, format?: 'zip' | '7z', password?: string) => Promise<FileOperationTask>
+    extractArchive: (deviceId: string, archivePath: string, targetDirectory: string, password?: string) => Promise<{ count: number }>
+    /** 7zz 可用性（7Z 创建入口与 7z/rar 解压门控）。 */
+    getArchiveToolInfo: () => Promise<{ sevenZip: boolean }>
+    /** 图片批量转换（image-convert 任务，仅本地；引擎 = ImageEditService）。 */
+    createImageConvert: (deviceId: string, sourcePaths: string[], convert: import('@shared/types').ImageConvertSpec) => Promise<FileOperationTask>
     captureMobileScreenshot: (deviceId: string, targetDirectory: string) => Promise<{ path: string }>
     /** 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。 */
     captureMobileScreen: (deviceId: string) => Promise<{ base64: string; mime: 'image/png' | 'image/jpeg' }>

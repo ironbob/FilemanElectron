@@ -197,7 +197,7 @@ export interface MediaInfoSummary {
 // ============ File Operation Types ============
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -229,6 +229,11 @@ export interface FileOperationTask {
   conflictStrategy?: ConflictStrategy
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
+  convert?: ImageConvertSpec
+  /** archive 任务：输出格式（zip 流式 fflate / 7z 走捆绑 7zz，仅本地）。 */
+  format?: 'zip' | '7z'
+  /** 7z 加密口令（连同文件名加密 -mhe=on）。 */
+  password?: string
   status: FileOperationStatus
   progress: FileOperationProgress
   createdAt: number
@@ -247,6 +252,9 @@ export interface CreateTaskParams {
   conflictStrategy?: ConflictStrategy
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
+  convert?: ImageConvertSpec
+  format?: 'zip' | '7z'
+  password?: string
 }
 
 // ============ Mobile Device Types ============
@@ -573,6 +581,34 @@ export interface ImageEditBatchRequest {
   items: string[]
   ops: EditOps
   save: EditSaveSpec
+}
+
+/**
+ * 图片批量转换任务参数（image-convert 任务；引擎 = ImageEditService.apply 的
+ * compress 通道，含 SIPS heic 解码与原子写）。仅本地设备。
+ */
+export interface ImageConvertSpec {
+  format: 'jpeg' | 'png' | 'webp'
+  /** 1-100；png 无损忽略（缺省 85，与编辑器一致） */
+  quality?: number
+  /** 最长边上限 px（仅缩小不放大；缺省不缩放） */
+  maxEdge?: number
+  mode: 'copy' | 'overwrite'
+  /** copy 模式输出目录（绝对路径；缺省 = 原图所在目录） */
+  dir?: string
+  /** copy 模式文件名后缀 */
+  suffix?: string
+}
+
+/** macOS 扩展属性条目（「显示简介 ▸ 扩展属性」；仅本机设备）。 */
+export interface XattrEntry {
+  name: string
+  /** 值的字节数（十六进制转储计得） */
+  sizeBytes: number
+  /** 可打印文本预览（二进制值无此字段） */
+  textPreview?: string
+  /** com.apple.quarantine —— 隔离标记，UI 高亮 + 专用移除入口 */
+  isQuarantine: boolean
 }
 
 // ── 系统剪贴板内容（「从剪贴板新建文件」） ──────────────────────────────────

@@ -1,12 +1,12 @@
-import { safeStorage, app, shell, ipcMain, BrowserWindow, dialog, nativeImage, Menu, screen } from "electron";
+import { safeStorage, app, shell, nativeImage, clipboard, ipcMain, BrowserWindow, dialog, Menu, screen } from "electron";
 import * as os from "os";
 import os__default from "os";
 import * as path from "path";
-import path__default, { join, dirname, basename as basename$1 } from "path";
+import path__default, { join, dirname as dirname$1, basename as basename$1 } from "path";
 import fs$1 from "fs-extra";
 import Store from "electron-store";
 import { createRequire } from "module";
-import { Readable, PassThrough, Writable, Transform, pipeline } from "stream";
+import { Readable, PassThrough, Writable, Transform, pipeline, finished } from "stream";
 import { execFileSync, spawnSync, spawn, exec, execFile } from "child_process";
 import * as fs from "fs";
 import fs__default from "fs";
@@ -16,7 +16,7 @@ import crypto, { createHash, randomUUID } from "crypto";
 import sharp from "sharp";
 import ffmpeg from "ffmpeg-static";
 import * as zlib from "zlib";
-import { zipSync, unzipSync, strToU8 } from "fflate";
+import { zipSync, Zip, ZipDeflate, unzipSync, strToU8 } from "fflate";
 import { open, stat } from "fs/promises";
 import mediaInfoFactory from "mediainfo.js";
 import __cjs_url__ from "node:url";
@@ -58,6 +58,9 @@ class ConfigService {
     }
     if (config.fileMetadata !== void 0) {
       this.store.set("fileMetadata", config.fileMetadata);
+    }
+    if (config.colorTags !== void 0) {
+      this.store.set("colorTags", config.colorTags);
     }
   }
   get(key) {
@@ -325,7 +328,9 @@ const zhCN = {
       revealInFinder: "在 Finder 中显示",
       revealInFinderLocalOnly: "在 Finder 中显示（仅限本地文件夹）",
       newFolder: "新建文件夹",
-      newFile: "新建文件"
+      newFile: "新建文件",
+      newFromClipboardText: "新建文本文件（来自剪贴板）",
+      newFromClipboardImage: "新建图片文件（来自剪贴板）"
     },
     view: {
       list: "列表视图",
@@ -347,7 +352,9 @@ const zhCN = {
       folderPlaceholder: "文件夹名称",
       create: "创建",
       invalidName: "请输入不含斜杠的有效名称。",
-      createFailed: "无法创建该项目。"
+      createFailed: "无法创建该项目。",
+      clipboardTitle: "新建文件（剪贴板内容）",
+      nameExists: "该名称已被使用，请换一个名称。"
     },
     goToDialog: {
       title: "前往文件夹",
@@ -362,7 +369,13 @@ const zhCN = {
     },
     gitChipTitle: "Git 仓库：{repoRoot}（领先/落后 {arrows}）",
     gitChipTitlePlain: "Git 仓库：{repoRoot}",
-    screenshotFailed: "截图失败"
+    screenshotFailed: "截图失败",
+    quarantineRemoved: "已移除 {count} 项的隔离标记",
+    quarantineRemoveFailed: "{count} 项移除隔离标记失败",
+    extractPasswordTitle: "“{name}”已加密",
+    extractPasswordConfirm: "解压",
+    extractWrongPassword: "密码不正确，请重试。",
+    extractFailed: "解压失败"
   },
   fileList: {
     loading: "加载中…",
@@ -402,12 +415,24 @@ const zhCN = {
       refresh: "刷新",
       newFolder: "新建文件夹",
       newFile: "新建文件",
+      newFromClipboardText: "新建文本文件（来自剪贴板）",
+      newFromClipboardImage: "新建图片文件（来自剪贴板）",
+      clipboardChanged: "剪贴板内容已变化，请重试。",
       newSymlink: "新建符号链接…",
       paste: "粘贴",
       addFavorite: "添加到收藏夹",
       showHidden: "显示隐藏文件",
       hideHidden: "隐藏隐藏文件",
       goToFolder: "前往文件夹…",
+      tagColor: "标记颜色…",
+      clearTag: "清除标记",
+      colorRed: "红",
+      colorOrange: "橙",
+      colorYellow: "黄",
+      colorGreen: "绿",
+      colorBlue: "蓝",
+      colorPurple: "紫",
+      colorTeal: "青",
       findDuplicates: "查找重复文件…",
       analyzeSpace: "可视化空间…",
       grepHere: "在此搜索内容…",
@@ -420,12 +445,16 @@ const zhCN = {
       previewImagesRecursive: "预览图片（递归）",
       copy: "拷贝",
       cut: "剪切",
+      sendTo: "发送到",
       rename: "重新命名…",
       info: "显示简介",
       openAsHex: "以十六进制查看",
       batchRename: "批量重命名…",
+      imageConvert: "转换为…",
       archiveItem: "压缩“{name}”",
       archiveMulti: "压缩 {count} 个项目",
+      compressZip: "压缩为 ZIP",
+      compress7z: "压缩为 7Z…",
       extractZip: "解压 ZIP",
       zipMenu: "ZIP",
       browseZip: "浏览 ZIP",
@@ -444,6 +473,7 @@ const zhCN = {
       openWithDefaultSuffix: "（默认）",
       moveToTrash: "移到废纸篓",
       makeAlias: "制作替身",
+      removeQuarantine: "移除隔离标记",
       quickLook: "快速查看",
       quickActions: "快速操作"
     },
@@ -470,6 +500,39 @@ const zhCN = {
       cancel: "取消",
       submit: "重命名 {count} 项"
     },
+    imageConvert: {
+      title: "转换图片",
+      subtitle: "转换 {count} 张图片，HEIC 等 Mac 原生格式会先解码再转码。",
+      format: "格式",
+      format_jpeg: "JPEG",
+      format_png: "PNG",
+      format_webp: "WebP",
+      quality: "质量",
+      maxEdge: "最长边",
+      maxEdgePlaceholder: "2048",
+      mode: "目标",
+      modeCopy: "存为副本",
+      modeOverwrite: "替换原文件",
+      modeOverwriteWarning: "替换将覆盖原文件（原子写入，失败不会损坏原图）；副本模式在新文件名后自动递增序号避免重名。",
+      suffix: "后缀",
+      outputDir: "位置",
+      sameFolder: "原图所在文件夹",
+      choose: "选取…",
+      cancel: "取消",
+      confirm: "转换 {count} 张"
+    },
+    archive7z: {
+      title: "压缩为 7Z",
+      nameLabel: "压缩包名称",
+      nameInvalid: "名称不能为空，也不能包含 / 或 \\",
+      password: "密码",
+      passwordOptional: "可选",
+      showPassword: "显示",
+      hidePassword: "隐藏",
+      encryptNote: "启用密码后文件名一并加密（-mhe）。",
+      cancel: "取消",
+      confirm: "压缩"
+    },
     fileInfo: {
       previewAlt: "预览",
       general: "常规",
@@ -495,6 +558,20 @@ const zhCN = {
       ratio: "压缩率",
       compressionMethod: "压缩方法",
       unknownCompression: "未知（{method}）",
+      xattrs: "扩展属性",
+      xattrsLoading: "正在读取扩展属性…",
+      xattrsLoadFailed: "读取扩展属性失败",
+      xattrsEmpty: "无扩展属性",
+      xattrBinaryValue: "二进制值 · {size} 字节",
+      xattrEdit: "编辑",
+      xattrSave: "保存",
+      xattrRemove: "删除",
+      xattrAddName: "属性名，如 com.example.key",
+      xattrAddValue: "字符串值",
+      xattrAdd: "添加",
+      quarantineBadge: "隔离标记",
+      removeQuarantine: "移除隔离",
+      quarantineAgent: "来自 {agent}",
       scanning: "正在计算… 已扫描 {count} 项",
       scanFailed: "计算失败：{message}",
       cancelled: "已取消",
@@ -579,8 +656,9 @@ const zhCN = {
       computing: "计算中…",
       copied: "已复制",
       copy: "复制",
-      matchSame: "✓ 两个文件内容一致（逐字节哈希相同）",
-      matchDiff: "✗ 两个文件内容不同",
+      algoLocked: "计算进行中，完成后可切换算法",
+      matchSame: "两个文件内容一致（逐字节哈希相同）",
+      matchDiff: "两个文件内容不同",
       preparing: "准备中…",
       hashing: "哈希中 {index}/{total}",
       completed: "完成",
@@ -919,7 +997,8 @@ const zhCN = {
       batchRename: "批量重命名",
       recycle: "移入废纸篓",
       restore: "恢复",
-      archive: "压缩"
+      archive: "压缩",
+      imageConvert: "转换图片"
     },
     /** 冲突重命名后缀词（Finder 副本命名：a.txt → a 副本.txt → a 副本 2.txt）。 */
     duplicateWord: "副本",
@@ -979,7 +1058,9 @@ const zhCN = {
     },
     toast: {
       show: "显示",
-      undo: "撤销"
+      undo: "撤销",
+      clipboardFileCreated: "已创建 {name}",
+      clipboardFileFailed: "创建文件失败"
     },
     badge: {
       failure: "{count} 个任务失败",
@@ -1003,6 +1084,10 @@ const zhCN = {
       closeTip: "关闭 (Esc)",
       retake: "重新截取",
       capturing: "截图中…",
+      copy: "拷贝",
+      copied: "已拷贝",
+      copyFailedPlain: "写入系统剪贴板失败",
+      copyFailed: "拷贝失败：{message}",
       saving: "保存中…",
       save: "保存…"
     }
@@ -1256,7 +1341,6 @@ const zhCN = {
       // ── Finder 式工具栏（重设计 2026-08-17）──────────────────────────────
       toolbarAriaLabel: "文本预览工具栏",
       searchPlaceholder: "查找或过滤，如 co(err) and level(warn)",
-      searchTip: "查找 (⌘F)",
       searchSyntaxTip: "支持文本或表达式：co/eq/word/reg/level/lines + and/or/not",
       // ── 着色方案（2026-08-19 常驻回迁工具栏）／表达式语法帮助 ──
       schemeActiveTip: "着色方案：{name}（点击更换）",
@@ -1544,6 +1628,17 @@ const zhCN = {
       imageEditNameExhausted: "无法生成唯一输出文件名（已尝试 100 个候选）：{path}",
       imageEditInvalidName: "文件名「{name}」非法：不能为空，也不能包含 / 或 \\",
       imageEditTargetDirMissing: "目标文件夹不存在或不可用：{dir}",
+      imageConvertLocalOnly: "图片批量转换仅支持本机设备",
+      xattrLocalOnly: "扩展属性仅支持本机设备",
+      xattrZipEntryUnsupported: "ZIP 内条目不支持扩展属性",
+      xattrFailed: "xattr 操作失败：{detail}",
+      sevenZipLocalOnly: "7z 压缩与 7z/rar 解压仅支持本机设备",
+      sevenZipUnavailable: "7zz 不可用（未捆绑且系统路径上没有）",
+      sevenZipRunFailed: "7zz 启动失败：{message}",
+      sevenZipCommandFailed: "7zz 命令失败（退出码 {code}）：{command}",
+      sevenZipTimeout: "7zz 超时（{timeout}ms）：{command}",
+      archivePasswordRequired: "压缩包已加密，需要密码",
+      archiveWrongPassword: "密码错误",
       verifyDeviceNotConnected: "设备未连接，无法校验内容",
       hashStreamUnsupported: "该设备不支持流式读取，无法处理超过 32 MB 的文件",
       // ── 移动设备截屏 ────────────────────────────────────────────────────
@@ -1741,7 +1836,9 @@ const enUS = {
       revealInFinder: "Reveal in Finder",
       revealInFinderLocalOnly: "Reveal in Finder (local folders only)",
       newFolder: "New Folder",
-      newFile: "New File"
+      newFile: "New File",
+      newFromClipboardText: "New Text File from Clipboard",
+      newFromClipboardImage: "New Image File from Clipboard"
     },
     view: {
       list: "List View",
@@ -1763,7 +1860,9 @@ const enUS = {
       folderPlaceholder: "Folder name",
       create: "Create",
       invalidName: "Enter a valid name without a slash.",
-      createFailed: "Could not create the item."
+      createFailed: "Could not create the item.",
+      clipboardTitle: "New File from Clipboard",
+      nameExists: "That name is already taken. Choose another."
     },
     goToDialog: {
       title: "Go to Folder",
@@ -1778,7 +1877,13 @@ const enUS = {
     },
     gitChipTitle: "Git repository: {repoRoot} (ahead/behind {arrows})",
     gitChipTitlePlain: "Git repository: {repoRoot}",
-    screenshotFailed: "Screenshot failed"
+    screenshotFailed: "Screenshot failed",
+    quarantineRemoved: "Removed the quarantine attribute from {count} item | Removed the quarantine attribute from {count} items",
+    quarantineRemoveFailed: "Failed to remove the quarantine attribute from {count} item | Failed to remove the quarantine attribute from {count} items",
+    extractPasswordTitle: "“{name}” is encrypted",
+    extractPasswordConfirm: "Extract",
+    extractWrongPassword: "Wrong password. Try again.",
+    extractFailed: "Extraction failed"
   },
   fileList: {
     loading: "Loading...",
@@ -1818,12 +1923,24 @@ const enUS = {
       refresh: "Refresh",
       newFolder: "New Folder",
       newFile: "New File",
+      newFromClipboardText: "New Text File from Clipboard",
+      newFromClipboardImage: "New Image File from Clipboard",
+      clipboardChanged: "Clipboard content changed. Please retry.",
       newSymlink: "New Symlink…",
       paste: "Paste",
       addFavorite: "Add to Favorites",
       showHidden: "Show Hidden Files",
       hideHidden: "Hide Hidden Files",
       goToFolder: "Go to Folder…",
+      tagColor: "Tag Color…",
+      clearTag: "Clear Tag",
+      colorRed: "Red",
+      colorOrange: "Orange",
+      colorYellow: "Yellow",
+      colorGreen: "Green",
+      colorBlue: "Blue",
+      colorPurple: "Purple",
+      colorTeal: "Teal",
       findDuplicates: "Find Duplicate Files…",
       analyzeSpace: "Visualize Disk Space…",
       grepHere: "Search Content Here…",
@@ -1836,12 +1953,16 @@ const enUS = {
       previewImagesRecursive: "Preview Images (Recursive)",
       copy: "Copy",
       cut: "Cut",
+      sendTo: "Send To",
       rename: "Rename…",
       info: "Get Info",
       openAsHex: "View as Hex",
       batchRename: "Batch Rename…",
+      imageConvert: "Convert To…",
       archiveItem: "Compress “{name}”",
       archiveMulti: "Compress {count} Items",
+      compressZip: "Compress to ZIP",
+      compress7z: "Compress to 7Z…",
       extractZip: "Extract ZIP",
       zipMenu: "ZIP",
       browseZip: "Browse ZIP",
@@ -1860,6 +1981,7 @@ const enUS = {
       openWithDefaultSuffix: " (default)",
       moveToTrash: "Move to Trash",
       makeAlias: "Make Alias",
+      removeQuarantine: "Remove Quarantine Attribute",
       quickLook: "Quick Look",
       quickActions: "Quick Actions"
     },
@@ -1886,6 +2008,39 @@ const enUS = {
       cancel: "Cancel",
       submit: "Rename {count} item | Rename {count} items"
     },
+    imageConvert: {
+      title: "Convert Images",
+      subtitle: "Convert {count} image. Mac-native formats such as HEIC are decoded first. | Convert {count} images. Mac-native formats such as HEIC are decoded first.",
+      format: "Format",
+      format_jpeg: "JPEG",
+      format_png: "PNG",
+      format_webp: "WebP",
+      quality: "Quality",
+      maxEdge: "Max Edge",
+      maxEdgePlaceholder: "2048",
+      mode: "Destination",
+      modeCopy: "Save as Copy",
+      modeOverwrite: "Replace Originals",
+      modeOverwriteWarning: "Replacing overwrites the original files (atomic write; a failure never damages the source). Copy mode auto-increments output names to avoid collisions.",
+      suffix: "Suffix",
+      outputDir: "Location",
+      sameFolder: "Same folder as originals",
+      choose: "Choose…",
+      cancel: "Cancel",
+      confirm: "Convert {count} image | Convert {count} images"
+    },
+    archive7z: {
+      title: "Compress to 7Z",
+      nameLabel: "Archive Name",
+      nameInvalid: "The name cannot be empty or contain / or \\",
+      password: "Password",
+      passwordOptional: "optional",
+      showPassword: "Show",
+      hidePassword: "Hide",
+      encryptNote: "With a password, file names are encrypted too (-mhe).",
+      cancel: "Cancel",
+      confirm: "Compress"
+    },
     fileInfo: {
       previewAlt: "preview",
       general: "General",
@@ -1911,6 +2066,20 @@ const enUS = {
       ratio: "Ratio",
       compressionMethod: "Compression",
       unknownCompression: "Unknown ({method})",
+      xattrs: "Extended Attributes",
+      xattrsLoading: "Reading extended attributes…",
+      xattrsLoadFailed: "Failed to read extended attributes",
+      xattrsEmpty: "No extended attributes",
+      xattrBinaryValue: "Binary value · {size} bytes",
+      xattrEdit: "Edit",
+      xattrSave: "Save",
+      xattrRemove: "Delete",
+      xattrAddName: "Attribute name, e.g. com.example.key",
+      xattrAddValue: "String value",
+      xattrAdd: "Add",
+      quarantineBadge: "Quarantined",
+      removeQuarantine: "Remove Quarantine",
+      quarantineAgent: "From {agent}",
       scanning: "Calculating… {count} items scanned",
       scanFailed: "Calculation failed: {message}",
       cancelled: "Cancelled",
@@ -1995,8 +2164,9 @@ const enUS = {
       computing: "Computing…",
       copied: "Copied",
       copy: "Copy",
-      matchSame: "✓ The two files are identical (byte-for-byte hash match)",
-      matchDiff: "✗ The two files differ",
+      algoLocked: "Computing in progress — switch algorithms after it finishes",
+      matchSame: "The two files are identical (byte-for-byte hash match)",
+      matchDiff: "The two files differ",
       preparing: "Preparing…",
       hashing: "Hashing {index}/{total}",
       completed: "Done",
@@ -2330,7 +2500,8 @@ const enUS = {
       batchRename: "Batch Renaming",
       recycle: "Moving to Trash",
       restore: "Restoring",
-      archive: "Compressing"
+      archive: "Compressing",
+      imageConvert: "Converting Images"
     },
     /** Conflict-rename suffix word (Finder duplicate naming: a.txt → a copy.txt → a copy 2.txt). */
     duplicateWord: "copy",
@@ -2390,7 +2561,9 @@ const enUS = {
     },
     toast: {
       show: "Show",
-      undo: "Undo"
+      undo: "Undo",
+      clipboardFileCreated: "Created {name}",
+      clipboardFileFailed: "Failed to create file"
     },
     badge: {
       failure: "{count} task failed | {count} tasks failed",
@@ -2413,6 +2586,10 @@ const enUS = {
       closeTip: "Close (Esc)",
       retake: "Retake",
       capturing: "Capturing…",
+      copy: "Copy",
+      copied: "Copied",
+      copyFailedPlain: "Failed to write to the system clipboard",
+      copyFailed: "Copy failed: {message}",
       saving: "Saving…",
       save: "Save…"
     }
@@ -2664,7 +2841,6 @@ const enUS = {
       // ── Finder-style toolbar (redesign 2026-08-17) ────────────────────────
       toolbarAriaLabel: "Text preview toolbar",
       searchPlaceholder: "Find or filter, e.g. co(err) and level(warn)",
-      searchTip: "Find (⌘F)",
       searchSyntaxTip: "Plain text or expression: co/eq/word/reg/level/lines + and/or/not",
       // ── Color scheme (toolbar-resident, 2026-08-19) / expression syntax help ──
       schemeActiveTip: "Color scheme: {name} (click to change)",
@@ -2950,6 +3126,17 @@ const enUS = {
       imageEditNameExhausted: "Cannot generate a unique output file name (100 candidates tried): {path}",
       imageEditInvalidName: 'File name "{name}" is invalid: it cannot be empty or contain / or \\',
       imageEditTargetDirMissing: "Target folder is missing or unavailable: {dir}",
+      imageConvertLocalOnly: "Batch image conversion is only available on this Mac",
+      xattrLocalOnly: "Extended attributes are only available on this Mac",
+      xattrZipEntryUnsupported: "Extended attributes are not supported inside ZIP entries",
+      xattrFailed: "xattr operation failed: {detail}",
+      sevenZipLocalOnly: "7z creation and 7z/rar extraction are only available on this Mac",
+      sevenZipUnavailable: "7zz is unavailable (not bundled and not on the system path)",
+      sevenZipRunFailed: "Failed to launch 7zz: {message}",
+      sevenZipCommandFailed: "7zz command failed (exit code {code}): {command}",
+      sevenZipTimeout: "7zz timed out ({timeout}ms): {command}",
+      archivePasswordRequired: "The archive is encrypted; a password is required",
+      archiveWrongPassword: "Wrong password",
       verifyDeviceNotConnected: "Device is not connected; cannot verify content",
       hashStreamUnsupported: "This device does not support streaming reads; cannot process files larger than 32 MB",
       // ── mobile screenshots ──────────────────────────────────────────────
@@ -3443,12 +3630,12 @@ class LocalAdapter {
     await fs$1.chown(targetPath, uid, gid);
   }
 }
-const log$p = console;
+const log$q = console;
 async function loadOptional(id, loader) {
   try {
     return await loader();
   } catch (error) {
-    log$p.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
+    log$q.error(`[OptionalDeps] 可选依赖 ${id} 加载失败：`, error);
     throw new Error(t("errors.main.optionalDepUnavailable", {
       name: id,
       message: error instanceof Error ? error.message : String(error)
@@ -3466,6 +3653,10 @@ class ToolPathResolver {
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
     rg: { candidates: ["rg/rg", "rg", "tools/rg"], probePath: true },
+    // 7zz（7-Zip 官方 CLI）—— 7z 创建/解压与 rar 解压引擎。mac 资产为
+    // universal 单文件（无伴随 dylib），捆绑布局同 rg（Resources/7zz/7zz）；
+    // 未捆绑时经 $PATH / brew 前缀使用本机安装（brew 包名 7zip/p7zip）。
+    "7zz": { candidates: ["7zz/7zz", "7zz", "tools/7zz"], probePath: true },
     // hdc（HarmonyOS Device Connector）—— 打包态由 build-dmg.sh 经 fetch-hdc.sh
     // 捆绑(目录布局 Resources/hdc/{hdc,libusb_shared.dylib},同 rg);未捆绑时
     // 经 $PATH / DevEco·OpenHarmony SDK 目录使用本机安装(hdc 常随 DevEco 装在
@@ -3657,6 +3848,15 @@ class ToolPathResolver {
   static hasRipgrep() {
     return this.has("rg");
   }
+  // ============ 7zz(7z 创建 / 7z·rar 解压引擎) ============
+  /** 7zz 命令(捆绑绝对路径或 $PATH 上的 '7zz')。 */
+  static getSevenZipExecutable() {
+    return this.getExecutable("7zz");
+  }
+  /** 7zz 是否可用(捆绑存在或 $PATH 上有)。无 7zz 时 7z/rar 能力整体降级。 */
+  static hasSevenZip() {
+    return this.has("7zz");
+  }
   /** 重置缓存(安装/重打包后重探测用)。 */
   static resetCache() {
     this.bundledCache.clear();
@@ -3672,7 +3872,7 @@ function compareVersionsDesc(a, b) {
   }
   return 0;
 }
-const log$o = console;
+const log$p = console;
 let adbkitModule = null;
 async function getAdbkit() {
   if (!adbkitModule) {
@@ -3724,7 +3924,7 @@ class AndroidAdapter {
       this.connected = false;
       this.device = null;
       this.client = null;
-      log$o.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
+      log$p.error(`[AndroidAdapter] 连接失败 (serial=${this.config.deviceId ?? "auto"}):`, error);
       throw error;
     }
   }
@@ -4052,7 +4252,7 @@ function parseStatLine(line) {
   if (!Number.isFinite(size) || !Number.isFinite(mtimeMs) || !Number.isFinite(mode)) return null;
   return { name, kind, size, mtimeMs, mode };
 }
-const log$n = console;
+const log$o = console;
 const STAT_BATCH_SIZE = 64;
 const TRANSFER_TIMEOUT_MS = 3e5;
 class OhosAdapter {
@@ -4094,10 +4294,10 @@ class OhosAdapter {
         throw new Error(t("errors.main.ohosDeviceOffline", { key }));
       }
       this.connected = true;
-      log$n.info(`[OhosAdapter] connected: connectKey=${key}`);
+      log$o.info(`[OhosAdapter] connected: connectKey=${key}`);
     } catch (error) {
       this.connected = false;
-      log$n.error(`[OhosAdapter] 连接失败 (connectKey=${this.connectKey()}):`, error);
+      log$o.error(`[OhosAdapter] 连接失败 (connectKey=${this.connectKey()}):`, error);
       throw error;
     }
   }
@@ -4292,7 +4492,7 @@ function sortFiles(files) {
     return a.name.localeCompare(b.name);
   });
 }
-const log$m = console;
+const log$n = console;
 class SMBAdapter {
   type = "smb";
   deviceId;
@@ -4326,7 +4526,7 @@ class SMBAdapter {
       this.connected = true;
     } catch (error) {
       client.disconnect();
-      log$m.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
+      log$n.error(`[SMBAdapter] 连接失败 (host=${this.config.host}, share=${this.config.share}):`, error);
       throw error;
     }
   }
@@ -5073,7 +5273,7 @@ async function pairIosDevice(deviceId, timeoutMs = 6e4) {
   return { success: false, error: t("errors.main.iosPairTimeout") };
 }
 const execAsync = promisify(exec);
-const log$l = {
+const log$m = {
   info: (message, ...args) => console.log(`[MobileDeviceScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[MobileDeviceScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[MobileDeviceScanner] DEBUG: ${message}`, ...args)
@@ -5100,7 +5300,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$l.info("Starting mobile device scanner", { interval: this.options.scanInterval });
+    log$m.info("Starting mobile device scanner", { interval: this.options.scanInterval });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -5113,7 +5313,7 @@ class MobileDeviceScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$l.info("Mobile device scanner stopped");
+      log$m.info("Mobile device scanner stopped");
     }
   }
   /**
@@ -5137,22 +5337,22 @@ class MobileDeviceScanner {
         const androidDevices = await this.scanAndroid();
         devices.push(...androidDevices);
       } else {
-        log$l.info("ADB not available, skipping Android scan");
+        log$m.info("ADB not available, skipping Android scan");
       }
       if (this.libimobiledeviceInstalled) {
         const iosDevices = await this.scanIOS();
         devices.push(...iosDevices);
       } else {
-        log$l.debug("libimobiledevice not available, skipping iOS scan");
+        log$m.debug("libimobiledevice not available, skipping iOS scan");
       }
       if (this.hdcAvailable) {
         const ohosDevices = await this.scanOHOS();
         devices.push(...ohosDevices);
       } else {
-        log$l.debug("hdc not available, skipping OHOS scan");
+        log$m.debug("hdc not available, skipping OHOS scan");
       }
     } catch (error) {
-      log$l.error("Mobile device scan error:", error);
+      log$m.error("Mobile device scan error:", error);
     }
     const newIds = new Set(devices.map((d) => d.id));
     const oldIds = new Set(this.currentDevices.keys());
@@ -5167,10 +5367,10 @@ class MobileDeviceScanner {
       }
     }
     if (added.length > 0) {
-      log$l.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
+      log$m.info("Devices added:", added.map((d) => ({ id: d.id, name: d.name, type: d.type })));
     }
     if (removed.length > 0) {
-      log$l.info("Devices removed:", removed);
+      log$m.info("Devices removed:", removed);
     }
     const changed = devices.some((device) => {
       const previous = this.currentDevices.get(device.id);
@@ -5216,7 +5416,7 @@ class MobileDeviceScanner {
   async checkLibimobiledeviceInstalled() {
     const available = ToolPathResolver.has("idevice_id");
     if (!available) {
-      log$l.debug("idevice_id not found (bundled/$PATH/common prefixes)");
+      log$m.debug("idevice_id not found (bundled/$PATH/common prefixes)");
     }
     return available;
   }
@@ -5227,7 +5427,7 @@ class MobileDeviceScanner {
   async checkAdbInstalled() {
     const available = ToolPathResolver.has("adb");
     if (!available) {
-      log$l.debug("adb not found (bundled/$PATH/common prefixes)");
+      log$m.debug("adb not found (bundled/$PATH/common prefixes)");
     }
     return available;
   }
@@ -5238,7 +5438,7 @@ class MobileDeviceScanner {
   async checkHdcInstalled() {
     const available = ToolPathResolver.hasHdc();
     if (!available) {
-      log$l.debug("hdc not found (bundled/$PATH/common prefixes)");
+      log$m.debug("hdc not found (bundled/$PATH/common prefixes)");
     }
     return available;
   }
@@ -5250,7 +5450,7 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync(`${ToolPathResolver.getAdbExecutable()} devices -l`);
       if (stderr) {
-        log$l.debug("ADB command stderr:", stderr);
+        log$m.debug("ADB command stderr:", stderr);
       }
       const lines = stdout.trim().split("\n");
       for (const line of lines) {
@@ -5264,11 +5464,11 @@ class MobileDeviceScanner {
           const stateMatch = deviceInfo.match(/^(\S+)/);
           const state = stateMatch ? stateMatch[1] : "unknown";
           if (state === "offline") {
-            log$l.info("Device offline, skipping:", serial);
+            log$m.info("Device offline, skipping:", serial);
             continue;
           }
           if (state === "unauthorized") {
-            log$l.info("Device unauthorized (needs USB debugging authorization):", serial);
+            log$m.info("Device unauthorized (needs USB debugging authorization):", serial);
             devices.push({
               id: `android:${serial}`,
               type: "android",
@@ -5281,7 +5481,7 @@ class MobileDeviceScanner {
           const modelMatch = deviceInfo.match(/model:([^\s]+)/);
           if (modelMatch) {
             model = modelMatch[1].replace(/_/g, " ");
-            log$l.debug("Extracted model name:", model);
+            log$m.debug("Extracted model name:", model);
           }
           let product = "";
           const productMatch = deviceInfo.match(/product:([^\s]+)/);
@@ -5295,14 +5495,14 @@ class MobileDeviceScanner {
             model: deviceInfo
           });
         } else {
-          log$l.debug("Line did not match device pattern:", line);
+          log$m.debug("Line did not match device pattern:", line);
         }
       }
     } catch (error) {
-      log$l.error("Android scan error:", error);
+      log$m.error("Android scan error:", error);
       if (error instanceof Error) {
-        log$l.error("Error message:", error.message);
-        log$l.error("Error stack:", error.stack);
+        log$m.error("Error message:", error.message);
+        log$m.error("Error stack:", error.stack);
       }
     }
     return devices;
@@ -5317,44 +5517,44 @@ class MobileDeviceScanner {
         `${ToolPathResolver.getExecutable("idevice_id")} -l 2>/dev/null || echo ""`
       );
       if (stderr) {
-        log$l.debug("idevice_id stderr:", stderr);
+        log$m.debug("idevice_id stderr:", stderr);
       }
       const udidList = stdout.trim().split("\n").filter((line) => line.trim());
       for (const udid of udidList) {
         if (!udid.trim()) continue;
-        log$l.debug("Processing iOS device:", udid);
+        log$m.debug("Processing iOS device:", udid);
         try {
           let deviceName = "iOS Device";
           try {
-            log$l.debug(`Getting device name for ${udid}...`);
+            log$m.debug(`Getting device name for ${udid}...`);
             const { stdout: nameOutput, stderr: nameStderr } = await execAsync(
               `${ToolPathResolver.getExecutable("ideviceinfo")} -u ${udid} -k DeviceName 2>/dev/null || echo ""`
             );
-            log$l.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
+            log$m.debug(`ideviceinfo name output:`, nameOutput, nameStderr);
             if (nameOutput.trim()) {
               deviceName = nameOutput.trim();
             }
           } catch (nameError) {
-            log$l.debug("Failed to get device name:", nameError);
+            log$m.debug("Failed to get device name:", nameError);
           }
           let pairingStatus = "unpaired";
           try {
-            log$l.debug(`Checking pairing status for ${udid}...`);
+            log$m.debug(`Checking pairing status for ${udid}...`);
             const { stdout: pairOutput, stderr: pairStderr } = await execAsync(
               `${ToolPathResolver.getExecutable("idevicepair")} validate -u ${udid} 2>/dev/null || echo ""`
             );
-            log$l.debug(`idevicepair output:`, pairOutput, pairStderr);
+            log$m.debug(`idevicepair output:`, pairOutput, pairStderr);
             if (pairOutput.includes("SUCCESS")) {
               pairingStatus = "paired";
             } else if (pairOutput.includes("PAIRING_DIALOG") || pairOutput.includes("USER_DENIED")) {
               pairingStatus = "unpaired";
-              log$l.info(`iOS device ${udid} needs pairing`);
+              log$m.info(`iOS device ${udid} needs pairing`);
             }
           } catch (pairError) {
-            log$l.debug("Failed to check pairing status:", pairError);
+            log$m.debug("Failed to check pairing status:", pairError);
             pairingStatus = "unpaired";
           }
-          log$l.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
+          log$m.info("Found iOS device:", { udid, name: deviceName, pairingStatus });
           devices.push({
             id: `ios:${udid}`,
             type: "ios",
@@ -5362,13 +5562,13 @@ class MobileDeviceScanner {
             pairingStatus
           });
         } catch (error) {
-          log$l.error(`iOS device ${udid} scan error:`, error);
+          log$m.error(`iOS device ${udid} scan error:`, error);
         }
       }
     } catch (error) {
-      log$l.error("iOS scan error:", error);
+      log$m.error("iOS scan error:", error);
       if (error instanceof Error) {
-        log$l.error("Error message:", error.message);
+        log$m.error("Error message:", error.message);
       }
     }
     return devices;
@@ -5381,7 +5581,7 @@ class MobileDeviceScanner {
     try {
       const { stdout, stderr } = await execAsync(`${ToolPathResolver.getHdcExecutable()} list targets`);
       if (stderr) {
-        log$l.debug("hdc list targets stderr:", stderr);
+        log$m.debug("hdc list targets stderr:", stderr);
       }
       const connectKeys = parseHdcListTargets(stdout);
       for (const key of connectKeys) {
@@ -5394,9 +5594,9 @@ class MobileDeviceScanner {
             name = nameOutput.trim();
           }
         } catch (nameError) {
-          log$l.debug("Failed to get OHOS device name:", nameError);
+          log$m.debug("Failed to get OHOS device name:", nameError);
         }
-        log$l.info("Found OHOS device:", { connectKey: key, name });
+        log$m.info("Found OHOS device:", { connectKey: key, name });
         devices.push({
           id: `ohos:${key}`,
           type: "ohos",
@@ -5404,7 +5604,7 @@ class MobileDeviceScanner {
         });
       }
     } catch (error) {
-      log$l.error("OHOS scan error:", error);
+      log$m.error("OHOS scan error:", error);
     }
     return devices;
   }
@@ -5418,12 +5618,12 @@ class MobileDeviceScanner {
    * Notify all handlers of device changes
    */
   notifyHandlers(devices, added, removed) {
-    log$l.debug(`Notifying ${this.handlers.length} handlers`);
+    log$m.debug(`Notifying ${this.handlers.length} handlers`);
     for (const handler of this.handlers) {
       try {
         handler(devices, added, removed);
       } catch (error) {
-        log$l.error("Device change handler error:", error);
+        log$m.error("Device change handler error:", error);
       }
     }
   }
@@ -5449,7 +5649,7 @@ class MobileDeviceScanner {
 function sameDetectedDevice(a, b) {
   return a.id === b.id && a.type === b.type && a.name === b.name && a.model === b.model && a.pairingStatus === b.pairingStatus;
 }
-const log$k = console;
+const log$l = console;
 class MobileDiscoveryService {
   constructor(configService2) {
     this.configService = configService2;
@@ -5490,13 +5690,13 @@ class MobileDiscoveryService {
   async rememberDevice(deviceId) {
     this.autoConnectDevices.add(deviceId);
     await this.saveAutoConnectDevices();
-    log$k.log(`[MobileDiscovery] remembered auto-connect device: ${deviceId}`);
+    log$l.log(`[MobileDiscovery] remembered auto-connect device: ${deviceId}`);
   }
   /** Forget a mobile device (remove from auto-connect) */
   async forgetDevice(deviceId) {
     this.autoConnectDevices.delete(deviceId);
     await this.saveAutoConnectDevices();
-    log$k.log(`[MobileDiscovery] forgot auto-connect device: ${deviceId}`);
+    log$l.log(`[MobileDiscovery] forgot auto-connect device: ${deviceId}`);
   }
   /** Get list of auto-connect device IDs */
   getAutoConnectDevices() {
@@ -5522,7 +5722,7 @@ class MobileDiscoveryService {
     this.configService.saveConfig(config);
   }
 }
-const log$j = console;
+const log$k = console;
 class AdapterConnectionManager {
   constructor(credentialService2, factory, hooks) {
     this.credentialService = credentialService2;
@@ -5577,7 +5777,7 @@ class AdapterConnectionManager {
         } catch {
         }
         this.adapters.delete(deviceId);
-        log$j.error(`[AdapterConnection] 设备连接失败 (${deviceId}):`, error);
+        log$k.error(`[AdapterConnection] 设备连接失败 (${deviceId}):`, error);
         this.hooks.onStatus(deviceId, "disconnected");
         throw error;
       } finally {
@@ -6179,6 +6379,11 @@ const CH = {
     systemWriteFileClipboard: "system:writeFileClipboard",
     systemReadFileClipboard: "system:readFileClipboard",
     systemClearFileClipboard: "system:clearFileClipboard",
+    // 图片数据写系统剪贴板（设备截屏 ⌘C 直拷，任意应用可粘）
+    systemWriteImageClipboard: "system:writeImageClipboard",
+    // 系统剪贴板内容探测/全量读（「从剪贴板新建文件」：文本/图片存新文件）
+    systemProbeClipboardContent: "system:probeClipboardContent",
+    systemReadClipboardData: "system:readClipboardData",
     // window:
     fileInfoWindowOpen: "window:fileInfo:open",
     fileInfoWindowGetContext: "window:fileInfo:getContext",
@@ -6242,6 +6447,10 @@ const CH = {
     fsChmod: "fs:chmod",
     fsChown: "fs:chown",
     fsMediaInfo: "fs:mediaInfo",
+    // xattr（仅本机）:
+    fsXattrList: "fs:xattr:list",
+    fsXattrRemove: "fs:xattr:remove",
+    fsXattrSet: "fs:xattr:set",
     // compare:
     compareVerifyStart: "compare:verify:start",
     compareVerifyCancel: "compare:verify:cancel",
@@ -6264,6 +6473,7 @@ const CH = {
     // archive:
     archiveCreate: "archive:create",
     archiveExtract: "archive:extract",
+    archiveToolInfo: "archive:toolInfo",
     // mobile:
     mobileStartScan: "mobile:startScan",
     mobileStopScan: "mobile:stopScan",
@@ -6283,6 +6493,7 @@ const CH = {
     imageEditApply: "image:editApply",
     imageEditBatchStart: "image:editBatchStart",
     imageEditBatchCancel: "image:editBatchCancel",
+    imageConvert: "image:convert",
     // volumes:
     volumesList: "volumes:list"
   },
@@ -6305,7 +6516,7 @@ const CH = {
     dragStartNative: "drag:startNative"
   }
 };
-const log$i = console;
+const log$j = console;
 function generateTaskId() {
   return `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
@@ -6326,6 +6537,9 @@ class TransferTask {
   conflictStrategy;
   renameItems;
   restoreItems;
+  convert;
+  format;
+  password;
   constructor(params) {
     this.id = generateTaskId();
     this.type = params.type;
@@ -6337,6 +6551,9 @@ class TransferTask {
     this.conflictStrategy = params.conflictStrategy ?? "skip";
     this.renameItems = params.renameItems;
     this.restoreItems = params.restoreItems;
+    this.convert = params.convert;
+    this.format = params.format;
+    this.password = params.password;
     this.status = "pending";
     this.progress = {
       currentFile: "",
@@ -6396,6 +6613,10 @@ class FileOperationManager {
   completionWaiters = /* @__PURE__ */ new Map();
   /** 压缩执行器（组合根注入；archive 任务的实际打包容逻辑在 ArchiveService）。 */
   archiveService = null;
+  /** 7z 执行器（组合根注入；format='7z' 的 archive 任务由 SevenZipService 打包）。 */
+  sevenZipService = null;
+  /** 图片转换执行器（组合根注入；image-convert 任务的编解码逻辑在 ImageEditService）。 */
+  imageEditService = null;
   registerAdapter(deviceId, adapter) {
     this.adapters.set(deviceId, adapter);
   }
@@ -6407,6 +6628,12 @@ class FileOperationManager {
   }
   setArchiveService(archiveService2) {
     this.archiveService = archiveService2;
+  }
+  setSevenZipService(sevenZipService2) {
+    this.sevenZipService = sevenZipService2;
+  }
+  setImageEditService(imageEditService2) {
+    this.imageEditService = imageEditService2;
   }
   notifyTaskUpdate(task) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -6430,7 +6657,7 @@ class FileOperationManager {
     const task = new TransferTask(params);
     this.queue.push(task);
     this.notifyTaskAdded(task);
-    log$i.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
+    log$j.info("[FileOperationManager] task queued", { taskId: task.id, type: task.type, sourceDeviceId: task.sourceDeviceId });
     this.processQueue();
     return task;
   }
@@ -6441,7 +6668,7 @@ class FileOperationManager {
     try {
       await this.executeTask(this.currentTask);
     } catch (error) {
-      log$i.error("[FileOperationManager] task execution error:", error);
+      log$j.error("[FileOperationManager] task execution error:", error);
     } finally {
       this.isRunning = false;
       const completedTask = this.currentTask;
@@ -6488,6 +6715,9 @@ class FileOperationManager {
           break;
         case "archive":
           await this.executeArchive(task);
+          break;
+        case "image-convert":
+          await this.executeImageConvert(task);
           break;
       }
       if (this.cancelled) {
@@ -6723,22 +6953,28 @@ class FileOperationManager {
   }
   // ============ 压缩成 ZIP ============
   /**
-   * archive 任务：源 → 同设备目标目录下的一个 zip。
+   * archive 任务：源 → 同设备目标目录下的一个压缩包。
    * targetPath 为目标目录，newName 为压缩包名（渲染层按 Finder 规则生成：
    * 单选「a.txt → a.zip」，多选「Archive.zip」）。
-   * 打包只在最后一次性写盘，取消/失败不会留下半成品 zip。
+   * format='7z' 时走捆绑 7zz（仅本地，可选密码连文件名加密）；默认 zip 走
+   * ArchiveService（流式写临时文件后 rename，取消/失败不留半成品）。
    */
   async executeArchive(task) {
     if (!this.archiveService) throw new Error("ArchiveService not configured");
     const adapter = this.adapters.get(task.sourceDeviceId);
     if (!adapter) throw new Error(`Adapter not found: ${task.sourceDeviceId}`);
     const targetDir = task.targetPath || "/";
-    const rawName = task.newName || "Archive.zip";
-    const safeName = rawName.toLowerCase().endsWith(".zip") ? rawName : `${rawName}.zip`;
+    const ext = task.format === "7z" ? ".7z" : ".zip";
+    const rawName = task.newName || `Archive${ext}`;
+    const safeName = rawName.toLowerCase().endsWith(ext) ? rawName : `${rawName}${ext}`;
     const zipPath = await this.resolveTargetPath(adapter, joinPosix$1(targetDir, safeName), "rename");
     if (zipPath === null) throw new Error(`Destination conflict: ${safeName}`);
     const { bytes, files } = await this.computeTotals(adapter, task.sourcePaths);
     task.setTotals(bytes, files);
+    if (task.format === "7z") {
+      await this.executeArchive7z(task, zipPath, safeName);
+      return;
+    }
     let fileIndex = 0;
     try {
       await this.archiveService.runCreateZip(adapter, task.sourcePaths, zipPath, {
@@ -6760,6 +6996,30 @@ class FileOperationManager {
     for (const sourcePath of task.sourcePaths) {
       task.recordItem({ sourcePath, targetPath: zipPath, status: "success" });
     }
+  }
+  /** 7z 分支：捆绑 7zz 打包（仅本地）；-bb1 逐文件行驱动进度。 */
+  async executeArchive7z(task, zipPath, safeName) {
+    if (!this.sevenZipService) throw new Error("SevenZipService not configured");
+    if (task.sourceDeviceId !== "local") throw new Error(t("errors.main.sevenZipLocalOnly"));
+    if (!await this.sevenZipService.isAvailable()) throw new Error(t("errors.main.sevenZipUnavailable"));
+    let fileIndex = 0;
+    try {
+      await this.sevenZipService.create7z(task.sourcePaths, zipPath, { password: task.password }, {
+        onFileRead: (name, readBytes) => {
+          task.setCurrentFile(name, fileIndex++);
+          task.addBytes(readBytes);
+          this.notifyProgress(task);
+        },
+        shouldCancel: () => this.cancelled
+      });
+    } catch (error) {
+      if (error instanceof CancelledError$2) return;
+      throw error;
+    }
+    for (const sourcePath of task.sourcePaths) {
+      task.recordItem({ sourcePath, targetPath: zipPath, status: "success" });
+    }
+    log$j.info("[FileOperationManager] 7z archive created", { zipPath, safeName });
   }
   // ============ 单设备操作 ============
   async executeDelete(task) {
@@ -6816,6 +7076,41 @@ class FileOperationManager {
       try {
         if (await adapter.exists(destination)) throw new Error(t("errors.main.batchRenameTargetExists", { name: item.newName }));
         await adapter.rename(item.sourcePath, destination);
+      } catch (error) {
+        result.status = "failed";
+        result.error = error instanceof Error ? error.message : String(error);
+      }
+      task.recordItem(result);
+      this.notifyTaskUpdate(task);
+    }
+  }
+  // ============ 图片批量转换 ============
+  /**
+   * image-convert 任务：本地图片批量转格式/缩放。引擎 = ImageEditService.apply
+   * （SIPS heic 解码 + 原子写：overwrite = 临时文件替换，copy = 唯一副本名）。
+   * 进度按文件数（转换耗时与源字节数不成比例，不做字节进度）；
+   * 单项失败记录后继续（与 batch-rename 一致）。
+   */
+  async executeImageConvert(task) {
+    if (!this.imageEditService) throw new Error("ImageEditService not configured");
+    if (task.sourceDeviceId !== "local") throw new Error(t("errors.main.imageConvertLocalOnly"));
+    const spec = task.convert;
+    if (!spec) throw new Error("Invalid image-convert parameters");
+    task.progress.totalFiles = task.sourcePaths.length;
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      if (this.cancelled) return;
+      const sourcePath = task.sourcePaths[index];
+      task.setCurrentFile(posixBaseName(sourcePath), index);
+      this.notifyTaskUpdate(task);
+      const result = { sourcePath, status: "success" };
+      try {
+        const applied = await this.imageEditService.apply(
+          sourcePath,
+          { compress: { format: spec.format, quality: spec.quality ?? 85, maxEdge: spec.maxEdge } },
+          { mode: spec.mode, dir: spec.dir, suffix: spec.suffix, format: spec.format }
+        );
+        result.targetPath = applied.writtenPath;
+        result.bytesProcessed = applied.bytes;
       } catch (error) {
         result.status = "failed";
         result.error = error instanceof Error ? error.message : String(error);
@@ -6949,10 +7244,13 @@ class FileOperationManager {
       targetDeviceId: historyTask.targetDeviceId,
       targetPath: historyTask.targetPath,
       newName: historyTask.newName,
-      // 重建必须携带完整参数，否则 batch-rename/restore 的重试必失败
+      // 重建必须携带完整参数，否则 batch-rename/restore/convert 的重试必失败
       conflictStrategy: historyTask.conflictStrategy,
       renameItems: historyTask.renameItems,
-      restoreItems: historyTask.restoreItems
+      restoreItems: historyTask.restoreItems,
+      convert: historyTask.convert,
+      format: historyTask.format,
+      password: historyTask.password
     });
     this.history = this.history.filter((t2) => t2.id !== taskId);
     return newTask;
@@ -7554,7 +7852,7 @@ function normalizeExt(extension) {
   return extension.toLowerCase().replace(/^\./, "");
 }
 const LOG_PREFIX$1 = "[ThumbnailService]";
-function log$h(message, ...args) {
+function log$i(message, ...args) {
   console.log(`${LOG_PREFIX$1} ${message}`, ...args);
 }
 function logError$1(message, ...args) {
@@ -7564,9 +7862,11 @@ function logWarn(message, ...args) {
   console.warn(`${LOG_PREFIX$1} ${message}`, ...args);
 }
 const THUMBNAIL_SIZES = {
-  small: { width: 64, height: 64 },
+  small: { width: 128, height: 128 },
   large: { width: 256, height: 256 }
 };
+const REMOTE_IMAGE_MAX_BYTES = 64 * 1024 * 1024;
+const REMOTE_VIDEO_HEAD_BYTES = 8 * 1024 * 1024;
 const SUPPORTED_IMAGE_FORMATS = new Set(
   Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === "image").map(([ext]) => ext)
 );
@@ -7578,27 +7878,27 @@ class ThumbnailService {
   maxDiskCacheSize = 500 * 1024 * 1024;
   constructor() {
     this.cacheDir = path__default.join(app.getPath("userData"), "thumbnails");
-    log$h("Initializing ThumbnailService");
-    log$h("Cache directory:", this.cacheDir);
+    log$i("Initializing ThumbnailService");
+    log$i("Cache directory:", this.cacheDir);
     this.ensureCacheDir();
   }
   async ensureCacheDir() {
     try {
       await fs$1.ensureDir(this.cacheDir);
-      log$h("Cache directory ensured:", this.cacheDir);
+      log$i("Cache directory ensured:", this.cacheDir);
     } catch (e) {
       logError$1("Failed to create cache directory:", e);
     }
   }
-  generateCacheKey(deviceId, filePath, size, mtime) {
-    const raw = `${deviceId}:${filePath}:${size}:${mtime}`;
+  generateCacheKey(deviceId, filePath, size, mtime, dimensions) {
+    const raw = `${deviceId}:${filePath}:${size}:${mtime}:${dimensions.width}x${dimensions.height}`;
     const hash = crypto.createHash("md5").update(raw).digest("hex").slice(0, 16);
-    log$h("Generated cache key:", hash, "for file:", filePath);
+    log$i("Generated cache key:", hash, "for file:", filePath);
     return hash;
   }
-  async getThumbnail(deviceId, filePath, size, mtime, thumbnailSize, readFile) {
+  async getThumbnail(deviceId, filePath, size, mtime, thumbnailSize, readFile, readHead) {
     const ext = path__default.extname(filePath).toLowerCase().replace(".", "");
-    log$h("getThumbnail called:", {
+    log$i("getThumbnail called:", {
       deviceId,
       filePath,
       size,
@@ -7606,14 +7906,16 @@ class ThumbnailService {
       thumbnailSize,
       ext
     });
-    const cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime);
-    log$h("Checking disk cache for key:", cacheKey);
+    const dimensions = THUMBNAIL_SIZES[thumbnailSize];
+    log$i("Target dimensions:", dimensions);
+    const cacheKey = this.generateCacheKey(deviceId, filePath, size, mtime, dimensions);
+    log$i("Checking disk cache for key:", cacheKey);
     const cachedThumbnail = await this.getFromDiskCache(cacheKey);
     if (cachedThumbnail) {
-      log$h("Cache HIT for:", filePath, "key:", cacheKey);
+      log$i("Cache HIT for:", filePath, "key:", cacheKey);
       return { cacheKey, thumbnailBase64: cachedThumbnail };
     }
-    log$h("Cache MISS for:", filePath, "key:", cacheKey);
+    log$i("Cache MISS for:", filePath, "key:", cacheKey);
     if (!SUPPORTED_IMAGE_FORMATS.has(ext) && !SUPPORTED_VIDEO_FORMATS.has(ext)) {
       logWarn("Unsupported format for thumbnail:", ext, "file:", filePath);
       return null;
@@ -7622,23 +7924,25 @@ class ThumbnailService {
       logWarn("Video thumbnails are not supported inside ZIP:", filePath);
       return null;
     }
-    const dimensions = THUMBNAIL_SIZES[thumbnailSize];
-    log$h("Target dimensions:", dimensions);
     let thumbnailBuffer = null;
     const startTime = Date.now();
     if (SUPPORTED_IMAGE_FORMATS.has(ext)) {
-      log$h("Generating image thumbnail for:", filePath);
+      if (deviceId !== "local" && size > REMOTE_IMAGE_MAX_BYTES) {
+        logWarn("Remote image exceeds thumbnail source guard, skip:", filePath, "size:", size);
+        return null;
+      }
+      log$i("Generating image thumbnail for:", filePath);
       thumbnailBuffer = await this.generateImageThumbnail(filePath, deviceId, readFile, dimensions);
     } else if (SUPPORTED_VIDEO_FORMATS.has(ext)) {
-      log$h("Generating video thumbnail for:", filePath);
-      thumbnailBuffer = await this.generateVideoThumbnail(filePath, deviceId, readFile, dimensions);
+      log$i("Generating video thumbnail for:", filePath);
+      thumbnailBuffer = await this.generateVideoThumbnail(filePath, deviceId, dimensions, readHead);
     }
     const elapsed = Date.now() - startTime;
     if (!thumbnailBuffer) {
       logError$1("Failed to generate thumbnail for:", filePath, "elapsed:", elapsed, "ms");
       return null;
     }
-    log$h(
+    log$i(
       "Thumbnail generated successfully for:",
       filePath,
       "size:",
@@ -7659,10 +7963,10 @@ class ThumbnailService {
     try {
       if (await fs$1.pathExists(cachePath)) {
         const buffer = await fs$1.readFile(cachePath);
-        log$h("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
+        log$i("Disk cache hit, key:", cacheKey, "size:", buffer.length, "bytes");
         return buffer.toString("base64");
       } else {
-        log$h("Disk cache miss, key:", cacheKey, "path:", cachePath);
+        log$i("Disk cache miss, key:", cacheKey, "path:", cachePath);
       }
     } catch (e) {
       logError$1("Error reading disk cache:", cacheKey, e);
@@ -7673,43 +7977,68 @@ class ThumbnailService {
     const cachePath = path__default.join(this.cacheDir, `${cacheKey}.webp`);
     try {
       await fs$1.writeFile(cachePath, thumbnailBuffer);
-      log$h("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
+      log$i("Saved to disk cache, key:", cacheKey, "size:", thumbnailBuffer.length, "bytes");
     } catch (e) {
       logError$1("Failed to save to disk cache:", cacheKey, e);
     }
   }
   async generateImageThumbnail(filePath, deviceId, readFile, dimensions) {
     try {
-      log$h("Reading image file:", filePath, "deviceId:", deviceId);
+      log$i("Reading image file:", filePath, "deviceId:", deviceId);
       const readStartTime = Date.now();
       const fileBuffer = await readFile(deviceId, filePath);
-      log$h("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
-      log$h("Processing image with sharp, target dimensions:", dimensions);
+      log$i("Image file read complete, size:", fileBuffer.length, "bytes, elapsed:", Date.now() - readStartTime, "ms");
+      log$i("Processing image with sharp, target dimensions:", dimensions);
       const processStartTime = Date.now();
       const result = await sharp(fileBuffer).resize(dimensions.width, dimensions.height, {
         fit: "cover",
         withoutEnlargement: true
       }).webp({ quality: 92 }).toBuffer();
-      log$h("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
+      log$i("Sharp processing complete, output size:", result.length, "bytes, elapsed:", Date.now() - processStartTime, "ms");
       return result;
     } catch (e) {
       logError$1("Failed to generate image thumbnail:", filePath, e);
       return null;
     }
   }
-  async generateVideoThumbnail(filePath, deviceId, readFile, dimensions) {
+  async generateVideoThumbnail(filePath, deviceId, dimensions, readHead) {
     if (!ffmpeg) {
       logError$1("ffmpeg not available, cannot generate video thumbnail");
       return null;
     }
-    log$h("ffmpeg path:", ffmpeg);
+    log$i("ffmpeg path:", ffmpeg);
     try {
       if (deviceId === "local") {
-        log$h("Extracting video frame from local file:", filePath);
+        log$i("Extracting video frame from local file:", filePath);
         return await this.extractVideoFrameLocal(filePath, dimensions);
       }
-      logWarn("Video thumbnail for remote files not yet supported, deviceId:", deviceId);
-      return null;
+      if (!readHead) {
+        logWarn("Video thumbnail for remote device without stream, skip. deviceId:", deviceId);
+        return null;
+      }
+      const head = await readHead(deviceId, filePath, REMOTE_VIDEO_HEAD_BYTES);
+      if (!head || head.length === 0) {
+        logWarn("Remote video head prefetch empty:", filePath);
+        return null;
+      }
+      const ext = path__default.extname(filePath).toLowerCase() || ".mp4";
+      const headPath = path__default.join(
+        app.getPath("temp"),
+        `remote_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`
+      );
+      try {
+        await fs$1.writeFile(headPath, head);
+        log$i(
+          "Extracting video frame from prefetched head:",
+          filePath,
+          "head bytes:",
+          head.length
+        );
+        return await this.extractVideoFrameLocal(headPath, dimensions);
+      } finally {
+        await fs$1.unlink(headPath).catch(() => {
+        });
+      }
     } catch (e) {
       logError$1("Failed to generate video thumbnail:", filePath, e);
       return null;
@@ -7721,11 +8050,11 @@ class ThumbnailService {
     const execFileAsync2 = util.promisify(execFile2);
     const tempDir = app.getPath("temp");
     const outputPath = path__default.join(tempDir, `thumb_${Date.now()}.webp`);
-    log$h("extractVideoFrameLocal - input:", filePath);
-    log$h("extractVideoFrameLocal - output:", outputPath);
-    log$h("extractVideoFrameLocal - dimensions:", dimensions);
+    log$i("extractVideoFrameLocal - input:", filePath);
+    log$i("extractVideoFrameLocal - output:", outputPath);
+    log$i("extractVideoFrameLocal - dimensions:", dimensions);
     try {
-      log$h("Attempting ffmpeg extraction at 1 second offset");
+      log$i("Attempting ffmpeg extraction at 1 second offset");
       const startTime = Date.now();
       await execFileAsync2(ffmpeg, [
         "-i",
@@ -7739,17 +8068,17 @@ class ThumbnailService {
         "-y",
         outputPath
       ], { timeout: 1e4 });
-      log$h("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
+      log$i("ffmpeg extraction at 1s complete, elapsed:", Date.now() - startTime, "ms");
       const buffer = await fs$1.readFile(outputPath);
-      log$h("Read thumbnail file, size:", buffer.length, "bytes");
+      log$i("Read thumbnail file, size:", buffer.length, "bytes");
       await fs$1.unlink(outputPath).catch(() => {
       });
-      log$h("Cleaned up temp file:", outputPath);
+      log$i("Cleaned up temp file:", outputPath);
       return buffer;
     } catch (firstError) {
       logWarn("ffmpeg extraction at 1s failed, trying at 0s:", firstError);
       try {
-        log$h("Attempting ffmpeg extraction at 0 second offset");
+        log$i("Attempting ffmpeg extraction at 0 second offset");
         const startTime = Date.now();
         await execFileAsync2(ffmpeg, [
           "-i",
@@ -7763,12 +8092,12 @@ class ThumbnailService {
           "-y",
           outputPath
         ], { timeout: 1e4 });
-        log$h("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
+        log$i("ffmpeg extraction at 0s complete, elapsed:", Date.now() - startTime, "ms");
         const buffer = await fs$1.readFile(outputPath);
-        log$h("Read thumbnail file, size:", buffer.length, "bytes");
+        log$i("Read thumbnail file, size:", buffer.length, "bytes");
         await fs$1.unlink(outputPath).catch(() => {
         });
-        log$h("Cleaned up temp file:", outputPath);
+        log$i("Cleaned up temp file:", outputPath);
         return buffer;
       } catch (secondError) {
         logError$1("ffmpeg extraction at 0s also failed:", filePath, secondError);
@@ -7777,10 +8106,10 @@ class ThumbnailService {
     }
   }
   async clearCache() {
-    log$h("Clearing disk cache at:", this.cacheDir);
+    log$i("Clearing disk cache at:", this.cacheDir);
     try {
       await fs$1.emptyDir(this.cacheDir);
-      log$h("Disk cache cleared successfully");
+      log$i("Disk cache cleared successfully");
     } catch (e) {
       logError$1("Failed to clear disk cache:", e);
     }
@@ -7789,21 +8118,21 @@ class ThumbnailService {
     let totalSize = 0;
     try {
       const files = await fs$1.readdir(this.cacheDir);
-      log$h("Calculating cache size, files count:", files.length);
+      log$i("Calculating cache size, files count:", files.length);
       for (const file of files) {
         const stat2 = await fs$1.stat(path__default.join(this.cacheDir, file));
         totalSize += stat2.size;
       }
-      log$h("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
+      log$i("Total cache size:", totalSize, "bytes (", (totalSize / 1024 / 1024).toFixed(2), "MB)");
     } catch (e) {
       logError$1("Failed to calculate cache size:", e);
     }
     return totalSize;
   }
 }
-const execFileAsync = promisify(execFile);
+const execFileAsync$1 = promisify(execFile);
 const LOG_PREFIX = "[ImageDecodeService]";
-function log$g(...args) {
+function log$h(...args) {
   console.log(LOG_PREFIX, ...args);
 }
 function logError(...args) {
@@ -7834,7 +8163,7 @@ class ImageDecodeService {
       }
       await this.runSips(inputFile, outFile, maxDim);
       const bytes = await fs$1.readFile(outFile);
-      log$g(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
+      log$h(`decoded ${filePath} → ${bytes.length} bytes jpeg (maxDim ${maxDim})`);
       return { buffer: bytes.toString("base64"), mime: "image/jpeg" };
     } finally {
       for (const t2 of temps) {
@@ -7849,7 +8178,7 @@ class ImageDecodeService {
    */
   async runSips(input, output, maxDim) {
     try {
-      await execFileAsync("sips", [
+      await execFileAsync$1("sips", [
         "-s",
         "format",
         "jpeg",
@@ -8070,7 +8399,7 @@ function dosDateToIso(date, time) {
   const seconds = (time & 31) * 2;
   return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
 }
-const log$f = {
+const log$g = {
   info: (message, ...args) => console.log(`[VolumeScanner] ${message}`, ...args),
   error: (message, ...args) => console.error(`[VolumeScanner] ${message}`, ...args),
   debug: (message, ...args) => console.log(`[VolumeScanner] DEBUG: ${message}`, ...args)
@@ -8094,7 +8423,7 @@ class VolumeScanner {
     if (this.scannerInterval) {
       this.stop();
     }
-    log$f.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
+    log$g.info("Starting volume scanner", { interval: this.options.scanInterval, dir: this.options.volumesDir });
     this.scan();
     this.scannerInterval = setInterval(() => {
       this.scan();
@@ -8107,7 +8436,7 @@ class VolumeScanner {
     if (this.scannerInterval) {
       clearInterval(this.scannerInterval);
       this.scannerInterval = null;
-      log$f.info("Volume scanner stopped");
+      log$g.info("Volume scanner stopped");
     }
   }
   /**
@@ -8121,7 +8450,7 @@ class VolumeScanner {
       const detected = await this.detectVolumes();
       volumes.push(...detected);
     } catch (error) {
-      log$f.error("Volume scan error:", error);
+      log$g.error("Volume scan error:", error);
     }
     const newIds = new Set(volumes.map((v) => v.id));
     const oldIds = new Set(this.currentVolumes.keys());
@@ -8136,10 +8465,10 @@ class VolumeScanner {
       }
     }
     if (added.length > 0) {
-      log$f.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
+      log$g.info("Volumes added:", added.map((v) => ({ id: v.id, name: v.name })));
     }
     if (removed.length > 0) {
-      log$f.info("Volumes removed:", removed);
+      log$g.info("Volumes removed:", removed);
     }
     this.currentVolumes.clear();
     for (const volume of volumes) {
@@ -8161,7 +8490,7 @@ class VolumeScanner {
     try {
       entries = await fs$1.readdir(this.options.volumesDir, { withFileTypes: true });
     } catch (error) {
-      log$f.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
+      log$g.debug("Cannot read volumes dir, treating as empty:", this.options.volumesDir, error);
       return [];
     }
     for (const entry of entries) {
@@ -8200,7 +8529,7 @@ class VolumeScanner {
       try {
         handler(volumes, added, removed);
       } catch (error) {
-        log$f.error("Volume change handler error:", error);
+        log$g.error("Volume change handler error:", error);
       }
     }
   }
@@ -8473,6 +8802,29 @@ runSafe()
 const OSASCRIPT_BIN = "/usr/bin/osascript";
 class SystemClipboardService {
   /**
+   * 把一张位图写入系统剪贴板（设备截屏「拷贝」直出，任何应用 ⌘V 可粘）。
+   *
+   * 与文件引用不同，纯图片数据用 Electron clipboard API 是可靠路径：
+   * writeImage 单 item 单表示，不存在多文件 URL 的先清后写覆盖问题
+   * （见类头注释的 JXA 逃逸原因），且自动落 TIFF+PNG 双表示（macOS 惯例）。
+   * 输入为 base64（PNG/JPEG，移动截屏链路的数据形态）。
+   */
+  writeImage(base64, mime) {
+    try {
+      const buffer = Buffer.from(base64, "base64");
+      const image2 = nativeImage.createFromBuffer(buffer, { scaleFactor: 1 });
+      if (image2.isEmpty()) {
+        console.error("[SystemClipboardService] writeImage: decoded image is empty", { mime, bytes: buffer.length });
+        return false;
+      }
+      clipboard.writeImage(image2);
+      return true;
+    } catch (e) {
+      console.error("[SystemClipboardService] writeImage failed:", e.message);
+      return false;
+    }
+  }
+  /**
    * 把一组本地绝对路径写入系统剪贴板（file URL items，Finder 可 ⌘V）。
    * 非绝对路径直接过滤；全部被过滤或非 darwin 平台返回 false（调用方静默降级）。
    */
@@ -8562,8 +8914,75 @@ class SystemClipboardService {
       );
     });
   }
+  /**
+   * 轻量探测系统剪贴板的可保存内容（「从剪贴板新建文件」菜单项的依据）。
+   * 只返回元数据 + 预览片段，永不含全量数据；任何失败静默降级 {kind:'none'}
+   * （与文件引用读侧同一约定：菜单宁缺勿假）。
+   *
+   * 判定顺序（防误判的关键）：文件引用 → 图片 → 文本。Finder 复制文件时
+   * 粘贴板上常同时有文件名文本（甚至图标位图），若文本/图片先判会误显示
+   * 「新建文本文件」；文件引用存在时该场景本就该走既有「粘贴」。
+   */
+  async probeContent() {
+    try {
+      const files = await this.readLocalFiles();
+      if (files.length > 0) return { kind: "files", fileCount: files.length };
+      const image2 = clipboard.readImage();
+      if (!image2.isEmpty()) {
+        const png = image2.toPNG();
+        const preview = image2.getSize().width > 320 ? image2.resize({ width: 320 }).toPNG() : png;
+        return {
+          kind: "image",
+          byteSize: png.length,
+          previewDataUrl: `data:image/png;base64,${preview.toString("base64")}`,
+          tooLarge: png.length > 20 * 1024 * 1024
+        };
+      }
+      const text2 = clipboard.readText();
+      if (text2.trim().length > 0) {
+        const byteSize = Buffer.byteLength(text2, "utf8");
+        return {
+          kind: "text",
+          byteSize,
+          previewText: text2.slice(0, 200),
+          truncated: text2.length > 200,
+          tooLarge: byteSize > 10 * 1024 * 1024
+        };
+      }
+      return { kind: "none" };
+    } catch (e) {
+      console.error("[SystemClipboardService] probeContent failed:", e.message);
+      return { kind: "none" };
+    }
+  }
+  /**
+   * 写入瞬间的全量读取（readFile → writeFile 之间板内容可能已变）。
+   * 判定顺序与 probeContent 完全一致（文件引用优先）：确认瞬间用户若从
+   * Finder 复制了文件，板上的文件名文本不是本功能的保存对象，返回 none。
+   * 超限或内容变化同样返回 none，由渲染层提示「剪贴板内容已变化」。
+   */
+  async readData() {
+    try {
+      const files = await this.readLocalFiles();
+      if (files.length > 0) return { kind: "none" };
+      const image2 = clipboard.readImage();
+      if (!image2.isEmpty()) {
+        const png = image2.toPNG();
+        if (png.length > 20 * 1024 * 1024) return { kind: "none" };
+        return { kind: "image", base64: png.toString("base64") };
+      }
+      const text2 = clipboard.readText();
+      if (text2.trim().length > 0 && Buffer.byteLength(text2, "utf8") <= 10 * 1024 * 1024) {
+        return { kind: "text", text: text2 };
+      }
+      return { kind: "none" };
+    } catch (e) {
+      console.error("[SystemClipboardService] readData failed:", e.message);
+      return { kind: "none" };
+    }
+  }
 }
-const log$e = console;
+const log$f = console;
 class FileMetadataService {
   constructor(configService2) {
     this.configService = configService2;
@@ -8577,7 +8996,7 @@ class FileMetadataService {
     const value = { deviceId, path: filePath, tags: normalized, updatedAt: Date.now() };
     metadata.push(value);
     this.save(metadata);
-    log$e.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
+    log$f.info("[FileMetadataService] tags saved", { deviceId, filePath, tagCount: normalized.length });
     return value;
   }
   findByTags(tags) {
@@ -8592,32 +9011,100 @@ class FileMetadataService {
     this.configService.saveConfig({ fileMetadata });
   }
 }
-const log$d = console;
+const log$e = console;
 function joinPath(parent, name) {
   return `${parent.replace(/\/+$/, "") || "/"}/${name}`.replace(/\/\/+/g, "/");
 }
 function basename(filePath) {
   return filePath.replace(/\/+$/, "").split("/").pop() || "archive";
 }
+function dirname(filePath) {
+  const trimmed = filePath.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  if (idx < 0) return "/";
+  return trimmed.slice(0, idx) || "/";
+}
 class ArchiveService {
   constructor(deviceManager2) {
     this.deviceManager = deviceManager2;
   }
   /**
-   * 任务化打包：递归收集源文件 → zipSync → 一次性写 zipPath。
-   * 只在最后写盘，中途取消/失败不留半成品。
-   * 注：整包在内存中构建（与既有行为一致），超大目录会吃内存——
-   * 流式 zip 为后续优化项。
+   * 任务化打包：递归收集源文件 → 流式（或整包）写 zipPath。
+   * 只在收尾 rename 后目标才可见，中途取消/失败不留半成品。
    */
   async runCreateZip(adapter, sourcePaths, zipPath, hooks) {
+    if (adapter.openWriteStream) {
+      await this.runCreateZipStreaming(adapter, sourcePaths, zipPath, hooks);
+      return;
+    }
     const entries = {};
     for (const sourcePath of sourcePaths) {
-      await this.collect(adapter, sourcePath, basename(sourcePath), entries, hooks);
+      await this.collect(adapter, sourcePath, basename(sourcePath), (name, data) => {
+        entries[name] = data;
+      }, hooks);
     }
     hooks.onCompressing();
     if (hooks.shouldCancel()) throw new CancelledError$2();
     await adapter.writeFile(zipPath, Buffer.from(zipSync(entries, { level: 6 })));
-    log$d.info("[ArchiveService] archive created", { zipPath, entryCount: Object.keys(entries).length });
+    log$e.info("[ArchiveService] archive created", { zipPath, entryCount: Object.keys(entries).length });
+  }
+  /** 流式创建：ZipDeflate 逐文件喂入，输出块即写 ws（背压 drain 等待），tmp + rename 原子收尾。 */
+  async runCreateZipStreaming(adapter, sourcePaths, zipPath, hooks) {
+    const tmpPath = joinPath(dirname(zipPath), `.fileman-${crypto.randomUUID()}.tmp`);
+    const ws = await adapter.openWriteStream(tmpPath);
+    let wsError = null;
+    ws.once("error", (err) => {
+      wsError = wsError ?? err;
+    });
+    let backpressure = [];
+    let entryCount = 0;
+    const zip = new Zip((err, chunk) => {
+      if (err) {
+        wsError = wsError ?? new Error(`zip stream error: ${err.message}`);
+        return;
+      }
+      if (chunk && !ws.write(Buffer.from(chunk))) {
+        backpressure.push(new Promise((resolve) => ws.once("drain", () => resolve())));
+      }
+    });
+    const settle = async () => {
+      const pending = backpressure;
+      backpressure = [];
+      await Promise.all(pending);
+      if (wsError) throw wsError;
+    };
+    try {
+      hooks.onCompressing();
+      const emit = async (name, data) => {
+        const entry = new ZipDeflate(name, { level: 6 });
+        zip.add(entry);
+        entry.push(data, true);
+        entryCount++;
+        await settle();
+      };
+      for (const sourcePath of sourcePaths) {
+        await this.collect(adapter, sourcePath, basename(sourcePath), emit, hooks);
+      }
+      if (wsError) throw wsError;
+      zip.end();
+      await settle();
+      await new Promise((resolve, reject) => {
+        const onErr = (err) => reject(err);
+        ws.once("error", onErr);
+        ws.end(() => {
+          ws.off("error", onErr);
+          resolve();
+        });
+      });
+      if (wsError) throw wsError;
+      await adapter.rename(tmpPath, zipPath);
+    } catch (error) {
+      ws.destroy();
+      await new Promise((resolve) => finished(ws, () => resolve()));
+      await adapter.delete(tmpPath).catch(() => void 0);
+      throw error;
+    }
+    log$e.info("[ArchiveService] archive created (streaming)", { zipPath, entryCount });
   }
   async extractZip(deviceId, archivePath, targetDirectory) {
     const entries = unzipSync(await this.deviceManager.readFile(deviceId, archivePath));
@@ -8629,21 +9116,21 @@ class ArchiveService {
       await this.deviceManager.writeFile(deviceId, outputPath, Buffer.from(data));
       count++;
     }
-    log$d.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
+    log$e.info("[ArchiveService] archive extracted", { deviceId, archivePath, targetDirectory, count });
     return { count };
   }
-  async collect(adapter, sourcePath, relativePath, entries, hooks) {
+  async collect(adapter, sourcePath, relativePath, emit, hooks) {
     if (hooks.shouldCancel()) throw new CancelledError$2();
     const stat2 = await adapter.stat(sourcePath);
     if (stat2.isFile) {
       const data = await adapter.readFile(sourcePath);
-      entries[relativePath] = data;
+      await emit(relativePath, data);
       hooks.onFileRead(basename(sourcePath), stat2.size);
       return;
     }
     const children = await adapter.list(sourcePath);
-    for (const child of children) await this.collect(adapter, child.path, `${relativePath}/${child.name}`, entries, hooks);
-    if (children.length === 0) entries[`${relativePath}/.keep`] = strToU8("");
+    for (const child of children) await this.collect(adapter, child.path, `${relativePath}/${child.name}`, emit, hooks);
+    if (children.length === 0) emit(`${relativePath}/.keep`, strToU8(""));
   }
   async ensureParentDirectories(deviceId, outputPath) {
     const parts = outputPath.split("/").filter(Boolean);
@@ -8653,6 +9140,275 @@ class ArchiveService {
       if (!await this.deviceManager.exists(deviceId, current)) await this.deviceManager.mkdir(deviceId, current);
     }
   }
+}
+const log$d = console;
+const ARCHIVE_PASSWORD_MARKER = "FILEMAN_ARCHIVE_PASSWORD";
+class SevenZipService {
+  available = null;
+  /** 7zz 是否可用（捆绑存在或 $PATH/brew 可执行；结果缓存）。 */
+  async isAvailable() {
+    if (this.available !== null) return this.available;
+    if (!ToolPathResolver.hasSevenZip()) {
+      this.available = false;
+      return false;
+    }
+    try {
+      await this.run(["i"], { timeoutMs: 1e4 });
+      this.available = true;
+    } catch {
+      this.available = false;
+    }
+    return this.available;
+  }
+  /**
+   * 创建 7z（本地）。cwd = 源公共父目录、源用相对名 —— 条目根 = 源自身名
+   * （与既有 zip 创建的 basename 语义一致，多选各自成根目录）。
+   * 密码 → `-p<密码>` + `-mhe=on`（连文件名一并加密）。
+   */
+  async create7z(sourcePaths, archivePath, opts, hooks) {
+    const cwd = commonParentDir(sourcePaths);
+    const relativeNames = sourcePaths.map((p) => path__default.relative(cwd, p) || path__default.basename(p));
+    const sizes = await scanSizes(sourcePaths);
+    const args = [
+      "a",
+      "-t7z",
+      "-bd",
+      "-y",
+      "-bb1",
+      ...opts.password ? [`-p${opts.password}`, "-mhe=on"] : [],
+      archivePath,
+      ...relativeNames
+    ];
+    try {
+      await this.run(args, {
+        cwd,
+        onLine: (line) => {
+          if (!line.startsWith("+ ")) return;
+          const name = line.slice(2).trim();
+          hooks.onFileRead(path__default.basename(name) || name, sizes.get(name) ?? 0);
+        },
+        shouldCancel: hooks.shouldCancel
+      });
+    } catch (error) {
+      if (error instanceof CancelledError$2) {
+        await fs$1.remove(archivePath).catch(() => void 0);
+        throw error;
+      }
+      throw error;
+    }
+    log$d.info("[SevenZipService] archive created", { archivePath, sources: sourcePaths.length });
+  }
+  /**
+   * 解压（本地）。先 `l -slt` 探测：加密档无/错密码 → ARCHIVE_PASSWORD_MARKER；
+   * 再校验条目路径安全（拒绝 `..` 与绝对路径，与 fflate 路径同语义）；
+   * 最后 `x` 到 targetDirectory。
+   */
+  async extract(archivePath, targetDirectory, opts = {}) {
+    const pwArgs = opts.password ? [`-p${opts.password}`] : [];
+    const probeArgs = ["l", "-slt", "-ba", ...pwArgs, archivePath];
+    let listOutput;
+    try {
+      listOutput = (await this.run(probeArgs, { timeoutMs: 6e4 })).stdout;
+    } catch (error) {
+      throw this.decoratePasswordError(error, archivePath, opts.password);
+    }
+    const entries = parseListPaths(listOutput);
+    let count = 0;
+    for (const entryPath of entries) {
+      if (entryPath.includes("..") || entryPath.startsWith("/")) {
+        throw new Error(t("errors.main.archiveUnsafeEntry", { path: entryPath }));
+      }
+      count++;
+    }
+    try {
+      await this.run(["x", "-y", "-bd", ...pwArgs, `-o${targetDirectory}`, archivePath], {
+        shouldCancel: () => false
+      });
+    } catch (error) {
+      throw this.decoratePasswordError(error, archivePath, opts.password);
+    }
+    log$d.info("[SevenZipService] archive extracted", { archivePath, targetDirectory, count });
+    return { count };
+  }
+  /** 7zz 交互式密码提示在非 tty 下变成 "Break signaled"——探测/解压失败统一转密码标记。 */
+  decoratePasswordError(error, archivePath, password) {
+    const text2 = error instanceof Error ? error.message : String(error);
+    if (/Wrong password|Enter password|Cannot open encrypted archive/i.test(text2)) {
+      const reason = password ? t("errors.main.archiveWrongPassword") : t("errors.main.archivePasswordRequired");
+      return new Error(`${ARCHIVE_PASSWORD_MARKER}: ${reason} (${path__default.basename(archivePath)})`);
+    }
+    return error instanceof Error ? error : new Error(text2);
+  }
+  /** 运行一条 7zz 命令；非零退出码 reject（带输出摘要）。 */
+  run(args, options = {}) {
+    const timeoutMs = options.timeoutMs ?? 0;
+    return new Promise((resolve, reject) => {
+      const child = spawn(ToolPathResolver.getSevenZipExecutable(), args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        cwd: options.cwd
+      });
+      const outChunks = [];
+      const errChunks = [];
+      let outTail = "";
+      let settled = false;
+      const timer = timeoutMs > 0 ? setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill();
+        reject(new Error(t("errors.main.sevenZipTimeout", { timeout: timeoutMs, command: args.join(" ") })));
+      }, timeoutMs) : null;
+      let cancelTimer = null;
+      if (options.shouldCancel) {
+        cancelTimer = setInterval(() => {
+          if (options.shouldCancel()) {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            if (cancelTimer) clearInterval(cancelTimer);
+            child.kill();
+            reject(new CancelledError$2());
+          }
+        }, 500);
+      }
+      child.stdout?.on("data", (chunk) => {
+        outChunks.push(Buffer.from(chunk));
+        if (options.onLine) {
+          outTail += chunk.toString("utf8");
+          const lines = outTail.split("\n");
+          outTail = lines.pop() ?? "";
+          for (const line of lines) options.onLine(line);
+        }
+      });
+      child.stderr?.on("data", (chunk) => errChunks.push(Buffer.from(chunk)));
+      child.once("error", (error) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        if (cancelTimer) clearInterval(cancelTimer);
+        reject(new Error(t("errors.main.sevenZipRunFailed", { message: error.message })));
+      });
+      child.once("close", (code) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        if (cancelTimer) clearInterval(cancelTimer);
+        if (options.onLine && outTail) options.onLine(outTail);
+        const stdout = Buffer.concat(outChunks).toString("utf8");
+        const stderr = Buffer.concat(errChunks).toString("utf8").trim();
+        if (code !== 0) {
+          reject(new Error(t("errors.main.sevenZipCommandFailed", {
+            code: String(code),
+            command: `7zz ${args.join(" ")}${(stdout + stderr).trim() ? `: ${(stdout + stderr).trim().slice(0, 400)}` : ""}`
+          })));
+          return;
+        }
+        resolve({ stdout, stderr, code });
+      });
+    });
+  }
+}
+function parseListPaths(output) {
+  const paths = [];
+  for (const line of output.split("\n")) {
+    const match = line.match(/^Path = (.+)$/);
+    if (match) paths.push(match[1].trim());
+  }
+  return paths;
+}
+async function scanSizes(sourcePaths) {
+  const sizes = /* @__PURE__ */ new Map();
+  const walk = async (abs, rel) => {
+    const stat2 = await fs$1.stat(abs).catch(() => null);
+    if (!stat2) return;
+    if (stat2.isFile()) {
+      sizes.set(rel, stat2.size);
+      return;
+    }
+    const children = await fs$1.readdir(abs).catch(() => []);
+    for (const child of children) await walk(path__default.join(abs, child), `${rel}/${child}`);
+  };
+  for (const source of sourcePaths) {
+    await walk(source, path__default.basename(source));
+  }
+  return sizes;
+}
+function commonParentDir(paths) {
+  if (paths.length === 0) return process.cwd();
+  const dirs = paths.map((p) => path__default.dirname(path__default.resolve(p)));
+  let common = dirs[0];
+  for (const dir of dirs.slice(1)) {
+    while (common !== path__default.dirname(common) && !dir.startsWith(common + path__default.sep)) {
+      common = path__default.dirname(common);
+    }
+  }
+  return common;
+}
+const execFileAsync = promisify(execFile);
+const XATTR_BIN = "/usr/bin/xattr";
+const EXEC_OPTS = { timeout: 1e4, maxBuffer: 4 * 1024 * 1024 };
+const PREVIEW_MAX = 96;
+const PRINTABLE_RATIO = 0.9;
+class XattrService {
+  /** 列出路径的全部扩展属性（输出顺序即展示顺序）。 */
+  async list(filePath) {
+    const names = (await this.exec([filePath])).split("\n").map((line) => line.trim()).filter(Boolean);
+    const entries = [];
+    for (const name of names) {
+      const hex = await this.exec(["-px", name, filePath]);
+      const bytes = parseHexDump(hex);
+      entries.push({
+        name,
+        sizeBytes: bytes.length,
+        ...previewOf(bytes),
+        isQuarantine: name === "com.apple.quarantine"
+      });
+    }
+    return entries;
+  }
+  /** 删除单个属性；属性本就不存在视为成功（幂等，quarantine 常见）。 */
+  async remove(filePath, name, recursive = false) {
+    await this.exec(["-d", ...recursive ? ["-r"] : [], name, filePath], { tolerateMissing: true });
+  }
+  /** 写入字符串值属性（二进制值不支持——UI 仅暴露字符串编辑）。 */
+  async set(filePath, name, value) {
+    await this.exec(["-w", name, value, filePath]);
+  }
+  /** 移除隔离标记（quarantine）；目录默认递归到其内容。 */
+  async removeQuarantine(filePath, recursive = false) {
+    await this.remove(filePath, "com.apple.quarantine", recursive);
+  }
+  async exec(args, opts = {}) {
+    try {
+      const { stdout } = await execFileAsync(XATTR_BIN, args, EXEC_OPTS);
+      return stdout;
+    } catch (error) {
+      const err = error;
+      const stderr = (err.stderr ?? "").trim();
+      if (opts.tolerateMissing && /No such xattr/i.test(stderr)) return "";
+      throw new Error(t("errors.main.xattrFailed", { detail: stderr || err.message || "xattr failed" }));
+    }
+  }
+}
+function parseHexDump(hex) {
+  const bytes = [];
+  for (const token of hex.trim().split(/\s+/)) {
+    if (!token) continue;
+    const value = parseInt(token, 16);
+    if (Number.isNaN(value)) continue;
+    bytes.push(value);
+  }
+  return bytes;
+}
+function previewOf(bytes) {
+  if (bytes.length === 0) return { textPreview: "" };
+  const decoded = Buffer.from(bytes).toString("utf8");
+  let printable = 0;
+  for (const ch of decoded) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 32 || ch === "	" || ch === "\n" || ch === "\r") printable++;
+  }
+  if (printable / decoded.length < PRINTABLE_RATIO) return {};
+  return { textPreview: decoded.slice(0, PREVIEW_MAX) };
 }
 const log$c = console;
 function posixJoin(directory, name) {
@@ -10415,6 +11171,10 @@ const systemClipboardService = new SystemClipboardService();
 const fileMetadataService = new FileMetadataService(configService);
 const archiveService = new ArchiveService(deviceManager);
 fileOperationManager.setArchiveService(archiveService);
+const sevenZipService = new SevenZipService();
+fileOperationManager.setSevenZipService(sevenZipService);
+fileOperationManager.setImageEditService(imageEditService);
+const xattrService = new XattrService();
 const mobileScreenshotService = new MobileScreenshotService(deviceManager);
 const contentVerificationService = new ContentVerificationService(deviceManager);
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService);
@@ -10513,6 +11273,15 @@ ipcMain.handle(CH.invoke.systemReadFileClipboard, async () => {
 });
 ipcMain.handle(CH.invoke.systemClearFileClipboard, async () => {
   return systemClipboardService.clearFileClipboard();
+});
+ipcMain.handle(CH.invoke.systemWriteImageClipboard, (_, base64, mime) => {
+  return systemClipboardService.writeImage(base64, mime);
+});
+ipcMain.handle(CH.invoke.systemProbeClipboardContent, async () => {
+  return systemClipboardService.probeContent();
+});
+ipcMain.handle(CH.invoke.systemReadClipboardData, async () => {
+  return systemClipboardService.readData();
 });
 ipcMain.handle(CH.invoke.fileInfoWindowOpen, (event, context) => {
   if (!context || !Array.isArray(context.files) || context.files.length === 0) {
@@ -10617,6 +11386,22 @@ ipcMain.handle(CH.invoke.fsChown, async (_, deviceId, targetPath, uid, gid) => {
   }
   return adapter.chown(targetPath, uid, gid);
 });
+function assertXattrTarget(deviceId, targetPath) {
+  if (deviceId !== "local") throw new Error(t("errors.main.xattrLocalOnly"));
+  if (isZipVirtualPath(targetPath)) throw new Error(t("errors.main.xattrZipEntryUnsupported"));
+}
+ipcMain.handle(CH.invoke.fsXattrList, async (_, deviceId, targetPath) => {
+  assertXattrTarget(deviceId, targetPath);
+  return xattrService.list(targetPath);
+});
+ipcMain.handle(CH.invoke.fsXattrRemove, async (_, deviceId, targetPath, name, recursive) => {
+  assertXattrTarget(deviceId, targetPath);
+  return xattrService.remove(targetPath, name, recursive);
+});
+ipcMain.handle(CH.invoke.fsXattrSet, async (_, deviceId, targetPath, name, value) => {
+  assertXattrTarget(deviceId, targetPath);
+  return xattrService.set(targetPath, name, value);
+});
 ipcMain.handle(CH.invoke.spaceStart, (event, request) => {
   return spaceAnalyzerService.start(request, (progress) => {
     if (!event.sender.isDestroyed()) event.sender.send(CH.push.spaceProgress, progress);
@@ -10708,7 +11493,7 @@ ipcMain.handle(CH.invoke.fsSaveHexFile, async (_, deviceId, path2, pieces) => {
       bytesWritten += Buffer.from(piece.base64, "base64").length;
     }
   }
-  const tempPath = join(dirname(path2), `.${basename$1(path2)}.hexsave-${process.pid}-${Date.now()}.tmp`);
+  const tempPath = join(dirname$1(path2), `.${basename$1(path2)}.hexsave-${process.pid}-${Date.now()}.tmp`);
   const out = fs$1.createWriteStream(tempPath, { mode: st.mode });
   try {
     await new Promise((resolve, reject) => {
@@ -10891,18 +11676,38 @@ ipcMain.handle(
 ipcMain.handle(CH.invoke.fileMetadataFindByTags, (_, tags) => fileMetadataService.findByTags(tags));
 ipcMain.handle(
   CH.invoke.archiveCreate,
-  (_, deviceId, sourcePaths, targetDirectory, archiveName) => fileOperationManager.addTask({
+  (_, deviceId, sourcePaths, targetDirectory, archiveName, format, password) => fileOperationManager.addTask({
     type: "archive",
     sourceDeviceId: deviceId,
     sourcePaths,
     targetDeviceId: deviceId,
     targetPath: targetDirectory,
-    newName: archiveName
+    newName: archiveName,
+    format,
+    password
   })
 );
+ipcMain.handle(CH.invoke.archiveExtract, async (_, deviceId, archivePath, targetDirectory, password) => {
+  const ext = archivePath.split(".").pop()?.toLowerCase();
+  if (ext === "7z" || ext === "rar") {
+    if (deviceId !== "local") throw new Error(t("errors.main.sevenZipLocalOnly"));
+    if (!await sevenZipService.isAvailable()) throw new Error(t("errors.main.sevenZipUnavailable"));
+    return sevenZipService.extract(archivePath, targetDirectory, { password });
+  }
+  return archiveService.extractZip(deviceId, archivePath, targetDirectory);
+});
 ipcMain.handle(
-  CH.invoke.archiveExtract,
-  (_, deviceId, archivePath, targetDirectory) => archiveService.extractZip(deviceId, archivePath, targetDirectory)
+  CH.invoke.archiveToolInfo,
+  () => sevenZipService.isAvailable().then((sevenZip) => ({ sevenZip }))
+);
+ipcMain.handle(
+  CH.invoke.imageConvert,
+  (_, deviceId, sourcePaths, convert) => fileOperationManager.addTask({
+    type: "image-convert",
+    sourceDeviceId: deviceId,
+    sourcePaths,
+    convert
+  })
 );
 ipcMain.handle(
   CH.invoke.mobileCaptureScreenshot,
@@ -11047,6 +11852,25 @@ deviceManager.onDeviceChange((devices) => {
     }
   });
 });
+async function streamRemoteFileHead(deviceId, filePath, maxBytes) {
+  const adapter = await deviceManager.getReadyAdapter(deviceId);
+  const capabilities = adapter.getCapabilities();
+  if (!capabilities.canStream || !adapter.openReadStream) return null;
+  const stream = await adapter.openReadStream(filePath);
+  const chunks = [];
+  let received = 0;
+  for await (const chunkRaw of stream) {
+    const chunk = chunkRaw;
+    const take = Math.min(chunk.length, maxBytes - received);
+    chunks.push(chunk.subarray(0, take));
+    received += take;
+    if (received >= maxBytes) {
+      stream.destroy();
+      break;
+    }
+  }
+  return Buffer.concat(chunks);
+}
 ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId, filePath, size, mtime, thumbnailSize) => {
   return thumbnailService.getThumbnail(
     deviceId,
@@ -11062,7 +11886,8 @@ ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId, filePath, size, mtime
         return zipService.readEntry(zipFilePath, innerPath);
       }
       return deviceManager.readFile(devId, path2);
-    }
+    },
+    streamRemoteFileHead
   );
 });
 ipcMain.handle(CH.invoke.thumbnailClearCache, async () => {

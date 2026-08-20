@@ -76,6 +76,7 @@ test('file menu IA groups and separators match Finder layout', async ({ page }) 
     '打开',
     '移到废纸篓',
     '显示简介',
+    '移除隔离标记',
     '重新命名…',
     '压缩“notes.txt”',
     '拷贝',
@@ -103,9 +104,9 @@ test('file menu IA groups and separators match Finder layout', async ({ page }) 
 test('three-column anatomy: icon column on every item, shortcut column present', async ({ page }) => {
   await openFileMenu(page)
   const items = page.locator('.context-menu > .context-menu-item')
-  await expect(items).toHaveCount(16)
+  await expect(items).toHaveCount(17)
   // 每个顶层项都有图标占位（无图标项也保持三列对齐）
-  await expect(page.locator('.context-menu > .context-menu-item > .menu-icon')).toHaveCount(16)
+  await expect(page.locator('.context-menu > .context-menu-item > .menu-icon')).toHaveCount(17)
   // 图标统一 16px；行高 28px；正文 14px / 快捷键 12px（等弹出动画结束再量）
   await page.waitForTimeout(250)
   const metrics = await page.locator('.context-menu > .context-menu-item').first().evaluate(el => {
@@ -147,9 +148,10 @@ test('keyboard: arrows navigate, submenu enter/leave, Enter activates, Esc close
   await page.keyboard.press('ArrowDown')
   await expect(page.locator('.context-menu > .context-menu-item.highlighted > .menu-label')).toHaveText('移到废纸篓')
 
-  // ↓↓… 走到 拷贝路径（第 15 个可导航项，中间分隔线全部跳过；
-  // 扩展能力已回迁顶层，不再经过「快速操作」中转；2026-08-19 插入「标记颜色…」）
-  for (let i = 0; i < 13; i++) await page.keyboard.press('ArrowDown')
+  // ↓↓… 走到 拷贝路径（第 16 个可导航项，中间分隔线全部跳过；
+  // 扩展能力已回迁顶层，不再经过「快速操作」中转；2026-08-19 插入「标记颜色…」，
+  // 2026-08-20 插入「移除隔离标记」）
+  for (let i = 0; i < 14; i++) await page.keyboard.press('ArrowDown')
   await expect(page.locator('.context-menu > .context-menu-item.highlighted > .menu-label')).toHaveText('拷贝路径')
 
   // → 展开子菜单并进入第一个子项（POSIX 路径），Enter 写剪贴板
@@ -162,9 +164,9 @@ test('keyboard: arrows navigate, submenu enter/leave, Enter activates, Esc close
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('/fw/notes.txt')
 
   // ← 收起语义：重新打开菜单，进入子菜单后 ← 高亮退回父项并收起子菜单
-  // （与上段一致的步数：1 次起步 + 14 次到 拷贝路径）
+  // （与上段一致的步数：1 次起步 + 15 次到 拷贝路径）
   await openFileMenu(page)
-  for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowDown')
+  for (let i = 0; i < 16; i++) await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowRight')
   await expect(page.locator('.context-menu .context-submenu')).toBeVisible()
   await page.keyboard.press('ArrowLeft')

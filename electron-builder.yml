@@ -49,6 +49,13 @@ extraResources:
   - from: build/tools/rg
     to: rg
     filter: ["**/*"]
+  # 7zz（7-Zip 官方 CLI，mac universal 单文件）—— 7z 创建/解压与 rar 解压引擎。
+  # 由 scripts/fetch-7zz.sh 从 ip7z/7zip release 投放到 build/tools/7zz/7zz。
+  # 缺省时 ToolPathResolver 回退 $PATH/brew 的 7zz，再缺失则 7z/rar 能力不可用
+  # （zip 流式创建走 fflate，不受影响）。
+  - from: build/tools/7zz
+    to: 7zz
+    filter: ["**/*"]
   # iOS native addon + bundled libimobiledevice dylib chain (populated by
   # scripts/bundle-ios-dylibs.sh; empty dir if iOS addon not built → iOS disabled).
   - from: build/ios-native

@@ -41,6 +41,8 @@ import type {
   EditApplyResult,
   ImageEditBatchRequest,
   ImageEditBatchProgress,
+  ImageConvertSpec,
+  XattrEntry,
   ClipboardProbe,
   ClipboardData,
 } from '@shared/types'
@@ -244,6 +246,14 @@ const filemanAPI = {
   chown: (deviceId: string, targetPath: string, uid: number, gid: number): Promise<void> =>
     ipcRenderer.invoke(CH.invoke.fsChown, deviceId, targetPath, uid, gid),
 
+  // ============ xattr（macOS 扩展属性，仅本机设备） ============
+  listXattrs: (deviceId: string, path: string): Promise<XattrEntry[]> =>
+    ipcRenderer.invoke(CH.invoke.fsXattrList, deviceId, path),
+  removeXattr: (deviceId: string, path: string, name: string, recursive: boolean): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.fsXattrRemove, deviceId, path, name, recursive),
+  setXattr: (deviceId: string, path: string, name: string, value: string): Promise<void> =>
+    ipcRenderer.invoke(CH.invoke.fsXattrSet, deviceId, path, name, value),
+
   // ============ Read Chunk (hex 预览分块读取) ============
   readChunk: (deviceId: string, path: string, offset: number, length: number): Promise<ReadChunkResult> =>
     ipcRenderer.invoke(CH.invoke.fsReadChunk, deviceId, path, offset, length),
@@ -305,10 +315,15 @@ const filemanAPI = {
   setFileTags: (deviceId: string, filePath: string, tags: string[]) =>
     ipcRenderer.invoke(CH.invoke.fileMetadataSetTags, deviceId, filePath, tags),
   findFilesByTags: (tags: string[]) => ipcRenderer.invoke(CH.invoke.fileMetadataFindByTags, tags),
-  createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string): Promise<FileOperationTask> =>
-    ipcRenderer.invoke(CH.invoke.archiveCreate, deviceId, sourcePaths, targetDirectory, archiveName),
-  extractArchive: (deviceId: string, archivePath: string, targetDirectory: string) =>
-    ipcRenderer.invoke(CH.invoke.archiveExtract, deviceId, archivePath, targetDirectory),
+  createArchive: (deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string, format?: 'zip' | '7z', password?: string): Promise<FileOperationTask> =>
+    ipcRenderer.invoke(CH.invoke.archiveCreate, deviceId, sourcePaths, targetDirectory, archiveName, format, password),
+  extractArchive: (deviceId: string, archivePath: string, targetDirectory: string, password?: string) =>
+    ipcRenderer.invoke(CH.invoke.archiveExtract, deviceId, archivePath, targetDirectory, password),
+  /** 7zz 可用性（7Z 创建入口与 7z/rar 解压门控）。 */
+  getArchiveToolInfo: (): Promise<{ sevenZip: boolean }> =>
+    ipcRenderer.invoke(CH.invoke.archiveToolInfo),
+  createImageConvert: (deviceId: string, sourcePaths: string[], convert: ImageConvertSpec): Promise<FileOperationTask> =>
+    ipcRenderer.invoke(CH.invoke.imageConvert, deviceId, sourcePaths, convert),
   captureMobileScreenshot: (deviceId: string, targetDirectory: string) =>
     ipcRenderer.invoke(CH.invoke.mobileCaptureScreenshot, deviceId, targetDirectory),
   // 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。

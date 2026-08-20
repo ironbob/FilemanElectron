@@ -23,6 +23,7 @@ export type TaskVerbKey =
   | 'tasks.verb.recycle'
   | 'tasks.verb.restore'
   | 'tasks.verb.archive'
+  | 'tasks.verb.imageConvert'
 
 const VERB_KEYS: Record<FileOperationType, TaskVerbKey> = {
   copy: 'tasks.verb.copy',
@@ -34,7 +35,8 @@ const VERB_KEYS: Record<FileOperationType, TaskVerbKey> = {
   'batch-rename': 'tasks.verb.batchRename',
   recycle: 'tasks.verb.recycle',
   restore: 'tasks.verb.restore',
-  archive: 'tasks.verb.archive'
+  archive: 'tasks.verb.archive',
+  'image-convert': 'tasks.verb.imageConvert'
 }
 
 export function taskVerbKey(type: FileOperationType): TaskVerbKey {
@@ -46,7 +48,7 @@ export type TaskIconGroup = 'transfer' | 'delete' | 'create'
 
 export function taskIconGroup(type: FileOperationType): TaskIconGroup {
   if (type === 'delete' || type === 'recycle') return 'delete'
-  if (type === 'rename' || type === 'batch-rename' || type === 'mkdir' || type === 'touch' || type === 'archive') return 'create'
+  if (type === 'rename' || type === 'batch-rename' || type === 'mkdir' || type === 'touch' || type === 'archive' || type === 'image-convert') return 'create'
   return 'transfer'
 }
 
@@ -149,7 +151,14 @@ export function pathSummary(
   }
 
   // copy/move/restore 有双向；mkdir/touch/archive 只有目标侧（新建/输出位置）；
-  // delete/recycle/rename 无目标侧。
+  // delete/recycle/rename 无目标侧。image-convert 仅在自定义输出目录时显示目标侧
+  // （默认副本与源同目录，双侧显示会重复同一目录名）。
+  if (task.type === 'image-convert') {
+    return {
+      source: label(task.sourceDeviceId, task.sourcePaths[0], 'parent'),
+      target: task.convert?.dir ? label(task.sourceDeviceId, task.convert.dir, 'self') : null
+    }
+  }
   const hasTarget =
     task.type === 'copy' || task.type === 'move' || task.type === 'restore' ||
     task.type === 'mkdir' || task.type === 'touch' || task.type === 'archive'

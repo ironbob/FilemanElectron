@@ -14,6 +14,8 @@ import { HostShellService } from './src/services/HostShellService'
 import { SystemClipboardService } from './src/services/SystemClipboardService'
 import { FileMetadataService } from './src/services/FileMetadataService'
 import { ArchiveService } from './src/services/ArchiveService'
+import { SevenZipService } from './src/services/SevenZipService'
+import { XattrService } from './src/services/XattrService'
 import { MobileScreenshotService } from './src/services/MobileScreenshotService'
 import { ContentVerificationService, type ContentVerificationRequest } from './src/services/ContentVerificationService'
 import { DirectoryStatsService } from './src/services/DirectoryStatsService'
@@ -26,7 +28,7 @@ import { DuplicateFinderService } from './src/services/DuplicateFinderService'
 import { GrepService } from './src/services/GrepService'
 import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
-import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ClipboardProbe, ClipboardData } from '@shared/types'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ImageConvertSpec, XattrEntry, ClipboardProbe, ClipboardData } from '@shared/types'
 import { CH } from './src/ipc/channels'
 import { setMainLocale, t } from './src/i18n'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
@@ -62,6 +64,10 @@ const systemClipboardService = new SystemClipboardService()
 const fileMetadataService = new FileMetadataService(configService)
 const archiveService = new ArchiveService(deviceManager)
 fileOperationManager.setArchiveService(archiveService)
+const sevenZipService = new SevenZipService()
+fileOperationManager.setSevenZipService(sevenZipService)
+fileOperationManager.setImageEditService(imageEditService)
+const xattrService = new XattrService()
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
 const directoryStatsService = new DirectoryStatsService(deviceManager, zipService)
@@ -350,6 +356,29 @@ ipcMain.handle(CH.invoke.fsChown, async (_, deviceId: string, targetPath: string
     throw new Error(t('errors.main.chownUnsupported'))
   }
   return adapter.chown(targetPath, uid, gid)
+})
+
+// ============ xattr IPC Handlers（macOS 扩展属性；仅本机，不走 adapter） ============
+
+/** xattr 域前置校验：仅本机设备 + 拒绝 ZIP 虚拟路径（"zip::entry" 对 xattr CLI 无意义）。 */
+function assertXattrTarget(deviceId: string, targetPath: string): void {
+  if (deviceId !== 'local') throw new Error(t('errors.main.xattrLocalOnly'))
+  if (isZipVirtualPath(targetPath)) throw new Error(t('errors.main.xattrZipEntryUnsupported'))
+}
+
+ipcMain.handle(CH.invoke.fsXattrList, async (_, deviceId: string, targetPath: string): Promise<XattrEntry[]> => {
+  assertXattrTarget(deviceId, targetPath)
+  return xattrService.list(targetPath)
+})
+
+ipcMain.handle(CH.invoke.fsXattrRemove, async (_, deviceId: string, targetPath: string, name: string, recursive: boolean): Promise<void> => {
+  assertXattrTarget(deviceId, targetPath)
+  return xattrService.remove(targetPath, name, recursive)
+})
+
+ipcMain.handle(CH.invoke.fsXattrSet, async (_, deviceId: string, targetPath: string, name: string, value: string): Promise<void> => {
+  assertXattrTarget(deviceId, targetPath)
+  return xattrService.set(targetPath, name, value)
 })
 
 // ============ Space Analysis IPC Handlers ============
@@ -702,20 +731,47 @@ ipcMain.handle(CH.invoke.fileMetadataSetTags, (_, deviceId: string, filePath: st
 
 ipcMain.handle(CH.invoke.fileMetadataFindByTags, (_, tags: string[]) => fileMetadataService.findByTags(tags))
 
-// 压缩走任务队列（右侧任务抽屉可见进度/可取消）；zip 名冲突自动「副本」重命名。
-ipcMain.handle(CH.invoke.archiveCreate, (_, deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string) =>
+// 压缩走任务队列（右侧任务抽屉可见进度/可取消）；包名冲突自动「副本」重命名。
+// format='7z'（可选密码）走捆绑 7zz，仅本地；默认 zip 走 fflate 流式。
+ipcMain.handle(CH.invoke.archiveCreate, (_, deviceId: string, sourcePaths: string[], targetDirectory: string, archiveName: string, format?: 'zip' | '7z', password?: string) =>
   fileOperationManager.addTask({
     type: 'archive',
     sourceDeviceId: deviceId,
     sourcePaths,
     targetDeviceId: deviceId,
     targetPath: targetDirectory,
-    newName: archiveName
+    newName: archiveName,
+    format,
+    password
   })
 )
 
-ipcMain.handle(CH.invoke.archiveExtract, (_, deviceId: string, archivePath: string, targetDirectory: string) =>
-  archiveService.extractZip(deviceId, archivePath, targetDirectory)
+// 解压：zip 走 fflate（全设备，行为不变——7zz 解 GBK 文件名 zip 会产出乱码名，
+// 不做替换）；7z/rar 仅本地且需 7zz 可用。加密档密码错误/缺失经 message 标记
+// 传给渲染层弹框重试。
+ipcMain.handle(CH.invoke.archiveExtract, async (_, deviceId: string, archivePath: string, targetDirectory: string, password?: string) => {
+  const ext = archivePath.split('.').pop()?.toLowerCase()
+  if (ext === '7z' || ext === 'rar') {
+    if (deviceId !== 'local') throw new Error(t('errors.main.sevenZipLocalOnly'))
+    if (!(await sevenZipService.isAvailable())) throw new Error(t('errors.main.sevenZipUnavailable'))
+    return sevenZipService.extract(archivePath, targetDirectory, { password })
+  }
+  return archiveService.extractZip(deviceId, archivePath, targetDirectory)
+})
+
+/** 压缩/解压工具能力探测（渲染层据此门控 7Z 菜单与 7z/rar 解压入口）。 */
+ipcMain.handle(CH.invoke.archiveToolInfo, () =>
+  sevenZipService.isAvailable().then(sevenZip => ({ sevenZip }))
+)
+
+// 图片批量转换走任务队列（引擎 = ImageEditService；仅本地，主进程侧再校验兜底）。
+ipcMain.handle(CH.invoke.imageConvert, (_, deviceId: string, sourcePaths: string[], convert: ImageConvertSpec) =>
+  fileOperationManager.addTask({
+    type: 'image-convert',
+    sourceDeviceId: deviceId,
+    sourcePaths,
+    convert
+  })
 )
 
 ipcMain.handle(CH.invoke.mobileCaptureScreenshot, (_, deviceId: string, targetDirectory: string) =>

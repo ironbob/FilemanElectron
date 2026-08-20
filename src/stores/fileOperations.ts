@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
+import type { ImageConvertSpec } from '@shared/types'
 import { computeGlobalProgress, groupHistoryByDate } from '@/utils/taskMetrics'
 import { taskVerbKey, dirname } from '@/utils/taskDisplay'
 
@@ -310,6 +311,15 @@ export const useFileOperationsStore = defineStore('fileOperations', {
         sourcePaths: renameItems.map(item => item.sourcePath),
         renameItems
       })
+    },
+
+    /** 图片批量转换（仅本地；spec 必须是普通对象——Proxy 不能跨 IPC）。 */
+    async createImageConvertTask(
+      deviceId: string,
+      sourcePaths: string[],
+      convert: ImageConvertSpec
+    ): Promise<FileOperationTask> {
+      return window.fileman.createImageConvert(deviceId, [...sourcePaths], { ...convert })
     },
 
     async createMkdirTask(

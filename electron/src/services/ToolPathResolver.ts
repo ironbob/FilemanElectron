@@ -47,6 +47,10 @@ export class ToolPathResolver {
     // rg 捆绑布局是 build/tools/rg/rg（目录含单二进制）→ 打包后 Resources/rg/rg；
     // 兼容直接平铺（Resources/rg）与 tools 子目录两种历史形态
     rg: { candidates: ['rg/rg', 'rg', 'tools/rg'], probePath: true },
+    // 7zz（7-Zip 官方 CLI）—— 7z 创建/解压与 rar 解压引擎。mac 资产为
+    // universal 单文件（无伴随 dylib），捆绑布局同 rg（Resources/7zz/7zz）；
+    // 未捆绑时经 $PATH / brew 前缀使用本机安装（brew 包名 7zip/p7zip）。
+    '7zz': { candidates: ['7zz/7zz', '7zz', 'tools/7zz'], probePath: true },
     // hdc（HarmonyOS Device Connector）—— 打包态由 build-dmg.sh 经 fetch-hdc.sh
     // 捆绑(目录布局 Resources/hdc/{hdc,libusb_shared.dylib},同 rg);未捆绑时
     // 经 $PATH / DevEco·OpenHarmony SDK 目录使用本机安装(hdc 常随 DevEco 装在
@@ -273,6 +277,18 @@ export class ToolPathResolver {
   /** rg 是否可用(捆绑存在或 $PATH 上有)。无 rg 时 GrepService 回退流式扫描引擎。 */
   static hasRipgrep(): boolean {
     return this.has('rg')
+  }
+
+  // ============ 7zz(7z 创建 / 7z·rar 解压引擎) ============
+
+  /** 7zz 命令(捆绑绝对路径或 $PATH 上的 '7zz')。 */
+  static getSevenZipExecutable(): string {
+    return this.getExecutable('7zz')
+  }
+
+  /** 7zz 是否可用(捆绑存在或 $PATH 上有)。无 7zz 时 7z/rar 能力整体降级。 */
+  static hasSevenZip(): boolean {
+    return this.has('7zz')
   }
 
   /** 重置缓存(安装/重打包后重探测用)。 */

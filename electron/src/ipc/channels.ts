@@ -93,6 +93,10 @@ export const CH = {
     fsChmod: 'fs:chmod',
     fsChown: 'fs:chown',
     fsMediaInfo: 'fs:mediaInfo',
+    // xattr（仅本机）:
+    fsXattrList: 'fs:xattr:list',
+    fsXattrRemove: 'fs:xattr:remove',
+    fsXattrSet: 'fs:xattr:set',
     // compare:
     compareVerifyStart: 'compare:verify:start',
     compareVerifyCancel: 'compare:verify:cancel',
@@ -115,6 +119,7 @@ export const CH = {
     // archive:
     archiveCreate: 'archive:create',
     archiveExtract: 'archive:extract',
+    archiveToolInfo: 'archive:toolInfo',
     // mobile:
     mobileStartScan: 'mobile:startScan',
     mobileStopScan: 'mobile:stopScan',
@@ -134,6 +139,7 @@ export const CH = {
     imageEditApply: 'image:editApply',
     imageEditBatchStart: 'image:editBatchStart',
     imageEditBatchCancel: 'image:editBatchCancel',
+    imageConvert: 'image:convert',
     // volumes:
     volumesList: 'volumes:list',
   },
