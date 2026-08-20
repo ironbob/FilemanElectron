@@ -957,6 +957,35 @@ deviceManager.onDeviceChange((devices) => {
 
 // ============ Thumbnail IPC Handlers ============
 
+/**
+ * 流式预取远程文件前 maxBytes 字节（视频缩略图抽帧用）。canStream 设备
+ * （SMB/SSH/Android/WebDAV）收满即 destroy 断流——与 fsReadChunk 流式分支
+ * 同款姿势；无流式能力的设备（iOS/OHOS）返回 null，由 service 降级为不支持。
+ */
+async function streamRemoteFileHead(
+  deviceId: string,
+  filePath: string,
+  maxBytes: number
+): Promise<Buffer | null> {
+  const adapter = await deviceManager.getReadyAdapter(deviceId)
+  const capabilities = adapter.getCapabilities()
+  if (!capabilities.canStream || !adapter.openReadStream) return null
+  const stream = await adapter.openReadStream(filePath)
+  const chunks: Buffer[] = []
+  let received = 0
+  for await (const chunkRaw of stream) {
+    const chunk = chunkRaw as Buffer
+    const take = Math.min(chunk.length, maxBytes - received)
+    chunks.push(chunk.subarray(0, take))
+    received += take
+    if (received >= maxBytes) {
+      stream.destroy()
+      break
+    }
+  }
+  return Buffer.concat(chunks)
+}
+
 ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId: string, filePath: string, size: number, mtime: string, thumbnailSize: 'small' | 'large') => {
   return thumbnailService.getThumbnail(
     deviceId,
@@ -972,7 +1001,8 @@ ipcMain.handle(CH.invoke.thumbnailGet, async (_, deviceId: string, filePath: str
         return zipService.readEntry(zipFilePath, innerPath)
       }
       return deviceManager.readFile(devId, path)
-    }
+    },
+    streamRemoteFileHead
   )
 })
 
