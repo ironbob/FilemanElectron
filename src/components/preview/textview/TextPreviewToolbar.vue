@@ -32,13 +32,16 @@
       <slot name="left-extra" />
     </div>
 
-    <!-- ── 中段：查找组（默认收纳为右段图标入口；⌘F/点击展开，Esc 清空后收纳）── -->
-    <div v-if="showSearch && searchVisible" class="flex-1 flex items-center justify-center min-w-0">
-      <div ref="searchGroupAnchor" class="relative flex items-center gap-1.5">
+    <!-- ── 中段：查找组（2026-08-19 应用户要求改常显：表达式过滤是文本预览
+              主能力，收纳进 ⌘F 图标后不可发现。样式对齐 FilePane 搜索胶囊
+              （FinderSearchField capsule 变体）；宽度自适应，窄窗收缩不断档）── -->
+    <div v-if="showSearch" class="flex-1 flex items-center justify-center min-w-0">
+      <div ref="searchGroupAnchor" class="relative flex items-center gap-1.5 w-full min-w-0 max-w-[400px]">
         <FinderSearchField
           ref="searchFieldRef"
           v-model="vm.expression.value"
-          class="w-[280px]"
+          capsule
+          class="flex-1 min-w-0"
           :invalid="!!vm.filterError.value"
           :placeholder="$t('preview.text.searchPlaceholder')"
           :title="vm.filterError.value ?? $t('preview.text.searchSyntaxTip')"
@@ -48,7 +51,7 @@
           @enter="onEnter"
         >
           <template #leading>
-            <SearchIcon class="w-3.5 h-3.5" />
+            <SearchIcon class="w-4 h-4" />
           </template>
           <template #trailing>
             <span
@@ -109,6 +112,7 @@
         </AnchoredPopover>
       </div>
     </div>
+    <!-- 非 source 视图：中段留白撑开右段 -->
     <div v-else class="flex-1"></div>
 
     <!-- ── 右段：Finder 式分组（Quick Look=独立浮动胶囊 finder-toolbar-capsule，
@@ -204,18 +208,6 @@
       </div>
 
       <span v-if="showSourceTools && !quickLook" class="finder-toolbar-divider" />
-
-      <!-- 查找组（收纳态）：QL=单图标胶囊；展开后由中段承接 -->
-      <div v-if="showSearch && !searchVisible" :class="quickLook ? 'finder-toolbar-capsule' : 'contents'">
-        <FinderToolbarButton
-          :variant="btnVariant"
-          :label="$t('preview.text.searchTip')"
-          data-testid="text-find-entry"
-          @click="focusSearch()"
-        >
-          <SearchIcon class="w-4 h-4" />
-        </FinderToolbarButton>
-      </div>
 
       <!-- 文件操作组：复制 / 导出 / 编辑 / 保存 / 更多（QL 同一胶囊） -->
       <div :class="quickLook ? 'finder-toolbar-capsule' : 'contents'">
@@ -434,7 +426,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import {
@@ -530,16 +522,8 @@ onBeforeUnmount(() => {
   resizeObserver = null
 })
 
-// ── 搜索收纳（2026-08-19）：默认收为右段图标入口；⌘F/点击展开。
-//    查询非空或结果激活期间保持展开（Esc 先清查询，再收纳）。 ──
-const searchOpen = ref(false)
-const searchVisible = computed(() =>
-  searchOpen.value || props.vm.expression.value !== '' || props.vm.hasResult.value
-)
-
-function collapseSearch(): void {
-  searchOpen.value = false
-}
+// ── 搜索框常显（2026-08-19 应用户要求撤销收纳）：⌘F 仅聚焦全选，
+//    Esc 只清查询不再收纳（清空/恢复逻辑在 PreviewTextContent 的 Esc 链）。 ──
 
 // ── 菜单开合（统一外点关闭） ──
 const findOptionsOpen = ref(false)
@@ -665,26 +649,19 @@ function doJump(): void {
 
 // ── 供父组件（⌘F / 空态按钮 / Esc 链）调用 ──
 function focusSearch(): void {
-  searchOpen.value = true
-  void nextTick(() => searchFieldRef.value?.selectAll())
+  searchFieldRef.value?.selectAll()
 }
 
 function openFindOptions(): void {
-  searchOpen.value = true
-  void nextTick(() => { findOptionsOpen.value = true })
+  findOptionsOpen.value = true
 }
 
-/** Esc 链一环：菜单开着 → 全部收起；搜索展开且已清空 → 收纳；否则交下一环 */
+/** Esc 链一环：任一菜单开着 → 全部收起；否则交下一环（清查询在父组件） */
 function handleEscape(): boolean {
   const hadOpen = findOptionsOpen.value || syntaxOpen.value || schemeOpen.value || exportOpen.value || moreOpen.value
   closeMenus()
-  if (hadOpen) return true
-  if (searchOpen.value && props.vm.expression.value === '') {
-    searchOpen.value = false
-    return true
-  }
-  return false
+  return hadOpen
 }
 
-defineExpose({ focusSearch, openFindOptions, collapseSearch, handleEscape })
+defineExpose({ focusSearch, openFindOptions, handleEscape })
 </script>

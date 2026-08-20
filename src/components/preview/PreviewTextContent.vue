@@ -1476,13 +1476,12 @@ useKeyInterceptor((e: KeyboardEvent) => {
       return true
     }
     if (toolbarRef.value?.handleEscape()) {
-      // 工具栏菜单/窄窗搜索浮层 → 先收起
+      // 工具栏菜单/查找选项浮层 → 先收起
       return true
     }
     if (logAnalysis.hasResult.value || logAnalysis.expression.value !== '') {
-      // 两段式 Esc：清除查询并立即恢复全文（搜索框随之收纳）
+      // Esc：清除查询并立即恢复全文（搜索框常显，2026-08-19 起不再收纳）
       logAnalysis.clearFilter()
-      toolbarRef.value?.collapseSearch()
       return true
     }
     if (editing.value) {

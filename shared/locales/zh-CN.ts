@@ -1129,7 +1129,6 @@ const zhCN = {
       // ── Finder 式工具栏（重设计 2026-08-17）──────────────────────────────
       toolbarAriaLabel: '文本预览工具栏',
       searchPlaceholder: '查找或过滤，如 co(err) and level(warn)',
-      searchTip: '查找 (⌘F)',
       searchSyntaxTip: '支持文本或表达式：co/eq/word/reg/level/lines + and/or/not',
       // ── 着色方案（2026-08-19 常驻回迁工具栏）／表达式语法帮助 ──
       schemeActiveTip: '着色方案：{name}（点击更换）',

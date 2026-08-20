@@ -1115,7 +1115,6 @@ const enUS: MessageSchema = {
       // ── Finder-style toolbar (redesign 2026-08-17) ────────────────────────
       toolbarAriaLabel: 'Text preview toolbar',
       searchPlaceholder: 'Find or filter, e.g. co(err) and level(warn)',
-      searchTip: 'Find (⌘F)',
       searchSyntaxTip: 'Plain text or expression: co/eq/word/reg/level/lines + and/or/not',
       // ── Color scheme (toolbar-resident, 2026-08-19) / expression syntax help ──
       schemeActiveTip: 'Color scheme: {name} (click to change)',

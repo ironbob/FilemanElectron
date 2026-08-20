@@ -90,18 +90,17 @@ async function openTextPreview(page: Page): Promise<void> {
   await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 8000 })
 }
 
-test('状态1: 全文预览——工具栏元信息/查找收纳与⌘F展开/禁用导航', async ({ page }) => {
+test('状态1: 全文预览——工具栏元信息/查找框常显/禁用导航', async ({ page }) => {
   await openTextPreview(page)
 
   await expect(page.locator('[data-testid="text-preview-toolbar"]')).toBeVisible()
   // 左段：类型 · 行数 · 大小 单行低层级元信息（grep 链路构建的 FileInfo 无 size，只断言行数）
   await expect(page.locator('[data-testid="text-meta-detail"]')).toHaveText(/54 行 · /)
-  // 查找默认收纳（2026-08-19）：仅紧凑图标入口，无输入框、无计数
-  await expect(page.locator('[data-testid="text-find-entry"]')).toBeVisible()
-  await expect(page.locator('[data-testid="text-find-input"]')).toHaveCount(0)
-  // ⌘F 展开：输入框可见、无计数、无匹配时 ▲▼ 禁用
-  await page.keyboard.press('Meta+f')
+  // 查找框常显（2026-08-19 应用户要求撤销收纳）：输入框默认可见、无收纳图标入口
   await expect(page.locator('[data-testid="text-find-input"]')).toBeVisible()
+  await expect(page.locator('[data-testid="text-find-entry"]')).toHaveCount(0)
+  // 无查询：无计数、▲▼ 禁用；⌘F 仅聚焦全选
+  await page.keyboard.press('Meta+f')
   await expect(page.locator('[data-testid="text-match-count"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="text-find-prev"]')).toBeDisabled()
   await expect(page.locator('[data-testid="text-find-next"]')).toBeDisabled()
@@ -112,7 +111,7 @@ test('状态1: 全文预览——工具栏元信息/查找收纳与⌘F展开/�
 test('状态2: 搜索 co(string) → 3 匹配 + 上下文 + 省略块 + A/B 切换 + Esc 恢复', async ({ page }) => {
   await openTextPreview(page)
 
-  // ⌘F 展开查找（默认收纳），输入表达式查询（即时过滤，200ms 防抖）
+  // ⌘F 聚焦常显查找框，输入表达式查询（即时过滤，200ms 防抖）
   await page.keyboard.press('Meta+f')
   await page.locator('[data-testid="text-find-input"]').fill('co(string)')
   await expect(page.locator('[data-testid="text-match-count"]')).toHaveText('3 个匹配', { timeout: 5000 })
@@ -156,12 +155,11 @@ test('状态2: 搜索 co(string) → 3 匹配 + 上下文 + 省略块 + A/B 切�
   // （Monaco 懒渲染，只断言视口内近顶部的行）
   await expect(page.locator('.monaco-editor .view-line', { hasText: '# filler comment line 2' }).first()).toBeVisible()
 
-  // Esc：清除搜索并立即恢复全文 + 查找框随之收纳（入口回归图标态）
+  // Esc：清除搜索并立即恢复全文（查找框常显不收纳）
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="text-filter-statusbar"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="text-match-count"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="text-find-input"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="text-find-entry"]')).toBeVisible()
+  await expect(page.locator('[data-testid="text-find-input"]')).toBeVisible()
   await expect(page.locator('.monaco-editor .view-line', { hasText: '# filler comment line 2' }).first()).toBeVisible()
 })
 
@@ -179,8 +177,8 @@ test('纯文本查询（非表达式）走包含匹配 + 0 匹配空态', async 
   await expect(page.locator('[data-testid="text-no-match"]')).toContainText('没有匹配 “zzz_no_such_token”')
   await expect(page.locator('[data-testid="text-no-match"]')).toContainText('调整搜索选项')
 
-  // Esc 恢复（清查询 + 收纳查找框）
+  // Esc 恢复（清查询；查找框常显）
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="text-no-match"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="text-find-entry"]')).toBeVisible()
+  await expect(page.locator('[data-testid="text-find-input"]')).toBeVisible()
 })

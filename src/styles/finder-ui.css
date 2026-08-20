@@ -418,6 +418,39 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-red) 35%, transparent);
 }
 
+/* 搜索胶囊内尾随 chip（计数 / 查找选项 ⌄ / 清除 ×，2026-08-19 文本预览搜索
+   常显化补样式——此前 finder-search-chip 类从未有定义，裸 span/button 直排）。
+   20px 小胶囊：轻底 + 次级标签色，hover 加深，打开态系统蓝淡底；
+   ⋯ 菜单内字号 −/+ 复用同款。 */
+.finder-shell .finder-search-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--finder-secondary-label);
+  background: color-mix(in srgb, var(--finder-label) 8%, transparent);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.finder-shell button.finder-search-chip {
+  cursor: pointer;
+}
+.finder-shell button.finder-search-chip:hover {
+  background: color-mix(in srgb, var(--finder-label) 14%, transparent);
+  color: var(--finder-label);
+}
+.finder-shell button.finder-search-chip.is-open {
+  background: color-mix(in srgb, var(--finder-selection) 18%, transparent);
+  color: var(--finder-label);
+}
+
 /* 路径输入态（面包屑 ⇄ 输入框）：轻量输入材质，不再是浏览态的大灰胶囊；
    浏览态的面包屑完全透明，直接坐在工具栏上（标题式呈现） */
 .finder-shell .finder-path-field-editing {

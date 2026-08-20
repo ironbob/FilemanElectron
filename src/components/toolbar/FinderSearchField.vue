@@ -34,11 +34,12 @@ import { ref, computed, useSlots } from 'vue'
  * Finder 搜索框（从 FilePane.vue 工具栏搜索框抽取的共享组件，2026-08-17）。
  *
  * 两种形态：
- * - 默认（文本预览工具栏）：h-8、bg-bg-secondary/50、border-border/50、rounded-lg；
- *   聚焦 border-accent-blue/50 + 实底。宽度由调用方类控制（文本预览：w-[280px] 固定）。
- * - capsule（FilePane 工具栏右侧大型搜索胶囊，2026-08-19）：36px 高、18px 圆角、
- *   半透明系统材质 + blur（.finder-search-capsule，见 finder-ui.css）；
- *   聚焦为克制的系统蓝 3px 焦点环。宽度由调用方 clamp() 控制。
+ * - 默认（h-8 轻量输入）：bg-bg-secondary/50、border-border/50、rounded-lg；
+ *   聚焦 border-accent-blue/50 + 实底。
+ * - capsule（FilePane 工具栏 + 文本预览查找框，2026-08-19 统一）：36px 高、
+ *   18px 圆角、半透明系统材质 + blur（.finder-search-capsule，见 finder-ui.css）；
+ *   聚焦为克制的系统蓝 3px 焦点环。宽度由调用方控制（FilePane：clamp()；
+ *   文本预览：flex-1 min-w-0 自适应收缩）。
  *
  * 插槽：leading（放大镜等前导）/ trailing（清除、计数等尾随，随内容在流内排列）。
  * 事件：enter/escape/focus/blur 原样透传键盘与焦点行为；input 走 v-model。
