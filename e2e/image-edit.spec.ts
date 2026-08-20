@@ -6,7 +6,7 @@ import { expect, test } from '@playwright/test'
 //    （segmented 意图/存储为/导出选项折叠）→ 存储副本 → imageEdit.apply 带 annotate op
 // 3. dirty Esc → 未保存确认（不保存 → 丢弃退出）
 // 4. 裁剪模式进入/退出（Esc 零副作用）
-// 5. ⋯ 菜单压缩入口 → Sheet 选项默认展开 → confirm 带 compress op
+// 5. ⋯ 菜单「另存为…」入口（原「压缩」并入）→ Sheet 选项默认展开 → confirm 带 compress op
 // 6. 替换原文件：警示 + 二次确认 → overwrite
 // 7. 集合会话：导航收进顶栏（‹ › + n/n），批量入口在 ⋯ 菜单
 // 注：sharp/sips 真实管道由真机 CDP 手动验证（见架构文档验证证据）。
@@ -173,12 +173,13 @@ test('crop mode enters with overlay and Esc exits', async ({ page }) => {
   await expect(page.getByText('在图片上拖拽选择裁剪区域')).toHaveCount(0)
 })
 
-test('compress entry in more menu opens sheet with expanded options', async ({ page }) => {
+test('save-as entry in more menu opens sheet with expanded options', async ({ page }) => {
   await openImagePreview(page)
   await page.getByRole('button', { name: '更多集合操作' }).click()
-  await page.getByRole('button', { name: '压缩', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: '保存标注后的图片' })).toBeVisible()
-  // 压缩入口：导出选项默认展开
+  // 2026-08-20「压缩」并入「另存为…」：无 pending 编辑 → 纯导出，标题「另存为」
+  await page.getByRole('button', { name: '另存为…', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '另存为' })).toBeVisible()
+  // 另存为入口：导出选项默认展开
   await expect(page.getByLabel('格式')).toBeVisible()
   await page.getByRole('button', { name: '存储副本' }).click()
   await page.waitForTimeout(400)

@@ -237,6 +237,7 @@
       :applying="edit.applying.value"
       :error="edit.error.value"
       :compress-default="edit.pendingCompress.value"
+      :has-edits="!!(edit.pendingCrop.value || edit.pendingAnnotate.value)"
       @close="edit.closeSaveDialog()"
       @params-change="edit.refreshEstimate"
       @confirm="edit.confirmSave"

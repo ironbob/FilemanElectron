@@ -522,6 +522,7 @@ const enUS: MessageSchema = {
     },
     saveImage: {
       title: 'Save Annotated Image',
+      titleExport: 'Save As',
       modeAria: 'Save mode',
       modeCopy: 'Export a Copy',
       modeReplace: 'Replace Original',
@@ -1105,7 +1106,7 @@ const enUS: MessageSchema = {
       batchCompress: 'Batch Compress',
       batchRenameTip: 'Batch rename the current collection',
       batchRename: 'Batch Rename',
-      compressTip: 'Compress'
+      saveAsTip: 'Save As…'
     },
     video: {
       loading: 'Loading video...',

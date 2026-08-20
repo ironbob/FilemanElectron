@@ -7,10 +7,10 @@
       class="save-sheet"
       role="dialog"
       aria-modal="true"
-      :aria-label="$t('dialogs.saveImage.title')"
+      :aria-label="sheetTitle"
       @submit.prevent="onPrimary"
     >
-      <h2 class="sheet-title">{{ $t('dialogs.saveImage.title') }}</h2>
+      <h2 class="sheet-title">{{ sheetTitle }}</h2>
 
       <!-- 保存意图（segmented） -->
       <div class="segmented mt-4" role="radiogroup" :aria-label="$t('dialogs.saveImage.modeAria')">
@@ -179,6 +179,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
+import { t } from '@/i18n'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import type { EditCompressParams, EditEstimateResult, EditSaveSpec } from '@shared/types'
 
@@ -193,8 +194,10 @@ const props = defineProps<{
   estimating: boolean
   applying: boolean
   error: string
-  /** 压缩入口进入：导出选项默认展开且参数生效 */
+  /** 压缩/另存为入口进入：导出选项默认展开且参数生效 */
   compressDefault?: boolean
+  /** 带 pending 编辑（标注/裁剪）→ 标题「保存标注后的图片」；否则「另存为」 */
+  hasEdits?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -202,6 +205,11 @@ const emit = defineEmits<{
   confirm: [save: EditSaveSpec, params: EditCompressParams | null]
   'params-change': [params: EditCompressParams]
 }>()
+
+/** 标题随来源：编辑保存 vs 纯导出（另存为，2026-08-20 并入压缩入口）。 */
+const sheetTitle = computed(() =>
+  props.hasEdits ? t('dialogs.saveImage.title') : t('dialogs.saveImage.titleExport')
+)
 
 // ── 表单状态 ─────────────────────────────────────────────────────────────────
 const intent = ref<'copy' | 'overwrite'>('copy')

@@ -528,6 +528,7 @@ const zhCN = {
     },
     saveImage: {
       title: '保存标注后的图片',
+      titleExport: '另存为',
       modeAria: '保存方式',
       modeCopy: '导出副本',
       modeReplace: '替换原文件',
@@ -1119,7 +1120,7 @@ const zhCN = {
       batchCompress: '批量压缩',
       batchRenameTip: '批量改名当前集合',
       batchRename: '批量改名',
-      compressTip: '压缩'
+      saveAsTip: '另存为…'
     },
     video: {
       loading: '正在加载视频…',

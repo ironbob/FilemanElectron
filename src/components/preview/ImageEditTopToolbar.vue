@@ -101,7 +101,9 @@
         <IconfontIcon name="more" />
       </button>
       <div v-if="moreMenuOpen" class="edit-panel absolute right-0 top-9 z-40 min-w-[160px] py-1">
-        <button class="menu-item" :disabled="running" @click="pickMenu(() => emit('compress'))">{{ $t('preview.editToolbar.compressTip') }}</button>
+        <!-- 另存为…（2026-08-20 由「压缩」并入）：导出副本+格式/质量/像素同一 Sheet，
+             无 pending 编辑时即纯格式转换导出；emit 名保留 compress（链路同源） -->
+        <button class="menu-item" :disabled="running" @click="pickMenu(() => emit('compress'))">{{ $t('preview.editToolbar.saveAsTip') }}</button>
         <template v-if="collection && collection.total > 1">
           <div class="edit-sep-h"></div>
           <button class="menu-item" :disabled="running" @click="pickMenu(() => emit('batch-compress'))">{{ $t('preview.editToolbar.batchCompress') }}</button>
