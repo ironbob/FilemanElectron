@@ -25,6 +25,8 @@
     :edit="edit"
     :collection="collection"
     :step-collection="stepCollection"
+    :quick-look="quickLook"
+    :quick-look-controls="quickLookControls"
   />
   <PreviewVideoContent
     v-else-if="type === 'video'"

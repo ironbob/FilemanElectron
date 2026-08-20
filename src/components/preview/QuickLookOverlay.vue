@@ -20,10 +20,10 @@
         role="dialog"
         :aria-label="$t('preview.quickLook.dialogAria')"
       >
-        <!-- Header：仅非文本类（图片/视频/不支持态）。
-             文本类头部已并入内容工具栏单行（2026-08-19 合并重设计）：
-             文件名/元信息/查找/语法/操作/步进关闭全部同基线，右端三钮胶囊。 -->
-        <div v-if="!isTextKind" class="finder-preview-toolbar flex items-center justify-between border-b border-border">
+        <!-- Header：仅视频/不支持态。文本与图片类头部已并入内容工具栏单行
+             （文本 2026-08-19、图片 2026-08-20 合并重设计）：
+             文件名/元信息/内容动作/步进关闭全部同基线，右端胶囊组。 -->
+        <div v-if="!isMergedKind" class="finder-preview-toolbar flex items-center justify-between border-b border-border">
           <div class="flex items-center gap-2.5 min-w-0">
             <span class="text-[15px] font-medium text-text-primary truncate" data-testid="quick-look-name">{{ currentFile.name }}</span>
             <span
@@ -67,8 +67,8 @@
           <PreviewContentRouter
             :file="currentFile"
             :device-id="deviceId"
-            :quick-look="isTextKind"
-            :quick-look-controls="isTextKind ? qlControls : undefined"
+            :quick-look="isMergedKind"
+            :quick-look-controls="isMergedKind ? qlControls : undefined"
           />
         </div>
         <div v-else class="flex-1 min-h-0 flex flex-col items-center justify-center px-6 text-center bg-bg-primary select-none">
@@ -116,6 +116,11 @@ const overlayEl = ref<HTMLElement | null>(null)
 const overlayHeight = ref(0)
 const isTextKind = computed(() =>
   kindSupported.value && !!currentFile.value && getPreviewType(currentFile.value) === 'text'
+)
+
+/** 单行合并类（文本 08-19 / 图片 08-20）：头部让位，工具栏由内容组件承载。 */
+const isMergedKind = computed(() =>
+  kindSupported.value && !!currentFile.value && ['text', 'image'].includes(getPreviewType(currentFile.value))
 )
 
 const TEXT_MIN_CARD_HEIGHT = 420

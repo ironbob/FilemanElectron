@@ -19,8 +19,66 @@
 
     <!-- 三区布局：① 顶部工具栏 ② 画布 + 右侧轨道列 ③ 底部状态栏 -->
     <div v-else class="flex-1 flex flex-col overflow-hidden min-h-0">
-      <!-- ① 顶部工具栏（恒显——标注/裁剪中不再隐藏；集合导航收编于此） -->
+      <!-- ① Quick Look 单行合并工具栏（2026-08-20 Finder 化，对齐文本窗 08-19 先例）：
+           名称/元信息 + 缩放组 + % 徽标 + 旋转组 + 步进/关闭胶囊同行；
+           替代 编辑工具栏+底部状态栏 双 chrome。按钮全走 finder-control-group 家族。 -->
+      <div v-if="quickLook" class="finder-preview-toolbar flex-shrink-0 flex items-center gap-2 px-3 border-b border-border" role="toolbar" :aria-label="$t('preview.editToolbar.toolbarAria')">
+        <span class="text-[15px] font-medium text-text-primary truncate" data-testid="quick-look-name">{{ file.name }}</span>
+        <span
+          v-if="qlMeta"
+          class="text-xs whitespace-nowrap flex-shrink-0"
+          style="color: var(--finder-secondary-label)"
+          data-testid="quick-look-meta"
+        >{{ qlMeta }}</span>
+        <div class="flex-1"></div>
+        <div class="finder-control-group">
+          <button class="finder-icon-button" :title="$t('preview.editToolbar.fitWindow')" :aria-label="$t('preview.editToolbar.fitWindow')" @click="setFitMode('contain')">
+            <IconfontIcon name="fit" />
+          </button>
+          <button class="finder-icon-button" :title="$t('preview.common.zoomOutTip')" :aria-label="$t('preview.common.zoomOutTip')" @click="zoomOut">
+            <IconfontIcon name="zoomOut" />
+          </button>
+          <button class="finder-icon-button" :title="$t('preview.common.zoomInTip')" :aria-label="$t('preview.common.zoomInTip')" @click="zoomIn">
+            <IconfontIcon name="zoomIn" />
+          </button>
+        </div>
+        <span class="finder-preview-badge tabular-nums" data-testid="quick-look-zoom">{{ displayScale }}</span>
+        <div class="finder-control-group">
+          <button class="finder-icon-button" :title="$t('preview.image.rotateLeftTip')" :aria-label="$t('preview.image.rotateLeftTip')" @click="rotateLeft">
+            <IconfontIcon name="rotateLeft" />
+          </button>
+          <button class="finder-icon-button" :title="$t('preview.image.rotateLeftTip')" :aria-label="$t('preview.image.rotateLeftTip')" @click="rotateRight">
+            <IconfontIcon name="rotateRight" />
+          </button>
+        </div>
+        <div class="finder-control-group">
+          <button
+            class="finder-icon-button"
+            :title="$t('preview.quickLook.prevTip')"
+            :aria-label="$t('preview.quickLook.prevTip')"
+            :disabled="!quickLookControls || quickLookControls.index <= 0"
+            @click="quickLookControls?.step(-1)"
+          >
+            <IconfontIcon name="up" />
+          </button>
+          <button
+            class="finder-icon-button"
+            :title="$t('preview.quickLook.nextTip')"
+            :aria-label="$t('preview.quickLook.nextTip')"
+            :disabled="!quickLookControls || quickLookControls.index >= (quickLookControls.total ?? 1) - 1"
+            @click="quickLookControls?.step(1)"
+          >
+            <IconfontIcon name="down" />
+          </button>
+          <button class="finder-icon-button" :title="$t('preview.quickLook.closeTip')" :aria-label="$t('preview.quickLook.closeTip')" @click="quickLookControls?.close()">
+            <IconfontIcon name="close" />
+          </button>
+        </div>
+      </div>
+
+      <!-- ① 顶部工具栏（完整预览 tab；恒显——标注/裁剪中不再隐藏；集合导航收编于此） -->
       <ImageEditTopToolbar
+        v-if="!quickLook"
         :mode="edit?.mode.value ?? 'idle'"
         :editable="edit?.editable.value ?? false"
         :collection="collection ?? null"
@@ -129,8 +187,8 @@
         />
       </div>
 
-      <!-- ③ 底部状态栏（32px：文件信息 + 缩放 + 已编辑） -->
-      <div class="img-status-bar h-8 flex-shrink-0 flex items-center gap-3 px-3 text-[11px]">
+      <!-- ③ 底部状态栏（完整预览 tab；Quick Look 下信息已并入单行工具栏） -->
+      <div v-if="!quickLook" class="img-status-bar h-8 flex-shrink-0 flex items-center gap-3 px-3 text-[11px]">
         <!-- 辅助技术播报：当前工具 / 选中对象数（设计 §12） -->
         <span class="sr-only" aria-live="polite">{{ liveAnnouncement }}</span>
         <span class="font-semibold text-text-primary truncate max-w-[240px]" :title="file.name">{{ file.name }}</span>
@@ -191,13 +249,14 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { t } from '@/i18n'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
-import type { ImageFitMode } from '@/types/preview'
+import type { ImageFitMode, QuickLookControls } from '@/types/preview'
 import { needsNativeDecode } from '@/utils/fileTypes'
 import { displayedToSourceRect, type ImageLayout, type Rect } from '@/utils/cropGeometry'
 import type { ImageEditController } from '@/composables/useImageEdit'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { ANNO_COLORS, ANNO_WIDTHS, type AnnoTool } from '@/utils/annotationShapes'
 import ImageEditTopToolbar from './ImageEditTopToolbar.vue'
+import IconfontIcon from './IconfontIcon.vue'
 import AnnotationRail from './AnnotationRail.vue'
 import ToolParamPopover from './ToolParamPopover.vue'
 import SelectionContextBar from './SelectionContextBar.vue'
@@ -218,6 +277,10 @@ const props = defineProps<{
   collection?: { index: number; total: number } | null
   /** 集合步进（PreviewView 提供；dirty 时由 VM 弹未保存确认） */
   stepCollection?: (delta: number) => void
+  /** Quick Look 浮层模式：单行合并工具栏（编辑工具栏/状态栏退场） */
+  quickLook?: boolean
+  /** Quick Look 步进/关闭（经 Router 下传；仅 quickLook 模式消费） */
+  quickLookControls?: QuickLookControls
 }>()
 
 // Loading state
@@ -250,6 +313,17 @@ const displayScale = computed(() => {
   const dims = imageDimensions.value
   if (!fitted || !dims.width) return '100%'
   return Math.round(((fitted.width * scale.value) / dims.width) * 100) + '%'
+})
+
+/** Quick Look 单行工具栏元信息：大小 · 尺寸 · n / n（单一低层级辅助文字）。 */
+const qlMeta = computed(() => {
+  const parts = [formatSize(props.file.size)]
+  if (imageDimensions.value.width) {
+    parts.push(`${imageDimensions.value.width} × ${imageDimensions.value.height}`)
+  }
+  const c = props.quickLookControls
+  if (c && c.total > 1) parts.push(`${c.index + 1} / ${c.total}`)
+  return parts.join(' · ')
 })
 
 const getImageClass = computed(() => {
