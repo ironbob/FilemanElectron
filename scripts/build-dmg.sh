@@ -49,7 +49,7 @@ fi
 
 echo "==> [2/7] Ensure app icon (build/icon.icns)"
 if [[ -f build/icon.icns ]]; then
-  echo "    exists; keeping it (delete it to regenerate the placeholder)"
+  echo "    exists; keeping it (delete it to regenerate from build/app-icon.png)"
 else
   node scripts/generate-icon.mjs
 fi
