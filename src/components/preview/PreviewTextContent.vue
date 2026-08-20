@@ -1,5 +1,6 @@
 <template>
-  <div class="finder-preview h-full flex flex-col bg-bg-secondary">
+  <!-- is-md：markdown 文件标记——QL 材质窗内工具栏恢复极细分隔线（finder-ui.css） -->
+  <div class="finder-preview h-full flex flex-col bg-bg-secondary" :class="{ 'is-md': fileCategory === 'markdown' }">
     <!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
@@ -18,7 +19,7 @@
     </div>
 
     <!-- Content Area -->
-    <div v-else class="flex-1 flex flex-col overflow-hidden">
+    <div v-else class="flex-1 min-h-0 flex flex-col overflow-hidden">
 
       <!-- 未保存关闭确认条（tabs 关闭被守卫阻止后就地呈现，三键决策；仿 hex） -->
       <div
@@ -85,16 +86,19 @@
           @show-diff="showDiff"
         >
         <template #left-extra>
-          <!-- Markdown: Preview ↔ Source -->
-          <div v-if="fileCategory === 'markdown'" class="finder-control-group">
+          <!-- Markdown: Preview ↔ Source（Finder 分段控件，2026-08-20：
+               激活=浅灰（单蓝规则），不再用蓝底白字的网页式 Tab） -->
+          <div v-if="fileCategory === 'markdown'" class="finder-seg-tray flex-shrink-0">
             <button
-              class="px-2.5 py-1 text-xs transition-colors rounded"
-              :class="viewMode === 'rendered' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
+              class="finder-segment-btn-text"
+              :class="{ active: viewMode === 'rendered' }"
+              data-testid="md-mode-preview"
               @click="setViewMode('rendered')"
             >{{ $t('preview.markdown.previewMode') }}</button>
             <button
-              class="px-2.5 py-1 text-xs transition-colors rounded"
-              :class="viewMode === 'source' ? 'bg-accent-blue text-white' : 'text-text-secondary hover:bg-bg-hover'"
+              class="finder-segment-btn-text"
+              :class="{ active: viewMode === 'source' }"
+              data-testid="md-mode-source"
               @click="setViewMode('source')"
             >{{ $t('preview.markdown.sourceMode') }}</button>
           </div>
@@ -195,16 +199,19 @@
         />
       </div>
 
-      <!-- ── Rendered Markdown ── -->
-      <!-- @dragstart.prevent：从已有选区内起拖时浏览器会转为「拖拽所选文本」
+      <!-- ── Rendered Markdown（Finder/QL 阅读面，2026-08-20 重排）──
+           独立滚动容器（flex-1 + min-h-0 + overflow-y-auto）：长文仅内容区
+           滚动、工具栏常驻；内容从顶部开始排版，短文结束后只留容器底部安全
+           留白（无垂直居中/大段空白）。阅读列 .md-body 720px 宽窗内自然居中。
+           @dragstart.prevent：从已有选区内起拖时浏览器会转为「拖拽所选文本」
            （HTML5 DnD），本应用没有文本放置目标，落空即清空选区——表现为
            「想扩选却把选区拖没了」。阻断后拖拽始终是重新选择，复制走 ⌘C。 -->
       <div
         v-if="viewMode === 'rendered'"
-        class="flex-1 overflow-auto px-8 py-6 md-rendered"
+        class="md-rendered flex-1 min-h-0 overflow-y-auto"
         @dragstart.prevent
       >
-        <div class="max-w-3xl mx-auto" v-html="renderedHtml"></div>
+        <div class="md-body" v-html="renderedHtml"></div>
       </div>
 
       <!-- ── JSON Tree View (using @alenaksu/json-viewer) ── -->
@@ -833,9 +840,19 @@ function processJson(raw: string): string {
   }
 }
 
+/** YAML front matter（文件头 `---` 块）：渲染视图默认不显示（对齐 Finder/QL
+ *  不展示元数据块）。不剥离时 marked 会把首段文字 + 收尾 `---` 按 setext
+ *  规则解析成大号粗体标题（title: X 整段变 h2）——即「元信息被渲染成粗大
+ *  正文」的根因。源码视图不受影响（preparedContent 保留原文）。 */
+function stripFrontMatter(raw: string): string {
+  if (!/^---\r?\n/.test(raw)) return raw
+  const m = raw.match(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/)
+  return m ? raw.slice(m[0].length) : raw
+}
+
 async function processMarkdown(raw: string): Promise<void> {
   // marked v17: parse() can return string | Promise<string>
-  const html = await Promise.resolve(markedInstance.parse(raw))
+  const html = await Promise.resolve(markedInstance.parse(stripFrontMatter(raw)))
   renderedHtml.value = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       'h1','h2','h3','h4','h5','h6','p','br','hr',
@@ -1582,8 +1599,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ── Markdown rendered view ───────────────────────────────────────────────── */
-.md-rendered { color: var(--text-primary, #e2e2e2); }
+/* ── Markdown rendered view（Finder/Quick Look 阅读面，2026-08-20）─────────────
+   容器=独立滚动区（模板 flex-1/min-h-0/overflow-y-auto），顶部对齐、短文仅留
+   44px 底部安全留白。排版对齐 Finder 排版分级：正文 15px/400/行高 1.6，
+   标题 semibold 600 无下划线（GitHub 式 h1/h2 底线已去）；代码用 SF Mono 栈、
+   浅灰 inset + 8px 圆角。高亮 token 色走 finder-ui.css 的 --md-hl-* 双主题
+   变量（旧 Material-Dark 亮底下不可读）。 */
+.md-rendered {
+  padding: 32px 36px 44px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--finder-label);
+}
+
+/* 阅读列：宽窗内自然居中（680–760 档取 720），窄窗贴左不溢出 */
+.md-body {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* 首末元素零外边距：文档从内容区顶部起排、结束后无多余空段（底部留白归容器） */
+.md-body > :first-child { margin-top: 0 !important; }
+.md-body > :last-child { margin-bottom: 0 !important; }
 
 .md-rendered :deep(h1),
 .md-rendered :deep(h2),
@@ -1591,86 +1628,79 @@ onUnmounted(() => {
 .md-rendered :deep(h4),
 .md-rendered :deep(h5),
 .md-rendered :deep(h6) {
-  color: var(--text-primary);
+  color: var(--finder-label);
   font-weight: 600;
   line-height: 1.3;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+  letter-spacing: -0.012em;
+  margin: 1.6em 0 0.5em;
 }
-.md-rendered :deep(h1) { font-size: 1.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; margin-top: 0; }
-.md-rendered :deep(h2) { font-size: 1.4rem;  border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
-.md-rendered :deep(h3) { font-size: 1.15rem; }
-.md-rendered :deep(h4) { font-size: 1rem; }
+.md-rendered :deep(h1) { font-size: 1.6em; }
+.md-rendered :deep(h2) { font-size: 1.35em; }
+.md-rendered :deep(h3) { font-size: 1.13em; }
+.md-rendered :deep(h4),
+.md-rendered :deep(h5),
+.md-rendered :deep(h6) { font-size: 1em; }
 
-.md-rendered :deep(p) {
-  color: var(--text-primary);
-  line-height: 1.75;
-  margin-bottom: 1em;
-}
+.md-rendered :deep(p) { margin: 0 0 0.75em; }
 
 .md-rendered :deep(a) {
-  color: var(--accent-blue, #4fa3e0);
+  color: var(--finder-selection);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.md-rendered :deep(strong) { font-weight: 600; color: var(--text-primary); }
+.md-rendered :deep(strong) { font-weight: 600; }
 .md-rendered :deep(em) { font-style: italic; }
-.md-rendered :deep(del) { text-decoration: line-through; opacity: 0.6; }
-
-.md-rendered :deep(blockquote) {
-  border-left: 3px solid var(--accent-blue, #4fa3e0);
-  margin: 1.2em 0;
-  padding: 0.6em 1em;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border-radius: 0 4px 4px 0;
-}
-.md-rendered :deep(blockquote p) { margin-bottom: 0; }
+.md-rendered :deep(del) { text-decoration: line-through; opacity: 0.55; }
 
 .md-rendered :deep(ul),
 .md-rendered :deep(ol) {
-  color: var(--text-primary);
-  padding-left: 1.6em;
-  margin-bottom: 1em;
+  padding-left: 1.5em;
+  margin: 0 0 0.75em;
 }
 .md-rendered :deep(ul)  { list-style-type: disc; }
 .md-rendered :deep(ol)  { list-style-type: decimal; }
-.md-rendered :deep(li)  { line-height: 1.7; margin-bottom: 0.2em; }
+.md-rendered :deep(li)  { margin: 0.15em 0; }
 .md-rendered :deep(li > ul),
-.md-rendered :deep(li > ol) { margin-bottom: 0; }
+.md-rendered :deep(li > ol) { margin: 0.15em 0; }
+
+/* 引用：灰竖条 + 次级文字（不用蓝条/底色——蓝色只留给链接与选中） */
+.md-rendered :deep(blockquote) {
+  margin: 0 0 0.75em;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid color-mix(in srgb, var(--finder-label) 18%, transparent);
+  color: var(--finder-secondary-label);
+}
+.md-rendered :deep(blockquote p) { margin-bottom: 0.4em; }
+.md-rendered :deep(blockquote > :last-child) { margin-bottom: 0; }
 
 .md-rendered :deep(hr) {
   border: none;
-  border-top: 1px solid var(--border);
-  margin: 1.5em 0;
+  border-top: 1px solid var(--finder-divider);
+  margin: 1.6em 0;
 }
 
-/* Inline code */
+/* 行内代码：浅灰 inset 胶囊（无边框），SF Mono */
 .md-rendered :deep(:not(pre) > code) {
-  font-family: "JetBrains Mono", Menlo, Monaco, "Courier New", monospace;
-  font-size: 0.82em;
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  padding: 0.15em 0.4em;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  white-space: nowrap;
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  background: var(--finder-control);
+  padding: 0.1em 0.36em;
+  border-radius: 4px;
 }
 
-/* Code blocks */
+/* 代码块：浅灰 inset · 8px 圆角 · 长行横向滚动不撑破阅读列 */
 .md-rendered :deep(pre) {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1em 1.2em;
+  background: var(--finder-control);
+  border-radius: 8px;
+  padding: 12px 14px;
   overflow-x: auto;
-  margin: 1em 0;
-  line-height: 1.6;
+  margin: 0 0 1em;
+  line-height: 1.55;
 }
 .md-rendered :deep(pre code) {
-  font-family: "JetBrains Mono", Menlo, Monaco, "Courier New", monospace;
-  font-size: 0.82rem;
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
   background: none;
   border: none;
   padding: 0;
@@ -1678,72 +1708,81 @@ onUnmounted(() => {
   white-space: pre;
 }
 
-/* Tables */
+/* 表格：发丝分隔 + 斑马纹（GFM）；display:block 让宽表横向滚动而非撑破列 */
 .md-rendered :deep(table) {
+  display: block;
   width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
-  margin: 1em 0;
-  font-size: 0.875rem;
+  margin: 0 0 1em;
+  font-size: 0.9em;
 }
 .md-rendered :deep(th) {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  background: var(--finder-zebra);
+  color: var(--finder-secondary-label);
   font-weight: 600;
-  padding: 0.5em 0.8em;
-  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border: 1px solid var(--finder-divider);
   text-align: left;
 }
 .md-rendered :deep(td) {
-  padding: 0.45em 0.8em;
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  padding: 5px 10px;
+  border: 1px solid var(--finder-divider);
+  color: var(--finder-label);
 }
 .md-rendered :deep(tr:nth-child(even) td) {
-  background: var(--bg-tertiary);
+  background: var(--finder-zebra);
 }
 
 .md-rendered :deep(img) {
   max-width: 100%;
-  border-radius: 4px;
+  border-radius: 6px;
   display: block;
   margin: 0.5em 0;
 }
 
 .md-rendered :deep(details) {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.5em 0.8em;
-  margin: 0.8em 0;
+  border: 1px solid var(--finder-divider);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 1em;
 }
 .md-rendered :deep(summary) {
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--finder-label);
   user-select: none;
 }
 
-/* ── highlight.js token colors (Material-Dark palette, dark-mode friendly) ── */
+/* ── highlight.js token colors（--md-hl-* 双主题变量，定义在 finder-ui.css：
+   亮=低饱和文档系 / 暗=Material Dark 柔和色）── */
 .md-rendered :deep(.hljs-keyword),
 .md-rendered :deep(.hljs-selector-tag),
-.md-rendered :deep(.hljs-built_in)       { color: #c792ea; }
-.md-rendered :deep(.hljs-string),
-.md-rendered :deep(.hljs-attr)           { color: #c3e88d; }
+.md-rendered :deep(.hljs-built_in)       { color: var(--md-hl-keyword); }
+.md-rendered :deep(.hljs-string)         { color: var(--md-hl-string); }
+.md-rendered :deep(.hljs-attr)           { color: var(--md-hl-attr); }
 .md-rendered :deep(.hljs-number),
-.md-rendered :deep(.hljs-literal)        { color: #f78c6c; }
+.md-rendered :deep(.hljs-literal)        { color: var(--md-hl-number); }
 .md-rendered :deep(.hljs-comment),
-.md-rendered :deep(.hljs-quote)          { color: #697098; font-style: italic; }
+.md-rendered :deep(.hljs-quote)          { color: var(--md-hl-comment); font-style: italic; }
 .md-rendered :deep(.hljs-title),
-.md-rendered :deep(.hljs-section)        { color: #82aaff; }
+.md-rendered :deep(.hljs-section)        { color: var(--md-hl-title); }
 .md-rendered :deep(.hljs-function),
-.md-rendered :deep(.hljs-class)          { color: #ffcb6b; }
-.md-rendered :deep(.hljs-tag)            { color: #f07178; }
-.md-rendered :deep(.hljs-name)           { color: #f07178; }
-.md-rendered :deep(.hljs-attribute)      { color: #ffcb6b; }
-.md-rendered :deep(.hljs-type)           { color: #decb6b; }
+.md-rendered :deep(.hljs-class)          { color: var(--md-hl-function); }
+.md-rendered :deep(.hljs-tag),
+.md-rendered :deep(.hljs-name)           { color: var(--md-hl-tag); }
+.md-rendered :deep(.hljs-attribute)      { color: var(--md-hl-attr); }
+.md-rendered :deep(.hljs-type)           { color: var(--md-hl-number); }
 .md-rendered :deep(.hljs-symbol),
-.md-rendered :deep(.hljs-bullet)         { color: #89ddff; }
-.md-rendered :deep(.hljs-meta)           { color: #89ddff; font-style: italic; }
-.md-rendered :deep(.hljs-deletion)       { color: #f07178; background: rgba(240,113,120,0.12); }
-.md-rendered :deep(.hljs-addition)       { color: #c3e88d; background: rgba(195,232,141,0.12); }
+.md-rendered :deep(.hljs-bullet)         { color: var(--md-hl-symbol); }
+.md-rendered :deep(.hljs-meta)           { color: var(--md-hl-meta); font-style: italic; }
+.md-rendered :deep(.hljs-deletion) {
+  color: var(--md-hl-deletion);
+  background: color-mix(in srgb, var(--md-hl-deletion) 12%, transparent);
+}
+.md-rendered :deep(.hljs-addition) {
+  color: var(--md-hl-addition);
+  background: color-mix(in srgb, var(--md-hl-addition) 12%, transparent);
+}
 
 /* ── JSON Viewer (theme-aware) ─────────────────────────────────────────────────── */
 /* Web Component styles - use element selector for proper CSS variable inheritance */

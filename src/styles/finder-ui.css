@@ -1877,3 +1877,45 @@
   background: transparent !important;
   border-top-color: color-mix(in srgb, var(--finder-divider) 45%, transparent);
 }
+
+/* ── Markdown 快速预览（2026-08-20）──────────────────────────────────────────
+   ① 工具栏恢复极细底部分隔线：md 渲染面顶部是 720px 阅读列（不像 Monaco
+      有 24px 编辑器顶留白承担分隔），文档与工具栏分段控件之间需要一条
+      发丝分界；纯文本窗（非 is-md）维持 08-19 无分割线的既定决策不变。
+   ② 代码高亮 token 双主题变量（PreviewTextContent scoped 样式引用）：
+      亮色 = 低饱和文档系（Atom One Light 系，浅灰 inset 底上可读）；
+      暗色 = 沿用原 Material Dark 柔和色。旧实现只有暗色一套，
+      亮主题下 #c3e88d 等淡色 token 在浅灰底上几乎不可读。 */
+.finder-shell .quick-look-card--text .is-md .text-view-toolbar {
+  border-bottom-color: color-mix(in srgb, var(--finder-divider) 70%, transparent) !important;
+}
+
+.finder-shell {
+  --md-hl-keyword: #a626a4;
+  --md-hl-string: #50a14f;
+  --md-hl-number: #986801;
+  --md-hl-comment: #6e7781;
+  --md-hl-title: #4078f2;
+  --md-hl-function: #4078f2;
+  --md-hl-tag: #e45649;
+  --md-hl-attr: #986801;
+  --md-hl-symbol: #0184bc;
+  --md-hl-meta: #0184bc;
+  --md-hl-addition: #50a14f;
+  --md-hl-deletion: #e45649;
+}
+
+.finder-shell[data-theme='dark'] {
+  --md-hl-keyword: #c792ea;
+  --md-hl-string: #c3e88d;
+  --md-hl-number: #f78c6c;
+  --md-hl-comment: #697098;
+  --md-hl-title: #82aaff;
+  --md-hl-function: #ffcb6b;
+  --md-hl-tag: #f07178;
+  --md-hl-attr: #ffcb6b;
+  --md-hl-symbol: #89ddff;
+  --md-hl-meta: #89ddff;
+  --md-hl-addition: #c3e88d;
+  --md-hl-deletion: #f07178;
+}
