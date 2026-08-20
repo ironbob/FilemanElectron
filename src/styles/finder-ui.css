@@ -841,6 +841,70 @@
 .finder-shell .finder-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .finder-shell .finder-btn-primary.is-danger { background: var(--accent-red); }
 
+/* Sheet 内小号次级钮（行内动作，如校验和行的「拷贝」）：工具栏级缩小档（§2.4） */
+.finder-shell .finder-btn-secondary.is-sm {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  gap: 4px;
+}
+
+/* Sheet 内凹陷组（条目/表单分组，2026-08-20）：8px 圆角 + tertiary 实底、无描边
+   （一张材质规则）。勿用 bg-bg-tertiary/50 —— 变量色上的透明度修饰符静默失效
+   （渲染为透明，见上方 bg-secondary/50 同类注释）。 */
+.finder-shell .finder-inset-group {
+  border-radius: 8px;
+  background-color: var(--bg-tertiary);
+}
+
+/* Sheet 条目行文件图标：.finder-icon 基类 1em×1em（特异性 0,2,0）压过 Tailwind
+   w-7/h-7 单类，条目图标统一走本类定 28px。 */
+.finder-shell .finder-sheet .finder-item-icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* ── Sheet 内分段控件（ChecksumDialog 算法切换，2026-08-20）───────────────────
+   components.md §2.3 带文字子项规格：托盘 control 底 + 2px padding + 7px 圆角，
+   子项 22px 高/12px 字；激活=浅灰（单蓝规则——蓝只留给主钮与列表选中行）。 */
+.finder-shell .finder-seg-tray {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--finder-control);
+}
+
+.finder-shell .finder-segment-btn-text {
+  height: 22px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--finder-secondary-label);
+  background: transparent;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.finder-shell .finder-segment-btn-text:hover:not(:disabled) {
+  background: var(--finder-control-strong);
+  color: var(--finder-label);
+}
+
+.finder-shell .finder-segment-btn-text.active {
+  background: var(--finder-capsule-seg-active);
+  color: var(--finder-label);
+}
+
+.finder-shell .finder-segment-btn-text:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ── 设备截屏展示层（mobile/ScreenshotOverlay，2026-08-19 Finder 化）──────────
    卡片走 finder-sheet（popover 材质）；一张材质规则——头部工具栏与底栏的
    实色底全部透明化，分隔线用 divider，按钮用 Sheet 规格 secondary/primary。 */
