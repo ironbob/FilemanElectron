@@ -899,11 +899,17 @@ async function loadDeviceCapabilities(deviceId: string) {
   }
 }
 
-async function loadFiles() {
+/**
+ * 拉取并渲染当前目录。
+ * @param silent 静默重载（watch 事件/原地刷新）：已有内容在拉取期间保持可见，
+ *   不用 spinner 整帧替换列表——否则列表卸载重挂 + 滚动跳顶，肉眼即「闪一下」。
+ *   首次加载/导航/手动刷新（⌘R、菜单）保持非静默，spinner 是应有反馈。
+ */
+async function loadFiles(silent = false) {
   const pathSnapshot = props.path
   const deviceSnapshot = props.deviceId
 
-  loading.value = true
+  if (!silent) loading.value = true
   tabsStore.setPaneLoadError(props.paneId, null)
   nearestExistingAncestor.value = null
   try {
@@ -1029,7 +1035,8 @@ async function refreshAfterWatchEvent(): Promise<void> {
     // autoRefresh=false：内容不自动重载（不打扰选区/滚动）；目录消失检测仍生效
     if (settingsStore.settings.autoRefresh === false) return
     if (!listingDiffers(files.value, fresh)) return
-    await loadFiles()
+    // 静默重载：签名已变才走到这，数据到达后原地换内容（不亮 spinner 防闪烁）
+    await loadFiles(true)
   } catch (error) {
     // 设备瞬断容忍：仅在 exists 确认目录已消失时才翻转错误态，其余保持静默
     try {
@@ -2790,6 +2797,13 @@ function onRenameEnter(event: KeyboardEvent) {
 function onRenameTab() {
   commitRename()
 }
+
+/** 供 FilePane 调用的原地静默重载（改名完成事件等）：不亮 spinner、不重挂列表。 */
+function reloadSilently() {
+  void loadFiles(true)
+}
+
+defineExpose({ reloadSilently })
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -2869,7 +2883,7 @@ function handleContextMenuAction(action: string) {
       const parent = parentDirectory(file.path)
       const linkPath = parent === '/' ? `/${file.name} 的替身` : `${parent}/${file.name} 的替身`
       window.fileman.createSymlink(props.deviceId, file.path, linkPath)
-        .then(() => { loadFiles() })
+        .then(() => { loadFiles(true) })
         .catch(err => {
           console.error('[FileList] make-alias failed for', file.path, err)
         })

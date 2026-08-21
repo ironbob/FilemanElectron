@@ -279,6 +279,7 @@
       </Transition>
       <!-- File List -->
       <FileList
+        ref="fileListRef"
         :key="directoryLoadKey"
         class="flex-1 min-w-0"
         :pane-id="paneId"
@@ -567,6 +568,8 @@ const actionsMenu = reactive({ visible: false, x: 0, y: 0 })
 useAppDragSuspend(() => searchHistoryOpen.value)
 const loadedFiles = ref<FileInfo[]>([])
 const directoryLoadKey = ref(0)
+/** FileList 实例（:key 重挂时自动重绑）：rename 完成事件走它的原地静默重载。 */
+const fileListRef = ref<{ reloadSilently: () => void } | null>(null)
 const createDialog = reactive({
   visible: false,
   kind: 'file' as 'file' | 'folder',
@@ -1184,6 +1187,12 @@ onMounted(() => {
     if (!pendingDirectoryRefreshes.has(task.id) && !taskTouchesThisDirectory(task)) return
     pendingDirectoryRefreshes.delete(task.id)
     if (task.status === 'completed') {
+      // rename：原地静默重载（Finder 语义——行名原地变）；directoryLoadKey++
+      // 会整挂 FileList（spinner 整帧替换 + 滚动跳顶 = 「闪一下」）
+      if (task.type === 'rename') {
+        fileListRef.value?.reloadSilently()
+        return
+      }
       log.info('[DnD][FilePane] refreshing directory after task completion', {
         paneId: props.paneId,
         taskId: task.id,
@@ -1419,6 +1428,12 @@ function joinChildPath(directory: string, name: string): string {
  * - move 源位于本面板当前目录（跨面板移动后源面板需要刷新）。
  */
 function taskTouchesThisDirectory(task: FileOperationTask): boolean {
+  if (task.type === 'rename') {
+    // rename 无 targetPath：源文件所在目录即受影响目录（远程设备无 watch，
+    // 完成事件是唯一刷新时机——此前不认 rename，远程改名后列表不更新）
+    return task.sourceDeviceId === pane.value?.deviceId
+      && task.sourcePaths.some(sourcePath => parentDirectoryOf(sourcePath) === pane.value?.path)
+  }
   if (task.type !== 'copy' && task.type !== 'move' && task.type !== 'archive') return false
   const deviceId = pane.value?.deviceId
   const currentPath = pane.value?.path
@@ -1948,8 +1963,10 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         if (op.newName) {
           const filePath = op.files[0]
           await fileOpsStore.createRenameTask(deviceId, filePath, op.newName)
-          tabsStore.setSelectedFiles(props.paneId, [])
-          tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
+          // Finder 语义：改名后该项仍保持选中（路径换新名）。列表刷新交给
+          // 任务完成事件的原地静默重载——navigatePane(同路径)本就不触发重载
+          // （path 同值无响应），只会白白重置滚动记忆并向前/后退历史塞重复项
+          tabsStore.setSelectedFiles(props.paneId, [joinChildPath(parentDirectoryOf(filePath), op.newName)])
         } else {
           // 否则显示对话框（兼容其他调用方式）
           renameDialog.filePath = op.files[0]
