@@ -358,22 +358,31 @@
       @close="actionsMenu.visible = false"
     />
 
-    <!-- Operation Dialog -->
-    <div v-if="createDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeCreateDialog">
-      <form class="finder-sheet p-4" :class="createDialog.source === 'clipboard' ? 'w-96' : 'w-80'" role="dialog" :aria-label="createDialog.kind === 'file' ? $t('filePane.createDialog.fileAria') : $t('filePane.createDialog.folderAria')" @submit.prevent="confirmCreateDialog">
-        <h3 class="mb-1 text-lg font-medium text-text-primary">{{ createDialog.source === 'clipboard' ? $t('filePane.createDialog.clipboardTitle') : (createDialog.kind === 'file' ? $t('filePane.toolbar.newFile') : $t('filePane.toolbar.newFolder')) }}</h3>
-        <p class="mb-4 text-sm text-text-tertiary">{{ $t('filePane.createDialog.createdIn', { path: pane?.path || '/' }) }}</p>
-        <!-- 剪贴板内容预览：文本前 200 字符（截断加 …）/ 320px 缩略图 -->
-        <pre v-if="createDialog.source === 'clipboard' && createDialog.clipKind === 'text'" class="mb-3 max-h-28 overflow-hidden whitespace-pre-wrap break-all rounded border border-border bg-bg-tertiary px-2 py-1.5 font-mono text-xs leading-relaxed text-text-secondary">{{ createDialog.previewText }}<span v-if="createDialog.previewTruncated" class="text-text-tertiary">…</span></pre>
-        <img v-else-if="createDialog.source === 'clipboard' && createDialog.previewDataUrl" :src="createDialog.previewDataUrl" :alt="$t('filePane.createDialog.clipboardTitle')" class="mb-3 max-h-40 rounded border border-border bg-bg-tertiary object-contain" />
-        <input ref="createNameInputRef" v-model="createDialog.name" class="h-9 w-full rounded border border-border bg-bg-tertiary px-2 text-sm text-text-primary focus:border-accent-blue focus:outline-none" :placeholder="createDialog.kind === 'file' ? 'example.txt' : $t('filePane.createDialog.folderPlaceholder')" @input="createDialog.error = ''" @keydown.escape.prevent="closeCreateDialog" />
-        <p v-if="createDialog.error" class="mt-2 text-xs text-accent-red">{{ createDialog.error }}</p>
-        <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="finder-btn-secondary" @click="closeCreateDialog">{{ $t('common.cancel') }}</button>
-          <button type="submit" class="finder-btn-primary">{{ $t('filePane.createDialog.create') }}</button>
-        </div>
-      </form>
-    </div>
+    <!-- Operation Dialog（新建三合一 + 删除确认，2026-08-21 Finder 化组件化） -->
+    <CreateItemSheet
+      v-if="createDialog.visible"
+      :kind="createDialog.kind"
+      :source="createDialog.source"
+      :initial-name="createDialog.name"
+      :dir-path="pane?.path || '/'"
+      :error="createDialog.error"
+      :clip-kind="createDialog.clipKind"
+      :preview-text="createDialog.previewText"
+      :preview-truncated="createDialog.previewTruncated"
+      :preview-data-url="createDialog.previewDataUrl"
+      :byte-size="createDialog.byteSize"
+      :image-width="createDialog.imageWidth"
+      :image-height="createDialog.imageHeight"
+      @close="closeCreateDialog"
+      @confirm="confirmCreateDialog"
+      @clear-error="createDialog.error = ''"
+    />
+    <DeleteConfirmSheet
+      v-if="deleteConfirm.visible"
+      :names="deleteConfirm.names"
+      @close="deleteConfirm.visible = false"
+      @confirm="confirmDeleteFiles"
+    />
     <!-- Go to Folder Dialog (⇧⌘G) -->
     <div v-if="goToDialog.visible" class="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in" @click.self="closeGoToDialog">
       <form class="finder-sheet w-96 p-4" role="dialog" :aria-label="$t('filePane.goToDialog.title')" @submit.prevent="confirmGoToDialog">
@@ -471,6 +480,8 @@ import ChecksumDialog from './dialogs/ChecksumDialog.vue'
 import ImageConvertDialog from './dialogs/ImageConvertDialog.vue'
 import Archive7zDialog from './dialogs/Archive7zDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
+import CreateItemSheet from './dialogs/CreateItemSheet.vue'
+import DeleteConfirmSheet from './dialogs/DeleteConfirmSheet.vue'
 import { parentDirectoryOf } from '@/utils/dragTransfer'
 import { hideDropHint } from '@/utils/dropHint'
 import { useDragSessionStore } from '@/stores/dragSession'
@@ -556,7 +567,6 @@ const actionsMenu = reactive({ visible: false, x: 0, y: 0 })
 useAppDragSuspend(() => searchHistoryOpen.value)
 const loadedFiles = ref<FileInfo[]>([])
 const directoryLoadKey = ref(0)
-const createNameInputRef = ref<HTMLInputElement | null>(null)
 const createDialog = reactive({
   visible: false,
   kind: 'file' as 'file' | 'folder',
@@ -568,7 +578,16 @@ const createDialog = reactive({
   clipKind: 'text' as 'text' | 'image',
   previewText: '',
   previewTruncated: false,
-  previewDataUrl: ''
+  previewDataUrl: '',
+  byteSize: 0,
+  imageWidth: 0,
+  imageHeight: 0
+})
+// 删除确认（移到废纸篓）：paths 走任务，names 供 sheet 展示（basename）。
+const deleteConfirm = reactive({
+  visible: false,
+  files: [] as string[],
+  names: [] as string[]
 })
 // ⇧⌘G 前往文件夹对话框
 const goToNameInputRef = ref<HTMLInputElement | null>(null)
@@ -1187,13 +1206,12 @@ function openCreateDialog(kind: 'file' | 'folder') {
   createDialog.name = kind === 'file' ? 'untitled.txt' : t('filePane.toolbar.newFolder')
   createDialog.error = ''
   createDialog.visible = true
-  void nextTick(() => createNameInputRef.value?.select())
 }
 
 /**
  * 从剪贴板新建文件：预填时间戳默认名 + 冻结探针预览（文本前 200 字符 /
- * 320px 缩略图）。确认时另调 readClipboardData 取全量——对话框打开期间
- * 剪贴板可能已变，写入以全量读取的实时判定为准。
+ * 320px 缩略图 + 原图像素尺寸元信息）。确认时另调 readClipboardData 取全量
+ * ——对话框打开期间剪贴板可能已变，写入以全量读取的实时判定为准。
  */
 function openCreateFromClipboardDialog() {
   const probe = clipboardContentStore.currentProbe
@@ -1205,9 +1223,11 @@ function openCreateFromClipboardDialog() {
   createDialog.previewText = probe.previewText ?? ''
   createDialog.previewTruncated = probe.truncated ?? false
   createDialog.previewDataUrl = probe.previewDataUrl ?? ''
+  createDialog.byteSize = probe.byteSize ?? 0
+  createDialog.imageWidth = probe.imageWidth ?? 0
+  createDialog.imageHeight = probe.imageHeight ?? 0
   createDialog.error = ''
   createDialog.visible = true
-  void nextTick(() => createNameInputRef.value?.select())
 }
 
 /** 默认名：Clipboard-/Screenshot-YYYY-MM-DD-HH-mm-SS（与设备截屏命名同形）。 */
@@ -1221,6 +1241,20 @@ function clipboardFileName(kind: 'text' | 'image'): string {
 function closeCreateDialog() {
   createDialog.visible = false
   createDialog.error = ''
+}
+
+/** 删除确认 sheet 的「移到废纸篓」：入队 recycle 任务（本地=系统废纸篓，
+ * 远程=同目录 .fileman-recycle-bin，均可恢复）+ 清选中 + 停留原地刷新。 */
+async function confirmDeleteFiles() {
+  deleteConfirm.visible = false
+  const files = [...deleteConfirm.files]
+  deleteConfirm.files = []
+  deleteConfirm.names = []
+  if (files.length === 0) return
+  const deviceId = pane.value?.deviceId || 'local'
+  await fileOpsStore.createRecycleTask(deviceId, files)
+  tabsStore.setSelectedFiles(props.paneId, [])
+  tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
 }
 
 // ── ⇧⌘G 前往文件夹 ───────────────────────────────────────────────────────────
@@ -1417,8 +1451,8 @@ function refreshCurrentDirectory() {
   directoryLoadKey.value++
 }
 
-async function confirmCreateDialog() {
-  const name = createDialog.name.trim()
+/** CreateItemSheet 提交（Enter/创建钮）：name 由组件输入框带出，非法名在此校验回显。 */
+async function confirmCreateDialog(name: string) {
   if (!name || name === '.' || name === '..' || name.includes('/')) {
     createDialog.error = t('filePane.createDialog.invalidName')
     return
@@ -1780,11 +1814,10 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
     }
 
     case 'delete':
-      if (confirm(t('fileList.confirmDelete', op.files.length))) {
-        await fileOpsStore.createRecycleTask(deviceId, op.files)
-        tabsStore.setSelectedFiles(props.paneId, [])
-        tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
-      }
+      // Finder 化确认 sheet（移到废纸篓，可恢复）：先快照待删集，确认后再入队。
+      deleteConfirm.files = [...op.files]
+      deleteConfirm.names = op.files.map(path => path.slice(path.lastIndexOf('/') + 1) || path)
+      deleteConfirm.visible = true
       break
 
     case 'info': {

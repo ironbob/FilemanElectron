@@ -212,12 +212,18 @@ const enUS: MessageSchema = {
     createDialog: {
       fileAria: 'Create File',
       folderAria: 'Create Folder',
-      createdIn: 'Created in {path}',
+      createdInLabel: 'Where:',
       folderPlaceholder: 'Folder name',
       create: 'Create',
       invalidName: 'Enter a valid name without a slash.',
       createFailed: 'Could not create the item.',
+      clipboardAria: 'New File from Clipboard',
       clipboardTitle: 'New File from Clipboard',
+      clipboardSummary: 'The {kind} on the clipboard will be saved as a new file.',
+      clipboardKindText: 'text',
+      clipboardKindImage: 'image',
+      clipboardMetaImage: 'PNG image · {width}×{height} · {size}',
+      clipboardMetaText: 'Text · {size}',
       nameExists: 'That name is already taken. Choose another.'
     },
     goToDialog: {
@@ -341,7 +347,17 @@ const enUS: MessageSchema = {
       quickLook: 'Quick Look',
       quickActions: 'Quick Actions'
     },
-    confirmDelete: 'Delete {count} item? | Delete {count} items?'
+    deleteSheet: {
+      titleOne: 'Are you sure you want to move “{name}” to the Trash?',
+      titleMany: 'Are you sure you want to move {count} items to the Trash?',
+      titleOnePermanent: 'Delete “{name}” immediately?',
+      titleManyPermanent: 'Delete {count} items immediately?',
+      moreItems: 'and {count} more',
+      recoverNote: 'Items moved to the Trash can be restored later.',
+      permanentNote: 'The items will be deleted immediately and cannot be restored.',
+      confirmTrash: 'Move to Trash',
+      confirmDelete: 'Delete Immediately'
+    }
   },
   dialogs: {
     rename: {
@@ -680,8 +696,7 @@ const enUS: MessageSchema = {
     },
     delete: {
       leftPath: 'Left: {path}',
-      rightPath: 'Right: {path}',
-      confirm: 'Delete the following files?'
+      rightPath: 'Right: {path}'
     },
     copyDialog: {
       title: 'Confirm Copy',

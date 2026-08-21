@@ -194,6 +194,15 @@
       @confirm="executeCopyPlan"
     />
 
+    <!-- 永久删除确认（目录对比的删除不走废纸篓）：红色危险态 sheet。 -->
+    <DeleteConfirmSheet
+      v-if="deletePending"
+      :names="deletePending.names"
+      :recoverable="false"
+      @close="deletePending = null"
+      @confirm="executeDeletePending"
+    />
+
     <!-- Context Menu -->
     <div
       v-if="ctxMenu.visible"
@@ -231,6 +240,7 @@ import DirCompareStatusBar from './DirCompareStatusBar.vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useDevicesStore } from '@/stores/devices'
 import DirCompareCopyDialog from './DirCompareCopyDialog.vue'
+import DeleteConfirmSheet from '@/components/dialogs/DeleteConfirmSheet.vue'
 
 const props = defineProps<{
   session: DirCompareSession
@@ -589,12 +599,21 @@ async function copySelectionToLeft() {
   openCopyPlan('right-to-left')
 }
 
-async function deleteSide(entry: CompareEntry, side: 'left' | 'right' | 'both') {
+/** 待确认的永久删除（sheet 展示名带 左侧/右侧 前缀，防两侧同名歧义）。 */
+const deletePending = ref<{ entry: CompareEntry; side: 'left' | 'right' | 'both'; names: string[] } | null>(null)
+
+function deleteSide(entry: CompareEntry, side: 'left' | 'right' | 'both') {
   const names: string[] = []
   if (side === 'left' || side === 'both') names.push(t('compare.delete.leftPath', { path: entry.left?.path ?? entry.name }))
   if (side === 'right' || side === 'both') names.push(t('compare.delete.rightPath', { path: entry.right?.path ?? entry.name }))
-  if (!confirm(`${t('compare.delete.confirm')}\n\n${names.join('\n')}`)) return
+  deletePending.value = { entry, side, names }
+}
 
+async function executeDeletePending() {
+  const pending = deletePending.value
+  deletePending.value = null
+  if (!pending) return
+  const { entry, side } = pending
   if ((side === 'left' || side === 'both') && entry.left) {
     await fileOpsStore.createDeleteTask(localSession.leftDeviceId, [entry.left.path])
   }

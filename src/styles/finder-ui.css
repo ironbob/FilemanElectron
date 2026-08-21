@@ -921,6 +921,49 @@
   cursor: not-allowed;
 }
 
+/* ── Sheet 内部件（CreateItemSheet / DeleteConfirmSheet，2026-08-21）──────────
+   标题 17px semibold、正文/路径 13px；路径标签永不折行（「创建位置：」断成
+   「创建位/置：」是本家族回归项）；输入框 30px + macOS 原生细蓝 focus ring
+   （0 0 0 2px / 25% 规格同 ImageSaveSheet，勿用厚重亮蓝描边）。路径中间省略
+   由 JS middleEllipsis 截断为主，CSS 尾省略仅兜底极端字号。 */
+.finder-shell .finder-sheet .sheet-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--finder-label);
+}
+
+.finder-shell .finder-sheet .sheet-path-label {
+  font-size: 13px;
+  color: var(--finder-secondary-label);
+  white-space: nowrap;
+}
+
+.finder-shell .finder-sheet .sheet-path {
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--finder-secondary-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.finder-shell .finder-sheet .sheet-name-input {
+  height: 30px;
+  border: 1px solid var(--finder-divider);
+  border-radius: 7px;
+  background: var(--finder-control);
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--finder-label);
+  transition: border-color 130ms ease, box-shadow 130ms ease;
+}
+
+.finder-shell .finder-sheet .sheet-name-input:focus {
+  outline: none;
+  border-color: var(--finder-selection);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.25);
+}
+
 /* ── 设备截屏展示层（mobile/ScreenshotOverlay，2026-08-19 Finder 化）──────────
    卡片走 finder-sheet（popover 材质）；一张材质规则——头部工具栏与底栏的
    实色底全部透明化，分隔线用 divider，按钮用 Sheet 规格 secondary/primary。 */

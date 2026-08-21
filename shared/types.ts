@@ -632,6 +632,9 @@ export interface ClipboardProbe {
   truncated?: boolean
   /** kind='image'：320px 宽缩略图的 data:image/png;base64 URL。 */
   previewDataUrl?: string
+  /** kind='image'：原图像素尺寸（新建对话框元信息行用，非缩略图尺寸）。 */
+  imageWidth?: number
+  imageHeight?: number
   /** 超限（text >10MB / image >20MB）：菜单项 disabled 的依据。 */
   tooLarge?: boolean
 }

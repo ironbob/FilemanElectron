@@ -238,12 +238,15 @@ export class SystemClipboardService {
       const image = clipboard.readImage()
       if (!image.isEmpty()) {
         const png = image.toPNG()
+        const size = image.getSize()
         // 缩略图只缩不放（resize 会放大小图），预览用；全量数据留给 readData
-        const preview = image.getSize().width > 320 ? image.resize({ width: 320 }).toPNG() : png
+        const preview = size.width > 320 ? image.resize({ width: 320 }).toPNG() : png
         return {
           kind: 'image',
           byteSize: png.length,
           previewDataUrl: `data:image/png;base64,${preview.toString('base64')}`,
+          imageWidth: size.width,
+          imageHeight: size.height,
           tooLarge: png.length > 20 * 1024 * 1024
         }
       }

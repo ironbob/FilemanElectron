@@ -218,12 +218,18 @@ const zhCN = {
     createDialog: {
       fileAria: '创建文件',
       folderAria: '创建文件夹',
-      createdIn: '创建位置：{path}',
+      createdInLabel: '创建位置：',
       folderPlaceholder: '文件夹名称',
       create: '创建',
       invalidName: '请输入不含斜杠的有效名称。',
       createFailed: '无法创建该项目。',
-      clipboardTitle: '新建文件（剪贴板内容）',
+      clipboardAria: '从剪贴板新建文件',
+      clipboardTitle: '从剪贴板新建文件',
+      clipboardSummary: '剪贴板中的{kind}将保存为新文件。',
+      clipboardKindText: '文本',
+      clipboardKindImage: '图像',
+      clipboardMetaImage: 'PNG 图像 · {width}×{height} · {size}',
+      clipboardMetaText: '文本 · {size}',
       nameExists: '该名称已被使用，请换一个名称。'
     },
     goToDialog: {
@@ -347,7 +353,17 @@ const zhCN = {
       quickLook: '快速查看',
       quickActions: '快速操作'
     },
-    confirmDelete: '删除 {count} 项？'
+    deleteSheet: {
+      titleOne: '要将“{name}”移到废纸篓吗？',
+      titleMany: '要将 {count} 个项目移到废纸篓吗？',
+      titleOnePermanent: '要立即删除“{name}”吗？',
+      titleManyPermanent: '要立即删除 {count} 个项目吗？',
+      moreItems: '以及另外 {count} 个项目',
+      recoverNote: '移到废纸篓的项目之后可以恢复。',
+      permanentNote: '项目将被立即删除，无法恢复。',
+      confirmTrash: '移到废纸篓',
+      confirmDelete: '立即删除'
+    }
   },
   dialogs: {
     rename: {
@@ -686,9 +702,8 @@ const zhCN = {
       deleteBoth: '删除（两侧）'
     },
     delete: {
-      leftPath: '左侧: {path}',
-      rightPath: '右侧: {path}',
-      confirm: '确认删除以下文件？'
+      leftPath: '左侧：{path}',
+      rightPath: '右侧：{path}'
     },
     copyDialog: {
       title: '确认复制',
