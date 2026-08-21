@@ -294,7 +294,30 @@ const zhCN = {
     unknownReason: "未知原因",
     screenshotNeedConnect: "连接设备后可截图",
     screenshotNeedPair: "iOS 需先配对并连接后可截图",
-    screenshotOf: "截取 {name} 的屏幕截图"
+    screenshotOf: "截取 {name} 的屏幕截图",
+    menu: {
+      open: "打开",
+      openNewTab: "在新标签页中打开",
+      openSplitTab: "在新分屏标签页中打开",
+      openOppositePane: "在对面面板中打开",
+      searchInFolder: "在此文件夹中搜索",
+      analyzeSpace: "分析空间",
+      findDuplicates: "查找重复文件",
+      compareDir: "目录对比",
+      compareWithLeft: "与左面板对比",
+      compareWithRight: "与右面板对比",
+      revealInFinder: "在 Finder 中显示",
+      openInTerminal: "在终端中打开",
+      getInfo: "显示简介",
+      renameFavorite: "重新命名…",
+      moveUp: "上移",
+      moveDown: "下移",
+      removeFromSidebar: "从边栏中移除",
+      eject: "弹出“{name}”",
+      ejectFailed: "无法弹出“{name}”：{message}",
+      disconnect: "断开连接",
+      removeDevice: "移除设备"
+    }
   },
   filePane: {
     toolbar: {
@@ -348,12 +371,18 @@ const zhCN = {
     createDialog: {
       fileAria: "创建文件",
       folderAria: "创建文件夹",
-      createdIn: "创建位置：{path}",
+      createdInLabel: "创建位置：",
       folderPlaceholder: "文件夹名称",
       create: "创建",
       invalidName: "请输入不含斜杠的有效名称。",
       createFailed: "无法创建该项目。",
-      clipboardTitle: "新建文件（剪贴板内容）",
+      clipboardAria: "从剪贴板新建文件",
+      clipboardTitle: "从剪贴板新建文件",
+      clipboardSummary: "剪贴板中的{kind}将保存为新文件。",
+      clipboardKindText: "文本",
+      clipboardKindImage: "图像",
+      clipboardMetaImage: "PNG 图像 · {width}×{height} · {size}",
+      clipboardMetaText: "文本 · {size}",
       nameExists: "该名称已被使用，请换一个名称。"
     },
     goToDialog: {
@@ -477,7 +506,17 @@ const zhCN = {
       quickLook: "快速查看",
       quickActions: "快速操作"
     },
-    confirmDelete: "删除 {count} 项？"
+    deleteSheet: {
+      titleOne: "要将“{name}”移到废纸篓吗？",
+      titleMany: "要将 {count} 个项目移到废纸篓吗？",
+      titleOnePermanent: "要立即删除“{name}”吗？",
+      titleManyPermanent: "要立即删除 {count} 个项目吗？",
+      moreItems: "以及另外 {count} 个项目",
+      recoverNote: "移到废纸篓的项目之后可以恢复。",
+      permanentNote: "项目将被立即删除，无法恢复。",
+      confirmTrash: "移到废纸篓",
+      confirmDelete: "立即删除"
+    }
   },
   dialogs: {
     rename: {
@@ -681,6 +720,7 @@ const zhCN = {
     },
     saveImage: {
       title: "保存标注后的图片",
+      titleExport: "另存为",
       modeAria: "保存方式",
       modeCopy: "导出副本",
       modeReplace: "替换原文件",
@@ -815,9 +855,8 @@ const zhCN = {
       deleteBoth: "删除（两侧）"
     },
     delete: {
-      leftPath: "左侧: {path}",
-      rightPath: "右侧: {path}",
-      confirm: "确认删除以下文件？"
+      leftPath: "左侧：{path}",
+      rightPath: "右侧：{path}"
     },
     copyDialog: {
       title: "确认复制",
@@ -1272,7 +1311,7 @@ const zhCN = {
       batchCompress: "批量压缩",
       batchRenameTip: "批量改名当前集合",
       batchRename: "批量改名",
-      compressTip: "压缩"
+      saveAsTip: "另存为…"
     },
     video: {
       loading: "正在加载视频…",
@@ -1473,10 +1512,16 @@ const zhCN = {
     },
     quickLook: {
       dialogAria: "快速预览",
-      prevTip: "上一项 (↑)",
-      nextTip: "下一项 (↓)",
+      prevTip: "上一项 (↑/←)",
+      nextTip: "下一项 (↓/→)",
       closeTip: "关闭 (Esc / 空格)",
-      unsupported: "此文件类型不支持快速预览"
+      unsupportedTitle: "无法快速预览“{name}”",
+      unsupportedDesc: "此文件类型暂不支持预览。",
+      unsupportedUnknownDesc: "未能识别此文件的格式。",
+      unsupportedFolderDesc: "文件夹暂不支持快速预览。",
+      itemOfTotal: "第 {index} 项，共 {total} 项",
+      openFullPreview: "在完整预览中打开",
+      revealInFinder: "在 Finder 中显示"
     },
     logview: {
       matchCount: "{n} 命中",
@@ -1802,7 +1847,30 @@ const enUS = {
     unknownReason: "unknown reason",
     screenshotNeedConnect: "Connect the device to take screenshots",
     screenshotNeedPair: "iOS requires pairing and connection before screenshots",
-    screenshotOf: "Capture a screenshot of {name}"
+    screenshotOf: "Capture a screenshot of {name}",
+    menu: {
+      open: "Open",
+      openNewTab: "Open in New Tab",
+      openSplitTab: "Open in Split Tab",
+      openOppositePane: "Open in Opposite Pane",
+      searchInFolder: "Search in This Folder",
+      analyzeSpace: "Analyze Space",
+      findDuplicates: "Find Duplicate Files",
+      compareDir: "Compare Directories",
+      compareWithLeft: "Compare with Left Pane",
+      compareWithRight: "Compare with Right Pane",
+      revealInFinder: "Reveal in Finder",
+      openInTerminal: "Open in Terminal",
+      getInfo: "Get Info",
+      renameFavorite: "Rename…",
+      moveUp: "Move Up",
+      moveDown: "Move Down",
+      removeFromSidebar: "Remove from Sidebar",
+      eject: 'Eject "{name}"',
+      ejectFailed: 'Cannot eject "{name}": {message}',
+      disconnect: "Disconnect",
+      removeDevice: "Remove Device"
+    }
   },
   filePane: {
     toolbar: {
@@ -1856,12 +1924,18 @@ const enUS = {
     createDialog: {
       fileAria: "Create File",
       folderAria: "Create Folder",
-      createdIn: "Created in {path}",
+      createdInLabel: "Where:",
       folderPlaceholder: "Folder name",
       create: "Create",
       invalidName: "Enter a valid name without a slash.",
       createFailed: "Could not create the item.",
+      clipboardAria: "New File from Clipboard",
       clipboardTitle: "New File from Clipboard",
+      clipboardSummary: "The {kind} on the clipboard will be saved as a new file.",
+      clipboardKindText: "text",
+      clipboardKindImage: "image",
+      clipboardMetaImage: "PNG image · {width}×{height} · {size}",
+      clipboardMetaText: "Text · {size}",
       nameExists: "That name is already taken. Choose another."
     },
     goToDialog: {
@@ -1985,7 +2059,17 @@ const enUS = {
       quickLook: "Quick Look",
       quickActions: "Quick Actions"
     },
-    confirmDelete: "Delete {count} item? | Delete {count} items?"
+    deleteSheet: {
+      titleOne: "Are you sure you want to move “{name}” to the Trash?",
+      titleMany: "Are you sure you want to move {count} items to the Trash?",
+      titleOnePermanent: "Delete “{name}” immediately?",
+      titleManyPermanent: "Delete {count} items immediately?",
+      moreItems: "and {count} more",
+      recoverNote: "Items moved to the Trash can be restored later.",
+      permanentNote: "The items will be deleted immediately and cannot be restored.",
+      confirmTrash: "Move to Trash",
+      confirmDelete: "Delete Immediately"
+    }
   },
   dialogs: {
     rename: {
@@ -2189,6 +2273,7 @@ const enUS = {
     },
     saveImage: {
       title: "Save Annotated Image",
+      titleExport: "Save As",
       modeAria: "Save mode",
       modeCopy: "Export a Copy",
       modeReplace: "Replace Original",
@@ -2323,8 +2408,7 @@ const enUS = {
     },
     delete: {
       leftPath: "Left: {path}",
-      rightPath: "Right: {path}",
-      confirm: "Delete the following files?"
+      rightPath: "Right: {path}"
     },
     copyDialog: {
       title: "Confirm Copy",
@@ -2772,7 +2856,7 @@ const enUS = {
       batchCompress: "Batch Compress",
       batchRenameTip: "Batch rename the current collection",
       batchRename: "Batch Rename",
-      compressTip: "Compress"
+      saveAsTip: "Save As…"
     },
     video: {
       loading: "Loading video...",
@@ -2973,10 +3057,16 @@ const enUS = {
     },
     quickLook: {
       dialogAria: "Quick Look",
-      prevTip: "Previous (↑)",
-      nextTip: "Next (↓)",
+      prevTip: "Previous (↑/←)",
+      nextTip: "Next (↓/→)",
       closeTip: "Close (Esc / Space)",
-      unsupported: "Quick Look is unavailable for this file type"
+      unsupportedTitle: "Can’t quick look “{name}”",
+      unsupportedDesc: "This file type can’t be previewed here.",
+      unsupportedUnknownDesc: "This file’s format couldn’t be recognized.",
+      unsupportedFolderDesc: "Folders can’t be quick looked.",
+      itemOfTotal: "Item {index} of {total}",
+      openFullPreview: "Open in Full Preview",
+      revealInFinder: "Show in Finder"
     },
     logview: {
       matchCount: "{n} match | {n} matches",
@@ -6495,7 +6585,8 @@ const CH = {
     imageEditBatchCancel: "image:editBatchCancel",
     imageConvert: "image:convert",
     // volumes:
-    volumesList: "volumes:list"
+    volumesList: "volumes:list",
+    volumesEject: "volumes:eject"
   },
   push: {
     deviceChanged: "device:changed",
@@ -8661,6 +8752,48 @@ end tell`;
     });
   }
   /**
+   * 弹出外接卷（macOS：`diskutil eject <mountPath>`，Finder「推出」同语义——
+   * 卸载卷并给磁盘断电；卷正被占用时 eject 会失败，回退 `diskutil unmount`
+   * 只做卸载）。execFile 参数组不经 shell；调用方只传 /Volumes/ 下的挂载点。
+   *
+   * @param mountPath 卷挂载点（必须位于 /Volumes/ 下，防把系统盘传进来）
+   * @throws 平台不支持 / 路径不合法 / eject 与 unmount 双双失败时 reject
+   */
+  ejectVolume(mountPath) {
+    return new Promise((resolve, reject) => {
+      if (process.platform !== "darwin") {
+        reject(new Error(
+          `HostShellService.ejectVolume: platform "${process.platform}" not supported (macOS only)`
+        ));
+        return;
+      }
+      if (!mountPath.startsWith("/Volumes/")) {
+        reject(new Error(`HostShellService.ejectVolume: refusing to eject non-volume path "${mountPath}"`));
+        return;
+      }
+      console.log(`[HostShellService] Eject volume requested: "${mountPath}"`);
+      execFile("diskutil", ["eject", mountPath], (err, _stdout, stderr) => {
+        if (!err) {
+          console.log(`[HostShellService] Ejected "${mountPath}"`);
+          resolve();
+          return;
+        }
+        console.warn(`[HostShellService] eject failed for "${mountPath}": ${err.message}; falling back to unmount`);
+        execFile("diskutil", ["unmount", mountPath], (err2, _out2, stderr2) => {
+          if (err2) {
+            console.error(`[HostShellService] unmount also failed for "${mountPath}":`, err2.message, stderr2?.trim() || stderr?.trim());
+            reject(new Error(
+              `Failed to eject "${mountPath}": ${err2.message}${stderr2?.trim() ? ` (${stderr2.trim()})` : ""}`
+            ));
+            return;
+          }
+          console.log(`[HostShellService] Unmounted (eject degraded) "${mountPath}"`);
+          resolve();
+        });
+      });
+    });
+  }
+  /**
    * 查询「能用哪个已安装应用打开 targetPath」（macOS：LaunchServices，与
    * Finder「打开方式」同源）。 suitability 判定完全交给系统：UTI 声明、
    * 扩展名、conformance 都由 LS 解析，本方法只做展示层加工——
@@ -8930,11 +9063,14 @@ class SystemClipboardService {
       const image2 = clipboard.readImage();
       if (!image2.isEmpty()) {
         const png = image2.toPNG();
-        const preview = image2.getSize().width > 320 ? image2.resize({ width: 320 }).toPNG() : png;
+        const size = image2.getSize();
+        const preview = size.width > 320 ? image2.resize({ width: 320 }).toPNG() : png;
         return {
           kind: "image",
           byteSize: png.length,
           previewDataUrl: `data:image/png;base64,${preview.toString("base64")}`,
+          imageWidth: size.width,
+          imageHeight: size.height,
           tooLarge: png.length > 20 * 1024 * 1024
         };
       }
@@ -11916,6 +12052,9 @@ ipcMain.handle(CH.invoke.imageEditBatchCancel, (_, taskId) => {
 });
 ipcMain.handle(CH.invoke.volumesList, () => {
   return volumeScanner.getVolumes();
+});
+ipcMain.handle(CH.invoke.volumesEject, async (_e, mountPath) => {
+  return hostShellService.ejectVolume(mountPath);
 });
 volumeScanner.onVolumeChange((volumes) => {
   if (mainWindow && !mainWindow.isDestroyed()) {

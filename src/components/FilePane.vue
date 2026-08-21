@@ -731,6 +731,17 @@ function revealCurrentFolderInFinder() {
   }
 }
 
+/** 在终端打开当前目录（更多操作菜单；与 FileList 空白右键同 IPC 同语义）。 */
+function openCurrentDirInTerminal() {
+  if (!isHostShellAvailable.value) return
+  const currentPath = pane.value?.path
+  if (currentPath) {
+    window.fileman.openInTerminal(currentPath).catch(err => {
+      console.error('[FilePane] openInTerminal failed for', currentPath, err)
+    })
+  }
+}
+
 /**
  * Returns true for the breadcrumb segment index that corresponds to the ZIP
  * file itself (the boundary between filesystem and archive internals).
@@ -1078,6 +1089,13 @@ const actionsMenuItems = computed<FinderMenuItem[]>(() => {
       action: 'reveal',
       icon: 'finder',
       disabled: !isHostShellAvailable.value
+    },
+    // 宿主集成成对出现：在终端打开当前目录（与 FileList 空白右键同链路同门控）
+    {
+      label: isHostShellAvailable.value ? t('filePane.toolbar.openInTerminal') : t('filePane.toolbar.openInTerminalLocalOnly'),
+      action: 'open-in-terminal',
+      icon: 'terminal',
+      disabled: !isHostShellAvailable.value
     }
   ]
   // 从剪贴板新建文件（与 FileList 空白菜单同一探测缓存与门控）
@@ -1129,6 +1147,7 @@ function onActionsMenuSelect(action: string) {
     case 'new-from-clipboard': openCreateFromClipboardDialog(); break
     case 'add-favorite-current': addCurrentDirToFavorites(); break
     case 'reveal': revealCurrentFolderInFinder(); break
+    case 'open-in-terminal': openCurrentDirInTerminal(); break
     case 'screenshot': void captureScreenshot(); break
     case 'toggle-inline-preview': toggleInlinePreview(); break
     case 'toggle-recursive-search': browserStore.toggleRecursiveSearch(props.paneId); break

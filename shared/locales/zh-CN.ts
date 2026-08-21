@@ -197,6 +197,8 @@ const zhCN = {
       screenshot: '截取设备屏幕',
       revealInFinder: '在 Finder 中显示',
       revealInFinderLocalOnly: '在 Finder 中显示（仅限本地文件夹）',
+      openInTerminal: '在终端中打开',
+      openInTerminalLocalOnly: '在终端中打开（仅限本地文件夹）',
       newFolder: '新建文件夹',
       newFile: '新建文件',
       newFromClipboardText: '新建文本文件（来自剪贴板）',

@@ -191,6 +191,8 @@ const enUS: MessageSchema = {
       screenshot: 'Capture Device Screenshot',
       revealInFinder: 'Reveal in Finder',
       revealInFinderLocalOnly: 'Reveal in Finder (local folders only)',
+      openInTerminal: 'Open in Terminal',
+      openInTerminalLocalOnly: 'Open in Terminal (local folders only)',
       newFolder: 'New Folder',
       newFile: 'New File',
       newFromClipboardText: 'New Text File from Clipboard',
