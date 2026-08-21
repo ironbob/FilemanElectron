@@ -1330,10 +1330,16 @@ const enUS: MessageSchema = {
     },
     quickLook: {
       dialogAria: 'Quick Look',
-      prevTip: 'Previous (↑)',
-      nextTip: 'Next (↓)',
+      prevTip: 'Previous (↑/←)',
+      nextTip: 'Next (↓/→)',
       closeTip: 'Close (Esc / Space)',
-      unsupported: 'Quick Look is unavailable for this file type'
+      unsupportedTitle: 'Can’t quick look “{name}”',
+      unsupportedDesc: 'This file type can’t be previewed here.',
+      unsupportedUnknownDesc: 'This file’s format couldn’t be recognized.',
+      unsupportedFolderDesc: 'Folders can’t be quick looked.',
+      itemOfTotal: 'Item {index} of {total}',
+      openFullPreview: 'Open in Full Preview',
+      revealInFinder: 'Show in Finder'
     },
     logview: {
       matchCount: '{n} match | {n} matches',

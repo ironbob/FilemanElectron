@@ -722,6 +722,13 @@
   color: var(--finder-secondary-label);
 }
 
+/* 加高档（Quick Look 不支持态，2026-08-20）：52px 单层顶栏承载
+   名称 + 大小·类型·第n项共m项 元信息与分组动作钮；左右留白放宽避免贴边图标。 */
+.finder-shell .finder-preview-toolbar.is-tall {
+  min-height: 52px;
+  padding: 0 16px;
+}
+
 .finder-shell .finder-preview-floating-toolbar {
   padding: 3px;
   border: 1px solid var(--finder-divider);
@@ -840,6 +847,15 @@
 .finder-shell .finder-btn-primary:active:not(:disabled) { filter: brightness(0.92); }
 .finder-shell .finder-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .finder-shell .finder-btn-primary.is-danger { background: var(--accent-red); }
+
+/* 键盘焦点环（macOS 细蓝环，2026-08-20）：工具栏图标钮与 Sheet 双钮统一
+   :focus-visible 配方（同 edit-icon-btn；鼠标点击不出现）。 */
+.finder-shell .finder-icon-button:focus-visible,
+.finder-shell .finder-btn-secondary:focus-visible,
+.finder-shell .finder-btn-primary:focus-visible {
+  outline: 2px solid var(--finder-selection);
+  outline-offset: 2px;
+}
 
 /* Sheet 内小号次级钮（行内动作，如校验和行的「拷贝」）：工具栏级缩小档（§2.4） */
 .finder-shell .finder-btn-secondary.is-sm {
@@ -1788,8 +1804,10 @@
    Quick Look 文本浮窗 —— Finder 式材质窗口（2026-08-19）
    稳定响应式几何（宽 min(90vw,1200px) / 高 clamp(420px,70%,760px)，内联注入）+
    半透明系统材质；头部/内容/底部 chrome 全部透明化，同属一张窗口面。
+   --plain（2026-08-20）：不支持态空窗口共用同一材质，顶栏透明化让位材质。
    ======================================== */
-.finder-shell .quick-look-card--text {
+.finder-shell .quick-look-card--text,
+.finder-shell .quick-look-card--plain {
   background: var(--quicklook-bg);
   border-color: var(--quicklook-border);
   box-shadow: var(--quicklook-shadow);
@@ -1800,6 +1818,7 @@
 /* 材质窗口内的实色底全部让位（finder-preview 的 canvas 底 + 各 chrome 条） */
 .finder-shell .quick-look-card--text .finder-preview { background: transparent !important; }
 .finder-shell .quick-look-card--text .finder-preview-toolbar,
+.finder-shell .quick-look-card--plain .finder-preview-toolbar,
 .finder-shell .quick-look-card--text .text-view-toolbar,
 .finder-shell .quick-look-card--text .text-filter-statusbar,
 .finder-shell .quick-look-card--text .text-load-footer { background: transparent !important; }

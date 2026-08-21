@@ -1344,10 +1344,16 @@ const zhCN = {
     },
     quickLook: {
       dialogAria: '快速预览',
-      prevTip: '上一项 (↑)',
-      nextTip: '下一项 (↓)',
+      prevTip: '上一项 (↑/←)',
+      nextTip: '下一项 (↓/→)',
       closeTip: '关闭 (Esc / 空格)',
-      unsupported: '此文件类型不支持快速预览'
+      unsupportedTitle: '无法快速预览“{name}”',
+      unsupportedDesc: '此文件类型暂不支持预览。',
+      unsupportedUnknownDesc: '未能识别此文件的格式。',
+      unsupportedFolderDesc: '文件夹暂不支持快速预览。',
+      itemOfTotal: '第 {index} 项，共 {total} 项',
+      openFullPreview: '在完整预览中打开',
+      revealInFinder: '在 Finder 中显示'
     },
     logview: {
       matchCount: '{n} 命中',

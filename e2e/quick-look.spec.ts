@@ -168,8 +168,10 @@ test('opening Quick Look keeps the list scroll position', async ({ page }) => {
   expect(await scrollTop()).toBe(before)
 })
 
-test('unsupported file types show the unsupported message', async ({ page }) => {
-  // Quick Look 仅承载 文本/图片/视频；zip 等其余类型直接呈现「不支持」占位。
+test('unsupported file types show the Finder-style empty state', async ({ page }) => {
+  // Quick Look 仅承载 文本/图片/视频；其余类型呈现 Finder 化空状态（2026-08-20）：
+  // 标题「无法快速预览“…”」+ 类型·大小元信息 + 说明 + 真实辅助钮（本机文件才显
+  // 「在 Finder 中显示」）；顶栏元信息明确到「第 n 项，共 m 项」。
   // 列表按名称排序，archive.zip 排在首位 → Home 选中它。
   await page.locator('[data-file-path="/file-01.txt"]').click()
   await page.keyboard.press('Home')
@@ -178,11 +180,29 @@ test('unsupported file types show the unsupported message', async ({ page }) => 
   const overlay = page.getByRole('dialog', { name: '快速预览' })
   await expect(overlay).toBeVisible()
   await expect(headerName(overlay)).toHaveText('archive.zip')
-  await expect(overlay.getByText('此文件类型不支持快速预览')).toBeVisible()
+  await expect(overlay.locator('[data-testid="quick-look-unsupported-title"]'))
+    .toHaveText('无法快速预览“archive.zip”')
+  await expect(overlay.locator('[data-testid="quick-look-unsupported-desc"]'))
+    .toHaveText('此文件类型暂不支持预览。')
+  // 元信息：大小 · 类型 · 第 n 项共 m 项（类型词表与 FileList「种类」列同源）
+  await expect(overlay.locator('[data-testid="quick-look-meta"]'))
+    .toHaveText('12 B · ZIP 文档 · 第 1 项，共 40 项')
+  // 辅助钮：本机 zip 文件 → 完整预览 + Finder 定位都在
+  await expect(overlay.locator('[data-testid="quick-look-open-full"]')).toBeVisible()
+  await expect(overlay.locator('[data-testid="quick-look-reveal"]')).toBeVisible()
 
-  // ↑↓ 步进回到支持的类型时恢复内容预览（门控按当前文件逐项判定）
-  await page.keyboard.press('ArrowDown')
+  // ←→ 仅不支持态消费：右键步进到支持类型，恢复内容预览（门控按当前文件逐项判定）
+  await page.keyboard.press('ArrowRight')
+  await expect(headerName(overlay)).toHaveText('file-01.txt')
   await expect(overlay.locator('.monaco-editor').first()).toBeVisible()
+
+  // 「在完整预览中打开」：开预览 tab 并关闭浮层
+  // （tab aria-label 为「{name}，{type}标签，第 n 项…」复合串 → 用子串匹配）
+  await page.keyboard.press('ArrowUp')
+  await expect(headerName(overlay)).toHaveText('archive.zip')
+  await overlay.locator('[data-testid="quick-look-open-full"]').click()
+  await expect(overlay).toBeHidden()
+  await expect(page.getByRole('tab', { name: /archive\.zip/ })).toBeVisible()
 })
 
 test('text window keeps stable responsive geometry (one line / empty / long)', async ({ page }) => {
