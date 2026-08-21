@@ -141,7 +141,30 @@ const zhCN = {
     unknownReason: '未知原因',
     screenshotNeedConnect: '连接设备后可截图',
     screenshotNeedPair: 'iOS 需先配对并连接后可截图',
-    screenshotOf: '截取 {name} 的屏幕截图'
+    screenshotOf: '截取 {name} 的屏幕截图',
+    menu: {
+      open: '打开',
+      openNewTab: '在新标签页中打开',
+      openSplitTab: '在新分屏标签页中打开',
+      openOppositePane: '在对面面板中打开',
+      searchInFolder: '在此文件夹中搜索',
+      analyzeSpace: '分析空间',
+      findDuplicates: '查找重复文件',
+      compareDir: '目录对比',
+      compareWithLeft: '与左面板对比',
+      compareWithRight: '与右面板对比',
+      revealInFinder: '在 Finder 中显示',
+      openInTerminal: '在终端中打开',
+      getInfo: '显示简介',
+      renameFavorite: '重新命名…',
+      moveUp: '上移',
+      moveDown: '下移',
+      removeFromSidebar: '从边栏中移除',
+      eject: '弹出“{name}”',
+      ejectFailed: '无法弹出“{name}”：{message}',
+      disconnect: '断开连接',
+      removeDevice: '移除设备'
+    }
   },
   filePane: {
     toolbar: {

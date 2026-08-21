@@ -135,7 +135,30 @@ const enUS: MessageSchema = {
     unknownReason: 'unknown reason',
     screenshotNeedConnect: 'Connect the device to take screenshots',
     screenshotNeedPair: 'iOS requires pairing and connection before screenshots',
-    screenshotOf: 'Capture a screenshot of {name}'
+    screenshotOf: 'Capture a screenshot of {name}',
+    menu: {
+      open: 'Open',
+      openNewTab: 'Open in New Tab',
+      openSplitTab: 'Open in Split Tab',
+      openOppositePane: 'Open in Opposite Pane',
+      searchInFolder: 'Search in This Folder',
+      analyzeSpace: 'Analyze Space',
+      findDuplicates: 'Find Duplicate Files',
+      compareDir: 'Compare Directories',
+      compareWithLeft: 'Compare with Left Pane',
+      compareWithRight: 'Compare with Right Pane',
+      revealInFinder: 'Reveal in Finder',
+      openInTerminal: 'Open in Terminal',
+      getInfo: 'Get Info',
+      renameFavorite: 'Rename…',
+      moveUp: 'Move Up',
+      moveDown: 'Move Down',
+      removeFromSidebar: 'Remove from Sidebar',
+      eject: 'Eject "{name}"',
+      ejectFailed: 'Cannot eject "{name}": {message}',
+      disconnect: 'Disconnect',
+      removeDevice: 'Remove Device'
+    }
   },
   filePane: {
     toolbar: {

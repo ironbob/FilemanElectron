@@ -318,6 +318,8 @@ interface Window {
     volumes: {
       /** Snapshot of currently mounted external volumes. */
       list: () => Promise<DetectedVolume[]>
+      /** Eject an external volume (diskutil eject, degrades to unmount). */
+      eject: (mountPath: string) => Promise<void>
       /** Subscribe to volume mount/unmount changes. Returns an unsubscribe function. */
       onChanged: (callback: (volumes: DetectedVolume[]) => void) => () => void
     }

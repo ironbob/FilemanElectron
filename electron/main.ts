@@ -1116,6 +1116,14 @@ ipcMain.handle(CH.invoke.volumesList, () => {
 })
 
 /**
+ * 弹出外接卷（侧栏卷条目右键「弹出」）。diskutil eject 失败自动降级
+ * unmount；卷列表无需手动刷新——VolumeScanner 轮询推送自愈。
+ */
+ipcMain.handle(CH.invoke.volumesEject, async (_e, mountPath: string) => {
+  return hostShellService.ejectVolume(mountPath)
+})
+
+/**
  * 扫描到卷变化（挂载/弹出）→ 推送给渲染进程。
  * 与 mobile:devicesChanged 同构。
  */

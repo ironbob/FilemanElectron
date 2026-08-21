@@ -421,6 +421,8 @@ const filemanAPI = {
   volumes: {
     /** Snapshot of currently mounted external volumes. */
     list: (): Promise<DetectedVolume[]> => ipcRenderer.invoke(CH.invoke.volumesList),
+    /** Eject an external volume (diskutil eject, degrades to unmount). */
+    eject: (mountPath: string): Promise<void> => ipcRenderer.invoke(CH.invoke.volumesEject, mountPath),
     /** Subscribe to volume mount/unmount changes. Returns an unsubscribe function. */
     onChanged: (callback: (volumes: DetectedVolume[]) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, volumes: DetectedVolume[]) => {

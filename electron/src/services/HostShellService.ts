@@ -173,6 +173,50 @@ export class HostShellService {
   }
 
   /**
+   * 弹出外接卷（macOS：`diskutil eject <mountPath>`，Finder「推出」同语义——
+   * 卸载卷并给磁盘断电；卷正被占用时 eject 会失败，回退 `diskutil unmount`
+   * 只做卸载）。execFile 参数组不经 shell；调用方只传 /Volumes/ 下的挂载点。
+   *
+   * @param mountPath 卷挂载点（必须位于 /Volumes/ 下，防把系统盘传进来）
+   * @throws 平台不支持 / 路径不合法 / eject 与 unmount 双双失败时 reject
+   */
+  ejectVolume(mountPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (process.platform !== 'darwin') {
+        reject(new Error(
+          `HostShellService.ejectVolume: platform "${process.platform}" not supported (macOS only)`
+        ))
+        return
+      }
+      if (!mountPath.startsWith('/Volumes/')) {
+        reject(new Error(`HostShellService.ejectVolume: refusing to eject non-volume path "${mountPath}"`))
+        return
+      }
+      console.log(`[HostShellService] Eject volume requested: "${mountPath}"`)
+      execFile('diskutil', ['eject', mountPath], (err, _stdout, stderr) => {
+        if (!err) {
+          console.log(`[HostShellService] Ejected "${mountPath}"`)
+          resolve()
+          return
+        }
+        // eject 失败（磁盘被占用等）→ 降级 unmount（仅卸载不断电）
+        console.warn(`[HostShellService] eject failed for "${mountPath}": ${err.message}; falling back to unmount`)
+        execFile('diskutil', ['unmount', mountPath], (err2, _out2, stderr2) => {
+          if (err2) {
+            console.error(`[HostShellService] unmount also failed for "${mountPath}":`, err2.message, stderr2?.trim() || stderr?.trim())
+            reject(new Error(
+              `Failed to eject "${mountPath}": ${err2.message}${stderr2?.trim() ? ` (${stderr2.trim()})` : ''}`
+            ))
+            return
+          }
+          console.log(`[HostShellService] Unmounted (eject degraded) "${mountPath}"`)
+          resolve()
+        })
+      })
+    })
+  }
+
+  /**
    * 查询「能用哪个已安装应用打开 targetPath」（macOS：LaunchServices，与
    * Finder「打开方式」同源）。 suitability 判定完全交给系统：UTI 声明、
    * 扩展名、conformance 都由 LS 解析，本方法只做展示层加工——

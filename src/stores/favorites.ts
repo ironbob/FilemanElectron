@@ -74,5 +74,46 @@ export const useFavoritesStore = defineStore('favorites', () => {
     }
   }
 
-  return { favorites, loaded, has, load, add, remove }
+  /**
+   * 重命名收藏（仅显示名，不动真实目录）。空名 / 未变化时静默跳过。
+   */
+  async function rename(deviceId: string, path: string, newName: string): Promise<void> {
+    const trimmed = newName.trim()
+    const target = byKey.value.get(keyOf(deviceId, path))
+    if (!target || !trimmed || trimmed === target.name) return
+    target.name = trimmed
+    log('renamed:', deviceId, path, '→', trimmed)
+    await persist()
+  }
+
+  /**
+   * 组内上移/下移（dir: -1 上移 / +1 下移）。侧栏按设备类型分组渲染，
+   * allowedKeys 是该条目**当前显示组**的全部 key（deviceId::path）——
+   * 沿 dir 找最近的同组邻居交换，保证不跨设备组换位。组边界（无邻居）
+   * 静默不动。
+   */
+  async function reorder(
+    deviceId: string,
+    path: string,
+    dir: -1 | 1,
+    allowedKeys: Set<string>
+  ): Promise<void> {
+    const list = favorites.value
+    const idx = list.findIndex(f => f.deviceId === deviceId && f.path === path)
+    if (idx < 0) return
+    let neighbor = -1
+    for (let i = idx + dir; i >= 0 && i < list.length; i += dir) {
+      if (allowedKeys.has(keyOf(list[i].deviceId, list[i].path))) {
+        neighbor = i
+        break
+      }
+    }
+    if (neighbor < 0) return
+    const [moved] = list.splice(idx, 1)
+    list.splice(neighbor, 0, moved)
+    log(`reordered ${dir > 0 ? 'down' : 'up'}:`, deviceId, path)
+    await persist()
+  }
+
+  return { favorites, loaded, has, load, add, remove, rename, reorder }
 })

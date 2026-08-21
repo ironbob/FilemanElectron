@@ -6,7 +6,7 @@
  * 视口钳制全部由 FinderContextMenu 提供。
  * 外点关闭（pointerdown 捕获）仍由本组件负责（FinderContextMenu 无此机制）。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import type { Tab } from '@/types'
 import FinderContextMenu, { type FinderMenuItem } from '@/components/menu/FinderContextMenu.vue'
 import { useI18n } from 'vue-i18n'
@@ -31,7 +31,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const menuEl = ref<HTMLElement | null>(null)
 
 const items = computed<FinderMenuItem[]>(() => {
   const list: FinderMenuItem[] = [
@@ -63,13 +62,14 @@ onBeforeUnmount(() => {
 })
 
 function onOutsidePointerDown(e: PointerEvent) {
-  if (menuEl.value?.contains(e.target as Node)) return
+  // 菜单 DOM 被 FinderContextMenu Teleport 到 #popover-layer，wrapper ref 恒为空，
+  // contains() 判定必假——菜单项自身的 pointerdown 会被当成外点，click 还没派发
+  // 菜单就被卸载，动作永远不触发。改为沿事件目标上溯 .context-menu 判定。
+  if ((e.target as Element | null)?.closest?.('.context-menu')) return
   emit('close')
 }
 </script>
 
 <template>
-  <div ref="menuEl">
-    <FinderContextMenu :items="items" :x="x" :y="y" @select="onSelect" @close="$emit('close')" />
-  </div>
+  <FinderContextMenu :items="items" :x="x" :y="y" @select="onSelect" @close="$emit('close')" />
 </template>

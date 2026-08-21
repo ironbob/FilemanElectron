@@ -1,5 +1,5 @@
 <template>
-  <div class="finder-sidebar h-full bg-bg-sidebar flex flex-col overflow-hidden">
+  <div ref="sidebarRootEl" class="finder-sidebar h-full bg-bg-sidebar flex flex-col overflow-hidden">
     <div class="finder-sidebar-content flex-1 min-h-0 overflow-y-auto">
     <!-- Devices Section -->
     <div class="pt-4">
@@ -11,6 +11,7 @@
           class="sidebar-item"
           :class="isActiveDevice(device.id) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
           @click="selectDevice(device)"
+          @contextmenu.prevent="openSidebarMenuForDevice(device, $event)"
         >
           <component :is="getDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0 sidebar-icon" :class="getDeviceIconColor(device.type)" />
           <span class="text-[13px] truncate flex-1 font-medium">{{ device.name }}</span>
@@ -64,6 +65,7 @@
           :class="isActivePath(volume.mountPath) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
           :title="volume.mountPath"
           @click="selectVolume(volume)"
+          @contextmenu.prevent="openSidebarMenuForVolume(volume, $event)"
         >
           <component :is="VolumeDriveIcon" class="w-5 h-5 flex-shrink-0 sidebar-icon text-[#5ac8fa]" />
           <span class="text-[13px] truncate flex-1 font-medium">{{ volume.name }}</span>
@@ -88,6 +90,7 @@
                 : 'sidebar-item-inactive'
             ]"
             @click="selectMobileDevice(device)"
+            @contextmenu.prevent="openSidebarMenuForMobile(device, $event)"
           >
           <!-- Device icon -->
           <component :is="getMobileDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0" :class="getMobileDeviceIconColor(device.type)" />
@@ -186,6 +189,7 @@
           class="sidebar-item"
           :class="isActivePath(fav.path) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
           @click="navigateTo(fav.path)"
+          @contextmenu.prevent="openSidebarMenuForPlace(fav, $event)"
         >
           <component :is="fav.icon" class="w-5 h-5 flex-shrink-0" :class="fav.iconColor" />
           <span class="text-[13px] truncate font-medium">{{ fav.name }}</span>
@@ -208,18 +212,33 @@
             :class="isActiveFavorite(item) ? 'sidebar-item-active' : 'sidebar-item-inactive'"
             :title="item.path"
             @click="selectFavorite(item)"
+            @contextmenu.prevent="openSidebarMenuForFavorite(item, group, $event)"
           >
             <component :is="BookmarkIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
-            <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
-            <button
-              class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
-              :title="$t('sidebar.removeFavorite')"
-              @click.stop="removeFavorite(item)"
+            <!-- 行内重命名（Finder 侧栏范式）：名称 span 原地换输入框，Enter 提交/Esc 取消/blur 提交 -->
+            <input
+              v-if="isRenaming(item)"
+              :ref="onRenameInputMount"
+              v-model="renameState.newName"
+              class="flex-1 min-w-0 h-[20px] px-1 rounded text-[13px] font-medium bg-bg-primary text-text-primary border border-accent-blue outline-none"
+              @click.stop
+              @contextmenu.stop
+              @keydown.enter.prevent="onRenameEnter"
+              @keydown.esc.prevent.stop="cancelFavoriteRename"
+              @blur="commitFavoriteRename"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <template v-else>
+              <span class="text-[13px] truncate flex-1 font-medium">{{ item.name }}</span>
+              <button
+                class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-red-500 hover:bg-bg-hover flex-shrink-0"
+                :title="$t('sidebar.removeFavorite')"
+                @click.stop="removeFavorite(item)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </template>
           </div>
         </div>
       </template>
@@ -245,6 +264,17 @@
       </button>
     </div>
 
+    <!-- 侧栏右键菜单：浮层 DOM 由 FinderContextMenu Teleport 到 #popover-layer；
+         外点关闭/与其它菜单互斥由 script 中的 document 监听负责 -->
+    <FinderContextMenu
+      v-if="contextMenu.visible"
+      :items="contextMenu.items"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      @select="onSidebarMenuSelect"
+      @close="closeSidebarMenu"
+    />
+
     <!-- Device Dialog -->
     <DeviceDialog
       v-if="deviceDialog.visible"
@@ -256,22 +286,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useDevicesStore } from '@/stores/devices'
 import { useTabsStore } from '@/stores/tabs'
 import { useVolumesStore } from '@/stores/volumes'
 import { useFavoritesStore } from '@/stores/favorites'
 import DeviceDialog from './dialogs/DeviceDialog.vue'
+import FinderContextMenu, { type FinderMenuItem } from './menu/FinderContextMenu.vue'
 import {
   HomeIcon, DesktopIcon, DocumentIcon, DownloadIcon, ApplicationIcon, BookmarkIcon,
   LocalIcon, AndroidIcon, SmbIcon, SshIcon, WebDavIcon, IosIcon, VolumeDriveIcon,
   SunIcon, MoonIcon, SettingsIcon, CameraIcon, OhosIcon
 } from './icons/sidebarIcons'
 import { useDeviceScreenshot } from '@/composables/useDeviceScreenshot'
+import { copyToClipboard } from '@/utils/clipboard'
+import { toFileUri, getBaseName } from '@/utils/path'
 import { t } from '@/i18n'
 import type { Device, DetectedMobileDevice } from '@/stores/devices'
 import type { Volume } from '@/stores/volumes'
 import type { Favorite } from '@/types'
+import type { DeviceCapabilities } from '@shared/types'
 
 const log = console
 const devicesStore = useDevicesStore()
@@ -492,6 +526,7 @@ function isActiveFavorite(fav: Favorite): boolean {
 }
 
 function selectFavorite(fav: Favorite) {
+  if (isRenaming(fav)) return  // 行内编辑中：点击只属于输入框，不触发导航
   const pane = tabsStore.activePane
   if (!pane) return
   pane.deviceId = fav.deviceId
@@ -643,4 +678,406 @@ async function forgetDevice(deviceId: string) {
     console.error('Failed to forget device:', error)
   }
 }
+
+// ============ 侧栏右键菜单 ============
+// 复用 FinderContextMenu（NSMenu 实现）：本组件只把侧栏行语义组装成菜单项并
+// 分发 action；键盘/钳制/防裁剪/Teleport 由组件提供。
+//
+// 外点关闭走 FileList 同款范式：document 冒泡相 click 监听 + 菜单根自带
+// @click.stop（菜单内部点击不冒泡，不会误关）。注意不能用「wrapper ref
+// contains()」判定 —— 菜单 DOM 被 Teleport 到 #popover-layer，wrapper 恒为空
+// （TabContextMenu 曾因此菜单项点击先被外点判定吃掉）。
+// 另挂 document 冒泡相 contextmenu 监听做互斥：文件列表等处开新菜单时关掉
+// 侧栏菜单；事件源自侧栏自身行/任一菜单体时放行（行 handler 自管开合）。
+
+/** 右键命中行的快照。favorite 额外携带显示组上下文（组内排序用）。 */
+type SidebarMenuRow =
+  | { kind: 'place'; deviceId: 'local'; path: string; name: string }
+  | {
+      kind: 'favorite'; deviceId: string; path: string; name: string
+      groupKeys: Set<string>; canMoveUp: boolean; canMoveDown: boolean
+    }
+  | { kind: 'volume'; deviceId: 'local'; path: string; name: string; mountPath: string }
+  | { kind: 'device'; device: Device }
+  | { kind: 'mobile'; device: DetectedMobileDevice }
+
+const contextMenu = reactive<{ visible: boolean; x: number; y: number; items: FinderMenuItem[] }>({
+  visible: false, x: 0, y: 0, items: []
+})
+/** 打开瞬间的行快照（select 时菜单已关，靠它找回目标；openSidebarMenu 异步构建期间也用它做失效判定）。 */
+let menuRow: SidebarMenuRow | null = null
+const sidebarRootEl = ref<HTMLElement | null>(null)
+
+function closeSidebarMenu(): void {
+  if (!contextMenu.visible) return
+  contextMenu.visible = false
+  contextMenu.items = []
+  menuRow = null
+}
+
+function divider(): FinderMenuItem {
+  return { label: '---', action: '__divider__' }
+}
+
+async function openSidebarMenu(e: MouseEvent, row: SidebarMenuRow): Promise<void> {
+  closeSidebarMenu()
+  menuRow = row
+  contextMenu.x = e.clientX
+  contextMenu.y = e.clientY
+  const items = await buildSidebarMenuItems(row)
+  // 异步构建（远程收藏要查设备能力）期间用户又右键了别处 → menuRow 已换人，本次作废
+  if (menuRow !== row) return
+  contextMenu.items = items
+  contextMenu.visible = true
+}
+
+function openSidebarMenuForDevice(device: Device, e: MouseEvent) { void openSidebarMenu(e, { kind: 'device', device }) }
+function openSidebarMenuForMobile(device: DetectedMobileDevice, e: MouseEvent) { void openSidebarMenu(e, { kind: 'mobile', device }) }
+function openSidebarMenuForVolume(volume: Volume, e: MouseEvent) {
+  void openSidebarMenu(e, { kind: 'volume', deviceId: 'local', path: volume.mountPath, name: volume.name, mountPath: volume.mountPath })
+}
+function openSidebarMenuForPlace(fav: { name: string; path: string }, e: MouseEvent) {
+  void openSidebarMenu(e, { kind: 'place', deviceId: 'local', path: fav.path, name: fav.name })
+}
+function openSidebarMenuForFavorite(item: Favorite, group: { items: Favorite[] }, e: MouseEvent) {
+  const idx = group.items.indexOf(item)
+  void openSidebarMenu(e, {
+    kind: 'favorite',
+    deviceId: item.deviceId,
+    path: item.path,
+    name: item.name,
+    // 组内换位边界：上移/下移只在当前显示组内生效（组键集合交给 store 约束）
+    groupKeys: new Set(group.items.map(f => f.deviceId + '::' + f.path)),
+    canMoveUp: idx > 0,
+    canMoveDown: idx >= 0 && idx < group.items.length - 1
+  })
+}
+
+/**
+ * 设备行菜单（位置区 SMB/SSH/WebDAV 与移动设备区共用骨架）。
+ * local 行只有导航两项；远程行按连接态给「断开连接」，位置区远程设备多一项
+ * 「移除设备」（移动设备走「忘记」hover 钮，不在此重复）。
+ */
+function buildDeviceMenuItems(device: Device | DetectedMobileDevice, isMobile: boolean): FinderMenuItem[] {
+  const items: FinderMenuItem[] = [
+    { label: t('sidebar.menu.open'), action: 'open', icon: 'open' },
+    { label: t('sidebar.menu.openNewTab'), action: 'open-new-tab', icon: 'tab' }
+  ]
+  if ((device as Device).type === 'local') return items
+  const connected = devicesStore.getDevice(device.id)?.status === 'connected'
+  items.push(divider())
+  if (connected) {
+    items.push({ label: t('sidebar.menu.disconnect'), action: 'disconnect', icon: 'disconnect' })
+  }
+  if (!isMobile) {
+    items.push({ label: t('sidebar.menu.removeDevice'), action: 'remove-device', icon: 'trash' })
+  }
+  return items
+}
+
+/**
+ * 目录行菜单（常用位置 / 收藏 / 卷）。分组顺序：导航 ▸（收藏：重命名·排序·移除
+ * ▸ 卷：弹出）▸ 目录工具 ▸ 宿主集成（仅 local）▸ 显示简介。
+ * 工具组门控与 FileList 背景菜单同判定：查重/空间 canList+canStat、grep
+ * canGrepContent；local 行不发 IPC（caps=null 视作全能力）。
+ */
+async function buildSidebarMenuItems(row: SidebarMenuRow): Promise<FinderMenuItem[]> {
+  if (row.kind === 'device') return buildDeviceMenuItems(row.device, false)
+  if (row.kind === 'mobile') return buildDeviceMenuItems(row.device, true)
+
+  const caps: DeviceCapabilities | null = row.deviceId === 'local'
+    ? null
+    : await devicesStore.getDeviceCapabilities(row.deviceId).catch(() => null)
+  if (menuRow !== row) return []
+
+  const panes = tabsStore.activeTab?.panes ?? []
+  const hasPanes = panes.length > 0
+
+  // ── 导航组（compare/diff/工具 tab 无面板时整组隐藏，避免点了没反应）──
+  const nav: FinderMenuItem[] = hasPanes
+    ? [
+        { label: t('sidebar.menu.open'), action: 'open', icon: 'open' },
+        { label: t('sidebar.menu.openNewTab'), action: 'open-new-tab', icon: 'tab' },
+        { label: t('sidebar.menu.openSplitTab'), action: 'open-split-tab', icon: 'split' },
+        { label: t('sidebar.menu.openOppositePane'), action: 'open-opposite-pane', icon: 'swapPane' }
+      ]
+    : []
+
+  // ── 收藏管理组（Finder 惯例：紧跟导航组）──
+  const manage: FinderMenuItem[] = []
+  if (row.kind === 'favorite') {
+    manage.push(
+      { label: t('sidebar.menu.renameFavorite'), action: 'rename-favorite', icon: 'rename' },
+      { label: t('sidebar.menu.moveUp'), action: 'move-up', icon: 'up', disabled: !row.canMoveUp },
+      { label: t('sidebar.menu.moveDown'), action: 'move-down', icon: 'down', disabled: !row.canMoveDown },
+      { label: t('sidebar.menu.removeFromSidebar'), action: 'remove-favorite', icon: 'trash' }
+    )
+  }
+
+  // ── 目录级工具组 ──
+  const tools: FinderMenuItem[] = []
+  const canListStat = !caps || (caps.canList && caps.canStat)
+  if (canListStat) {
+    tools.push(
+      { label: t('sidebar.menu.findDuplicates'), action: 'find-duplicates', icon: 'duplicates' },
+      { label: t('sidebar.menu.analyzeSpace'), action: 'analyze-space', icon: 'treemap' }
+    )
+    // 目录对比：对面一侧取当前标签的左右面板；单面板时「右面板」禁用
+    if (hasPanes) {
+      tools.push({
+        label: t('sidebar.menu.compareDir'), action: 'compare-menu', icon: 'compare',
+        children: [
+          { label: t('sidebar.menu.compareWithLeft'), action: 'compare:left', disabled: panes.length < 1 },
+          { label: t('sidebar.menu.compareWithRight'), action: 'compare:right', disabled: panes.length < 2 }
+        ]
+      })
+    }
+  }
+  if (!caps || caps.canGrepContent !== false) {
+    tools.push({ label: t('sidebar.menu.searchInFolder'), action: 'grep-here', icon: 'grep' })
+  }
+
+  // ── 宿主集成组（仅本地路径有 Finder/Terminal 语义）──
+  const host: FinderMenuItem[] = []
+  if (row.deviceId === 'local') {
+    host.push(
+      { label: t('sidebar.menu.revealInFinder'), action: 'reveal-in-finder', icon: 'finder' },
+      { label: t('sidebar.menu.openInTerminal'), action: 'open-in-terminal', icon: 'terminal' },
+      {
+        label: t('fileList.menu.copyPath'), action: 'copy-path-menu', icon: 'copyPath',
+        children: [
+          { label: t('fileList.menu.copyPathPosix'), action: 'copy-path:posix' },
+          { label: t('fileList.menu.copyPathUri'), action: 'copy-path:uri' },
+          { label: t('fileList.menu.copyPathName'), action: 'copy-path:name' }
+        ]
+      }
+    )
+  }
+
+  // ── 尾组：卷的「弹出」+ 显示简介 ──
+  const tail: FinderMenuItem[] = []
+  if (row.kind === 'volume') {
+    tail.push({ label: t('sidebar.menu.eject', { name: row.name }), action: 'eject', icon: 'eject' })
+  }
+  tail.push({ label: t('sidebar.menu.getInfo'), action: 'info', icon: 'info', shortcut: '⌘I' })
+
+  // 非空组之间插分隔线拼装
+  const groups = [nav, manage, tools, host, tail].filter(g => g.length > 0)
+  const items: FinderMenuItem[] = []
+  groups.forEach((g, i) => {
+    if (i > 0) items.push(divider())
+    items.push(...g)
+  })
+  return items
+}
+
+async function onSidebarMenuSelect(action: string): Promise<void> {
+  const row = menuRow
+  closeSidebarMenu()
+  if (!row) return
+  try {
+    await dispatchSidebarAction(row, action)
+  } catch (error) {
+    console.error('[AppSidebar] 侧栏菜单动作失败:', action, error)
+  }
+}
+
+async function dispatchSidebarAction(row: SidebarMenuRow, action: string): Promise<void> {
+  // ── 设备行（位置区 / 移动设备区）──
+  if (row.kind === 'device' || row.kind === 'mobile') {
+    switch (action) {
+      case 'open':
+        if (row.kind === 'device') await selectDevice(row.device)
+        else await selectMobileDevice(row.device)
+        return
+      case 'open-new-tab': {
+        const device = row.device
+        try {
+          if ((device as Device).type !== 'local') await devicesStore.connectDevice(device.id)
+          tabsStore.openPathInNewTab(device.id, (device as Device).rootPath || '/')
+        } catch (error) {
+          alert(t('sidebar.connectFailed', { name: device.name, message: error instanceof Error ? error.message : String(error) }))
+        }
+        return
+      }
+      case 'disconnect':
+        await devicesStore.disconnectDevice(row.device.id)
+        return
+      case 'remove-device':
+        await devicesStore.removeDeviceCompletely(row.device.id)
+        return
+    }
+    return
+  }
+
+  // ── 目录行（常用位置 / 收藏 / 卷）──
+  const { deviceId, path, name } = row
+  switch (action) {
+    case 'open': {
+      const pane = tabsStore.activePane
+      if (!pane) return
+      pane.deviceId = deviceId
+      tabsStore.navigatePane(pane.id, path)
+      return
+    }
+    case 'open-new-tab':
+      tabsStore.openPathInNewTab(deviceId, path)
+      return
+    case 'open-split-tab':
+      tabsStore.openPathInSplitTab(deviceId, path, tabsStore.activePane?.deviceId, tabsStore.activePane?.path)
+      return
+    case 'open-opposite-pane': {
+      const tab = tabsStore.activeTab
+      if (!tab || tab.panes.length === 0) return
+      let other = tab.panes.find(p => p.id !== tab.activePaneId)
+      if (!other) {
+        // 单面板：现场分屏出第二面板（新面板成为活动面板），再重新读取引用
+        tabsStore.toggleActiveSplit()
+        other = tabsStore.activeTab?.panes[1] ?? null
+      }
+      if (!other) return
+      other.deviceId = deviceId
+      tabsStore.navigatePane(other.id, path)
+      return
+    }
+    case 'find-duplicates':
+      tabsStore.openDuplicatesTab(deviceId, path)
+      return
+    case 'analyze-space':
+      tabsStore.openSpaceTab(deviceId, path)
+      return
+    case 'grep-here':
+      tabsStore.openGrepTab({ deviceId, rootPath: path, pattern: '', isRegex: false, caseSensitive: false })
+      return
+    case 'compare:left':
+    case 'compare:right': {
+      const pane = action === 'compare:left' ? tabsStore.activeTab?.panes[0] : tabsStore.activeTab?.panes[1]
+      if (!pane) return
+      tabsStore.openCompareTab(deviceId, path, pane.deviceId, pane.path)
+      return
+    }
+    case 'reveal-in-finder':
+      await window.fileman.showInFolder(path)
+      return
+    case 'open-in-terminal':
+      await window.fileman.openInTerminal(path)
+      return
+    case 'copy-path:posix':
+      await copyToClipboard(path)
+      return
+    case 'copy-path:uri':
+      await copyToClipboard(toFileUri(path))
+      return
+    case 'copy-path:name':
+      await copyToClipboard(getBaseName(path))
+      return
+    case 'info': {
+      // getStats 返回 FileStats（无 name/path），简介窗口要的是 FileInfo —— 行上已有两者
+      const stats = await window.fileman.getStats(deviceId, path)
+      const device = devicesStore.getDevice(deviceId)
+      await window.fileman.openFileInfoWindow({
+        deviceId,
+        deviceType: device?.type ?? 'local',
+        deviceName: device?.name ?? t('devices.localName'),
+        files: [{ ...stats, name, path }]
+      })
+      return
+    }
+    case 'eject':
+      if (row.kind !== 'volume') return
+      try {
+        await window.fileman.volumes.eject(row.mountPath)
+      } catch (error) {
+        // 卷列表无需手动刷新（VolumeScanner 轮询推送自愈）；失败用侧栏既有 alert 风格反馈
+        alert(t('sidebar.menu.ejectFailed', { name, message: error instanceof Error ? error.message : String(error) }))
+      }
+      return
+    case 'rename-favorite':
+      if (row.kind === 'favorite') startFavoriteRename(row.deviceId, row.path, row.name)
+      return
+    case 'move-up':
+      if (row.kind === 'favorite') await favoritesStore.reorder(deviceId, path, -1, row.groupKeys)
+      return
+    case 'move-down':
+      if (row.kind === 'favorite') await favoritesStore.reorder(deviceId, path, 1, row.groupKeys)
+      return
+    case 'remove-favorite':
+      await favoritesStore.remove(deviceId, path)
+      return
+  }
+}
+
+// ── 收藏行内重命名（FileList 内联重命名同范式：Enter 提交 / Esc 取消 / blur 提交；
+//    isComposing 守卫 IME 回车、先置 active=false 防 Enter→blur 双提交）──
+const renameState = reactive<{
+  active: boolean
+  deviceId: string
+  path: string
+  originalName: string
+  newName: string
+}>({ active: false, deviceId: '', path: '', originalName: '', newName: '' })
+
+/** v-for 内的 ref 是数组语义，改用函数 ref 收唯一挂载的输入框 */
+const renameInputEl = ref<HTMLInputElement | null>(null)
+function onRenameInputMount(el: unknown): void {
+  renameInputEl.value = (el as HTMLInputElement | null) ?? null
+}
+
+function isRenaming(fav: Favorite): boolean {
+  return renameState.active && renameState.deviceId === fav.deviceId && renameState.path === fav.path
+}
+
+function startFavoriteRename(deviceId: string, path: string, name: string): void {
+  renameState.deviceId = deviceId
+  renameState.path = path
+  renameState.originalName = name
+  renameState.newName = name
+  renameState.active = true
+  nextTick(() => {
+    renameInputEl.value?.focus()
+    renameInputEl.value?.select()
+  })
+}
+
+function cancelFavoriteRename(): void {
+  renameState.active = false
+}
+
+function commitFavoriteRename(): void {
+  if (!renameState.active) return  // Enter 已提交过 / Esc 已取消后的 blur 余波
+  renameState.active = false
+  const newName = renameState.newName.trim()
+  if (newName && newName !== renameState.originalName) {
+    void favoritesStore.rename(renameState.deviceId, renameState.path, newName)
+  }
+}
+
+function onRenameEnter(e: KeyboardEvent): void {
+  if (e.isComposing) return  // IME 输入中的回车是选字，不是提交
+  commitFavoriteRename()
+}
+
+// ── 外点关闭与跨菜单互斥（document 冒泡相；挂卸随组件生命周期）──
+function onDocClickCloseMenu(): void {
+  closeSidebarMenu()  // 菜单体内点击被 .context-menu 根 @click.stop 拦截，到不了这里
+}
+
+function onDocContextMenu(e: MouseEvent): void {
+  if (!contextMenu.visible) return
+  const target = e.target as Element | null
+  // 菜单体内右键：交给菜单自身（Finder 行为：不关）
+  if (target?.closest?.('.context-menu')) return
+  // 侧栏行右键：行 handler 自管（openSidebarMenu 会先关旧再开新）
+  if (sidebarRootEl.value?.contains(target as Node)) return
+  closeSidebarMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocClickCloseMenu)
+  document.addEventListener('contextmenu', onDocContextMenu)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClickCloseMenu)
+  document.removeEventListener('contextmenu', onDocContextMenu)
+})
 </script>

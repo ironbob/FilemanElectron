@@ -142,6 +142,7 @@ export const CH = {
     imageConvert: 'image:convert',
     // volumes:
     volumesList: 'volumes:list',
+    volumesEject: 'volumes:eject',
   },
   push: {
     deviceChanged: 'device:changed',
