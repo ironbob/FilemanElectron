@@ -17,6 +17,16 @@
       <!-- Left spacer for macOS traffic lights (native buttons via hiddenInset) -->
       <div class="w-16 finder-traffic-light-inset"></div>
 
+      <!-- App icon（左上角窗口标识）：纯展示不响应点击（pointer-events 交还
+           标题栏 app-drag 区），按住即可随标题栏拖动窗口 -->
+      <img
+        :src="appIconUrl"
+        alt=""
+        aria-hidden="true"
+        draggable="false"
+        class="h-5 w-5 flex-shrink-0 mr-3 select-none pointer-events-none"
+      >
+
       <!-- Keep tabs in the title bar to reclaim their former dedicated row.
            标签栏本身可拖动窗口（Finder 语义）；tab 与按钮在组件内标记 app-no-drag。 -->
       <AppTabBar class="flex-1 min-w-0" />
@@ -201,6 +211,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+// 标题栏左上角 app 标记（与 Dock/Finder 同源，128px 由 generate-icon.mjs 从
+// build/app-icon.png 派生）；纯展示、不响应点击，拖动跟随标题栏 app-drag 区
+import appIconUrl from './assets/app-icon.png'
 import AppSidebar from './components/AppSidebar.vue'
 import AppTabBar from './components/AppTabBar.vue'
 import FilePane from './components/FilePane.vue'

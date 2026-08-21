@@ -9,6 +9,8 @@
  *   1. Read the master PNG, preserving its alpha channel.
  *   2. Downscale with Lanczos3 to every size a macOS .iconset needs.
  *   3. `iconutil -c icns` the iconset → build/icon.icns.
+ *   4. Emit a 128px renderer copy (src/assets/app-icon.png) for the in-app
+ *      titlebar mark — same artwork, single source of truth.
  *
  */
 import { mkdirSync, rmSync, existsSync } from 'node:fs'
@@ -23,6 +25,8 @@ const ROOT = resolve(__dirname, '..')
 const SRC = resolve(ROOT, 'build/app-icon.png')
 const OUT_ICNS = resolve(ROOT, 'build/icon.icns')
 const ICONSET = resolve(ROOT, 'build/icon.iconset')
+// 标题栏左上角 app 标记（App.vue 消费）：20px 显示位，128px 覆盖 3x 屏
+const RENDERER_COPY = resolve(ROOT, 'src/assets/app-icon.png')
 
 if (!existsSync(SRC)) {
   console.error(`[icon] source PNG not found: ${SRC}`)
@@ -59,6 +63,12 @@ for (const [name, px] of SIZES) {
     .toFile(resolve(ICONSET, name))
 }
 console.log(`[icon] wrote ${SIZES.length} PNGs to build/icon.iconset/`)
+
+await sharp(master)
+  .resize(128, 128, { fit: 'fill', kernel: 'lanczos3' })
+  .png()
+  .toFile(RENDERER_COPY)
+console.log(`[icon] ✓ ${RENDERER_COPY.replace(ROOT + '/', '')}`)
 
 try {
   execFileSync('iconutil', ['-c', 'icns', ICONSET, '-o', OUT_ICNS], { stdio: 'inherit' })
