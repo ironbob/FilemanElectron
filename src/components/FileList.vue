@@ -82,7 +82,7 @@
           :data-file-path="file.path"
           :style="{ height: LIST_ITEM_HEIGHT + 'px' }"
           :class="dropTargetPath === file.path ? 'drop-target-row' : ''"
-          draggable="true"
+          :draggable="!isRenamingRow(file.path)"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
           @dragover="handleRowDragOver(file, $event)"
@@ -112,7 +112,24 @@
               :style="{ backgroundColor: colorTagOf(file)! }"
               :title="colorTagTitle(file)"
             />
+            <!-- 行内重命名（Finder 范式）：名称原地换输入框，Enter/Tab/blur 提交、Esc 取消 -->
+            <input
+              v-if="isRenamingRow(file.path)"
+              :ref="onRenameInputMount"
+              v-model="renameState.newName"
+              type="text"
+              spellcheck="false"
+              class="finder-rename-input flex-1 min-w-0 text-base"
+              @click.stop
+              @dblclick.stop
+              @contextmenu.stop
+              @keydown.enter.stop.prevent="onRenameEnter"
+              @keydown.esc.stop.prevent="cancelRename"
+              @keydown.tab.stop.prevent="onRenameTab"
+              @blur="commitRename"
+            >
             <FileNameMatchLabel
+              v-else
               class="finder-name-label flex-1 min-w-0 truncate text-base rounded px-1 transition-colors"
               :class="isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
               :name="file.name"
@@ -175,7 +192,7 @@
           class="file-item relative flex flex-col items-center p-2 rounded-lg overflow-hidden"
           :data-file-path="file.path"
           :class="dropTargetPath === file.path ? 'drop-target-row' : ''"
-          draggable="true"
+          :draggable="!isRenamingRow(file.path)"
           @click="handleClick(file, $event)"
           @dragstart="handleDragStart(file, $event)"
           @dragover="handleRowDragOver(file, $event)"
@@ -204,7 +221,24 @@
             :style="{ backgroundColor: colorTagOf(file)! }"
             :title="colorTagTitle(file)"
           />
+          <!-- 行内重命名（Finder 范式）：多行名称标签换单行居中输入框，字号沿用档位 -->
+          <input
+            v-if="isRenamingRow(file.path)"
+            :ref="onRenameInputMount"
+            v-model="renameState.newName"
+            type="text"
+            spellcheck="false"
+            :class="[gridCfg.nameClass, 'finder-rename-input w-full text-center']"
+            @click.stop
+            @dblclick.stop
+            @contextmenu.stop
+            @keydown.enter.stop.prevent="onRenameEnter"
+            @keydown.esc.stop.prevent="cancelRename"
+            @keydown.tab.stop.prevent="onRenameTab"
+            @blur="commitRename"
+          >
           <FileNameMatchLabel
+            v-else
             :class="[gridCfg.nameClass, 'finder-name-label text-center leading-tight line-clamp-2 w-full break-words px-2 py-1 rounded-md transition-colors', isSelected(file.path) ? 'finder-selected-label finder-selected-text' : 'text-text-primary']"
             :name="file.name"
             :highlight-indices="typeaheadHighlightFor(file)"
@@ -261,7 +295,24 @@
               :style="{ backgroundColor: colorTagOf(file)! }"
               :title="colorTagTitle(file)"
             />
+            <!-- 行内重命名（Finder 范式）：名称原地换输入框，Enter/Tab/blur 提交、Esc 取消 -->
+            <input
+              v-if="isRenamingRow(file.path)"
+              :ref="onRenameInputMount"
+              v-model="renameState.newName"
+              type="text"
+              spellcheck="false"
+              class="finder-rename-input flex-1 min-w-0 text-base"
+              @click.stop
+              @dblclick.stop
+              @contextmenu.stop
+              @keydown.enter.stop.prevent="onRenameEnter"
+              @keydown.esc.stop.prevent="cancelRename"
+              @keydown.tab.stop.prevent="onRenameTab"
+              @blur="commitRename"
+            >
             <FileNameMatchLabel
+              v-else
               class="finder-name-label flex-1 truncate text-base rounded px-1 transition-colors"
               :class="column.selectedPath === file.path ? 'finder-selected-label finder-selected-text' : 'text-text-primary'"
               :name="file.name"
@@ -302,36 +353,6 @@
 
     <!-- Rubber Band Selection Rect -->
     <div v-if="rubberBand.active" class="rubber-band-rect pointer-events-none" :style="rubberBandStyle" />
-
-    <!-- Inline Rename Bar -->
-    <div
-      v-if="renameState.active"
-      class="rename-bar flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-bg-secondary border-t border-border"
-      @mousedown.stop
-    >
-      <span class="text-sm text-text-secondary">{{ $t('fileList.renameBar.label') }}</span>
-      <input
-        ref="renameInputRef"
-        v-model="renameState.newName"
-        type="text"
-        class="flex-1 px-3 py-1.5 bg-bg-primary border border-border rounded text-text-primary focus:outline-none focus:border-accent-blue"
-        @keydown.enter="confirmRename"
-        @keydown.esc="cancelRename"
-        @mousedown.stop
-      />
-      <button
-        class="px-3 py-1.5 bg-accent-blue text-white rounded text-sm hover:bg-accent-blue/90 transition-colors"
-        @click="confirmRename"
-      >
-        {{ $t('fileList.renameBar.confirm') }}
-      </button>
-      <button
-        class="px-3 py-1.5 bg-bg-tertiary text-text-secondary rounded text-sm hover:bg-bg-hover transition-colors"
-        @click="cancelRename"
-      >
-        {{ $t('common.cancel') }}
-      </button>
-    </div>
 
     <!-- Context Menu（Finder/NSMenu 风格：定位、钳制、键盘导航都在组件内） -->
     <FinderContextMenu
@@ -557,14 +578,23 @@ const contextMenu = reactive({
   items: [] as FinderMenuItem[]
 })
 
-// ── 内联重命名状态 ─────────────────────────────────────────────────────────────
+// ── 内联重命名状态（Finder 范式：名称原地换输入框；同 AppSidebar 收藏行内重命名）──
 const renameState = reactive({
   active: false,
   filePath: '',
   originalName: '',
   newName: '',
 })
-const renameInputRef = ref<HTMLInputElement | null>(null)
+
+/** v-for 内的 ref 是数组语义，改用函数 ref 收唯一挂载的输入框 */
+const renameInputEl = ref<HTMLInputElement | null>(null)
+function onRenameInputMount(el: unknown): void {
+  renameInputEl.value = (el as HTMLInputElement | null) ?? null
+}
+
+function isRenamingRow(filePath: string): boolean {
+  return renameState.active && renameState.filePath === filePath
+}
 
 // ── 性能诊断日志 ───────────────────────────────────────────────────────────────
 // Keep diagnostics out of production interaction paths.
@@ -1752,6 +1782,11 @@ function handleArrowNavigation(event: KeyboardEvent): void {
 function handleContainerMouseDown(e: MouseEvent) {
   // 只处理左键；右键交给 context menu
   if (e.button !== 0) return
+  // 行内重命名中点击输入框以外区域：空白处的 startRubberBand 会 preventDefault
+  // 吞掉默认焦点迁移（blur 不触发），显式 blur 保证 Finder 式「外点提交」
+  if (renameState.active && !(e.target as Element).closest('.finder-rename-input')) {
+    renameInputEl.value?.blur()
+  }
   // Columns 视图不支持框选
   if (props.viewMode === 'columns') return
   // 上下文菜单打开时，不触发框选（否则 mouseup 会因距离 < 4px 而清空选中）
@@ -2699,9 +2734,12 @@ function hideContextMenu() {
   if (_closeActiveContextMenu === hideContextMenu) _closeActiveContextMenu = null
 }
 
-// ── 内联重命名功能 ─────────────────────────────────────────────────────────────
+// ── 内联重命名功能（FileList 行内编辑：Enter/Tab/blur 提交、Esc 取消；
+//    isComposing 守卫 IME 回车、先置 active=false 防 Enter→blur 双提交）─────────
 function startRename(filePath: string) {
+  // 分栏视图选中项可能在父列，当前 files 只含末列，兜底平铺查全部分栏
   const file = files.value.find(f => f.path === filePath)
+    ?? (props.viewMode === 'columns' ? columns.value.flatMap(col => col.files).find(f => f.path === filePath) : undefined)
   if (!file) return
 
   renameState.filePath = filePath
@@ -2709,10 +2747,15 @@ function startRename(filePath: string) {
   renameState.newName = file.name
   renameState.active = true
 
-  // Focus input on next tick
+  // Focus input on next tick + Finder 式只选中主体（保留扩展名）：
+  // 目录/隐藏文件（点前无内容）/无扩展名 → 全选（同 CreateItemSheet 规则）
   nextTick(() => {
-    renameInputRef.value?.focus()
-    renameInputRef.value?.select()
+    const input = renameInputEl.value
+    if (!input) return
+    input.focus()
+    const dot = file.name.lastIndexOf('.')
+    const end = !file.isDirectory && dot > 0 ? dot : file.name.length
+    input.setSelectionRange(0, end)
   })
 }
 
@@ -2723,7 +2766,8 @@ function cancelRename() {
   renameState.newName = ''
 }
 
-function confirmRename() {
+function commitRename() {
+  if (!renameState.active) return  // Enter 已提交过 / Esc 已取消后的 blur 余波
   const newName = renameState.newName.trim()
   if (!newName || newName === renameState.originalName) {
     cancelRename()
@@ -2736,6 +2780,15 @@ function confirmRename() {
     newName
   })
   cancelRename()
+}
+
+function onRenameEnter(event: KeyboardEvent) {
+  if (event.isComposing) return  // IME 输入中的回车是选字，不是提交
+  commitRename()
+}
+
+function onRenameTab() {
+  commitRename()
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3058,6 +3111,24 @@ function handleContextMenuAction(action: string) {
 
 .finder-selected-text {
   color: var(--finder-selection-text);
+}
+
+/* 行内重命名输入框（Finder 范式）：sheet-name-input 同规格的细蓝 ring，
+   几何贴合行高；字号由模板 class 继承，保证与原名称基线一致 */
+.finder-rename-input {
+  height: 24px;
+  border: 1px solid var(--finder-divider);
+  border-radius: 5px;
+  background: var(--finder-control);
+  padding: 0 5px;
+  color: var(--finder-label);
+  transition: border-color 130ms ease, box-shadow 130ms ease;
+}
+
+.finder-rename-input:focus {
+  outline: none;
+  border-color: var(--finder-selection);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.25);
 }
 
 /* 颜色标记圆点：三视图共用几何；颜色走内联 backgroundColor（CSS accent 变量） */

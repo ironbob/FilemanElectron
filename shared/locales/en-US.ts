@@ -271,10 +271,6 @@ const enUS: MessageSchema = {
       noMatches: 'No matches',
       escClear: 'Esc clear'
     },
-    renameBar: {
-      label: 'Rename:',
-      confirm: 'Confirm'
-    },
     kind: {
       folder: 'Folder',
       extDocument: '{ext} document',

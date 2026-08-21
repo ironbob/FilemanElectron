@@ -277,10 +277,6 @@ const zhCN = {
       noMatches: '无匹配',
       escClear: 'Esc 清除'
     },
-    renameBar: {
-      label: '重命名：',
-      confirm: '确认'
-    },
     kind: {
       folder: '文件夹',
       extDocument: '{ext} 文档',
