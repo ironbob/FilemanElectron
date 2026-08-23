@@ -1,6 +1,9 @@
 # 双击打开方式全类型映射（穷举）— 2026-08-16
 
 > 状态：**已实施（2026-08-16）**，配套契约 `2026-08-16-double-click-open-map-design-contract.json`。
+> 增补（2026-08-23）：网页族（html/htm/xhtml/shtml，清单 `BROWSER_OPEN_EXTS`）本机
+> 实体双击改交系统默认应用（浏览器）渲染——与 §6 决策④同类语义；应用内文本预览
+> 入口保留（空格 QuickLook / 右键「打开」→ 预览 tab）。
 > 目标：穷举所有文件类型，为每种类型确定"最适合的双击默认打开方式"，
 > 并消灭 `Cannot preview this file type` 占位符。
 > 触发案例：`*.cmake` 双击无法预览。

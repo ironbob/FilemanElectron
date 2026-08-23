@@ -281,6 +281,15 @@ export const SIPS_IMAGE_EXTS: ReadonlySet<string> = new Set(
 export const VIDEO_EXTS: ReadonlySet<string> = new Set(
   Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === 'video').map(([e]) => e)
 )
+
+/**
+ * 双击交给系统默认应用（通常是浏览器）打开的扩展名：网页族。
+ * 本机实体走 Finder 语义（默认浏览器渲染而非源码文本）；应用内文本预览入口
+ * 保留（空格 QuickLook / 右键「打开」→ 预览 tab）。仅 local 设备且非 ZIP 虚拟
+ * 路径生效（消费方 FileList.handleDoubleClick）——远程/ZIP 内无本机实体，
+ * 继续应用内预览。
+ */
+export const BROWSER_OPEN_EXTS: ReadonlySet<string> = new Set(['html', 'htm', 'xhtml', 'shtml'])
 export const AUDIO_EXTS: ReadonlySet<string> = new Set(
   Object.entries(EXTENSION_KINDS).filter(([, d]) => d.kind === 'audio').map(([e]) => e)
 )

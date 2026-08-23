@@ -396,7 +396,7 @@ import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHin
 import { extensionCategories, extensionIconMap, isThumbnailable, isImageFile, IMAGE_EXTENSIONS_WITH_DOT } from '@/utils/fileTypes'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
-import { resolveFileKind, isEditableImageExt } from '@shared/fileKinds'
+import { resolveFileKind, isEditableImageExt, normalizeExt, BROWSER_OPEN_EXTS } from '@shared/fileKinds'
 import { listingDiffers } from '@/utils/listingDiff'
 import { toRelativePath, toFileUri, getBaseName, paneParentPath } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -1526,6 +1526,18 @@ function handleDoubleClick(file: FileInfo) {
     // ZIP 容器格式（pptx/docx/aar/jar…）：实为 zip 但属于其他应用的格式。
     // 本机有实体与专属应用，双击交给系统默认应用（Finder 语义）；想看内部
     // 结构走右键 ZIP 子菜单。ZIP 内部的同名条目无本地实体，继续应用内预览。
+    window.fileman.openDefault(file.path).catch(err => {
+      console.error('[FileList] openDefault failed for', file.path, err)
+    })
+  } else if (
+    props.deviceId === 'local'
+    && !isZipVirtualPath(file.path)
+    && BROWSER_OPEN_EXTS.has(normalizeExt(file.extension ?? ''))
+  ) {
+    // 网页族（html/htm/xhtml/shtml，清单源 @shared/fileKinds BROWSER_OPEN_EXTS）：
+    // 双击按 Finder 语义交给系统默认应用（浏览器）渲染。应用内文本预览入口保留
+    // ——空格 QuickLook / 右键「打开」。ZIP 内部同名条目与远程设备无本机实体，
+    // 继续走应用内预览。
     window.fileman.openDefault(file.path).catch(err => {
       console.error('[FileList] openDefault failed for', file.path, err)
     })
