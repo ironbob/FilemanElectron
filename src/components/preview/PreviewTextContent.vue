@@ -214,31 +214,37 @@
         <div class="md-body" v-html="renderedHtml"></div>
       </div>
 
-      <!-- ── JSON Tree View (using @alenaksu/json-viewer) ── -->
-      <div v-else-if="viewMode === 'tree'" class="flex-1 overflow-auto">
-        <json-viewer
-          v-if="parsedJsonData !== null"
-          ref="jsonTreeRef"
-          class="json-viewer-container"
-        ></json-viewer>
-        <div v-else class="flex items-center justify-center h-full text-text-tertiary">
-          <p>{{ $t('preview.json.treeUnavailable') }}</p>
+      <!-- ── JSON Tree View (using @alenaksu/json-viewer) ──
+           template 包裹树 + 路径查询结果：路径盒若为独立 v-if 会截断条件链，
+           把 table/else 分支劫走——markdown 渲染面与空白 Monaco 容器同屏
+           对半分高（tree 无查询结果时同样叠空白容器）。template 不产出
+           DOM，两块仍是外层 flex 列的直接子元素，布局不变。 -->
+      <template v-else-if="viewMode === 'tree'">
+        <div class="flex-1 overflow-auto">
+          <json-viewer
+            v-if="parsedJsonData !== null"
+            ref="jsonTreeRef"
+            class="json-viewer-container"
+          ></json-viewer>
+          <div v-else class="flex items-center justify-center h-full text-text-tertiary">
+            <p>{{ $t('preview.json.treeUnavailable') }}</p>
+          </div>
         </div>
-      </div>
+
+        <!-- JSON 路径查询结果 -->
+        <div
+          v-if="jsonPathResult !== null"
+          class="mx-4 my-2 rounded border border-border bg-bg-primary flex-shrink-0"
+        >
+          <div class="flex items-center justify-between px-3 py-1.5 border-b border-border">
+            <span class="text-[11px] font-mono text-text-secondary">{{ jsonPathInput }}</span>
+            <button class="text-[11px] text-text-tertiary hover:text-text-primary" @click="jsonPathResult = null">✕</button>
+          </div>
+          <pre class="px-3 py-2 text-[11px] font-mono text-text-primary overflow-auto max-h-48">{{ jsonPathResult }}</pre>
+        </div>
+      </template>
 
       <!-- ── CSV Table ── -->
-      <!-- JSON 路径查询结果 -->
-      <div
-        v-if="viewMode === 'tree' && jsonPathResult !== null"
-        class="mx-4 my-2 rounded border border-border bg-bg-primary flex-shrink-0"
-      >
-        <div class="flex items-center justify-between px-3 py-1.5 border-b border-border">
-          <span class="text-[11px] font-mono text-text-secondary">{{ jsonPathInput }}</span>
-          <button class="text-[11px] text-text-tertiary hover:text-text-primary" @click="jsonPathResult = null">✕</button>
-        </div>
-        <pre class="px-3 py-2 text-[11px] font-mono text-text-primary overflow-auto max-h-48">{{ jsonPathResult }}</pre>
-      </div>
-
       <div v-else-if="viewMode === 'table'" class="flex-1 overflow-auto relative">
         <table class="w-full text-xs border-collapse">
           <thead class="sticky top-0 z-10 bg-bg-tertiary">
