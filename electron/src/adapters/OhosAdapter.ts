@@ -52,7 +52,7 @@ export class OhosAdapter implements IFileSystemAdapter {
   /** 设备 id 形如 "ohos:<connectKey>";hdc -t 需要裸 key(照 iOSAdapter.udid 剥前缀)。 */
   private connectKey(): string {
     const raw = this.config.deviceId ?? this.deviceId
-    return raw.startsWith('ohos:') ? raw.slice(4) : raw
+    return raw.startsWith('ohos:') ? raw.slice(5) : raw
   }
 
   private requireConnected(): string {
