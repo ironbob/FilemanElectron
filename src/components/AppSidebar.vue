@@ -13,7 +13,7 @@
           @click="selectDevice(device)"
           @contextmenu.prevent="openSidebarMenuForDevice(device, $event)"
         >
-          <component :is="getDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0 sidebar-icon" :class="getDeviceIconColor(device.type)" />
+          <component :is="getDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0 sidebar-icon" />
           <span class="text-[13px] truncate flex-1 font-medium">{{ device.name }}</span>
           <span
             v-if="device.type !== 'local' && device.status !== 'connected'"
@@ -67,7 +67,7 @@
           @click="selectVolume(volume)"
           @contextmenu.prevent="openSidebarMenuForVolume(volume, $event)"
         >
-          <component :is="VolumeDriveIcon" class="w-5 h-5 flex-shrink-0 sidebar-icon text-[#5ac8fa]" />
+          <component :is="VolumeDriveIcon" class="w-5 h-5 flex-shrink-0 sidebar-icon" />
           <span class="text-[13px] truncate flex-1 font-medium">{{ volume.name }}</span>
         </div>
       </div>
@@ -93,7 +93,7 @@
             @contextmenu.prevent="openSidebarMenuForMobile(device, $event)"
           >
           <!-- Device icon -->
-          <component :is="getMobileDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0" :class="getMobileDeviceIconColor(device.type)" />
+          <component :is="getMobileDeviceIconComponent(device.type)" class="w-5 h-5 flex-shrink-0" />
           <span class="text-[13px] truncate flex-1 font-medium">{{ device.name }}</span>
           <!-- iOS pairing status badge -->
           <span
@@ -191,7 +191,7 @@
           @click="navigateTo(fav.path)"
           @contextmenu.prevent="openSidebarMenuForPlace(fav, $event)"
         >
-          <component :is="fav.icon" class="w-5 h-5 flex-shrink-0" :class="fav.iconColor" />
+          <component :is="fav.icon" class="w-5 h-5 flex-shrink-0" />
           <span class="text-[13px] truncate font-medium">{{ fav.name }}</span>
         </div>
       </div>
@@ -214,7 +214,7 @@
             @click="selectFavorite(item)"
             @contextmenu.prevent="openSidebarMenuForFavorite(item, group, $event)"
           >
-            <component :is="BookmarkIcon" class="w-5 h-5 flex-shrink-0 text-[#ffd60a]" />
+            <component :is="BookmarkIcon" class="w-5 h-5 flex-shrink-0" />
             <!-- 行内重命名（Finder 侧栏范式）：名称 span 原地换输入框，Enter 提交/Esc 取消/blur 提交 -->
             <input
               v-if="isRenaming(item)"
@@ -341,22 +341,22 @@ const deviceDialog = reactive<{
 })
 
 // Default favorites with SVG icon components and colors
-const favorites = ref<Array<{ name: string; path: string; icon: any; iconColor: string }>>([])
+const favorites = ref<Array<{ name: string; path: string; icon: any }>>([])
 
 async function loadFavorites() {
   try {
     const homeDir = await window.fileman.getHomeDir()
     favorites.value = [
-      { name: 'Home', path: homeDir, icon: HomeIcon, iconColor: 'text-[#c084fc]' },
-      { name: 'Desktop', path: homeDir + '/Desktop', icon: DesktopIcon, iconColor: 'text-[#6366f1]' },
-      { name: 'Documents', path: homeDir + '/Documents', icon: DocumentIcon, iconColor: 'text-[#ffaa33]' },
-      { name: 'Downloads', path: homeDir + '/Downloads', icon: DownloadIcon, iconColor: 'text-[#32d74b]' },
-      { name: 'Applications', path: '/Applications', icon: ApplicationIcon, iconColor: 'text-[#ff5a7f]' },
+      { name: 'Home', path: homeDir, icon: HomeIcon },
+      { name: 'Desktop', path: homeDir + '/Desktop', icon: DesktopIcon },
+      { name: 'Documents', path: homeDir + '/Documents', icon: DocumentIcon },
+      { name: 'Downloads', path: homeDir + '/Downloads', icon: DownloadIcon },
+      { name: 'Applications', path: '/Applications', icon: ApplicationIcon },
     ]
   } catch (error) {
     console.error('Failed to get home directory:', error)
     favorites.value = [
-      { name: 'Root', path: '/', icon: HomeIcon, iconColor: 'text-[#c084fc]' },
+      { name: 'Root', path: '/', icon: HomeIcon },
     ]
   }
 }
@@ -401,19 +401,6 @@ function getDeviceIconComponent(type: string) {
   return icons[type] || LocalIcon
 }
 
-function getDeviceIconColor(type: string): string {
-  const colors: Record<string, string> = {
-    local: 'text-[#5ac8fa]',
-    android: 'text-[#32d74b]',
-    ohos: 'text-[#f56c3d]',
-    smb: 'text-[#ffaa33]',
-    ssh: 'text-[#c084fc]',
-    webdav: 'text-[#64d2ff]',
-    ios: 'text-[#0a84ff]'
-  }
-  return colors[type] || 'text-text-secondary'
-}
-
 function getMobileDeviceIconComponent(type: string) {
   const icons: Record<string, any> = {
     android: AndroidIcon,
@@ -421,15 +408,6 @@ function getMobileDeviceIconComponent(type: string) {
     ios: IosIcon
   }
   return icons[type] || AndroidIcon
-}
-
-function getMobileDeviceIconColor(type: string): string {
-  const colors: Record<string, string> = {
-    android: 'text-[#32d74b]',
-    ohos: 'text-[#f56c3d]',
-    ios: 'text-[#0a84ff]'
-  }
-  return colors[type] || 'text-text-secondary'
 }
 
 function isActiveDevice(deviceId: string): boolean {

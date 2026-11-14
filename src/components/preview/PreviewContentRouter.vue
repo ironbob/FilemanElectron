@@ -51,29 +51,32 @@
   <!-- Unknown file type（嗅探细化期间的瞬态；仍提供显式动作） -->
   <div
     v-else
-    class="flex flex-col items-center justify-center h-full text-text-tertiary"
+    class="preview-fallback flex flex-col items-center justify-center h-full px-6 text-center"
   >
-    <svg class="w-16 h-16 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-    <p class="text-sm font-medium text-text-primary">{{ file.name }}</p>
-    <p class="text-xs mt-1 mb-4">{{ $t('preview.common.detectingType') }}</p>
-    <div class="flex items-center gap-2">
-      <button
-        class="px-3 py-1.5 text-xs rounded bg-accent-blue text-white hover:opacity-90"
-        @click="openAsHex"
-      >{{ $t('preview.common.viewAsHex') }}</button>
-      <button
-        v-if="isLocal"
-        class="px-3 py-1.5 text-xs rounded bg-bg-hover text-text-secondary hover:bg-bg-active"
-        @click="openWithSystem"
-      >{{ $t('preview.common.openWithSystem') }}</button>
+    <div class="preview-fallback-badge">
+      <AppIcon name="fileText" :stroke="1.5" class="w-8 h-8" />
+    </div>
+    <p class="mt-4 max-w-[340px] break-all text-[15px] font-semibold text-text-primary">{{ file.name }}</p>
+    <p class="mt-1.5 flex items-center gap-1.5 text-xs text-text-tertiary">
+      <span class="preview-fallback-pulse" aria-hidden="true" />
+      {{ $t('preview.common.detectingType') }}
+    </p>
+    <div class="mt-5 flex items-center gap-2.5">
+      <button class="finder-btn-primary gap-1.5" @click="openAsHex">
+        <AppIcon name="hex" class="w-4 h-4" />
+        {{ $t('preview.common.viewAsHex') }}
+      </button>
+      <button v-if="isLocal" class="finder-btn-secondary gap-1.5" @click="openWithSystem">
+        <AppIcon name="openWith" class="w-4 h-4" />
+        {{ $t('preview.common.openWithSystem') }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppIcon from '../AppIcon.vue'
 import type { FileInfo } from '@/types'
 import { getPreviewType, type PreviewType, type QuickLookControls } from '@/types/preview'
 import PreviewTextContent from './PreviewTextContent.vue'
@@ -129,3 +132,36 @@ const type = computed<PreviewType>(() => {
   return getPreviewType(props.file)
 })
 </script>
+
+<style scoped>
+/* 未知类型兜底：文件徽标（一张材质 + 发丝内环 + 柔和投影）+ 识别中脉冲。
+   颜色走 finder token，亮/暗主题自适应；动作钮复用 .finder-btn-primary/secondary。 */
+.preview-fallback-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  color: var(--finder-secondary-label);
+  background: linear-gradient(160deg, var(--finder-control-strong), var(--finder-control));
+  box-shadow: inset 0 0 0 1px var(--finder-divider), 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.preview-fallback-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--finder-selection);
+  animation: preview-fallback-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes preview-fallback-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-fallback-pulse { animation: none; }
+}
+</style>

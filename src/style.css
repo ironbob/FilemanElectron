@@ -274,6 +274,22 @@ html, body, #app {
   -webkit-app-region: no-drag;
 }
 
+/* ========================================
+   Unified Icon (AppIcon) — 单一图标语言基类
+   内联 SVG，尺寸由使用方 class 控制（w-5 h-5 / finder-icon / iconfont-preview-icon）；
+   不在此设 width/height，避免压过 Tailwind 尺寸工具类。non-scaling-stroke 让
+   描边在各显示尺寸下保持恒定光学粗细（Finder/SF Symbols 观感）。
+   ======================================== */
+.app-icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+}
+
+.app-icon * {
+  vector-effect: non-scaling-stroke;
+}
+
 /* 弹层打开期间（useAppDragSuspend 在 <html> 置 data-app-drag-suspended）：
    拖拽区临时放行鼠标事件。macOS 上 app-region: drag 区域由窗口层整片吞掉
    点击（pointerdown/click 不进渲染进程），document 级外点关闭因此收不到
@@ -982,26 +998,6 @@ button {
 }
 
 /* ========================================
-   Glow Effects
-   ======================================== */
-
-.glow-blue {
-  box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
-}
-
-.glow-green {
-  box-shadow: 0 0 20px rgba(50, 215, 75, 0.25);
-}
-
-.glow-purple {
-  box-shadow: 0 0 20px rgba(192, 132, 252, 0.25);
-}
-
-.text-glow-blue {
-  text-shadow: 0 0 10px rgba(10, 132, 255, 0.5);
-}
-
-/* ========================================
    Selection Highlight
    ======================================== */
 
@@ -1023,30 +1019,6 @@ button {
 .file-item-selected {
   background: linear-gradient(135deg, rgba(10, 132, 255, 0.15) 0%, rgba(0, 102, 204, 0.1) 100%);
   border: 1px solid rgba(10, 132, 255, 0.3);
-}
-
-/* Folder icon color enhancement */
-.folder-icon {
-  color: var(--icon-folder);
-  filter: drop-shadow(0 1px 2px rgba(90, 200, 250, 0.2));
-}
-
-/* Image icon color enhancement */
-.image-icon {
-  color: var(--icon-image);
-  filter: drop-shadow(0 1px 2px rgba(50, 215, 75, 0.2));
-}
-
-/* Video icon color enhancement */
-.video-icon {
-  color: var(--icon-video);
-  filter: drop-shadow(0 1px 2px rgba(255, 77, 77, 0.2));
-}
-
-/* Audio icon color enhancement */
-.audio-icon {
-  color: var(--icon-audio);
-  filter: drop-shadow(0 1px 2px rgba(192, 132, 252, 0.2));
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

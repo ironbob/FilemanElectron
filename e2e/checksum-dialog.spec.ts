@@ -171,7 +171,7 @@ test('几何契约：分段规格/凹陷组实底/图标 28px/底栏右对齐', 
     const seg = document.querySelector('.finder-segment-btn-text.active') as HTMLElement
     const tray = document.querySelector('.finder-seg-tray') as HTMLElement
     const group = sheet.querySelector('.finder-inset-group') as HTMLElement
-    const icon = sheet.querySelector('.finder-inset-group img.finder-icon') as HTMLElement
+    const icon = sheet.querySelector('.finder-inset-group .finder-icon') as HTMLElement
     return {
       segH: Math.round(seg.getBoundingClientRect().height),
       segFont: getComputedStyle(seg).fontSize,

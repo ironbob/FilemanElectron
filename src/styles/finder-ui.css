@@ -1,12 +1,5 @@
 /* Reusable Finder-style visual layer. Scope it to the application shell so
    file, device, and preview behavior continues to live in existing stores. */
-/* Source: Iconfont public collection / project 115436. Bundle the font locally
-   because preview controls must remain available when Electron has no network. */
-@font-face {
-  font-family: 'Fileman Iconfont';
-  src: url('../assets/iconfont/fileman-iconfont.woff2') format('woff2');
-  font-display: block;
-}
 
 .finder-shell {
   --finder-canvas: #ffffff;
@@ -170,6 +163,25 @@
   box-shadow: var(--finder-sidebar-shadow);
   /* 内容必须被圆角容器正确裁剪 */
   overflow: hidden;
+}
+
+/* ── macOS 窗口振动材质（data-vibrancy 由主进程在 darwin 置位）─────────────────
+   侧栏/标题栏透出原生 sidebar 材质（高级感来源）；内容区 bg-bg-primary 保持不透明。
+   renderer-only / e2e 无此属性 → 以下规则全部不命中，界面全不透明（零回归）。
+   原生 vibrancy 已提供模糊/半透明，故移除侧栏自身的 CSS backdrop-filter 避免双重模糊。 */
+html[data-vibrancy='sidebar'],
+html[data-vibrancy='sidebar'] body,
+html[data-vibrancy='sidebar'] #app,
+html[data-vibrancy='sidebar'] .finder-shell {
+  background: transparent !important;
+}
+html[data-vibrancy='sidebar'] .finder-window-titlebar {
+  background: transparent !important;
+}
+html[data-vibrancy='sidebar'] .finder-sidebar {
+  background-color: transparent !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* 分割器：10px 拖拽热区，视觉仅靠卡片右缘 1px 低对比线；
@@ -688,14 +700,12 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--finder-selection) 25%, transparent);
 }
 
+/* 内联 SVG 图标（AppIcon）：currentColor 上色，尺寸 1em（胶囊内 18px 见下）。
+   不再需要 <img> 时代的 invert(1) 反色——颜色随父级 color / 主题 token。 */
 .finder-shell .finder-icon {
   width: 1em;
   height: 1em;
-  object-fit: contain;
-  filter: var(--finder-icon-filter, none);
 }
-
-.finder-shell[data-theme='dark'] .finder-icon { filter: invert(1); }
 
 .finder-shell .h-7.bg-bg-statusbar {
   min-height: 24px;
@@ -1161,18 +1171,13 @@
   color: #ffffff;
 }
 
+/* 预览控件图标尺寸类（AppIcon 内联 SVG）：font-size 驱动 1em 尺寸。
+   保留 .iconfont-preview-icon 类名供 e2e 与既有调用点沿用。 */
 .iconfont-preview-icon {
   display: inline-block;
   width: 1em;
   height: 1em;
   overflow: visible;
-  font-family: 'Fileman Iconfont' !important;
-  font-style: normal;
-  font-weight: normal;
-  line-height: 1;
-  text-align: center;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 .iconfont-preview-icon--sm { font-size: 13px; }

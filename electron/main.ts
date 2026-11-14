@@ -105,6 +105,11 @@ function createWindow(): void {
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 15, y: 10 },
+    // macOS 原生振动材质：侧边栏/标题栏透出系统 sidebar 材质（高级感来源）。
+    // 仅 darwin 启用；渲染层据 data-vibrancy 把侧栏/标题栏置透明、内容区保持不透明。
+    ...(process.platform === 'darwin'
+      ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const, backgroundColor: '#00000000' }
+      : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
@@ -118,6 +123,10 @@ function createWindow(): void {
   // Push current mobile device state once the renderer is ready,
   // because the scanner may have already run before the window existed.
   mainWindow.webContents.on('did-finish-load', () => {
+    // 渲染层据此把侧栏/标题栏置透明以透出原生 vibrancy；renderer-only/e2e 无此属性 → 全不透明
+    if (process.platform === 'darwin' && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(`document.documentElement.setAttribute('data-vibrancy', 'sidebar')`).catch(() => {})
+    }
     const currentMobileDevices = deviceManager.getDetectedMobileDevices()
     if (currentMobileDevices.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
       console.log('[Main] Pushing initial mobile devices to renderer:', currentMobileDevices.length)

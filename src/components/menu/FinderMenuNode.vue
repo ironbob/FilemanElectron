@@ -12,6 +12,7 @@
  *   因此悬停父项 → 子菜单展开 → 深入子菜单，父链全程保持展开。
  */
 import type { FinderMenuItem } from './FinderContextMenu.vue'
+import { GLYPHS } from '../icons/glyphs'
 
 defineProps<{
   items: FinderMenuItem[]
@@ -29,109 +30,6 @@ const emit = defineEmits<{
   /** 激活一个无子菜单的叶子项 */
   activate: [item: FinderMenuItem]
 }>()
-
-/**
- * 16px 单色线性图标集（stroke 1.5 / round，viewBox 0 0 16 16）。
- * 值为 <svg> 内部标记，经 v-html 注入；描边颜色走 currentColor。
- */
-const ICONS: Record<string, string> = {
-  // 打开：方框 + 右上出界箭头
-  open: '<path d="M6.5 3.5H4.2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V9.2"/><path d="M9.8 2.5h3.7v3.7"/><path d="M13.5 2.5 7.8 8.2"/>',
-  // 移到废纸篓
-  trash: '<path d="M3 4.7h10"/><path d="M6.4 4.7V3.4a.9.9 0 0 1 .9-.9h1.4a.9.9 0 0 1 .9.9v1.3"/><path d="M4.6 4.7l.5 7.6a1.1 1.1 0 0 0 1.1 1h3.6a1.1 1.1 0 0 0 1.1-1l.5-7.6"/><path d="M6.7 7.2v3.6M9.3 7.2v3.6"/>',
-  // 显示简介
-  info: '<circle cx="8" cy="8" r="5.6"/><path d="M8 7.4v3.2"/><path d="M8 5.1v.05"/>',
-  // 重新命名
-  rename: '<path d="M10.1 3.4l2.5 2.5L6.4 12l-3 .6.6-3z"/><path d="M8.9 4.6l2.5 2.5"/>',
-  // 批量重命名：列表 + 笔
-  batchRename: '<path d="M2.5 4.3h6.2M2.5 7.6h5M2.5 11h3.4"/><path d="M9.9 9.1l3.1-3.1 1.4 1.4-3.1 3.1-1.8.4z"/>',
-  // 转换图片：图片框 + 右向导出箭头
-  convert: '<rect x="2.2" y="4.6" width="8" height="8" rx="1.2"/><path d="M3 10.8l2.2-2.2 1.8 1.8"/><circle cx="6.4" cy="7.2" r=".9"/><path d="M9.8 8.6h3.6M12 7l1.6 1.6L12 10.2"/>',
-  // 压缩"…"：箱体 + 向下压入箭头
-  compress: '<path d="M2 6.2v6a1.2 1.2 0 0 0 1.2 1.2h9.6a1.2 1.2 0 0 0 1.2-1.2v-6"/><path d="M1.2 3h13.6v3.2H1.2z"/><path d="M8 8.4v3.2M6.5 10.1 8 11.6l1.5-1.5"/>',
-  // 解压：箱体 + 向上取出箭头
-  extract: '<path d="M3 6.6v5.6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6.6"/><path d="M8 11V4.6M5.8 6.8 8 4.6l2.2 2.2"/>',
-  // 拷贝：双层文档
-  copy: '<rect x="5.6" y="5.6" width="7.9" height="7.9" rx="1.2"/><path d="M10.4 5.6V3.6a1.2 1.2 0 0 0-1.2-1.2H3.6a1.2 1.2 0 0 0-1.2 1.2v5.6a1.2 1.2 0 0 0 1.2 1.2h2"/>',
-  // 剪切
-  cut: '<circle cx="3.7" cy="4.6" r="1.5"/><circle cx="3.7" cy="11.4" r="1.5"/><path d="M5 5.6 13 12.4M5 10.4 13 3.6"/>',
-  // 制作替身：锚点方块 + 弯出箭头
-  alias: '<rect x="2.2" y="10.6" width="3.2" height="3.2" rx=".6"/><path d="M5.4 10.6C5.4 6.6 7.8 4.2 12 4.2h1.6"/><path d="M11.3 2l2.5 2.2-2.5 2.2"/>',
-  // 快速查看
-  quickLook: '<path d="M1.8 8S4.1 4 8 4s6.2 4 6.2 4-2.3 4-6.2 4S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.7"/>',
-  // 终端
-  terminal: '<rect x="2" y="3.2" width="12" height="9.6" rx="1.3"/><path d="M4.6 6.4l2 2-2 2"/><path d="M8 10.4h3.2"/>',
-  // 十六进制
-  hex: '<path d="M8 1.8l5.3 3.1v6.2L8 14.2l-5.3-3.1V4.9z"/><path d="M6 6.4h4M6 9.2h2.6"/>',
-  // 校验和：盾 + 对勾
-  checksum: '<path d="M8 1.8l4.6 1.9v3.5c0 3-1.9 5.3-4.6 6.2-2.7-.9-4.6-3.2-4.6-6.2V3.7z"/><path d="M6 7.9l1.4 1.4 2.6-2.8"/>',
-  // 移除隔离标记：盾 + 叉
-  quarantine: '<path d="M8 1.8l4.6 1.9v3.5c0 3-1.9 5.3-4.6 6.2-2.7-.9-4.6-3.2-4.6-6.2V3.7z"/><path d="M6.2 6.2l3.6 3.6M9.8 6.2l-3.6 3.6"/>',
-  // 单选选中态（网格规格等 radio 组的当前项）
-  check: '<path d="M3.2 8.3l3 3 6.6-7"/>',
-  // 对比目录：左右两栏
-  compare: '<rect x="2.2" y="3.4" width="5" height="9.2" rx="1"/><rect x="8.8" y="3.4" width="5" height="9.2" rx="1"/>',
-  // 收藏
-  star: '<path d="M8 2.2l1.7 3.6 3.9.5-2.9 2.7.8 3.9L8 11l-3.5 1.9.8-3.9L2.4 6.3l3.9-.5z"/>',
-  // 拷贝路径：路径曲线 + 端点 + 箭头
-  copyPath: '<circle cx="2.9" cy="13.1" r="1.2"/><path d="M4.1 12.6C4.1 8.9 6.7 7.4 13 7.4"/><path d="M11.2 5.6l1.8 1.8-1.8 1.8"/>',
-  // 打开方式：窗口 + 右向箭头
-  openWith: '<rect x="2.2" y="3" width="11.6" height="8.6" rx="1.2"/><path d="M2.2 5.6h11.6"/><path d="M10.6 8.2h3.6M12.9 6.7l1.5 1.5-1.5 1.5"/>',
-  // 快速操作：闪电
-  quickActions: '<path d="M8.9 1.6L3.6 9.2h3.3l-1 5.2 5.3-7.6H7.9z"/>',
-  // 新标签页
-  tab: '<rect x="2.2" y="5" width="11.6" height="7.4" rx="1.2"/><path d="M8 7.2v3M6.5 8.7h3"/>',
-  // 双面板
-  split: '<rect x="2.2" y="4.4" width="11.6" height="8" rx="1.2"/><path d="M8 4.4v8"/>',
-  // 图片
-  images: '<rect x="2.2" y="3.2" width="11.6" height="9.6" rx="1.2"/><path d="M2.8 11l3-3 2.4 2.4 2-2 3.2 3.2"/><circle cx="10.8" cy="6" r="1"/>',
-  // ZIP 容器
-  zip: '<path d="M2.2 6.4v6a1.2 1.2 0 0 0 1.2 1.2h9.2a1.2 1.2 0 0 0 1.2-1.2v-6"/><path d="M1.4 3h13.2v3.4H1.4z"/><path d="M8 7.3v.05M8 9.4v.05M8 11.4v.05"/>',
-  // ZIP 树形预览：节点树
-  tree: '<path d="M8 13.8V8.2M8 8.2 4.6 4.8M8 8.2l3.4-3.4M8 11 5.9 8.9M8 11l2.1-2.1"/>',
-  // 刷新
-  refresh: '<path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.7 2.3v3h-3"/>',
-  // 新建文件夹
-  newFolder: '<path d="M2.4 12.6V5a1 1 0 0 1 1-1h3l1.4 1.8h5.8a1 1 0 0 1 1 1v1.2"/><path d="M2.4 12.6h5"/><path d="M10.8 10v4M8.8 12h4"/>',
-  // 新建文件
-  newFile: '<path d="M4.2 2.4h4.6l3 3v8.2H4.2z"/><path d="M8.8 2.4v3h3"/><path d="M6.4 9.2v3.2M4.8 10.8h3.2"/>',
-  // 新建符号链接：链环
-  link: '<rect x="1.8" y="6.2" width="6.4" height="3.6" rx="1.8"/><rect x="7.8" y="6.2" width="6.4" height="3.6" rx="1.8"/>',
-  // 粘贴：剪贴板
-  paste: '<rect x="3.6" y="3" width="8.8" height="11" rx="1.2"/><rect x="6" y="1.8" width="4" height="2.2" rx="1"/><path d="M6 7.2h4M6 9.6h4"/>',
-  // 从剪贴板新建·文本：剪贴板 + 三行文本（末行短，与 paste 的两行区分）
-  clipboardText: '<rect x="3.6" y="3" width="8.8" height="11" rx="1.2"/><rect x="6" y="1.8" width="4" height="2.2" rx="1"/><path d="M5.6 7h5M5.6 9.2h5M5.6 11.4h3"/>',
-  // 从剪贴板新建·图片：剪贴板 + 太阳圆点 + 山形线
-  clipboardImage: '<rect x="3.6" y="3" width="8.8" height="11" rx="1.2"/><rect x="6" y="1.8" width="4" height="2.2" rx="1"/><circle cx="6.4" cy="8" r=".9"/><path d="M5.6 12.2l2.2-2.4 1.7 1.7 1-1 1.9 1.7"/>',
-  // 显示/隐藏隐藏文件：眼睛 + 斜杠
-  hidden: '<path d="M2.2 8s2.3-3.6 5.8-3.6c1 0 1.9.3 2.7.8M13 9.4c.4-.6.8-1.4.8-1.4S11.7 4.4 8 4.4"/><path d="M6.6 9.8c.4.3.9.4 1.4.4 1.6 0 2.8-1 3.6-1.9"/><path d="M2.5 2.8l11 10.4"/>',
-  // 前往文件夹：文件夹 + 指入箭头
-  goto: '<path d="M8.4 3.4h4.2a1 1 0 0 1 1 1v7.2a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1V4.4a1 1 0 0 1 1-1h1"/><path d="M13 8.5H9.2M13 8.5l-1.8-1.8M13 8.5l-1.8 1.8"/>',
-  // 查找重复文件：错位双文档
-  duplicates: '<rect x="5.4" y="2.4" width="7" height="9.2" rx="1"/><path d="M3.6 4.8v7a1 1 0 0 0 1 1h5"/>',
-  // 可视化空间：四分块
-  treemap: '<rect x="2.4" y="2.4" width="5" height="5" rx=".8"/><rect x="8.6" y="2.4" width="5" height="3" rx=".8"/><rect x="2.4" y="8.6" width="4" height="5" rx=".8"/><rect x="8.6" y="6.9" width="5" height="6.7" rx=".8"/>',
-  // 在此搜索内容：文字行 + 放大镜
-  grep: '<path d="M2.6 4.6h7M2.6 7.6h4.6"/><circle cx="10.4" cy="9.8" r="2.9"/><path d="M12.5 11.9l2 2"/>',
-  // 在 Finder 中显示：笑脸显示器
-  finder: '<rect x="1.8" y="3" width="12.4" height="8.6" rx="1.4"/><path d="M4.6 6.2v.05M11.4 6.2v.05"/><path d="M5.6 9.2c.6.8 1.4 1.2 2.4 1.2s1.8-.4 2.4-1.2"/>',
-  // 文件夹（面包屑折叠层级等）
-  folder: '<path d="M2.2 12.6V4.6a1 1 0 0 1 1-1h3l1.4 1.8h5.2a1 1 0 0 1 1 1v6.2a1 1 0 0 1-1 1H3.2a1 1 0 0 1-1-1z"/>',
-  // 发送到设备：纸飞机
-  send: '<path d="M14 2 2.4 6.8l4.4 2.1 2.1 4.7z"/><path d="M14 2 6.8 8.9"/>',
-  // 颜色标记：标签（斜置圆角方块 + 圆孔）
-  tag: '<path d="M8.5 2.2h3.1a2.2 2.2 0 0 1 2.2 2.2v3.1a2.2 2.2 0 0 1-.65 1.56l-4.6 4.6a2.2 2.2 0 0 1-3.1 0L2.34 10.6a2.2 2.2 0 0 1 0-3.1l4.6-4.6a2.2 2.2 0 0 1 1.56-.7z"/><circle cx="10.9" cy="5.1" r="1"/>',
-  // 弹出卷：向上三角 + 下横杠（播放器 eject 语义）
-  eject: '<path d="M8 2.6l4.6 5H3.4z"/><path d="M3.4 11.2h9.2"/>',
-  // 上移（侧栏收藏组内排序）
-  up: '<path d="M8 12.8V3.6"/><path d="M4 7.4 8 3.4l4 4"/>',
-  // 下移（侧栏收藏组内排序）
-  down: '<path d="M8 3.2v9.2"/><path d="M4 8.6l4 4 4-4"/>',
-  // 断开连接：插头脱离插座
-  disconnect: '<path d="M6.2 2.4v2.8M9.8 2.4v2.8"/><path d="M4 5.2h8v2.4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M8 11.6v2"/>',
-  // 在对面面板打开：双栏 + 指向右侧面板的箭头
-  swapPane: '<rect x="1.8" y="4.4" width="5" height="7.2" rx="1"/><rect x="9.2" y="4.4" width="5" height="7.2" rx="1"/><path d="M7 6.9h2.2"/><path d="M8.2 5.7l1.1 1.2-1.1 1.2"/>',
-}
 
 /** 该项的子菜单是否展开：highlight 落在它自身或其后代上，且未被 ← 收起覆盖。 */
 function isSubmenuOpen(hl: number[] | null, suppress: number[] | null, path: number[]): boolean {
@@ -205,7 +103,7 @@ function clampSubmenuRef(el: unknown): void {
       <!-- 图标列（无图标也占位，保持三列对齐体系）；swatch = 实心色点（颜色标记色板） -->
       <span class="menu-icon">
         <span v-if="item.swatch" class="menu-swatch" :style="{ backgroundColor: item.swatch }" />
-        <svg v-else-if="item.icon && ICONS[item.icon]" viewBox="0 0 16 16" aria-hidden="true" v-html="ICONS[item.icon]" />
+        <svg v-else-if="item.icon && GLYPHS[item.icon]" viewBox="0 0 24 24" aria-hidden="true" v-html="GLYPHS[item.icon]" />
       </span>
       <!-- 文本列 -->
       <span class="menu-label">{{ item.label }}</span>
@@ -297,6 +195,11 @@ function clampSubmenuRef(el: unknown): void {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* 24 网格字形在 16px 显示：non-scaling-stroke 保持 1.5px 光学粗细，与全应用一致 */
+.menu-icon svg :deep(*) {
+  vector-effect: non-scaling-stroke;
 }
 
 /* 色板实心圆点：居中占满图标列（10px，不随高亮变白） */
