@@ -1,73 +1,78 @@
 <template>
-  <!-- 批量改名（增强：前缀 + 序号 start/step/pad + 查找替换；前后对照 + 冲突禁提交）。
-       规则应用全部来自 batchRenamePattern 纯函数（IFC-5）。 -->
-  <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/45" @click.self="emit('close')">
-    <form class="finder-sheet w-[600px] max-h-[80vh] flex flex-col p-5" @submit.prevent="confirm">
-      <h2 class="text-base font-semibold">{{ $t('dialogs.batchRename.title') }}</h2>
-      <p class="mt-1 text-sm text-text-tertiary">{{ $t('dialogs.batchRename.subtitle', files.length) }}</p>
-
-      <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <label class="flex items-center gap-2">
-          <input v-model="usePrefix" type="checkbox" class="accent-accent" />
-          <span class="w-10 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.batchRename.prefix') }}</span>
-          <input v-model="prefix" class="flex-1 min-w-0 rounded border border-border bg-bg-primary px-2 py-1 text-sm" :disabled="!usePrefix" placeholder="Trip_" />
+  <BaseSheet
+    :title="$t('dialogs.batchRename.title')"
+    :subtitle="$t('dialogs.batchRename.subtitle', files.length)"
+    glyph="edit"
+    tone="var(--accent-blue)"
+    :width="600"
+    sheet-class="max-h-[80vh]"
+    body-class="flex min-h-0 flex-1 flex-col"
+    as="form"
+    @close="emit('close')"
+    @submit="confirm"
+  >
+    <div class="grid grid-cols-2 gap-3 text-sm">
+      <label class="flex items-center gap-2">
+        <input v-model="usePrefix" type="checkbox" class="accent-accent" />
+        <span class="w-10 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.batchRename.prefix') }}</span>
+        <input v-model="prefix" class="sheet-name-input flex-1 min-w-0" :disabled="!usePrefix" placeholder="Trip_" />
+      </label>
+      <label class="flex items-center gap-2">
+        <input v-model="useFind" type="checkbox" class="accent-accent" />
+        <span class="w-16 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.batchRename.findReplace') }}</span>
+        <input v-model="find" class="sheet-name-input w-20 min-w-0" :disabled="!useFind" placeholder="IMG_" />
+        <span class="text-text-tertiary">→</span>
+        <input v-model="replace" class="sheet-name-input w-20 min-w-0" :disabled="!useFind" placeholder="" />
+      </label>
+    </div>
+    <div class="mt-3 flex items-center gap-3 text-sm">
+      <label class="flex items-center gap-2">
+        <input v-model="useSequence" type="checkbox" class="accent-accent" />
+        <span class="text-xs text-text-tertiary">{{ $t('dialogs.batchRename.sequence') }}</span>
+      </label>
+      <template v-if="useSequence">
+        <label class="flex items-center gap-1.5 text-xs text-text-tertiary">{{ $t('dialogs.batchRename.start') }}
+          <input v-model.number="start" type="number" min="0" class="sheet-name-input w-16" />
         </label>
-        <label class="flex items-center gap-2">
-          <input v-model="useFind" type="checkbox" class="accent-accent" />
-          <span class="w-16 text-xs text-text-tertiary flex-shrink-0">{{ $t('dialogs.batchRename.findReplace') }}</span>
-          <input v-model="find" class="w-20 min-w-0 rounded border border-border bg-bg-primary px-2 py-1 text-sm" :disabled="!useFind" placeholder="IMG_" />
-          <span class="text-text-tertiary">→</span>
-          <input v-model="replace" class="w-20 min-w-0 rounded border border-border bg-bg-primary px-2 py-1 text-sm" :disabled="!useFind" placeholder="" />
+        <label class="flex items-center gap-1.5 text-xs text-text-tertiary">{{ $t('dialogs.batchRename.step') }}
+          <input v-model.number="step" type="number" min="1" class="sheet-name-input w-16" />
         </label>
-      </div>
-      <div class="mt-3 flex items-center gap-3 text-sm">
-        <label class="flex items-center gap-2">
-          <input v-model="useSequence" type="checkbox" class="accent-accent" />
-          <span class="text-xs text-text-tertiary">{{ $t('dialogs.batchRename.sequence') }}</span>
+        <label class="flex items-center gap-1.5 text-xs text-text-tertiary">{{ $t('dialogs.batchRename.pad') }}
+          <input v-model.number="pad" type="number" min="0" max="8" class="sheet-name-input w-16" />
         </label>
-        <template v-if="useSequence">
-          <label class="flex items-center gap-1.5 text-xs text-text-tertiary">{{ $t('dialogs.batchRename.start') }}
-            <input v-model.number="start" type="number" min="0" class="w-16 rounded border border-border bg-bg-primary px-2 py-1 text-sm" />
-          </label>
-          <label class="flex items-center gap-1.5 text-xs text-text-tertiary">{{ $t('dialogs.batchRename.step') }}
-            <input v-model.number="step" type="number" min="1" class="w-16 rounded border border-border bg-bg-primary px-2 py-1 text-sm" />
-          </label>
-          <label class="flex items-center gap-1.5 text-xs text-text-tertiary">{{ $t('dialogs.batchRename.pad') }}
-            <input v-model.number="pad" type="number" min="0" max="8" class="w-16 rounded border border-border bg-bg-primary px-2 py-1 text-sm" />
-          </label>
-        </template>
-      </div>
+      </template>
+    </div>
 
-      <!-- 前后对照预览 -->
-      <div class="mt-4 min-h-0 flex-1 overflow-auto rounded border border-border text-sm">
-        <div class="grid grid-cols-2 gap-3 border-b border-border px-3 py-1.5 text-xs text-text-tertiary sticky top-0 bg-bg-secondary">
-          <span>{{ $t('dialogs.batchRename.currentName') }}</span><span>{{ $t('dialogs.batchRename.newName') }}</span>
-        </div>
-        <div
-          v-for="item in preview.items"
-          :key="item.sourcePath"
-          class="grid grid-cols-2 gap-3 border-b border-border px-3 py-1.5 last:border-0"
-          :class="isConflict(item.sourcePath) ? 'bg-accent-red/10' : ''"
-        >
-          <span class="truncate text-text-tertiary" :title="item.sourcePath">{{ baseName(item.sourcePath) }}</span>
-          <span class="truncate" :class="changed(item) ? 'text-accent-blue' : 'text-text-tertiary'">{{ item.newName }}</span>
-        </div>
+    <!-- 前后对照预览 -->
+    <div class="mt-4 min-h-0 flex-1 overflow-auto rounded-[10px] border border-border text-sm">
+      <div class="grid grid-cols-2 gap-3 border-b border-border px-3 py-1.5 text-xs text-text-tertiary sticky top-0 bg-bg-tertiary">
+        <span>{{ $t('dialogs.batchRename.currentName') }}</span><span>{{ $t('dialogs.batchRename.newName') }}</span>
       </div>
-
-      <p v-if="conflicts.length > 0" class="mt-2 text-xs text-accent-red">{{ $t('dialogs.batchRename.conflictError', conflicts.length) }}</p>
-
-      <div class="mt-5 flex justify-end gap-2">
-        <button type="button" class="finder-btn-secondary" @click="emit('close')">{{ $t('dialogs.batchRename.cancel') }}</button>
-        <button type="submit" class="finder-btn-primary" :disabled="!canSubmit">{{ $t('dialogs.batchRename.submit', files.length) }}</button>
+      <div
+        v-for="item in preview.items"
+        :key="item.sourcePath"
+        class="grid grid-cols-2 gap-3 border-b border-border px-3 py-1.5 last:border-0"
+        :style="isConflict(item.sourcePath) ? { background: 'color-mix(in srgb, var(--accent-red) 10%, transparent)' } : undefined"
+      >
+        <span class="truncate text-text-tertiary" :title="item.sourcePath">{{ baseName(item.sourcePath) }}</span>
+        <span class="truncate" :class="changed(item) ? 'text-accent-blue' : 'text-text-tertiary'">{{ item.newName }}</span>
       </div>
-    </form>
-  </div>
+    </div>
+
+    <p v-if="conflicts.length > 0" class="mt-2 text-xs text-accent-red">{{ $t('dialogs.batchRename.conflictError', conflicts.length) }}</p>
+
+    <template #footer>
+      <button type="button" class="finder-btn-secondary" @click="emit('close')">{{ $t('dialogs.batchRename.cancel') }}</button>
+      <button type="submit" class="finder-btn-primary" :disabled="!canSubmit">{{ $t('dialogs.batchRename.submit', files.length) }}</button>
+    </template>
+  </BaseSheet>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { BatchRenameItem } from '@/types/fileBrowser'
 import { buildRenameItems } from '@/utils/batchRenamePattern'
+import BaseSheet from './BaseSheet.vue'
 
 const props = defineProps<{ files: Array<{ path: string; name: string; isDirectory: boolean }> }>()
 const emit = defineEmits<{ close: []; confirm: [items: BatchRenameItem[]] }>()

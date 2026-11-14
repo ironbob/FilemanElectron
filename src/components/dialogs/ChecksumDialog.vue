@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ChecksumAlgo, ChecksumItem, ChecksumProgress } from '@shared/types'
 import { t } from '@/i18n'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import { useSheetFocus } from '@/composables/useSheetFocus'
 import { useLongTaskProgress } from '@/composables/useLongTaskProgress'
 import { formatSize } from '@/utils/path'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -34,6 +35,8 @@ const ALGOS: ReadonlyArray<{ value: ChecksumAlgo; label: string }> = [
 const sessionId = `checksum-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const algo = ref<ChecksumAlgo>(props.algo)
 const copiedIndex = ref<number | null>(null)
+const sheetRef = ref<HTMLElement | null>(null)
+useSheetFocus(sheetRef)
 
 const { progress, isRunning, start, cancel } = useLongTaskProgress<
   Parameters<typeof window.fileman.startChecksum>[0],
@@ -96,14 +99,19 @@ useKeyInterceptor((e) => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45" @click.self="emit('close')">
+  <div class="finder-sheet-mask z-[70]" @click.self="emit('close')">
     <div
+      ref="sheetRef"
       class="finder-sheet w-[520px] max-w-[90vw] app-no-drag"
       role="dialog"
+      aria-modal="true"
       :aria-label="items.length === 2 ? $t('dialogs.checksum.titleCompare') : $t('dialogs.checksum.titleSingle')"
     >
-      <div class="px-5 py-3.5 border-b border-border flex items-center justify-between">
-        <h3 class="text-sm font-medium text-text-primary">
+      <div class="px-5 py-3.5 border-b border-border flex items-center gap-3">
+        <span class="sheet-chip" style="--sheet-tone: var(--accent-purple)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></svg>
+        </span>
+        <h3 class="sheet-title flex-1 min-w-0">
           {{ items.length === 2 ? $t('dialogs.checksum.titleCompare') : $t('dialogs.checksum.titleSingle') }}
         </h3>
         <div class="finder-control-group">

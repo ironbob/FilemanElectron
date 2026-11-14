@@ -50,6 +50,13 @@
   --quicklook-bg: rgba(248, 248, 250, 0.94);
   --quicklook-border: rgba(0, 0, 0, 0.12);
   --quicklook-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  /* Sheet v2 振动材质（弹窗高级感升级）：半透明系统材质 + blur(30px)，三层投影 +
+     顶部 1px 高光；遮罩降暗 + 轻模糊让背景柔和透出。 */
+  --sheet-material: rgba(250, 250, 252, 0.72);
+  --sheet-edge: rgba(255, 255, 255, 0.6);
+  --sheet-line: rgba(0, 0, 0, 0.09);
+  --sheet-shadow-v2: 0 1px 1px rgba(0, 0, 0, 0.05), 0 10px 30px rgba(0, 0, 0, 0.13), 0 26px 60px rgba(0, 0, 0, 0.16);
+  --sheet-scrim: rgba(24, 24, 30, 0.30);
   /* Hex 编辑器（v2）状态 token —— 全部为字节/行级局部反馈，无大面积描边 */
   --hex-selection: rgba(10, 132, 255, 0.22);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
@@ -104,6 +111,12 @@
   --quicklook-bg: rgba(40, 40, 42, 0.94);
   --quicklook-border: rgba(255, 255, 255, 0.14);
   --quicklook-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  /* Sheet v2 振动材质（暗色）：不透明度更低让深底透出，投影加深保证浮起可辨。 */
+  --sheet-material: rgba(46, 46, 51, 0.66);
+  --sheet-edge: rgba(255, 255, 255, 0.12);
+  --sheet-line: rgba(255, 255, 255, 0.10);
+  --sheet-shadow-v2: 0 1px 1px rgba(0, 0, 0, 0.35), 0 12px 34px rgba(0, 0, 0, 0.5), 0 26px 70px rgba(0, 0, 0, 0.6);
+  --sheet-scrim: rgba(0, 0, 0, 0.52);
   --hex-selection: rgba(10, 132, 255, 0.30);
   --hex-selection-inactive: rgba(142, 142, 147, 0.28);
   --hex-match: rgba(255, 214, 10, 0.28);
@@ -688,16 +701,20 @@ html[data-vibrancy='sidebar'] .finder-sidebar {
   background: var(--finder-control-strong) !important;
 }
 
-.finder-shell input {
+.finder-shell input,
+.finder-shell select,
+.finder-shell textarea {
   background: var(--finder-control) !important;
   border-color: transparent !important;
   border-radius: 6px !important;
   color: var(--finder-label) !important;
 }
 
-.finder-shell input:focus {
+.finder-shell input:focus,
+.finder-shell select:focus,
+.finder-shell textarea:focus {
   border-color: var(--finder-selection) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--finder-selection) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--finder-selection) 18%, transparent);
 }
 
 /* 内联 SVG 图标（AppIcon）：currentColor 上色，尺寸 1em（胶囊内 18px 见下）。
@@ -806,31 +823,37 @@ html[data-vibrancy='sidebar'] .finder-sidebar {
    卡片：浮层材质（遮罩 uniform，0.94+blur 无穿透）+ 12px 圆角 + 柔和窗口阴影；
    按钮：取消=描边次级钮 / 主按钮=系统蓝实底（危险变体 is-danger），统一 32px 高。 */
 .finder-shell .finder-sheet {
-  border: 1px solid var(--finder-popover-border);
-  border-radius: 12px;
-  background: var(--finder-popover-bg) !important;
-  box-shadow: var(--finder-popover-shadow);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid var(--sheet-line);
+  border-radius: 16px;
+  background: var(--sheet-material) !important;
+  box-shadow: var(--sheet-shadow-v2), inset 0 1px 0 var(--sheet-edge);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
   color: var(--finder-label);
+  animation: finderSheetIn 0.42s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .finder-shell .finder-btn-secondary {
-  height: 32px;
+  height: 34px;
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   border: 1px solid var(--finder-divider);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--finder-control);
   color: var(--finder-label);
   font-size: 13px;
-  transition: background-color 130ms ease;
+  transition: background-color 130ms ease, transform 60ms ease;
 }
 
 .finder-shell .finder-btn-secondary:hover:not(:disabled) {
   background: var(--finder-control-strong);
+}
+
+.finder-shell .finder-btn-secondary:active:not(:disabled) {
+  transform: translateY(0.5px);
 }
 
 .finder-shell .finder-btn-secondary:disabled {
@@ -839,24 +862,31 @@ html[data-vibrancy='sidebar'] .finder-sidebar {
 }
 
 .finder-shell .finder-btn-primary {
-  height: 32px;
+  height: 34px;
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   border: 0;
-  border-radius: 7px;
-  background: var(--finder-selection);
+  border-radius: 8px;
+  background-color: var(--finder-selection);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
   color: #fff;
   font-size: 13px;
   font-weight: 500;
-  transition: filter 130ms ease, opacity 130ms ease;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--finder-selection) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: filter 130ms ease, opacity 130ms ease, transform 60ms ease;
 }
 
-.finder-shell .finder-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
-.finder-shell .finder-btn-primary:active:not(:disabled) { filter: brightness(0.92); }
+.finder-shell .finder-btn-primary:hover:not(:disabled) { filter: brightness(1.07); }
+.finder-shell .finder-btn-primary:active:not(:disabled) { filter: brightness(0.94); transform: translateY(0.5px); }
 .finder-shell .finder-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-.finder-shell .finder-btn-primary.is-danger { background: var(--accent-red); }
+.finder-shell .finder-btn-primary.is-danger {
+  background-color: var(--accent-red);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent-red) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.finder-shell .finder-btn-primary .btn-ret { font-size: 12px; font-weight: 400; opacity: 0.8; }
 
 /* 键盘焦点环（macOS 细蓝环，2026-08-20）：工具栏图标钮与 Sheet 双钮统一
    :focus-visible 配方（同 edit-icon-btn；鼠标点击不出现）。 */
@@ -880,7 +910,7 @@ html[data-vibrancy='sidebar'] .finder-sidebar {
    （一张材质规则）。勿用 bg-bg-tertiary/50 —— 变量色上的透明度修饰符静默失效
    （渲染为透明，见上方 bg-secondary/50 同类注释）。 */
 .finder-shell .finder-inset-group {
-  border-radius: 8px;
+  border-radius: 10px;
   background-color: var(--bg-tertiary);
 }
 
@@ -958,11 +988,11 @@ html[data-vibrancy='sidebar'] .finder-sidebar {
 }
 
 .finder-shell .finder-sheet .sheet-name-input {
-  height: 30px;
+  height: 34px;
   border: 1px solid var(--finder-divider);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--finder-control);
-  padding: 0 8px;
+  padding: 0 10px;
   font-size: 13px;
   color: var(--finder-label);
   transition: border-color 130ms ease, box-shadow 130ms ease;
@@ -971,7 +1001,170 @@ html[data-vibrancy='sidebar'] .finder-sidebar {
 .finder-shell .finder-sheet .sheet-name-input:focus {
   outline: none;
   border-color: var(--finder-selection);
-  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--finder-selection) 18%, transparent);
+}
+
+/* ── Sheet v2 部件（弹窗高级感升级）─────────────────────────────────────────
+   遮罩：降暗 + backdrop blur(3px) 让背景柔和透出（危险弹窗去掉 @click.self 即不可点穿）；
+   主体色图标芯片 --sheet-tone（文件蓝/文件夹青/删除红/连接靛/校验紫/图片绿）；
+   路径胶囊 folder 图标 + 等宽路径；底栏左/右插槽。入场动效见 .finder-sheet。 */
+.finder-shell .finder-sheet-mask {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sheet-scrim);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: finderScrimIn 0.22s ease both;
+}
+
+.finder-shell .finder-sheet input,
+.finder-shell .finder-sheet select,
+.finder-shell .finder-sheet textarea {
+  border-radius: 8px !important;
+}
+
+.finder-shell input.is-invalid,
+.finder-shell select.is-invalid,
+.finder-shell textarea.is-invalid {
+  border-color: var(--accent-red) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-red) 16%, transparent);
+}
+
+.finder-shell .finder-sheet .sheet-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background-color: var(--sheet-tone, var(--accent-blue));
+  background-image: linear-gradient(150deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--sheet-tone, var(--accent-blue)) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.finder-shell .finder-sheet .sheet-chip svg,
+.finder-shell .finder-sheet .sheet-chip .finder-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.finder-shell .finder-sheet .sheet-sub {
+  font-size: 12.5px;
+  color: var(--finder-secondary-label);
+  margin-top: 2px;
+}
+
+.finder-shell .finder-sheet .sheet-loc-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--finder-control);
+  border: 1px solid var(--finder-divider);
+  border-radius: 10px;
+  padding: 8px 11px;
+}
+
+.finder-shell .finder-sheet .sheet-loc-pill .loc-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--accent-teal);
+  flex-shrink: 0;
+}
+
+.finder-shell .finder-sheet .sheet-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.finder-shell .finder-sheet .sheet-foot .foot-spacer {
+  flex: 1;
+}
+
+/* 内联提示行（warning/danger）：用 color-mix 实色 tint——勿用 Tailwind /opacity
+   （变量色上静默失效为透明，是分组消失同源坑）。 */
+.finder-shell .finder-sheet .sheet-note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.finder-shell .finder-sheet .sheet-note.is-warning {
+  background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 26%, transparent);
+  color: var(--accent-orange);
+}
+
+.finder-shell .finder-sheet .sheet-note.is-danger {
+  background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 24%, transparent);
+  color: var(--accent-red);
+}
+
+.finder-shell .finder-sheet .sheet-note svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* macOS 拨动开关（Settings 布尔项）：取代「开/关」文字钮。 */
+.finder-shell .finder-sheet .sheet-switch {
+  width: 38px;
+  height: 23px;
+  flex-shrink: 0;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--finder-control-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+.finder-shell .finder-sheet .sheet-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.finder-shell .finder-sheet .sheet-switch[aria-checked='true'] {
+  background: var(--accent-green);
+}
+
+.finder-shell .finder-sheet .sheet-switch[aria-checked='true']::after {
+  transform: translateX(15px);
+}
+
+.finder-shell .finder-sheet .sheet-switch:focus-visible {
+  outline: 2px solid var(--finder-selection);
+  outline-offset: 2px;
+}
+
+@keyframes finderSheetIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes finderScrimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ── 设备截屏展示层（mobile/ScreenshotOverlay，2026-08-19 Finder 化）──────────

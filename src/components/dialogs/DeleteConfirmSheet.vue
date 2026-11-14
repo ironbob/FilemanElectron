@@ -4,16 +4,23 @@
        其余）+ 恢复性说明；遮罩不可点击关闭（危险操作惯例，同 ConfirmDialog
        danger 分支），Esc 经捕获层拦截消费。 -->
   <div
-    class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 animate-fade-in"
+    class="finder-sheet-mask z-[70]"
     data-testid="delete-sheet-mask"
   >
     <div
+      ref="sheetRef"
       class="finder-sheet w-[400px] p-5"
       role="alertdialog"
+      aria-modal="true"
       :aria-label="title"
       data-testid="delete-sheet"
     >
-      <h3 class="sheet-title">{{ title }}</h3>
+      <div class="flex items-start gap-3">
+        <span class="sheet-chip" style="--sheet-tone: var(--accent-red)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" /><path d="M10 11v6M14 11v6" /></svg>
+        </span>
+        <h3 class="sheet-title min-w-0 flex-1">{{ title }}</h3>
+      </div>
       <div v-if="visibleNames.length > 0" class="mt-2 text-[13px] leading-relaxed text-text-secondary">
         <span
           v-for="(item, index) in visibleNames"
@@ -51,9 +58,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { t } from '@/i18n'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import { useSheetFocus } from '@/composables/useSheetFocus'
 import { middleEllipsis } from '@/utils/taskDisplay'
 
 const props = withDefaults(
@@ -73,6 +81,9 @@ const emit = defineEmits<{
   close: []
   confirm: []
 }>()
+
+const sheetRef = ref<HTMLElement | null>(null)
+useSheetFocus(sheetRef)
 
 /** 正文最多列 3 个名字，其余折叠成「以及另外 N 个项目」。 */
 const MAX_VISIBLE_NAMES = 3

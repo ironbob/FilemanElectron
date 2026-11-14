@@ -1,86 +1,7 @@
-<template>
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-modal animate-fade-in" @click.self="$emit('close')">
-    <div class="finder-sheet w-96 p-4">
-      <h3 class="text-lg font-medium mb-4 text-text-primary">{{ dialogTitle }}</h3>
-
-      <div class="grid gap-4 mb-4">
-        <div class="flex items-center gap-2">
-          <label class="text-sm w-20 text-text-secondary">{{ $t('dialogs.device.type') }}</label>
-          <select v-model="form.type" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors">
-            <option value="smb">SMB</option>
-            <option value="ssh">SSH/SFTP</option>
-            <option value="webdav">WebDAV (HTTP/HTTPS)</option>
-          </select>
-        </div>
-
-        <!-- SMB Fields -->
-        <template v-if="form.type === 'smb'">
-          <div class="flex items-center gap-2">
-            <label class="text-sm w-20 text-text-secondary">{{ $t('dialogs.device.host') }}</label>
-            <input v-model="form.host" type="text" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="192.168.1.100" />
-          </div>
-          <div class="flex items-center gap-2">
-            <label class="text-sm w-20 text-text-secondary">{{ $t('dialogs.device.share') }}</label>
-            <input v-model="form.share" type="text" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="shared_folder" />
-          </div>
-        </template>
-
-        <!-- WebDAV Fields -->
-        <template v-if="form.type === 'webdav'">
-          <div class="flex items-center gap-2">
-            <label class="text-sm w-20 text-text-secondary">{{ $t('dialogs.device.url') }}</label>
-            <input v-model="form.url" type="url" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="https://server.example.com/dav/" />
-          </div>
-        </template>
-
-        <!-- SSH Fields -->
-        <template v-if="form.type === 'ssh'">
-          <div class="flex items-center gap-2">
-            <label class="text-sm w-20 text-text-secondary">{{ $t('dialogs.device.host') }}</label>
-            <input v-model="form.host" type="text" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="192.168.1.100" />
-          </div>
-          <div class="flex items-center gap-2">
-            <label class="text-sm w-20 text-text-secondary">{{ $t('dialogs.device.port') }}</label>
-            <input v-model="form.port" type="number" class="w-20 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" placeholder="22" />
-          </div>
-        </template>
-
-        <!-- Common Fields -->
-        <div class="flex items-center gap-2">
-          <label class="text-sm w-24 text-text-secondary">{{ $t('dialogs.device.name') }}</label>
-          <input v-model="form.name" type="text" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" :placeholder="$t('dialogs.device.namePlaceholder')" />
-        </div>
-        <div class="flex items-center gap-2">
-          <label class="text-sm w-24 text-text-secondary">{{ $t('dialogs.device.username') }}</label>
-          <input v-model="form.username" type="text" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" />
-        </div>
-        <div class="flex items-center gap-2">
-          <label class="text-sm w-24 text-text-secondary">{{ $t('dialogs.device.password') }}</label>
-          <input v-model="form.password" type="password" class="flex-1 h-8 px-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors" />
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-2 mt-4">
-        <button
-          class="finder-btn-secondary"
-          @click="$emit('close')"
-        >
-          {{ $t('dialogs.device.cancel') }}
-        </button>
-        <button
-          class="finder-btn-primary"
-          @click="handleConnect"
-        >
-          {{ $t('dialogs.device.connect') }}
-        </button>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref, watch } from 'vue'
 import { t } from '@/i18n'
+import BaseSheet from './BaseSheet.vue'
 
 const props = defineProps<{
   type?: 'smb' | 'ssh' | 'webdav'
@@ -97,6 +18,12 @@ const dialogTitle = computed(() => {
   return t('dialogs.device.addWebdavTitle')
 })
 
+const TYPES = [
+  { value: 'smb' as const, label: 'SMB' },
+  { value: 'ssh' as const, label: 'SSH / SFTP' },
+  { value: 'webdav' as const, label: 'WebDAV' }
+]
+
 const form = reactive({
   type: props.type || 'smb',
   name: '',
@@ -108,17 +35,21 @@ const form = reactive({
   url: ''
 })
 
+// 内联校验取代原生 alert()：任何字段改动即清除错误。
+const error = ref('')
+watch(form, () => { error.value = '' })
+
 function handleConnect() {
   if (form.type === 'smb' && (!form.host.trim() || !form.share.trim())) {
-    alert(t('dialogs.device.needSmbFields'))
+    error.value = t('dialogs.device.needSmbFields')
     return
   }
   if (form.type === 'ssh' && !form.host.trim()) {
-    alert(t('dialogs.device.needSshHost'))
+    error.value = t('dialogs.device.needSshHost')
     return
   }
   if (form.type === 'webdav' && !form.url.trim()) {
-    alert(t('dialogs.device.needWebdavUrl'))
+    error.value = t('dialogs.device.needWebdavUrl')
     return
   }
   emit('connect', {
@@ -133,3 +64,72 @@ function handleConnect() {
   })
 }
 </script>
+
+<template>
+  <BaseSheet
+    :title="dialogTitle"
+    glyph="network"
+    tone="var(--accent-indigo)"
+    :width="440"
+    as="form"
+    @close="emit('close')"
+    @submit="handleConnect"
+  >
+    <div class="flex flex-col gap-3">
+      <div class="finder-seg-tray w-full" role="radiogroup" :aria-label="$t('dialogs.device.type')">
+        <button
+          v-for="opt in TYPES"
+          :key="opt.value"
+          type="button"
+          class="finder-segment-btn-text flex-1"
+          :class="{ active: form.type === opt.value }"
+          role="radio"
+          :aria-checked="form.type === opt.value"
+          @click="form.type = opt.value"
+        >{{ opt.label }}</button>
+      </div>
+
+      <label v-if="form.type !== 'webdav'" class="block">
+        <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.host') }}</span>
+        <input v-model="form.host" type="text" data-autofocus class="sheet-name-input w-full" placeholder="192.168.1.100" spellcheck="false">
+      </label>
+
+      <label v-if="form.type === 'smb'" class="block">
+        <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.share') }}</span>
+        <input v-model="form.share" type="text" class="sheet-name-input w-full" placeholder="shared_folder" spellcheck="false">
+      </label>
+
+      <label v-if="form.type === 'webdav'" class="block">
+        <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.url') }}</span>
+        <input v-model="form.url" type="url" data-autofocus class="sheet-name-input w-full" placeholder="https://server.example.com/dav/" spellcheck="false">
+      </label>
+
+      <label v-if="form.type === 'ssh'" class="block">
+        <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.port') }}</span>
+        <input v-model.number="form.port" type="number" class="sheet-name-input w-24" placeholder="22">
+      </label>
+
+      <label class="block">
+        <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.name') }}</span>
+        <input v-model="form.name" type="text" class="sheet-name-input w-full" :placeholder="$t('dialogs.device.namePlaceholder')" spellcheck="false">
+      </label>
+
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.username') }}</span>
+          <input v-model="form.username" type="text" class="sheet-name-input w-full" spellcheck="false">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-xs text-text-secondary">{{ $t('dialogs.device.password') }}</span>
+          <input v-model="form.password" type="password" class="sheet-name-input w-full" autocomplete="off">
+        </label>
+      </div>
+
+      <p v-if="error" class="text-xs text-accent-red">{{ error }}</p>
+    </div>
+    <template #footer>
+      <button type="button" class="finder-btn-secondary" @click="emit('close')">{{ $t('dialogs.device.cancel') }}</button>
+      <button type="submit" class="finder-btn-primary">{{ $t('dialogs.device.connect') }}</button>
+    </template>
+  </BaseSheet>
+</template>

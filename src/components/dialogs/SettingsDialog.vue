@@ -1,146 +1,111 @@
 <template>
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-modal animate-fade-in" @click.self="$emit('close')">
-    <div class="finder-sheet w-[480px] max-h-[80vh] flex flex-col">
-      <!-- Header -->
-      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 class="text-base font-medium text-text-primary">{{ $t('settings.title') }}</h3>
-        <button
-          class="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
-          :title="$t('common.close')"
-          :aria-label="$t('common.close')"
-          @click="$emit('close')"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+  <BaseSheet
+    :title="$t('settings.title')"
+    glyph="gear"
+    tone="var(--finder-secondary-label)"
+    :width="480"
+    sheet-class="max-h-[80vh]"
+    body-class="min-h-0 flex-1 overflow-auto"
+    show-close
+    @close="$emit('close')"
+  >
+    <div class="flex flex-col gap-5">
+      <!-- Cache Section -->
+      <section>
+        <h4 class="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
+          <svg class="h-4 w-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
           </svg>
-        </button>
-      </div>
+          {{ $t('settings.cache') }}
+        </h4>
+        <div class="finder-inset-group overflow-hidden">
+          <div class="flex items-center justify-between gap-3 px-3.5 py-2.5">
+            <div class="min-w-0">
+              <div class="text-sm text-text-primary">{{ $t('settings.thumbnailCache') }}</div>
+              <div class="mt-0.5 text-xs text-text-tertiary">{{ $t('settings.cacheUsed', { size: cacheSizeFormatted }) }}</div>
+            </div>
+            <button
+              class="finder-btn-secondary is-sm flex-shrink-0"
+              :disabled="clearingCache"
+              @click="clearThumbnailCache"
+            >
+              {{ clearingCache ? $t('settings.clearing') : $t('settings.clear') }}
+            </button>
+          </div>
+        </div>
+      </section>
 
-      <!-- Content -->
-      <div class="flex-1 overflow-auto p-4 space-y-6">
-        <!-- Cache Section -->
-        <section>
-          <h4 class="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-            </svg>
-            {{ $t('settings.cache') }}
-          </h4>
+      <!-- Files Section -->
+      <section>
+        <h4 class="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
+          <svg class="h-4 w-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          {{ $t('settings.files') }}
+        </h4>
+        <div class="finder-inset-group overflow-hidden">
+          <div class="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2.5 first:border-t-0">
+            <div class="min-w-0">
+              <div class="text-sm text-text-primary">{{ $t('settings.showHidden') }}</div>
+              <div class="mt-0.5 text-xs text-text-tertiary">{{ $t('settings.showHiddenDesc') }}</div>
+            </div>
+            <button type="button" role="switch" :aria-checked="showHiddenFiles" class="sheet-switch" :aria-label="$t('settings.showHidden')" @click="toggleShowHiddenFiles" />
+          </div>
+          <div class="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2.5 first:border-t-0">
+            <div class="min-w-0">
+              <div class="text-sm text-text-primary">{{ $t('settings.showPermissions') }}</div>
+              <div class="mt-0.5 text-xs text-text-tertiary">{{ $t('settings.showPermissionsDesc') }}</div>
+            </div>
+            <button type="button" role="switch" :aria-checked="showPermissions" class="sheet-switch" :aria-label="$t('settings.showPermissions')" @click="toggleShowPermissions" />
+          </div>
+        </div>
+      </section>
 
-          <div class="bg-bg-tertiary/50 rounded-lg p-3 space-y-3">
-            <!-- Thumbnail Cache -->
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm text-text-primary">{{ $t('settings.thumbnailCache') }}</div>
-                <div class="text-xs text-text-tertiary mt-0.5">
-                  {{ $t('settings.cacheUsed', { size: cacheSizeFormatted }) }}
-                </div>
-              </div>
+      <!-- Appearance Section -->
+      <section>
+        <h4 class="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
+          <svg class="h-4 w-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+          </svg>
+          {{ $t('settings.appearance') }}
+        </h4>
+        <div class="finder-inset-group overflow-hidden">
+          <div class="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2.5 first:border-t-0">
+            <div class="text-sm text-text-primary">{{ $t('settings.language') }}</div>
+            <div class="finder-seg-tray">
               <button
-                class="px-3 py-1.5 rounded text-sm bg-bg-hover hover:bg-accent-red/20 text-text-secondary hover:text-accent-red transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="clearingCache"
-                @click="clearThumbnailCache"
-              >
-                {{ clearingCache ? $t('settings.clearing') : $t('settings.clear') }}
-              </button>
+                v-for="l in localeOptions"
+                :key="l.value"
+                type="button"
+                class="finder-segment-btn-text"
+                :class="{ active: currentLocale === l.value }"
+                @click="chooseLocale(l.value)"
+              >{{ l.label }}</button>
             </div>
           </div>
-        </section>
-
-        <!-- Files Section -->
-        <section>
-          <h4 class="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            {{ $t('settings.files') }}
-          </h4>
-
-          <div class="bg-bg-tertiary/50 rounded-lg p-3 space-y-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm text-text-primary">{{ $t('settings.showHidden') }}</div>
-                <div class="text-xs text-text-tertiary mt-0.5">{{ $t('settings.showHiddenDesc') }}</div>
-              </div>
+          <div class="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2.5 first:border-t-0">
+            <div class="text-sm text-text-primary">{{ $t('settings.theme') }}</div>
+            <div class="finder-seg-tray">
               <button
-                class="px-3 py-1.5 rounded text-sm transition-colors"
-                :class="showHiddenFiles ? 'bg-accent-blue text-white' : 'bg-bg-hover text-text-secondary hover:text-text-primary'"
-                @click="toggleShowHiddenFiles"
-              >
-                {{ showHiddenFiles ? $t('common.on') : $t('common.off') }}
-              </button>
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm text-text-primary">{{ $t('settings.showPermissions') }}</div>
-                <div class="text-xs text-text-tertiary mt-0.5">{{ $t('settings.showPermissionsDesc') }}</div>
-              </div>
-              <button
-                class="px-3 py-1.5 rounded text-sm transition-colors"
-                :class="showPermissions ? 'bg-accent-blue text-white' : 'bg-bg-hover text-text-secondary hover:text-text-primary'"
-                @click="toggleShowPermissions"
-              >
-                {{ showPermissions ? $t('common.on') : $t('common.off') }}
-              </button>
+                v-for="opt in themes"
+                :key="opt.value"
+                type="button"
+                class="finder-segment-btn-text"
+                :class="{ active: theme === opt.value }"
+                @click="setTheme(opt.value)"
+              >{{ $t(opt.labelKey) }}</button>
             </div>
           </div>
-        </section>
-
-        <!-- Appearance Section -->
-        <section>
-          <h4 class="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-            </svg>
-            {{ $t('settings.appearance') }}
-          </h4>
-
-          <div class="bg-bg-tertiary/50 rounded-lg p-3 space-y-3">
-            <!-- Language -->
-            <div class="flex items-center justify-between">
-              <div class="text-sm text-text-primary">{{ $t('settings.language') }}</div>
-              <div class="flex items-center gap-1 bg-bg-secondary rounded-lg p-0.5">
-                <button
-                  v-for="l in localeOptions"
-                  :key="l.value"
-                  class="px-2.5 py-1 rounded text-xs transition-all"
-                  :class="currentLocale === l.value ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
-                  @click="chooseLocale(l.value)"
-                >
-                  {{ l.label }}
-                </button>
-              </div>
-            </div>
-            <!-- Theme -->
-            <div class="flex items-center justify-between">
-              <div class="text-sm text-text-primary">{{ $t('settings.theme') }}</div>
-              <div class="flex items-center gap-1 bg-bg-secondary rounded-lg p-0.5">
-                <button
-                  v-for="t in themes"
-                  :key="t.value"
-                  class="px-2.5 py-1 rounded text-xs transition-all"
-                  :class="theme === t.value ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
-                  @click="setTheme(t.value)"
-                >
-                  {{ $t(t.labelKey) }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- Footer -->
-      <div class="flex justify-end px-4 py-3 border-t border-border">
-        <button
-          class="finder-btn-primary"
-          @click="$emit('close')"
-        >
-          {{ $t('settings.done') }}
-        </button>
-      </div>
+        </div>
+      </section>
     </div>
-  </div>
+
+    <template #footer>
+      <button class="finder-btn-primary" @click="$emit('close')">
+        {{ $t('settings.done') }}
+      </button>
+    </template>
+  </BaseSheet>
 </template>
 
 <script setup lang="ts">
@@ -148,6 +113,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { useSettingsStore } from '@/stores/settings'
 import { i18n, setLocale, type AppLocale } from '@/i18n'
+import BaseSheet from './BaseSheet.vue'
 
 defineEmits<{
   close: []

@@ -1,5 +1,5 @@
 <template>
-  <div :class="standalone ? 'min-h-screen bg-bg-secondary' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/45'" @click.self="!standalone && $emit('close')">
+  <div :class="standalone ? 'min-h-screen bg-bg-secondary' : 'finder-sheet-mask z-[70]'" @click.self="!standalone && $emit('close')">
     <div :class="standalone ? 'flex min-h-screen flex-col bg-bg-secondary' : 'finder-sheet w-[460px] max-h-[80vh] flex flex-col'">
       <!-- Header：图片文件显示预览，其余显示文件名 + 路径。
            standalone（独立简介窗口）时整块作为窗口拖拽区——hiddenInset 标题栏
@@ -28,7 +28,7 @@
         <!-- ── 常规 ─────────────────────────────────────────── -->
         <section>
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.general') }}</h4>
-          <div class="rounded-lg bg-bg-tertiary/50 p-3">
+          <div class="rounded-lg bg-bg-tertiary p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <template v-if="isSingle">
                 <InfoRow :label="$t('dialogs.fileInfo.kind')" :value="kindLabel" />
@@ -71,7 +71,7 @@
         <!-- ── 详细信息 ─────────────────────────────────────── -->
         <section v-if="isSingle && (file.extension || showPermissions || zipEntry)">
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.details') }}</h4>
-          <div class="rounded-lg bg-bg-tertiary/50 p-3">
+          <div class="rounded-lg bg-bg-tertiary p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <template v-if="isSingle">
                 <InfoRow :label="$t('dialogs.fileInfo.extension')" :value="file.extension" />
@@ -94,7 +94,7 @@
         </section>
 
         <!-- ── chmod 编辑（canChmod 且单选非 ZIP） ─────────────── -->
-        <section v-if="chmodEditing" class="rounded-lg border border-accent-blue/40 p-3 space-y-3">
+        <section v-if="chmodEditing" class="rounded-[10px] border p-3 space-y-3" :style="{ borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)' }">
           <div class="flex items-center justify-between">
             <h4 class="text-xs font-semibold uppercase tracking-wide text-accent-blue">{{ $t('dialogs.fileInfo.editPermissions') }}</h4>
             <span class="text-[11px] text-text-tertiary font-mono">{{ chmodOctal }}</span>
@@ -157,15 +157,15 @@
             {{ $t('dialogs.fileInfo.xattrs') }}
             <span v-if="xattrs" class="font-normal normal-case tracking-normal">（{{ xattrs.length }}）</span>
           </button>
-          <div v-if="xattrsOpen" class="space-y-1.5 rounded-lg bg-bg-tertiary/50 p-3">
+          <div v-if="xattrsOpen" class="space-y-1.5 rounded-lg bg-bg-tertiary p-3">
             <p v-if="xattrsStatus === 'loading'" class="text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.xattrsLoading') }}</p>
             <p v-else-if="xattrsStatus === 'failed'" class="text-xs text-accent-red">{{ $t('dialogs.fileInfo.xattrsLoadFailed') }}：{{ xattrsError }}</p>
             <p v-else-if="xattrsStatus === 'loaded' && xattrs && xattrs.length === 0" class="text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.xattrsEmpty') }}</p>
             <template v-if="xattrsStatus === 'loaded' && xattrs">
               <!-- quarantine 专用卡片：来源/时间解码 + 一键移除 -->
-              <div v-if="quarantineEntry" class="space-y-1.5 rounded-lg border border-accent-orange/40 bg-accent-orange/5 p-2.5">
+              <div v-if="quarantineEntry" class="space-y-1.5 rounded-[10px] border p-2.5" :style="{ background: 'color-mix(in srgb, var(--accent-orange) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 30%, transparent)' }">
                 <div class="flex flex-wrap items-center gap-2 text-xs">
-                  <span class="rounded bg-accent-orange/15 px-1.5 py-0.5 font-medium text-accent-orange">{{ $t('dialogs.fileInfo.quarantineBadge') }}</span>
+                  <span class="rounded px-1.5 py-0.5 font-medium text-accent-orange" :style="{ background: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }">{{ $t('dialogs.fileInfo.quarantineBadge') }}</span>
                   <span v-if="quarantineInfo?.agent" class="text-text-secondary">{{ $t('dialogs.fileInfo.quarantineAgent', { agent: quarantineInfo.agent }) }}</span>
                   <span v-if="quarantineInfo?.time" class="text-text-tertiary">{{ quarantineInfo.time }}</span>
                 </div>
@@ -240,7 +240,7 @@
         <!-- ── 媒体（单选且识别到媒体元数据时显示） ────────────── -->
         <section v-if="isSingle && mediaRows.length > 0">
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.media') }}</h4>
-          <div class="rounded-lg bg-bg-tertiary/50 p-3">
+          <div class="rounded-lg bg-bg-tertiary p-3">
             <dl class="grid grid-cols-[92px_1fr] gap-y-2 text-sm">
               <InfoRow v-for="row in mediaRows" :key="row.label" :label="row.label" :value="row.value" :copy-value="row.copyValue" />
             </dl>

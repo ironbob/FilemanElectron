@@ -5,19 +5,26 @@
        中间省略 + title 悬停全路径）；输入框 30px 细蓝 focus ring；默认选中文件名
        主体（保留扩展名）。遮罩/规格沿 dialogs/ 家族（z-70 遮罩 45）。 -->
   <div
-    class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 animate-fade-in"
+    class="finder-sheet-mask z-[70]"
     @click.self="emit('close')"
   >
     <form
+      ref="sheetRef"
       class="finder-sheet flex flex-col p-5"
       :class="source === 'clipboard' ? 'w-[560px]' : 'w-[440px]'"
       role="dialog"
+      aria-modal="true"
       :aria-label="ariaLabel"
       data-testid="create-item-sheet"
       @submit.prevent="submit"
     >
       <div class="flex items-center gap-3">
-        <FinderIcon :name="iconName" class="finder-item-icon flex-shrink-0" decorative />
+        <span class="sheet-chip" :style="{ '--sheet-tone': kind === 'folder' ? 'var(--accent-teal)' : 'var(--accent-blue)' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path v-if="kind === 'folder'" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            <template v-else><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></template>
+          </svg>
+        </span>
         <h3 class="sheet-title">{{ title }}</h3>
       </div>
       <p v-if="source === 'clipboard'" class="mt-1.5 text-[13px] leading-relaxed text-text-secondary">
@@ -27,7 +34,10 @@
       <!-- 创建位置：标签永不折行；路径独立一行（中间省略 + 悬停全路径） -->
       <div class="mt-4">
         <div class="sheet-path-label">{{ t('filePane.createDialog.createdInLabel') }}</div>
-        <div class="sheet-path mt-0.5" :title="dirPath">{{ middleEllipsis(dirPath, 48) }}</div>
+        <div class="sheet-loc-pill mt-1.5">
+          <svg class="loc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+          <div class="sheet-path min-w-0 flex-1" :title="dirPath">{{ middleEllipsis(dirPath, 48) }}</div>
+        </div>
       </div>
 
       <!-- 剪贴板内容预览：浅灰凹陷区（一张材质规则，无描边无阴影——不是嵌套弹窗） -->
@@ -75,7 +85,7 @@
           {{ t('common.cancel') }}
         </button>
         <button type="submit" class="finder-btn-primary" :disabled="!name.trim()">
-          {{ t('filePane.createDialog.create') }}
+          {{ t('filePane.createDialog.create') }} <span class="btn-ret">⏎</span>
         </button>
       </div>
     </form>
@@ -85,8 +95,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { t } from '@/i18n'
-import FinderIcon from '@/components/FinderIcon.vue'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
+import { useSheetFocus } from '@/composables/useSheetFocus'
 import { middleEllipsis } from '@/utils/taskDisplay'
 import { formatBytes } from '@/utils/taskMetrics'
 
@@ -131,6 +141,8 @@ const emit = defineEmits<{
 
 const name = ref(props.initialName)
 const nameInputRef = ref<HTMLInputElement | null>(null)
+const sheetRef = ref<HTMLElement | null>(null)
+useSheetFocus(sheetRef)
 
 const title = computed(() => {
   if (props.source === 'clipboard') return t('filePane.createDialog.clipboardTitle')
@@ -141,8 +153,6 @@ const ariaLabel = computed(() => {
   if (props.source === 'clipboard') return t('filePane.createDialog.clipboardAria')
   return props.kind === 'file' ? t('filePane.createDialog.fileAria') : t('filePane.createDialog.folderAria')
 })
-
-const iconName = computed(() => (props.kind === 'folder' ? 'folder' : 'fileText'))
 
 const sizeLabel = computed(() => (props.byteSize > 0 ? formatBytes(props.byteSize) : ''))
 
