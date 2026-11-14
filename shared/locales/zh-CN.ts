@@ -178,7 +178,7 @@ const zhCN = {
       sortDescending: '降序',
       foldersFirst: '文件夹置顶',
       moreActions: '更多操作',
-      searchPlaceholder: '搜索',
+      searchPlaceholder: '搜索 ⌘F',
       clearSearch: '清除搜索',
       searchHistory: '搜索历史',
       history: '历史记录',
@@ -287,6 +287,8 @@ const zhCN = {
     gitBadgeTitle: 'Git：{letter}',
     menu: {
       refresh: '刷新',
+      selectAll: '全选',
+      invertSelection: '反选',
       newFolder: '新建文件夹',
       newFile: '新建文件',
       newFromClipboardText: '新建文本文件（来自剪贴板）',
@@ -294,6 +296,7 @@ const zhCN = {
       clipboardChanged: '剪贴板内容已变化，请重试。',
       newSymlink: '新建符号链接…',
       paste: '粘贴',
+      moveHere: '移动到这里',
       addFavorite: '添加到收藏夹',
       showHidden: '显示隐藏文件',
       hideHidden: '隐藏隐藏文件',
@@ -347,6 +350,7 @@ const zhCN = {
       openWithDefaultSuffix: '（默认）',
       moveToTrash: '移到废纸篓',
       makeAlias: '制作替身',
+      duplicate: '制作副本',
       removeQuarantine: '移除隔离标记',
       quickLook: '快速查看',
       quickActions: '快速操作'

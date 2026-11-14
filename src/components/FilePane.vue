@@ -2,6 +2,7 @@
   <div
     v-if="pane"
     class="finder-pane file-pane h-full flex flex-col overflow-hidden bg-bg-primary"
+    :class="{ 'is-inactive-pane': isDualPane && !isActivePane }"
     @mousedown.capture="handlePaneMouseDown"
     @dragenter.prevent="handleDragEnter"
     @dragleave="handleDragLeave"
@@ -22,7 +23,7 @@
           variant="pill"
           :disabled="pane.historyIndex <= 0"
           @click="tabsStore.goBack(paneId)"
-          :label="$t('filePane.toolbar.goBack')"
+          :label="`${$t('filePane.toolbar.goBack')} ⌘[`"
         >
           <FinderIcon name="arrowLeft" />
         </FinderToolbarButton>
@@ -30,7 +31,7 @@
           variant="pill"
           :disabled="pane.historyIndex >= pane.history.length - 1"
           @click="tabsStore.goForward(paneId)"
-          :label="$t('filePane.toolbar.goForward')"
+          :label="`${$t('filePane.toolbar.goForward')} ⌘]`"
         >
           <FinderIcon name="arrowRight" />
         </FinderToolbarButton>
@@ -223,7 +224,7 @@
           @focus="searchHistoryOpen = true"
           @blur="searchHistoryOpen = false"
           @enter="commitSearch"
-          @escape="clearSearch"
+          @escape="handleSearchEscape"
         >
           <template #leading>
             <FinderIcon name="search" />
@@ -520,6 +521,8 @@ const canCaptureScreenshot = computed(() => ['android', 'ohos', 'ios'].includes(
 // 本面板所属标签是否已开启双面板（按 paneId 反查所属标签，不依赖「只渲染活动标签」的现状）
 const ownerTab = computed(() => tabsStore.tabs.find(tab => tab.panes.some(p => p.id === props.paneId)))
 const isDualPane = computed(() => (ownerTab.value?.panes.length ?? 0) === 2)
+/** 活动面板（键盘快捷键/Tab 切换的落点）；双面板下非活动面板工具栏降透明 */
+const isActivePane = computed(() => tabsStore.activePane?.id === props.paneId)
 
 /** 工具栏双面板切换：开=以本面板当前路径克隆出第二面板；关=收起第二面板。 */
 function toggleDualPane() {
@@ -543,6 +546,11 @@ function commitSearch() {
 function clearSearch() {
   searchQuery.value = ''
   searchHistoryOpen.value = false
+}
+/** Esc 退出搜索：清空查询并把焦点还给文件列表（方向键/空格立即可用） */
+function handleSearchEscape() {
+  clearSearch()
+  searchInputRef.value?.inputRef?.blur()
 }
 function applySearchHistory(item: string) {
   searchQuery.value = item
@@ -600,8 +608,8 @@ const goToDialog = reactive({
   error: ''
 })
 const pendingDirectoryRefreshes = new Set<string>()
-/** 本面板 cmd+V 排队的 copy/move 任务：完成后把落地文件设为选中（Finder 语义）。 */
-const pasteOriginatedTaskIds = new Set<string>()
+/** 本面板 ⌘V / ⌘⌥V / ⌘D 排队的 copy/move 任务：完成后把落地文件设为选中（Finder 语义）。 */
+const selectArrivedTaskIds = new Set<string>()
 /** cmd+V 落地后的一次性揭示目标：随刷新重挂的 FileList 加载成功后滚动定位。 */
 const revealArrivedPath = ref<string | null>(null)
 let stopFileOperationUpdates: (() => void) | null = null
@@ -1446,15 +1454,15 @@ function taskTouchesThisDirectory(task: FileOperationTask): boolean {
 }
 
 /**
- * cmd+V（含 ⌘X→⌘V）任务完成：把成功落地的目标文件设为面板选中，并让刷新后的
- * FileList 滚动揭示首个新文件 —— 用户一眼看到「xxx 副本」落在哪。
+ * ⌘V（含 ⌘X→V）/ ⌘⌥V / ⌘D 任务完成：把成功落地的目标文件设为面板选中，并让
+ * 刷新后的 FileList 滚动揭示首个新文件 —— 用户一眼看到「xxx 副本」落在哪。
  * - itemResults.targetPath 已含 rename 策略生成的「副本」最终名；
  * - 只认本面板 paste 排队的任务：同目录的另一面板不被抢选中；
  * - 完成时面板已离开目标目录则放弃（用户在看别处）；
  * - 全部 skip/failed（如目标已存在被跳过）时保持现有选中，不打扰。
  */
 function selectArrivedFiles(task: FileOperationTask) {
-  if (!pasteOriginatedTaskIds.delete(task.id)) return
+  if (!selectArrivedTaskIds.delete(task.id)) return
   // 失败/取消（即使有部分成功项）不抢选中：失败已有抽屉/横幅揭示
   if (task.status !== 'completed') return
   if ((task.type !== 'copy' && task.type !== 'move') || !task.targetPath) return
@@ -1667,6 +1675,29 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
       openGoToDialog()
       break
 
+    case 'focus-search':
+      // ⌘F：聚焦并全选已有查询（FinderSearchField.selectAll 的既定 ⌘F 语义）。
+      // 弹窗/Quick Look 持有键盘时不抢占焦点（按钮聚焦的 sheet 不含文本输入，
+      // FileList 的 isTextEditingTarget 早退拦不住，这里按浮层角色兜底）。
+      if (previewStore.quickLookOpen) break
+      if ((document.activeElement as HTMLElement | null)?.closest('[role="dialog"], [role="alertdialog"]')) break
+      searchInputRef.value?.selectAll()
+      break
+
+    case 'duplicate': {
+      // ⌘D 制作副本：同目录复制出「xxx 副本」（rename 策略，主进程 Finder 命名）。
+      // ZIP 虚拟路径无同目录副本语义（源/目标在压缩包内），不提供。
+      if (op.files.length === 0 || isZipVirtualPath(targetPath) || op.files.some(p => isZipVirtualPath(p))) break
+      try {
+        const task = await fileOpsStore.createCopyTask(deviceId, [...op.files], deviceId, targetPath, 'rename')
+        selectArrivedTaskIds.add(task.id)
+        trackDirectoryRefresh(task)
+      } catch (error) {
+        log.error('[FilePane] duplicate task failed to queue', { targetPath, error })
+      }
+      break
+    }
+
     case 'compare-dirs':
       if (op.files.length === 2) {
         tabsStore.openCompareTab(deviceId, op.files[0], deviceId, op.files[1])
@@ -1791,6 +1822,13 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         }
       }
 
+      // ⌘⌥V「移动到这里」：粘贴源决策照旧，强制 move 语义（内部剪贴板
+      // copy/cut 均可移动；ZIP 虚拟目标不支持移入，直接跳过）
+      if (op.mode === 'move') {
+        if (isZipVirtualPath(targetPath)) break
+        pasteAction = 'cut'
+      }
+
       console.log('[FilePane] Paste action received:', {
         clipboardFiles: pasteFiles,
         clipboardFilesLength: pasteFiles.length,
@@ -1811,7 +1849,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
             deviceId,
             targetPath
           )
-          pasteOriginatedTaskIds.add(task.id)
+          selectArrivedTaskIds.add(task.id)
           // cut 消费后清系统板：源文件已移走，残留 file 引用再粘（本应用或
           // Finder）都会悬空；仅镜像成功过才清，避免误清用户自己的剪贴板。
           // 先取标记再 clearClipboard（后者会把标记一并重置）。
@@ -1838,7 +1876,7 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
             targetPath,
             sameDirDuplicate ? 'rename' : 'skip'
           )
-          pasteOriginatedTaskIds.add(task.id)
+          selectArrivedTaskIds.add(task.id)
         }
         tabsStore.navigatePane(props.paneId, pane.value?.path || '/')
       } else {
@@ -2132,6 +2170,13 @@ function handleDrop() {
 /* container-type 只挂在工具栏容器上（见模板注释），不要放回 .file-pane */
 .file-pane-toolbar-container {
   container-type: inline-size;
+  transition: opacity 160ms ease;
+}
+
+/* 双面板焦点区分（Tab / 点击切换活动面板）：非活动面板工具栏整体降透明。
+   与窗口失焦语义同构——克制的灰度差提示键盘落点，不引入额外色彩。 */
+.file-pane.is-inactive-pane .file-pane-toolbar-container {
+  opacity: 0.6;
 }
 
 /* 拖拽悬停面板时的「落区」：内容区圆角蓝薄纱 + 内侧描边。

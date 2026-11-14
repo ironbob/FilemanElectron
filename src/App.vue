@@ -750,6 +750,23 @@ function handleTaskEndpointLocate(endpoint: { kind: 'source' | 'destination'; de
 // capture phase and return `true` to consume ESC — this handler (bubble phase) is
 // automatically skipped when a child has already handled the key.
 function handleKeydown(e: KeyboardEvent) {
+  // ⌘A 文本全选：主进程 Edit 菜单已去掉 selectAll role（把 ⌘A 让给文件列表
+  // 全选），普通输入框的全选在此补回。Monaco 在目标阶段先消费 ⌘A 并阻断
+  // 冒泡，即便漏到这里也用 .monaco-editor 祖先排除，避免选中其隐藏 textarea。
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+    const target = e.target as HTMLElement | null
+    if (
+      target && !target.closest('.monaco-editor') &&
+      (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+    ) {
+      const selectable = target instanceof HTMLTextAreaElement ||
+        ['text', 'search', 'url', 'tel', 'password', 'email', 'number'].includes(target.type)
+      if (selectable) {
+        e.preventDefault()
+        target.select()
+      }
+    }
+  }
   // Quick Look handles its own Esc via useKeyInterceptor (capture phase);
   // skip here to avoid double-handling while it is open.
   if (e.key === 'Escape' && !previewStore.quickLookOpen) {

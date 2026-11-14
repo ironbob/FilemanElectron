@@ -37,6 +37,11 @@ test.beforeEach(async ({ page }) => {
       watchUnsubscribe: async () => undefined,
       getStats: async () => ({ size: 12, isDirectory: false, isFile: true, modifiedTime: '', createdTime: '', mode: 0 }),
       exists: async () => true,
+      // 打开方式回填：真实主进程总会返回应用列表；菜单可见期间 items 重建会把
+      // hover/键盘高亮重置为 null，键盘导航测试依赖这次重建获得确定起点
+      getOpenWithApps: async () => [
+        { name: '文本编辑', path: '/System/Applications/TextEdit.app', bundleId: 'com.apple.TextEdit' }
+      ],
       getFileOperationQueue: async () => [],
       getFileOperationHistory: async () => [],
       volumes: { list: async () => [], onChanged: () => () => undefined },
@@ -78,6 +83,7 @@ test('file menu IA groups and separators match Finder layout', async ({ page }) 
     '显示简介',
     '移除隔离标记',
     '重新命名…',
+    '制作副本',
     '压缩“notes.txt”',
     '拷贝',
     '剪切',
@@ -104,9 +110,9 @@ test('file menu IA groups and separators match Finder layout', async ({ page }) 
 test('three-column anatomy: icon column on every item, shortcut column present', async ({ page }) => {
   await openFileMenu(page)
   const items = page.locator('.context-menu > .context-menu-item')
-  await expect(items).toHaveCount(17)
+  await expect(items).toHaveCount(18)
   // 每个顶层项都有图标占位（无图标项也保持三列对齐）
-  await expect(page.locator('.context-menu > .context-menu-item > .menu-icon')).toHaveCount(17)
+  await expect(page.locator('.context-menu > .context-menu-item > .menu-icon')).toHaveCount(18)
   // 图标统一 16px；行高 28px；正文 14px / 快捷键 12px（等弹出动画结束再量）
   await page.waitForTimeout(250)
   const metrics = await page.locator('.context-menu > .context-menu-item').first().evaluate(el => {
@@ -137,21 +143,35 @@ test('three-column anatomy: icon column on every item, shortcut column present',
   expect(active.color).toBe('rgb(255, 255, 255)')
 })
 
+// ↓ 环绕导航必达目标项：初始高亮受打开几何/hover/异步回填影响（菜单增项会
+// 改变静止光标的命中项），不假设 null 起步，循环 ↓ 直到命中再做相对步移断言
+async function arrowDownUntil(page: import('@playwright/test').Page, label: string) {
+  for (let i = 0; i < 24; i++) {
+    const cur = await page.locator('.context-menu > .context-menu-item.highlighted > .menu-label')
+      .textContent().catch(() => null)
+    if (cur === label) return
+    await page.keyboard.press('ArrowDown')
+  }
+  throw new Error(`menu navigation never reached ${label}`)
+}
+
 test('keyboard: arrows navigate, submenu enter/leave, Enter activates, Esc closes', async ({ page }) => {
   await openFileMenu(page)
+  // 移开鼠标，避免后续 hover 抢占键盘高亮
+  await page.mouse.move(400, 400)
 
-  // ↓ 从首项开始（无高亮 → 第一个可导航项 = 打开）
-  await page.keyboard.press('ArrowDown')
+  // 归一到首项「打开」（无高亮时 ↓ 亦从首项开始）
+  await arrowDownUntil(page, '打开')
   await expect(page.locator('.context-menu > .context-menu-item.highlighted > .menu-label')).toHaveText('打开')
 
   // ↓ 跳过分隔线，直达第二组首项（移到废纸篓）
   await page.keyboard.press('ArrowDown')
   await expect(page.locator('.context-menu > .context-menu-item.highlighted > .menu-label')).toHaveText('移到废纸篓')
 
-  // ↓↓… 走到 拷贝路径（第 16 个可导航项，中间分隔线全部跳过；
+  // ↓×15 走到 拷贝路径（第 17 个可导航项，中间分隔线全部跳过；
   // 扩展能力已回迁顶层，不再经过「快速操作」中转；2026-08-19 插入「标记颜色…」，
-  // 2026-08-20 插入「移除隔离标记」）
-  for (let i = 0; i < 14; i++) await page.keyboard.press('ArrowDown')
+  // 2026-08-20 插入「移除隔离标记」，2026-11-14 插入「制作副本」）
+  for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowDown')
   await expect(page.locator('.context-menu > .context-menu-item.highlighted > .menu-label')).toHaveText('拷贝路径')
 
   // → 展开子菜单并进入第一个子项（POSIX 路径），Enter 写剪贴板
@@ -164,9 +184,9 @@ test('keyboard: arrows navigate, submenu enter/leave, Enter activates, Esc close
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('/fw/notes.txt')
 
   // ← 收起语义：重新打开菜单，进入子菜单后 ← 高亮退回父项并收起子菜单
-  // （与上段一致的步数：1 次起步 + 15 次到 拷贝路径）
   await openFileMenu(page)
-  for (let i = 0; i < 16; i++) await page.keyboard.press('ArrowDown')
+  await page.mouse.move(400, 400)
+  await arrowDownUntil(page, '拷贝路径')
   await page.keyboard.press('ArrowRight')
   await expect(page.locator('.context-menu .context-submenu')).toBeVisible()
   await page.keyboard.press('ArrowLeft')

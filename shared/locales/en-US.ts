@@ -172,7 +172,7 @@ const enUS: MessageSchema = {
       sortDescending: 'Descending',
       foldersFirst: 'Folders on Top',
       moreActions: 'More actions',
-      searchPlaceholder: 'Search',
+      searchPlaceholder: 'Search ⌘F',
       clearSearch: 'Clear search',
       searchHistory: 'Search history',
       history: 'History',
@@ -281,6 +281,8 @@ const enUS: MessageSchema = {
     gitBadgeTitle: 'Git: {letter}',
     menu: {
       refresh: 'Refresh',
+      selectAll: 'Select All',
+      invertSelection: 'Invert Selection',
       newFolder: 'New Folder',
       newFile: 'New File',
       newFromClipboardText: 'New Text File from Clipboard',
@@ -288,6 +290,7 @@ const enUS: MessageSchema = {
       clipboardChanged: 'Clipboard content changed. Please retry.',
       newSymlink: 'New Symlink…',
       paste: 'Paste',
+      moveHere: 'Move Here',
       addFavorite: 'Add to Favorites',
       showHidden: 'Show Hidden Files',
       hideHidden: 'Hide Hidden Files',
@@ -341,6 +344,7 @@ const enUS: MessageSchema = {
       openWithDefaultSuffix: ' (default)',
       moveToTrash: 'Move to Trash',
       makeAlias: 'Make Alias',
+      duplicate: 'Duplicate',
       removeQuarantine: 'Remove Quarantine Attribute',
       quickLook: 'Quick Look',
       quickActions: 'Quick Actions'

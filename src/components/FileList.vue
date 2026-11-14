@@ -386,6 +386,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { usePreviewStore } from '@/stores/preview'
 import { useDragSessionStore } from '@/stores/dragSession'
 import { useClipboardContentStore } from '@/stores/clipboardContent'
+import { useClipboardStore } from '@/stores/clipboard'
 import {
   extractDragSource,
   isFolderDropTarget,
@@ -447,6 +448,7 @@ const gitStatusStore = useGitStatusStore()
 const previewStore = usePreviewStore()
 const dragSessionStore = useDragSessionStore()
 const clipboardContentStore = useClipboardContentStore()
+const clipboardStore = useClipboardStore()
 
 const files = ref<FileInfo[]>([])
 const searchResults = ref<FileInfo[] | null>(null)
@@ -1150,6 +1152,88 @@ function consumeNativeClipboardEvent(event: ClipboardEvent) {
 
 function handleKeyDown(event: KeyboardEvent) {
   if (isTextEditingTarget(event.target)) return
+
+  // ── 扩展快捷键 ──────────────────────────────────────────────────────────
+  // 一律带活动窗格守卫：双面板/多标签下每个 FileList 都挂 document 监听，
+  // 无守卫会双触发（任务队列双份、弹窗互踩）。alt 组合必须用 event.code：
+  // macOS Option 把 event.key 改写成符号（⌥V→√、⌥C→ç、⌥A→å）。
+  const mod = event.metaKey || event.ctrlKey
+  const keyLower = event.key.toLowerCase()
+  const isActivePane = tabsStore.activePane?.id === props.paneId
+
+  // ⌘⌥V：移动到这里（复用粘贴源决策，FilePane 按 mode 强制 move 语义）
+  if (mod && event.altKey && !event.shiftKey && event.code === 'KeyV') {
+    if (!isActivePane) return
+    event.preventDefault()
+    emit('operation', { action: 'paste', files: [], target: props.path, mode: 'move' })
+    return
+  }
+  // ⌥⌘C：复制 POSIX 路径（无选中 → 当前目录，与空白右键菜单一致）
+  if (mod && event.altKey && !event.shiftKey && event.code === 'KeyC') {
+    if (!isActivePane) return
+    event.preventDefault()
+    void handleCopyPath('posix', props.selectedFiles.length ? [...props.selectedFiles] : [props.path])
+    return
+  }
+  // ⌘⌥A：反选（作用域同 ⌘A）
+  if (mod && event.altKey && !event.shiftKey && event.code === 'KeyA') {
+    if (!isActivePane || renameState.active) return
+    event.preventDefault()
+    invertSelection()
+    return
+  }
+  // ⌘A：全选当前可见列表（columns 取光标所在列）
+  if (mod && !event.shiftKey && !event.altKey && keyLower === 'a') {
+    if (!isActivePane || renameState.active) return
+    event.preventDefault()
+    selectAllFiles()
+    return
+  }
+  // ⌘F：聚焦工具栏搜索框（聚焦并全选已有查询）
+  if (mod && !event.shiftKey && !event.altKey && keyLower === 'f') {
+    if (!isActivePane) return
+    event.preventDefault()
+    emit('operation', { action: 'focus-search', files: [] })
+    return
+  }
+  // ⌘[ / ⌘]：后退 / 前进（⇧⌘[ ] 已被标签循环占用，裸括号归面板导航）
+  if (mod && !event.shiftKey && !event.altKey && (event.key === '[' || event.code === 'BracketLeft')) {
+    if (!isActivePane) return
+    event.preventDefault()
+    tabsStore.goBack(props.paneId)
+    return
+  }
+  if (mod && !event.shiftKey && !event.altKey && (event.key === ']' || event.code === 'BracketRight')) {
+    if (!isActivePane) return
+    event.preventDefault()
+    tabsStore.goForward(props.paneId)
+    return
+  }
+  // ⇧⌘N：新建文件夹（右键菜单早已标注该快捷键，此前未接线）
+  if (mod && event.shiftKey && !event.altKey && keyLower === 'n') {
+    if (!isActivePane || deviceCapabilities.value?.canMkdir === false) return
+    event.preventDefault()
+    emit('operation', { action: 'mkdir', files: [] })
+    return
+  }
+  // ⌘⇧D：对比两个选中目录（右键菜单早已标注，此前未接线）
+  if (mod && event.shiftKey && !event.altKey && keyLower === 'd' && props.selectedFiles.length === 2) {
+    if (!isActivePane) return
+    const infos = props.selectedFiles.map(findFileByPath)
+    if (infos.every((f): f is FileInfo => !!f?.isDirectory)) {
+      event.preventDefault()
+      emit('operation', { action: 'compare-dirs', files: [...props.selectedFiles] })
+    }
+    return
+  }
+  // ⌘D：制作副本（同目录 rename 策略复制出「xxx 副本」，Finder 语义）
+  if (mod && !event.shiftKey && !event.altKey && keyLower === 'd' && props.selectedFiles.length) {
+    if (!isActivePane || deviceCapabilities.value?.canCopyFrom === false) return
+    event.preventDefault()
+    emit('operation', { action: 'duplicate', files: [...props.selectedFiles] })
+    return
+  }
+
   // Cmd/Ctrl + R: Refresh
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'r') {
     event.preventDefault()
@@ -1210,6 +1294,40 @@ function handleKeyDown(event: KeyboardEvent) {
     if (t && t !== document.body && !containerRef.value?.contains(t)) return
     event.preventDefault()
     handleArrowNavigation(event)
+    return
+  }
+
+  // Delete（前向删除键）：移到废纸篓，与 ⌘⌫ 同义（无修饰，不与 typeahead 冲突）
+  if (event.key === 'Delete' && !mod && !event.altKey && !event.shiftKey && props.selectedFiles.length) {
+    if (!isActivePane) return
+    event.preventDefault()
+    emit('operation', { action: 'delete', files: [...props.selectedFiles] })
+    return
+  }
+
+  // F2：重命名（Windows 肌肉记忆；Enter 仍是 Finder 主语义）
+  if (event.key === 'F2' && !renameState.active && props.selectedFiles.length === 1) {
+    if (!isActivePane) return
+    event.preventDefault()
+    startRename(props.selectedFiles[0])
+    return
+  }
+
+  // Tab：双面板间切换活动面板（单面板保留默认焦点遍历）。弹窗/右键菜单/
+  // Quick Look 打开时不抢占——浮层持有键盘（弹窗的 Tab 陷阱在捕获期先行消费）。
+  // defaultPrevented 守卫不可省：两个面板各挂一个 document 监听，先触发者
+  // 切换 activePane 后，后触发者会读到新状态把自己当作活动面板再切回去。
+  if (event.key === 'Tab' && !event.defaultPrevented && !mod && !event.altKey && !renameState.active
+      && !contextMenu.visible && !previewStore.quickLookOpen) {
+    const tab = tabsStore.tabs.find(t => t.panes.some(p => p.id === props.paneId))
+    if (!tab || tab.panes.length !== 2 || !isActivePane) return
+    event.preventDefault()
+    const other = tab.panes.find(p => p.id !== props.paneId)
+    if (other) {
+      tabsStore.setActivePane(other.id)
+      // 焦点落回 body：方向键守卫放行 body，新活动面板立即接管 ↑↓
+      ;(document.activeElement as HTMLElement | null)?.blur()
+    }
     return
   }
 
@@ -1640,6 +1758,37 @@ function getOpenTarget(): FileInfo | null {
   if (!path) return null
   const idx = displayedFiles.value.findIndex(f => f.path === path)
   return idx >= 0 ? displayedFiles.value[idx] : null
+}
+
+/** ⌘A/⌘⌥A 的作用域：columns 取光标所在列（与空格/方向键同语义），其余取可见列表 */
+function selectionScopeFiles(): FileInfo[] {
+  if (props.viewMode === 'columns') {
+    const cur = getColumnsCursor()
+    if (cur) return columns.value[cur.col]?.files ?? []
+  }
+  return displayedFiles.value
+}
+
+/** ⌘A：全选作用域内全部条目，锚点落首项（供后续 ⇧方向键扩展） */
+function selectAllFiles(): void {
+  const list = selectionScopeFiles()
+  if (!list.length) return
+  anchorPath.value = list[0].path
+  emit('select', list.map(f => f.path))
+}
+
+/** ⌘⌥A：反选作用域内条目 */
+function invertSelection(): void {
+  const selected = new Set(props.selectedFiles)
+  const next = selectionScopeFiles().filter(f => !selected.has(f.path)).map(f => f.path)
+  anchorPath.value = next[0] ?? null
+  emit('select', next)
+}
+
+/** 选中路径 → 条目元数据（columns 选中可能在父列，files 只含末列，兜底平铺查） */
+function findFileByPath(path: string): FileInfo | undefined {
+  return files.value.find(f => f.path === path)
+    ?? (props.viewMode === 'columns' ? columns.value.flatMap(c => c.files).find(f => f.path === path) : undefined)
 }
 
 /** columns 视图光标：[列索引, 行索引]；row 为 -1 表示尚未定位 */
@@ -2272,6 +2421,8 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
   if (isBackground) {
     // Background context menu (empty area)
     items.push({ label: t('fileList.menu.refresh'), action: 'refresh', shortcut: '⌘R', icon: 'refresh' })
+    items.push({ label: t('fileList.menu.selectAll'), action: 'select-all', shortcut: '⌘A', icon: 'check' })
+    items.push({ label: t('fileList.menu.invertSelection'), action: 'invert-selection', shortcut: '⌘⌥A', icon: 'swapPane' })
 
     if (caps?.canMkdir) {
       items.push({ label: t('fileList.menu.newFolder'), action: 'mkdir', shortcut: '⇧⌘N', icon: 'newFolder' })
@@ -2302,6 +2453,10 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
     }
     if (caps?.canWrite) {
       items.push({ label: t('fileList.menu.paste'), action: 'paste', shortcut: '⌘V', icon: 'paste' })
+      // 移动到这里：内部剪贴板有文件时可用（copy/cut 均可移动）；ZIP 虚拟目录不支持移入
+      if (clipboardStore.files.length > 0 && !isZipVirtualPath(props.path)) {
+        items.push({ label: t('fileList.menu.moveHere'), action: 'move-here', shortcut: '⌘⌥V', icon: 'folderInput' })
+      }
     }
 
     // 收藏当前文件夹（本地/远程均可，含 ZIP 内部路径）
@@ -2410,6 +2565,11 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
     }
     if (selectedAtMenuOpen.length > 1 && caps?.canRename) {
       items.push({ label: t('fileList.menu.batchRename'), action: 'batch-rename', shortcut: '⇧⌘R', icon: 'batchRename' })
+    }
+    // 制作副本（⌘D）：同目录复制出「xxx 副本」；ZIP 虚拟路径无同目录副本语义
+    if (caps?.canCopyFrom && !isZipVirtualPath(props.path) && selectedAtMenuOpen.length > 0
+        && selectedAtMenuOpen.every(p => !isZipVirtualPath(p))) {
+      items.push({ label: t('fileList.menu.duplicate'), action: 'duplicate', shortcut: '⌘D', icon: 'copy' })
     }
 
     // 图片批量转换：仅本地（引擎直读本地 fs），选中须全为可编辑图片（含 heic 等 SIPS 格式）
@@ -2587,7 +2747,7 @@ function buildCopyPathMenuItems(): FinderMenuItem[] {
   const otherPane = tabsStore.activeTab?.panes.find(p => p.id !== props.paneId && p.deviceId === props.deviceId)
   contextMenuOtherPanePath.value = otherPane?.path ?? null
   const children: FinderMenuItem[] = [
-    { label: t('fileList.menu.copyPathPosix'), action: 'copy-path:posix' },
+    { label: t('fileList.menu.copyPathPosix'), action: 'copy-path:posix', shortcut: '⌥⌘C' },
     { label: t('fileList.menu.copyPathUri'), action: 'copy-path:uri' },
     { label: t('fileList.menu.copyPathName'), action: 'copy-path:name' }
   ]
@@ -2671,10 +2831,10 @@ function buildOpenWithMenuItems(): FinderMenuItem[] {
 }
 
 /** 复制路径动作（多选时按行拼接；name/relative 针对右键命中的文件）。 */
-async function handleCopyPath(kind: string): Promise<void> {
-  const targets = contextMenuSelectedFiles.value.length > 0
+async function handleCopyPath(kind: string, explicitTargets?: string[]): Promise<void> {
+  const targets = explicitTargets ?? (contextMenuSelectedFiles.value.length > 0
     ? contextMenuSelectedFiles.value
-    : (contextMenuTargetFile.value ? [contextMenuTargetFile.value.path] : [props.path])
+    : (contextMenuTargetFile.value ? [contextMenuTargetFile.value.path] : [props.path]))
   let text = ''
   if (kind === 'posix') {
     text = targets.join('\n')
@@ -2756,9 +2916,7 @@ function hideContextMenu() {
 // ── 内联重命名功能（FileList 行内编辑：Enter/Tab/blur 提交、Esc 取消；
 //    isComposing 守卫 IME 回车、先置 active=false 防 Enter→blur 双提交）─────────
 function startRename(filePath: string) {
-  // 分栏视图选中项可能在父列，当前 files 只含末列，兜底平铺查全部分栏
-  const file = files.value.find(f => f.path === filePath)
-    ?? (props.viewMode === 'columns' ? columns.value.flatMap(col => col.files).find(f => f.path === filePath) : undefined)
+  const file = findFileByPath(filePath)
   if (!file) return
 
   renameState.filePath = filePath
@@ -2863,6 +3021,22 @@ function handleContextMenuAction(action: string) {
   if (action === 'refresh') {
     console.log('[FileList] Action: refresh - calling loadFiles()')
     loadFiles()
+    return
+  }
+
+  // 全选 / 反选（⌘A / ⌘⌥A 同链路）
+  if (action === 'select-all') {
+    selectAllFiles()
+    return
+  }
+  if (action === 'invert-selection') {
+    invertSelection()
+    return
+  }
+
+  // 移动到这里（⌘V 同链路：粘贴源决策 + 强制 move）
+  if (action === 'move-here') {
+    emit('operation', { action: 'paste', files: [], target: props.path, mode: 'move' })
     return
   }
 
