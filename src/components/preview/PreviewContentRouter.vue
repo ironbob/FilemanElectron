@@ -25,6 +25,9 @@
     :edit="edit"
     :collection="collection"
     :step-collection="stepCollection"
+    :files="files"
+    :go-to="goTo"
+    :collection-key="collectionKey"
     :quick-look="quickLook"
     :quick-look-controls="quickLookControls"
   />
@@ -104,6 +107,12 @@ const props = defineProps<{
   collection?: { index: number; total: number } | null
   /** 集合步进（dirty 标注由 VM 弹未保存确认后执行）。 */
   stepCollection?: (delta: number) => void
+  /** 图片集合完整文件列表（缩略图胶片栏/网格总览用；PreviewView 提供）。 */
+  files?: FileInfo[] | null
+  /** 跳转到集合绝对索引（缩略图/网格点击；复用 step 守卫）。 */
+  goTo?: (index: number) => void
+  /** 集合去重键（含根目录与 flat/recursive 模式，用于文件夹分组标题）。 */
+  collectionKey?: string
   /** Quick Look 浮层模式（材质透明、工具栏元信息收纳、保存入口上移等）。 */
   quickLook?: boolean
   /** Quick Look 步进/关闭控件（单行合并后经工具栏右端胶囊呈现；仅 text 消费）。 */

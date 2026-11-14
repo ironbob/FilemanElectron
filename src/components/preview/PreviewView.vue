@@ -16,6 +16,9 @@
         :edit="session.type === 'image' ? edit : undefined"
         :collection="isCollection ? { index: index, total } : null"
         :step-collection="step"
+        :files="isCollection ? session.files : null"
+        :go-to="goTo"
+        :collection-key="session.collectionKey ?? ''"
       />
     </div>
 
@@ -103,6 +106,11 @@ function step(delta: number) {
     return
   }
   previewStore.stepImageCollection(props.session.id, delta)
+}
+
+/** 跳转到集合中的绝对索引（缩略图/网格点击）：复用 step 的未保存守卫与 clamp。 */
+function goTo(i: number) {
+  step(i - index.value)
 }
 
 // ── 未保存守卫的挂起后续（保存成功后执行；取消则清空） ────────────────────────

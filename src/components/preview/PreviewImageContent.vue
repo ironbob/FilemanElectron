@@ -1,15 +1,15 @@
 <template>
   <div class="finder-preview h-full flex flex-col bg-bg-secondary relative overflow-hidden">
-    <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center h-full">
+    <!-- Loading（仅首次无图时显示；切图保持旧图可见，不闪烁） -->
+    <div v-if="loading && !imageSrc" class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
         <div class="w-6 h-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin"></div>
         <span class="text-sm text-text-secondary">{{ $t('preview.image.loading') }}</span>
       </div>
     </div>
 
-    <!-- Error State -->
-    <div v-else-if="hasError" class="flex flex-col items-center justify-center h-full text-text-tertiary p-4">
+    <!-- Error State（仅无图可显示时；切图失败保留上一张，不空屏） -->
+    <div v-else-if="hasError && !imageSrc" class="flex flex-col items-center justify-center h-full text-text-tertiary p-4">
       <svg class="w-12 h-12 mb-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
@@ -19,6 +19,19 @@
 
     <!-- 三区布局：① 顶部工具栏 ② 画布 + 右侧轨道列 ③ 底部状态栏 -->
     <div v-else class="flex-1 flex flex-col overflow-hidden min-h-0">
+      <div ref="splitRef" class="flex-1 flex min-h-0 min-w-0" :class="orientation === 'vertical' ? 'flex-col' : 'flex-row'">
+      <!-- 预览折叠细栏（箭头展开；点击缩略图不自动展开，需手动点此箭头） -->
+      <div v-if="previewCollapsed" class="pane-rail" :class="orientation">
+        <button class="rail-btn" :disabled="(collection?.index ?? 0) <= 0" :aria-label="$t('preview.common.prevImageAria')" @click="stepCollection?.(-1)"><AppIcon name="chevronLeft" class="w-4 h-4" /></button>
+        <button class="rail-btn" :disabled="(collection?.index ?? 0) >= (collection?.total ?? 1) - 1" :aria-label="$t('preview.common.nextImageAria')" @click="stepCollection?.(1)"><AppIcon name="chevronRight" class="w-4 h-4" /></button>
+        <AppIcon name="image" class="rail-icon w-4 h-4" />
+        <span class="rail-label">{{ file.name }}</span>
+        <span class="rail-counter">{{ (collection?.index ?? 0) + 1 }} / {{ collection?.total ?? 1 }}</span>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" :title="$t('preview.collection.expandPreview')" :aria-label="$t('preview.collection.expandPreview')" @click="togglePreview"><AppIcon :name="previewExpandArrow" class="w-4 h-4" /></button>
+      </div>
+      <!-- 预览完整区（工具栏 + 画布 + 状态栏） -->
+      <div v-show="!previewCollapsed" :style="previewPaneStyle" class="flex flex-col min-h-0 min-w-0 overflow-hidden">
       <!-- ① Quick Look 单行合并工具栏（2026-08-20 Finder 化，对齐文本窗 08-19 先例）：
            名称/元信息 + 缩放组 + % 徽标 + 旋转组 + 步进/关闭胶囊同行；
            替代 编辑工具栏+底部状态栏 双 chrome。按钮全走 finder-control-group 家族。 -->
@@ -82,6 +95,7 @@
         :mode="edit?.mode.value ?? 'idle'"
         :editable="edit?.editable.value ?? false"
         :collection="collection ?? null"
+        :orientation="orientation"
         :display-scale="displayScale"
         :annotations-visible="edit?.annotationsVisible.value ?? true"
         :running="edit?.batchRunning.value ?? false"
@@ -101,6 +115,7 @@
         @compress="edit?.requestCompress()"
         @batch-compress="edit?.openBatchCompress()"
         @batch-rename="edit?.openRename()"
+        @collapse-preview="togglePreview"
       />
 
       <!-- ② 画布区 + 右侧标注轨道列（独占布局列，结构上不可能遮挡画布） -->
@@ -203,6 +218,39 @@
           <span class="text-text-secondary">{{ $t('preview.editToolbar.editedBadge') }}</span>
         </template>
       </div>
+      </div><!-- /预览完整区 -->
+
+      <!-- 分隔 handle：拖动调整预览/文件区比例（仅两区均展开时） -->
+      <div
+        v-if="hasCollection && !previewCollapsed && !filesCollapsed"
+        class="split-handle" :class="orientation"
+        role="separator" :aria-orientation="orientation === 'vertical' ? 'horizontal' : 'vertical'"
+        :title="$t('preview.collection.resizeHint')"
+        @pointerdown="startSplitDrag" @pointermove="onSplitMove" @pointerup="endSplitDrag" @pointercancel="endSplitDrag"
+      ><span class="handle-grip"></span></div>
+
+      <!-- 文件区折叠细栏（箭头展开） -->
+      <div v-if="hasCollection && filesCollapsed" class="pane-rail" :class="orientation">
+        <AppIcon name="image" class="rail-icon w-4 h-4" />
+        <span class="rail-label">{{ $t('preview.collection.title') }}</span>
+        <span class="rail-counter">{{ files?.length ?? 0 }}</span>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" :title="$t('preview.collection.expandFiles')" :aria-label="$t('preview.collection.expandFiles')" @click="toggleFiles"><AppIcon :name="filesExpandArrow" class="w-4 h-4" /></button>
+      </div>
+      <!-- 文件区完整（列表/网格浏览器） -->
+      <div v-if="hasCollection" v-show="!filesCollapsed" :style="filesPaneStyle" class="flex flex-col min-h-0 min-w-0 overflow-hidden">
+        <ImageCollectionNav
+          :files="files!"
+          :index="collection?.index ?? 0"
+          :device-id="deviceId"
+          :collection-key="collectionKey ?? ''"
+          :orientation="orientation"
+          @go="onCollectionGo"
+          @collapse="toggleFiles"
+          @toggle-orientation="toggleOrientation"
+        />
+      </div>
+      </div><!-- /split -->
     </div>
 
     <!-- 未保存确认（退出标注 / 集合切图共用；VM 持有开合与回调） -->
@@ -257,6 +305,8 @@ import type { ImageEditController } from '@/composables/useImageEdit'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { ANNO_COLORS, ANNO_WIDTHS, type AnnoTool } from '@/utils/annotationShapes'
 import ImageEditTopToolbar from './ImageEditTopToolbar.vue'
+import ImageCollectionNav from './ImageCollectionNav.vue'
+import AppIcon from '../AppIcon.vue'
 import IconfontIcon from './IconfontIcon.vue'
 import AnnotationRail from './AnnotationRail.vue'
 import ToolParamPopover from './ToolParamPopover.vue'
@@ -278,11 +328,43 @@ const props = defineProps<{
   collection?: { index: number; total: number } | null
   /** 集合步进（PreviewView 提供；dirty 时由 VM 弹未保存确认） */
   stepCollection?: (delta: number) => void
+  /** 集合完整文件列表（缩略图胶片栏/网格总览；多图会话） */
+  files?: FileInfo[] | null
+  /** 跳转到集合绝对索引（缩略图/网格点击） */
+  goTo?: (index: number) => void
+  /** 集合去重键（文件夹分组标题） */
+  collectionKey?: string
   /** Quick Look 浮层模式：单行合并工具栏（编辑工具栏/状态栏退场） */
   quickLook?: boolean
   /** Quick Look 步进/关闭（经 Router 下传；仅 quickLook 模式消费） */
   quickLookControls?: QuickLookControls
 }>()
+
+// ── 集合分栏：上下/左右切换，预览与文件区各自箭头折叠（互斥），中间 handle 调整比例 ──
+const hasCollection = computed(() => !props.quickLook && !!props.files && props.files.length > 1)
+const orientation = ref<'vertical' | 'horizontal'>('vertical')
+const previewCollapsed = ref(false)
+const filesCollapsed = ref(false)
+const splitFraction = ref(0.6)
+const splitRef = ref<HTMLElement | null>(null)
+const previewPaneStyle = computed(() => (!hasCollection.value || filesCollapsed.value) ? { flex: '1 1 0%' } : { flex: `${splitFraction.value} 1 0%` })
+const filesPaneStyle = computed(() => previewCollapsed.value ? { flex: '1 1 0%' } : { flex: `${1 - splitFraction.value} 1 0%` })
+const previewExpandArrow = computed(() => orientation.value === 'horizontal' ? 'chevronRight' : 'chevronDown')
+const filesExpandArrow = computed(() => orientation.value === 'horizontal' ? 'chevronLeft' : 'chevronUp')
+function togglePreview() { previewCollapsed.value = !previewCollapsed.value; if (previewCollapsed.value) filesCollapsed.value = false }
+function toggleFiles() { filesCollapsed.value = !filesCollapsed.value; if (filesCollapsed.value) previewCollapsed.value = false }
+function toggleOrientation() { orientation.value = orientation.value === 'vertical' ? 'horizontal' : 'vertical' }
+// 点击缩略图只切换当前项，不自动展开预览（需手动点箭头展开）
+function onCollectionGo(i: number) { props.goTo?.(i) }
+let splitDragging = false
+function startSplitDrag(e: PointerEvent) { splitDragging = true; try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* noop */ }; e.preventDefault() }
+function onSplitMove(e: PointerEvent) {
+  if (!splitDragging || !splitRef.value) return
+  const rect = splitRef.value.getBoundingClientRect()
+  const f = orientation.value === 'vertical' ? (e.clientY - rect.top) / rect.height : (e.clientX - rect.left) / rect.width
+  splitFraction.value = Math.min(0.8, Math.max(0.2, f))
+}
+function endSplitDrag(e: PointerEvent) { splitDragging = false; try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* noop */ } }
 
 // Loading state
 const loading = ref(true)
@@ -395,47 +477,43 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 // Image loading
+let loadSeq = 0
 async function loadImage() {
-  log('Loading image:', props.file.name, 'size:', props.file.size)
-
-  loading.value = true
+  const seq = ++loadSeq
+  const initial = !imageSrc.value
+  if (initial) loading.value = true
   hasError.value = false
   errorMessage.value = ''
 
-  // Reset view state
-  resetView()
-
-  // Clean up previous image
-  if (imageSrc.value) {
-    URL.revokeObjectURL(imageSrc.value)
-    imageSrc.value = ''
-  }
-
+  // 不清空当前图：新图就绪前旧图一直可见，避免切图时整屏 spinner + 空白闪烁。
+  let nextSrc = ''
+  let nextIsBlob = false
   try {
     if (needsNativeDecode(props.file.extension || '')) {
-      // HEIC/HEIF/TIFF/PSD/相机 RAW 等 Chromium 无法解码的格式：
-      // 走主进程 sips（ImageDecodeService）转 JPEG 栅格。
-      const decoded = await window.fileman.decodeNativeImage(
-        props.deviceId,
-        props.file.path,
-        { maxDim: 4096 }
-      )
-      imageSrc.value = `data:${decoded.mime};base64,${decoded.buffer}`
+      // HEIC/HEIF/TIFF/PSD/相机 RAW 等 Chromium 无法解码的格式：走主进程 sips 转 JPEG。
+      const decoded = await window.fileman.decodeNativeImage(props.deviceId, props.file.path, { maxDim: 4096 })
+      nextSrc = `data:${decoded.mime};base64,${decoded.buffer}`
     } else {
       const base64 = await window.fileman.readFile(props.deviceId, props.file.path)
-
-      const buffer = base64ToArrayBuffer(base64)
-      const mimeType = getMimeType(props.file.extension || '')
-
-      const blob = new Blob([buffer], { type: mimeType })
-      imageSrc.value = URL.createObjectURL(blob)
+      const blob = new Blob([base64ToArrayBuffer(base64)], { type: getMimeType(props.file.extension || '') })
+      nextSrc = URL.createObjectURL(blob)
+      nextIsBlob = true
     }
+    // 快速连续切换：丢弃过期结果，防止回退到旧图造成闪烁
+    if (seq !== loadSeq) { if (nextIsBlob) URL.revokeObjectURL(nextSrc); return }
+    // 原子替换：先挂新图、复位视图，再回收旧 blob
+    const prev = imageSrc.value
+    imageSrc.value = nextSrc
+    resetView()
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
   } catch (e) {
+    if (nextIsBlob && nextSrc) URL.revokeObjectURL(nextSrc)
+    if (seq !== loadSeq) return
     console.error('[PreviewImageContent] Error loading image:', e)
     hasError.value = true
     errorMessage.value = e instanceof Error ? e.message : t('preview.common.unknownError')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -782,4 +860,32 @@ onUnmounted(() => {
   background: var(--edit-warning);
   flex-shrink: 0;
 }
+
+/* 折叠细栏：上下模式为横条，左右模式为竖条（箭头展开 + 名称/计数 + 步进） */
+.pane-rail {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  background: var(--finder-chrome); color: var(--finder-secondary-label); font-size: 12px;
+  backdrop-filter: saturate(150%) blur(18px); -webkit-backdrop-filter: saturate(150%) blur(18px);
+}
+.pane-rail.vertical { height: 38px; width: 100%; padding: 0 12px; border-top: 1px solid var(--finder-divider); border-bottom: 1px solid var(--finder-divider); }
+.pane-rail.horizontal { width: 40px; height: 100%; flex-direction: column; padding: 10px 0; border-left: 1px solid var(--finder-divider); border-right: 1px solid var(--finder-divider); }
+.rail-btn { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; color: var(--finder-secondary-label); flex: none; transition: background-color .14s, color .14s; }
+.rail-btn:hover:not(:disabled) { background: var(--finder-control-strong); color: var(--finder-label); }
+.rail-btn:disabled { opacity: .35; cursor: default; }
+.rail-icon { color: var(--finder-selection); flex: none; }
+.rail-label { font-weight: 600; color: var(--finder-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pane-rail.vertical .rail-label { max-width: 320px; }
+.pane-rail.horizontal .rail-label { writing-mode: vertical-rl; max-height: 200px; }
+.rail-counter { font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.rail-spacer { flex: 1; }
+
+/* 分隔 handle：拖动调整比例 */
+.split-handle { flex: none; display: grid; place-items: center; background: var(--finder-divider); position: relative; z-index: 5; transition: background-color .14s; touch-action: none; }
+.split-handle.vertical { height: 7px; width: 100%; cursor: row-resize; }
+.split-handle.horizontal { width: 7px; height: 100%; cursor: col-resize; }
+.split-handle:hover, .split-handle:active { background: color-mix(in srgb, var(--finder-selection) 55%, var(--finder-divider)); }
+.handle-grip { border-radius: 99px; background: var(--finder-secondary-label); opacity: .55; transition: opacity .14s, background-color .14s; }
+.split-handle.vertical .handle-grip { width: 36px; height: 3px; }
+.split-handle.horizontal .handle-grip { width: 3px; height: 36px; }
+.split-handle:hover .handle-grip, .split-handle:active .handle-grip { opacity: 1; background: #fff; }
 </style>

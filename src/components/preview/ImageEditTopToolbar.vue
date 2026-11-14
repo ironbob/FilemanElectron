@@ -128,6 +128,17 @@
       :title="$t('preview.editToolbar.doneTip')"
       @click="emit('done')"
     >{{ $t('preview.editToolbar.done') }}</button>
+
+    <!-- 折叠预览（仅集合会话）：箭头折叠为细栏，点击细栏箭头展开 -->
+    <button
+      v-if="collection && collection.total > 1"
+      class="edit-icon-btn ml-0.5"
+      :title="$t('preview.collection.collapsePreview')"
+      :aria-label="$t('preview.collection.collapsePreview')"
+      @click="emit('collapse-preview')"
+    >
+      <AppIcon :name="orientation === 'horizontal' ? 'chevronLeft' : 'chevronUp'" class="w-[17px] h-[17px]" />
+    </button>
   </div>
 </template>
 
@@ -137,6 +148,7 @@ import { useAppDragSuspend } from '@/composables/useAppDragSuspend'
 import { t } from '@/i18n'
 import type { ImageEditMode } from '@/composables/useImageEdit'
 import IconfontIcon from './IconfontIcon.vue'
+import AppIcon from '../AppIcon.vue'
 
 const props = defineProps<{
   mode: ImageEditMode
@@ -147,6 +159,8 @@ const props = defineProps<{
   displayScale: string
   annotationsVisible: boolean
   running?: boolean
+  /** 分栏方向：决定折叠箭头朝向（上下→向上折叠；左右→向左折叠）。 */
+  orientation?: 'vertical' | 'horizontal'
 }>()
 
 const emit = defineEmits<{
@@ -166,6 +180,7 @@ const emit = defineEmits<{
   compress: []
   'batch-compress': []
   'batch-rename': []
+  'collapse-preview': []
 }>()
 
 const ZOOM_STEPS = [25, 50, 100, 200, 400]
