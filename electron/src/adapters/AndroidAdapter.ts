@@ -125,16 +125,24 @@ export class AndroidAdapter implements IFileSystemAdapter {
 
   async list(dirPath: string): Promise<FileInfo[]> {
     const dev = this.dev()
-    const entries = await dev.readdir(dirPath)
-    const files: FileInfo[] = entries
-      .filter(e => e.name !== '.' && e.name !== '..')
-      .map(e => this.entryToFileInfo(dirPath, e))
+    const entries = (await dev.readdir(dirPath)).filter(e => e.name !== '.' && e.name !== '..')
+    // adb sync LIST 返回链接自身的 mode(S_IFLNK),isDirectory() 恒 false;
+    // 批量 stat -L 跟随解析,指向目录的链接(如 /sdcard)按目录呈现。
+    const dirLinks = await this.resolveDirLinks(
+      entries.filter(e => e.isSymbolicLink()).map(e => joinPosix(dirPath, e.name))
+    )
+    const files: FileInfo[] = entries.map(e => this.entryToFileInfo(dirPath, e, dirLinks))
     return sortFiles(files)
   }
 
   async stat(targetPath: string): Promise<FileStats> {
     const dev = this.dev()
     const s = await dev.stat(targetPath)
+    // 部分设备 STAT 同样不跟随链接,stat -L 补一次跟随;断链回退链接自身属性。
+    if (s.isSymbolicLink()) {
+      const followed = await this.statFollowLink(targetPath)
+      if (followed) return followed
+    }
     const mtime = s.mtimeMs || 0
     return {
       size: Number(s.size) || 0,
@@ -307,18 +315,61 @@ export class AndroidAdapter implements IFileSystemAdapter {
 
   // ============ 内部工具 ============
 
-  private entryToFileInfo(dirPath: string, entry: { name: string; isDirectory(): boolean; size: number; mtimeMs?: number }): FileInfo {
-    const isDirectory = entry.isDirectory()
+  private entryToFileInfo(dirPath: string, entry: { name: string; isDirectory(): boolean; isSymbolicLink(): boolean; size: number; mtimeMs?: number }, dirLinks: Map<string, number>): FileInfo {
     const name = entry.name
-    const mtime = entry.mtimeMs || 0
+    const filePath = joinPosix(dirPath, name)
+    const linkMtime = dirLinks.get(filePath)
+    const isDirectory = entry.isDirectory() || linkMtime !== undefined
+    const mtime = linkMtime ?? (entry.mtimeMs || 0)
     return {
       name,
-      path: joinPosix(dirPath, name),
+      path: filePath,
       isDirectory,
       isFile: !isDirectory,
       size: Number(entry.size) || 0,
       modifiedTime: new Date(mtime).toISOString(),
       extension: !isDirectory ? path.extname(name).toLowerCase() : undefined,
+    }
+  }
+
+  /** 批量跟随符号链接,返回「指向目录的链接路径 → 目标 mtimeMs」。一条 shell 完成,失败不阻断列表。 */
+  private async resolveDirLinks(paths: string[]): Promise<Map<string, number>> {
+    const dirs = new Map<string, number>()
+    if (paths.length === 0) return dirs
+    try {
+      const cmd = paths
+        .map(p => `{ stat -L -c '%f %Y' ${shellQuote(p)} 2>/dev/null || echo '0 0'; }`)
+        .join('; ')
+      const lines = (await this.runShell(cmd)).split('\n')
+      paths.forEach((p, i) => {
+        const [modeHex, mtime] = (lines[i] ?? '').trim().split(/\s+/)
+        const mode = parseInt(modeHex, 16)
+        if ((mode & 0o170000) === 0o040000) dirs.set(p, (Number(mtime) || 0) * 1000)
+      })
+    } catch {
+      /* 解析失败按链接自身类型呈现 */
+    }
+    return dirs
+  }
+
+  private async statFollowLink(targetPath: string): Promise<FileStats | null> {
+    try {
+      const out = await this.runShell(`stat -L -c '%f %s %Y' ${shellQuote(targetPath)}`)
+      const [modeHex, size, mtime] = out.trim().split(/\s+/)
+      const mode = parseInt(modeHex, 16)
+      if (Number.isNaN(mode)) return null
+      const isDirectory = (mode & 0o170000) === 0o040000
+      const mtimeMs = (Number(mtime) || 0) * 1000
+      return {
+        size: Number(size) || 0,
+        isDirectory,
+        isFile: !isDirectory,
+        modifiedTime: new Date(mtimeMs).toISOString(),
+        createdTime: new Date(mtimeMs).toISOString(),
+        mode,
+      }
+    } catch {
+      return null
     }
   }
 
