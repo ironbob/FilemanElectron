@@ -74,7 +74,9 @@ function saveToStorage(state: PersistedTabState) {
           ...pane,
           selectedFiles: [],
           // loadError 是瞬态加载状态，重启后由 FileList 重新判定
-          loadError: null
+          loadError: null,
+          // revealPath 是一次性定位指令，重启后失效
+          revealPath: null
         }))
       }))
     }
@@ -382,9 +384,14 @@ export const useTabsStore = defineStore('tabs', () => {
     return true
   }
 
-  /** 在新标签页打开指定目录（文件夹右键 / 拖到标签栏）。 */
-  function openPathInNewTab(deviceId: string, path: string): void {
+  /** 在新标签页打开指定目录（文件夹右键 / 拖到标签栏 / 图片集合「定位」）。
+   *  revealPath：定位到目录内具体文件——选中并滚动揭示（FilePane 挂载即消费）。 */
+  function openPathInNewTab(deviceId: string, path: string, revealPath?: string): void {
     const pane = createDefaultPane(path, deviceId)
+    if (revealPath) {
+      pane.selectedFiles = [revealPath]
+      pane.revealPath = revealPath
+    }
     const tab: Tab = {
       id: generateId(),
       title: getPathDisplayName(path),

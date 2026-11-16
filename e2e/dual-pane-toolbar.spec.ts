@@ -31,6 +31,10 @@ test.beforeEach(async ({ page }) => {
       getFileOperationQueue: async () => [],
       getFileOperationHistory: async () => [],
       volumes: { list: async () => [], onChanged: () => () => undefined },
+      // 更多操作「在终端中打开」契约用：记录调用路径
+      openInTerminal: async (path: string) => {
+        (window as any).__terminalCalls.push(path)
+      },
       thumbnail: { get: async () => '', clearCache: async () => {}, getCacheSize: async () => 0 }
     }
     ;(window as any).fileman = new Proxy(api, {
@@ -40,6 +44,7 @@ test.beforeEach(async ({ page }) => {
         return async () => undefined
       }
     })
+    ;(window as any).__terminalCalls = []
     localStorage.removeItem('fileman-tabs-state')
   })
   await page.goto('/')
@@ -74,4 +79,15 @@ test('open button turns into active close state and collapses on second click', 
   await expect(page.locator('.finder-pane')).toHaveCount(1)
   await expect(page.locator('.file-pane-toolbar-split[aria-pressed="true"]')).toHaveCount(0)
   await expect(page.locator('.file-pane-toolbar-split').first()).toHaveAttribute('title', '打开双面板（在当前路径）')
+})
+
+test('more-actions menu: open current dir in terminal (local, non-ZIP)', async ({ page }) => {
+  // 更多操作菜单宿主集成成对：在 Finder 中显示 + 在终端中打开（本机可用态）
+  await page.getByRole('button', { name: '更多操作' }).click()
+  const item = page.getByRole('menuitem', { name: '在终端中打开', exact: true })
+  await expect(item).toBeVisible()
+  await expect(item).toBeEnabled()
+  await item.click()
+  // 点击 → openInTerminal(当前目录)，与 FileList 空白右键同 IPC 同语义
+  await expect.poll(() => page.evaluate(() => (window as any).__terminalCalls)).toEqual(['/'])
 })

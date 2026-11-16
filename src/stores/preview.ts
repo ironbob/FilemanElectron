@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed, shallowRef } from 'vue'
 import type { FileInfo, Tab } from '@/types'
+import type { FileOperationTask } from '@/types/fileOperation'
 import { useTabsStore } from './tabs'
-import type { QuickLookSession, PreviewType } from '@/types/preview'
+import type { QuickLookSession, PreviewTab, PreviewType } from '@/types/preview'
 import { getPreviewType } from '@/types/preview'
 import { sniffPreviewKind, SNIFF_HEADER_BYTES, type FilePreviewKind } from '@shared/fileKinds'
 import type { EditApplyResult } from '@shared/types'
+import { parseCollectionKey, scanFolderImages } from '@/utils/imageCollection'
 
 const log = (message: string, ...args: any[]) => {
   console.log(`[PreviewStore] ${message}`, ...args)
@@ -19,6 +21,11 @@ const sniffCache = new Map<string, FilePreviewKind>()
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9)
+}
+
+function dirOf(path: string): string {
+  const idx = path.lastIndexOf('/')
+  return idx > 0 ? path.slice(0, idx) : '/'
 }
 
 export const usePreviewStore = defineStore('preview', () => {
@@ -192,6 +199,158 @@ export const usePreviewStore = defineStore('preview', () => {
     tab.title = session.files[next].name
   }
 
+  /** 替换集合列表并保持当前项：按路径找回 index，找不到 clamp 到邻近项。 */
+  function setCollectionFiles(tab: Tab, files: FileInfo[]) {
+    const session = tab.preview!
+    const currentPath = session.file.path
+    session.files = files
+    const idx = files.findIndex(f => f.path === currentPath)
+    session.index = idx >= 0 ? idx : Math.max(0, Math.min(session.index ?? 0, files.length - 1))
+    session.file = files[session.index]
+    tab.title = session.file.name
+  }
+
+  /**
+   * 集合文件移除（删除/移到废纸篓/移出完成后同步）：当前文件被移除时 clamp
+   * 到邻近项；列表清空则关闭 tab（经 closePreviewSession 尊重未保存守卫）。
+   */
+  function removeCollectionFiles(sessionId: string, paths: string[]) {
+    const tabsStore = useTabsStore()
+    const tab = tabsStore.tabs.find(t => t.preview?.id === sessionId)
+    const session = tab?.preview
+    if (!tab || !session?.files?.length || paths.length === 0) return
+    const removed = new Set(paths)
+    const next = session.files.filter(f => !removed.has(f.path))
+    if (next.length === session.files.length) return
+    log('Removing collection files:', sessionId, paths.length, 'remaining:', next.length)
+    if (next.length === 0) {
+      session.files = []
+      tabsStore.closePreviewSession(sessionId)
+      return
+    }
+    setCollectionFiles(tab, next)
+  }
+
+  /** 集合列表整体替换（制作副本/粘贴入/还原后重扫）：空列表关闭 tab。 */
+  function replaceCollectionFiles(sessionId: string, files: FileInfo[]) {
+    const tabsStore = useTabsStore()
+    const tab = tabsStore.tabs.find(t => t.preview?.id === sessionId)
+    if (!tab?.preview?.files) return
+    if (files.length === 0) {
+      tab.preview.files = []
+      tabsStore.closePreviewSession(sessionId)
+      return
+    }
+    setCollectionFiles(tab, files)
+  }
+
+  // ── 集合 ↔ 磁盘一致性（IFC-7 单点维护；应用级订阅，非活动 tab 同样同步） ──────
+  // PreviewView 仅活动 tab 挂载，组件级订阅会漏掉切走期间的外部变更（如剪切后
+  // 在别处粘贴）。本 store 为 Pinia 单例，订阅一次即覆盖全部集合会话生命周期。
+
+  const collectionRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  function scheduleCollectionRefresh(sessionId: string) {
+    const existing = collectionRefreshTimers.get(sessionId)
+    if (existing) clearTimeout(existing)
+    collectionRefreshTimers.set(sessionId, setTimeout(() => {
+      collectionRefreshTimers.delete(sessionId)
+      void refreshCollectionFromDisk(sessionId)
+    }, 150))
+  }
+
+  async function refreshCollectionFromDisk(sessionId: string) {
+    const tabsStore = useTabsStore()
+    const tab = tabsStore.tabs.find(t => t.preview?.id === sessionId)
+    const parsed = parseCollectionKey(tab?.preview?.collectionKey ?? '')
+    if (!tab?.preview || !parsed) return
+    try {
+      const files = await scanFolderImages(parsed.deviceId, parsed.root, parsed.recursive)
+      replaceCollectionFiles(sessionId, files)
+    } catch (error) {
+      log('Collection refresh failed:', sessionId, error)
+    }
+  }
+
+  /** 目标目录是否落在集合扫描范围内（recursive = 根子树；flat = 根本身）。 */
+  function collectionInScope(session: PreviewTab, targetPath: string | undefined): boolean {
+    if (!targetPath) return false
+    const parsed = parseCollectionKey(session.collectionKey ?? '')
+    if (!parsed) return false
+    return parsed.recursive
+      ? targetPath === parsed.root || targetPath.startsWith(parsed.root + '/')
+      : targetPath === parsed.root
+  }
+
+  function applyTaskToCollection(tab: Tab, task: FileOperationTask) {
+    const session = tab.preview
+    const files = session?.files
+    if (!session || !files?.length) return
+    const present = new Set(files.map(f => f.path))
+    const results = task.progress?.itemResults ?? []
+    const successSources = results.length > 0
+      ? results.filter(i => i.status === 'success').map(i => i.sourcePath)
+      : task.sourcePaths
+
+    switch (task.type) {
+      case 'delete':
+      case 'recycle': {
+        if (task.sourceDeviceId !== session.deviceId) return
+        const removed = successSources.filter(p => present.has(p))
+        if (removed.length > 0) removeCollectionFiles(session.id, removed)
+        break
+      }
+      case 'move': {
+        const movedOut = task.sourceDeviceId === session.deviceId && successSources.some(p => present.has(p))
+        const movedIn = task.targetDeviceId === session.deviceId && collectionInScope(session, task.targetPath)
+        if (movedOut || movedIn) scheduleCollectionRefresh(session.id)
+        break
+      }
+      case 'rename': {
+        const sourcePath = task.sourcePaths[0]
+        if (task.sourceDeviceId === session.deviceId && task.newName && sourcePath && present.has(sourcePath)) {
+          applyRenameMapping(session.id, [{ sourcePath, newName: task.newName }])
+        }
+        break
+      }
+      case 'batch-rename': {
+        if (task.sourceDeviceId !== session.deviceId) return
+        const items = (task.renameItems ?? []).filter(i => present.has(i.sourcePath))
+        if (items.length > 0) applyRenameMapping(session.id, items)
+        break
+      }
+      case 'copy': {
+        if (task.targetDeviceId === session.deviceId && collectionInScope(session, task.targetPath)) {
+          scheduleCollectionRefresh(session.id)
+        }
+        break
+      }
+      case 'restore': {
+        if (task.sourceDeviceId !== session.deviceId) return
+        if ((task.restoreItems ?? []).some(i => collectionInScope(session, dirOf(i.originalPath)))) {
+          scheduleCollectionRefresh(session.id)
+        }
+        break
+      }
+    }
+  }
+
+  function syncCollectionsFromTask(task: FileOperationTask) {
+    if (task.status !== 'completed') return
+    const tabsStore = useTabsStore()
+    // 快照迭代：removeCollectionFiles 清空列表时会关闭 tab（splice 原数组）
+    for (const tab of [...tabsStore.tabs]) {
+      const session = tab.preview
+      if (!session?.files?.length || !session.collectionKey) continue
+      if (task.sourceDeviceId !== session.deviceId && task.targetDeviceId !== session.deviceId) continue
+      applyTaskToCollection(tab, task)
+    }
+  }
+
+  if (typeof window !== 'undefined' && window.fileman?.onFileOperationUpdated) {
+    window.fileman.onFileOperationUpdated(syncCollectionsFromTask)
+  }
+
   // ── 编辑结果同步（IFC-7：会话与磁盘一致性由本 store 单点维护） ────────────────
 
   /**
@@ -271,6 +430,8 @@ export const usePreviewStore = defineStore('preview', () => {
     openPreview,
     openImageCollection,
     stepImageCollection,
+    removeCollectionFiles,
+    replaceCollectionFiles,
     applyEditResult,
     applyRenameMapping,
     setInlinePreview,

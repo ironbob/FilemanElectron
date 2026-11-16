@@ -610,8 +610,10 @@ const goToDialog = reactive({
 const pendingDirectoryRefreshes = new Set<string>()
 /** 本面板 ⌘V / ⌘⌥V / ⌘D 排队的 copy/move 任务：完成后把落地文件设为选中（Finder 语义）。 */
 const selectArrivedTaskIds = new Set<string>()
-/** cmd+V 落地后的一次性揭示目标：随刷新重挂的 FileList 加载成功后滚动定位。 */
-const revealArrivedPath = ref<string | null>(null)
+/** cmd+V 落地后的一次性揭示目标：随刷新重挂的 FileList 加载成功后滚动定位。
+ *  新 tab「定位」（图片集合右键）经 pane.revealPath 传入：挂载即消费并清除。 */
+const revealArrivedPath = ref<string | null>(pane.value?.revealPath ?? null)
+if (pane.value?.revealPath) delete pane.value.revealPath
 let stopFileOperationUpdates: (() => void) | null = null
 
 log.info('[FinderFilePane] initialized', { paneId: props.paneId })

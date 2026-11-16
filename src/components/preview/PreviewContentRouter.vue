@@ -28,6 +28,7 @@
     :files="files"
     :go-to="goTo"
     :collection-key="collectionKey"
+    :file-ops="fileOps"
     :quick-look="quickLook"
     :quick-look-controls="quickLookControls"
   />
@@ -91,6 +92,7 @@ import PreviewZipContent from './PreviewZipContent.vue'
 import PreviewHexContent from './PreviewHexContent.vue'
 import { usePreviewStore } from '@/stores/preview'
 import type { ImageEditController } from '@/composables/useImageEdit'
+import type { CollectionFileOps } from '@/composables/useCollectionFileOps'
 
 const props = defineProps<{
   file: FileInfo
@@ -113,6 +115,8 @@ const props = defineProps<{
   goTo?: (index: number) => void
   /** 集合去重键（含根目录与 flat/recursive 模式，用于文件夹分组标题）。 */
   collectionKey?: string
+  /** 集合面板文件管理控制器（多选拷贝/剪切/删除/重命名/定位；PreviewView 提供）。 */
+  fileOps?: CollectionFileOps | null
   /** Quick Look 浮层模式（材质透明、工具栏元信息收纳、保存入口上移等）。 */
   quickLook?: boolean
   /** Quick Look 步进/关闭控件（单行合并后经工具栏右端胶囊呈现；仅 text 消费）。 */

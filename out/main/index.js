@@ -331,7 +331,7 @@ const zhCN = {
       sortDescending: "降序",
       foldersFirst: "文件夹置顶",
       moreActions: "更多操作",
-      searchPlaceholder: "搜索",
+      searchPlaceholder: "搜索 ⌘F",
       clearSearch: "清除搜索",
       searchHistory: "搜索历史",
       history: "历史记录",
@@ -350,6 +350,8 @@ const zhCN = {
       screenshot: "截取设备屏幕",
       revealInFinder: "在 Finder 中显示",
       revealInFinderLocalOnly: "在 Finder 中显示（仅限本地文件夹）",
+      openInTerminal: "在终端中打开",
+      openInTerminalLocalOnly: "在终端中打开（仅限本地文件夹）",
       newFolder: "新建文件夹",
       newFile: "新建文件",
       newFromClipboardText: "新建文本文件（来自剪贴板）",
@@ -430,10 +432,6 @@ const zhCN = {
       noMatches: "无匹配",
       escClear: "Esc 清除"
     },
-    renameBar: {
-      label: "重命名：",
-      confirm: "确认"
-    },
     kind: {
       folder: "文件夹",
       extDocument: "{ext} 文档",
@@ -442,6 +440,8 @@ const zhCN = {
     gitBadgeTitle: "Git：{letter}",
     menu: {
       refresh: "刷新",
+      selectAll: "全选",
+      invertSelection: "反选",
       newFolder: "新建文件夹",
       newFile: "新建文件",
       newFromClipboardText: "新建文本文件（来自剪贴板）",
@@ -449,6 +449,7 @@ const zhCN = {
       clipboardChanged: "剪贴板内容已变化，请重试。",
       newSymlink: "新建符号链接…",
       paste: "粘贴",
+      moveHere: "移动到这里",
       addFavorite: "添加到收藏夹",
       showHidden: "显示隐藏文件",
       hideHidden: "隐藏隐藏文件",
@@ -502,6 +503,7 @@ const zhCN = {
       openWithDefaultSuffix: "（默认）",
       moveToTrash: "移到废纸篓",
       makeAlias: "制作替身",
+      duplicate: "制作副本",
       removeQuarantine: "移除隔离标记",
       quickLook: "快速查看",
       quickActions: "快速操作"
@@ -1151,6 +1153,41 @@ const zhCN = {
       mediaOversized: "文件 {size} MB 超过媒体预览上限 {limit} MB（整体载入无流式）",
       screenshotFailed: "截图失败:{message}",
       screenshotSaveFailed: "保存截图失败:{message}"
+    },
+    collection: {
+      title: "缩略图",
+      grid: "网格总览",
+      gridTip: "网格总览 (G)",
+      back: "返回预览",
+      collapse: "收起胶片栏",
+      expand: "展开胶片栏",
+      group: "按文件夹分组",
+      size: "缩略图大小",
+      filterPlaceholder: "筛选文件名 / 文件夹…",
+      clearFilter: "清除筛选",
+      empty: "无匹配「{query}」的图片",
+      count: "{n} 张",
+      folderCount: "{n} 个文件夹",
+      allImages: "全部图片",
+      jumpTip: "跳转到 {name}",
+      viewList: "列表视图",
+      viewGrid: "网格视图",
+      sizeSmall: "小",
+      sizeMedium: "中",
+      sizeLarge: "大",
+      showPreview: "显示预览",
+      closePreview: "关闭预览",
+      collapseFiles: "折叠文件区",
+      expandFiles: "展开文件区",
+      collapsePreview: "折叠预览",
+      expandPreview: "展开预览",
+      layoutVertical: "上下布局",
+      layoutHorizontal: "左右布局",
+      resizeHint: "拖动调整比例",
+      selectedCount: "已选 {n} 张",
+      clearSelection: "取消选择",
+      locate: "定位",
+      deletePermanently: "立即删除"
     },
     hex: {
       /** 列头/状态栏/行标题共用（e2e 断言「偏移」）。 */
@@ -1884,7 +1921,7 @@ const enUS = {
       sortDescending: "Descending",
       foldersFirst: "Folders on Top",
       moreActions: "More actions",
-      searchPlaceholder: "Search",
+      searchPlaceholder: "Search ⌘F",
       clearSearch: "Clear search",
       searchHistory: "Search history",
       history: "History",
@@ -1903,6 +1940,8 @@ const enUS = {
       screenshot: "Capture Device Screenshot",
       revealInFinder: "Reveal in Finder",
       revealInFinderLocalOnly: "Reveal in Finder (local folders only)",
+      openInTerminal: "Open in Terminal",
+      openInTerminalLocalOnly: "Open in Terminal (local folders only)",
       newFolder: "New Folder",
       newFile: "New File",
       newFromClipboardText: "New Text File from Clipboard",
@@ -1983,10 +2022,6 @@ const enUS = {
       noMatches: "No matches",
       escClear: "Esc clear"
     },
-    renameBar: {
-      label: "Rename:",
-      confirm: "Confirm"
-    },
     kind: {
       folder: "Folder",
       extDocument: "{ext} document",
@@ -1995,6 +2030,8 @@ const enUS = {
     gitBadgeTitle: "Git: {letter}",
     menu: {
       refresh: "Refresh",
+      selectAll: "Select All",
+      invertSelection: "Invert Selection",
       newFolder: "New Folder",
       newFile: "New File",
       newFromClipboardText: "New Text File from Clipboard",
@@ -2002,6 +2039,7 @@ const enUS = {
       clipboardChanged: "Clipboard content changed. Please retry.",
       newSymlink: "New Symlink…",
       paste: "Paste",
+      moveHere: "Move Here",
       addFavorite: "Add to Favorites",
       showHidden: "Show Hidden Files",
       hideHidden: "Hide Hidden Files",
@@ -2055,6 +2093,7 @@ const enUS = {
       openWithDefaultSuffix: " (default)",
       moveToTrash: "Move to Trash",
       makeAlias: "Make Alias",
+      duplicate: "Duplicate",
       removeQuarantine: "Remove Quarantine Attribute",
       quickLook: "Quick Look",
       quickActions: "Quick Actions"
@@ -2698,6 +2737,41 @@ const enUS = {
       mediaOversized: "File {size} MB exceeds the media preview limit of {limit} MB (whole-file load, no streaming)",
       screenshotFailed: "Screenshot failed: {message}",
       screenshotSaveFailed: "Failed to save screenshot: {message}"
+    },
+    collection: {
+      title: "Thumbnails",
+      grid: "Grid overview",
+      gridTip: "Grid overview (G)",
+      back: "Back to preview",
+      collapse: "Collapse filmstrip",
+      expand: "Expand filmstrip",
+      group: "Group by folder",
+      size: "Thumbnail size",
+      filterPlaceholder: "Filter by name / folder…",
+      clearFilter: "Clear filter",
+      empty: "No images match “{query}”",
+      count: "{n} images",
+      folderCount: "{n} folders",
+      allImages: "All images",
+      jumpTip: "Jump to {name}",
+      viewList: "List view",
+      viewGrid: "Grid view",
+      sizeSmall: "S",
+      sizeMedium: "M",
+      sizeLarge: "L",
+      showPreview: "Show preview",
+      closePreview: "Close preview",
+      collapseFiles: "Collapse files",
+      expandFiles: "Expand files",
+      collapsePreview: "Collapse preview",
+      expandPreview: "Expand preview",
+      layoutVertical: "Stacked layout",
+      layoutHorizontal: "Side-by-side layout",
+      resizeHint: "Drag to resize",
+      selectedCount: "{n} selected",
+      clearSelection: "Clear selection",
+      locate: "Reveal in New Tab",
+      deletePermanently: "Delete Immediately"
     },
     hex: {
       offset: "Offset",
@@ -4035,13 +4109,20 @@ class AndroidAdapter {
   // ============ 文件系统操作 ============
   async list(dirPath) {
     const dev = this.dev();
-    const entries = await dev.readdir(dirPath);
-    const files = entries.filter((e) => e.name !== "." && e.name !== "..").map((e) => this.entryToFileInfo(dirPath, e));
+    const entries = (await dev.readdir(dirPath)).filter((e) => e.name !== "." && e.name !== "..");
+    const dirLinks = await this.resolveDirLinks(
+      entries.filter((e) => e.isSymbolicLink()).map((e) => joinPosix$4(dirPath, e.name))
+    );
+    const files = entries.map((e) => this.entryToFileInfo(dirPath, e, dirLinks));
     return sortFiles$1(files);
   }
   async stat(targetPath) {
     const dev = this.dev();
     const s = await dev.stat(targetPath);
+    if (s.isSymbolicLink()) {
+      const followed = await this.statFollowLink(targetPath);
+      if (followed) return followed;
+    }
     const mtime = s.mtimeMs || 0;
     return {
       size: Number(s.size) || 0,
@@ -4185,19 +4266,57 @@ class AndroidAdapter {
     return writable;
   }
   // ============ 内部工具 ============
-  entryToFileInfo(dirPath, entry) {
-    const isDirectory = entry.isDirectory();
+  entryToFileInfo(dirPath, entry, dirLinks) {
     const name = entry.name;
-    const mtime = entry.mtimeMs || 0;
+    const filePath = joinPosix$4(dirPath, name);
+    const linkMtime = dirLinks.get(filePath);
+    const isDirectory = entry.isDirectory() || linkMtime !== void 0;
+    const mtime = linkMtime ?? (entry.mtimeMs || 0);
     return {
       name,
-      path: joinPosix$4(dirPath, name),
+      path: filePath,
       isDirectory,
       isFile: !isDirectory,
       size: Number(entry.size) || 0,
       modifiedTime: new Date(mtime).toISOString(),
       extension: !isDirectory ? path.extname(name).toLowerCase() : void 0
     };
+  }
+  /** 批量跟随符号链接,返回「指向目录的链接路径 → 目标 mtimeMs」。一条 shell 完成,失败不阻断列表。 */
+  async resolveDirLinks(paths) {
+    const dirs = /* @__PURE__ */ new Map();
+    if (paths.length === 0) return dirs;
+    try {
+      const cmd = paths.map((p) => `{ stat -L -c '%f %Y' ${shellQuote(p)} 2>/dev/null || echo '0 0'; }`).join("; ");
+      const lines = (await this.runShell(cmd)).split("\n");
+      paths.forEach((p, i) => {
+        const [modeHex, mtime] = (lines[i] ?? "").trim().split(/\s+/);
+        const mode = parseInt(modeHex, 16);
+        if ((mode & 61440) === 16384) dirs.set(p, (Number(mtime) || 0) * 1e3);
+      });
+    } catch {
+    }
+    return dirs;
+  }
+  async statFollowLink(targetPath) {
+    try {
+      const out = await this.runShell(`stat -L -c '%f %s %Y' ${shellQuote(targetPath)}`);
+      const [modeHex, size, mtime] = out.trim().split(/\s+/);
+      const mode = parseInt(modeHex, 16);
+      if (Number.isNaN(mode)) return null;
+      const isDirectory = (mode & 61440) === 16384;
+      const mtimeMs = (Number(mtime) || 0) * 1e3;
+      return {
+        size: Number(size) || 0,
+        isDirectory,
+        isFile: !isDirectory,
+        modifiedTime: new Date(mtimeMs).toISOString(),
+        createdTime: new Date(mtimeMs).toISOString(),
+        mode
+      };
+    } catch {
+      return null;
+    }
   }
   /**
    * 执行 shell 命令并按 exit code 判定成败。
@@ -4364,7 +4483,7 @@ class OhosAdapter {
   /** 设备 id 形如 "ohos:<connectKey>";hdc -t 需要裸 key(照 iOSAdapter.udid 剥前缀)。 */
   connectKey() {
     const raw = this.config.deviceId ?? this.deviceId;
-    return raw.startsWith("ohos:") ? raw.slice(4) : raw;
+    return raw.startsWith("ohos:") ? raw.slice(5) : raw;
   }
   requireConnected() {
     if (!this.connected) {
@@ -11340,6 +11459,9 @@ function createWindow() {
     minHeight: 600,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 15, y: 10 },
+    // macOS 原生振动材质：侧边栏/标题栏透出系统 sidebar 材质（高级感来源）。
+    // 仅 darwin 启用；渲染层据 data-vibrancy 把侧栏/标题栏置透明、内容区保持不透明。
+    ...process.platform === "darwin" ? { vibrancy: "sidebar", visualEffectState: "active", backgroundColor: "#00000000" } : {},
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       nodeIntegration: false,
@@ -11348,6 +11470,10 @@ function createWindow() {
   });
   fileOperationManager.setMainWindow(mainWindow);
   mainWindow.webContents.on("did-finish-load", () => {
+    if (process.platform === "darwin" && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(`document.documentElement.setAttribute('data-vibrancy', 'sidebar')`).catch(() => {
+      });
+    }
     const currentMobileDevices = deviceManager.getDetectedMobileDevices();
     if (currentMobileDevices.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
       console.log("[Main] Pushing initial mobile devices to renderer:", currentMobileDevices.length);
@@ -12063,7 +12189,27 @@ volumeScanner.onVolumeChange((volumes) => {
 });
 Menu.setApplicationMenu(Menu.buildFromTemplate([
   { role: "appMenu" },
-  { role: "editMenu" },
+  {
+    label: "Edit",
+    submenu: [
+      { role: "undo" },
+      { role: "redo" },
+      { type: "separator" },
+      { role: "cut" },
+      { role: "copy" },
+      { role: "paste" },
+      { role: "pasteAndMatchStyle" },
+      { role: "delete" },
+      { type: "separator" },
+      {
+        label: "Speech",
+        submenu: [
+          { role: "startSpeaking" },
+          { role: "stopSpeaking" }
+        ]
+      }
+    ]
+  },
   { role: "viewMenu" },
   {
     label: "Window",

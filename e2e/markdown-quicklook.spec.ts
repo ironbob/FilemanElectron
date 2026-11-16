@@ -8,6 +8,8 @@ import { expect, test } from '@playwright/test'
 // 4. 代码块：SF Mono 栈 · 浅灰 inset · 8px 圆角 · 长行横向滚动
 // 5. 高亮 token 双主题（--md-hl-*）：亮=One Light 系 / 暗=Material 柔和色（旧版只有暗色一套）
 // 6. QL markdown 窗工具栏恢复极细分隔线（is-md；纯文本窗维持无分割线不变）
+// 7. 渲染模式独占内容区：条件链完整（路径结果盒曾是独立 v-if 截断链条，
+//    空白 Monaco 容器与渲染面对半分高）
 
 const MD_SHORT = [
   '---',
@@ -140,6 +142,21 @@ test('rendered area: independent scroller, top-aligned, 720px reading column', a
   // 末元素零尾距（容器 44px 底部安全留白承担收尾；QL 卡固定高下短文剩余空间
   // 属窗口稳定几何而非内容空白——08-19 决策，可滚文档的余量在长文用例锁）
   expect(geom.lastMarginBottom).toBe('0px')
+})
+
+test('rendered mode owns the full content area (no ghost source container)', async ({ page }) => {
+  const overlay = await openQuickLook(page, 'short.md')
+  // 历史 bug：JSON 路径结果盒的独立 v-if 截断 v-if/v-else-if 链，else 兜底
+  // （Monaco 源码容器）在渲染模式同屏渲染——空的、拿走一半高度
+  await expect(overlay.locator('.monaco-editor')).toHaveCount(0)
+  await expect(overlay.locator('.text-editor-readonly')).toHaveCount(0)
+  // 渲染区占卡片高度大头（对半分高回归时 ≈44%）
+  const ratio = await overlay.evaluate(() => {
+    const scroller = document.querySelector('.md-rendered') as HTMLElement
+    const card = document.querySelector('.quick-look-card') as HTMLElement
+    return scroller.getBoundingClientRect().height / card.getBoundingClientRect().height
+  })
+  expect(ratio).toBeGreaterThan(0.6)
 })
 
 test('long markdown scrolls inside the content area, toolbar stays fixed', async ({ page }) => {

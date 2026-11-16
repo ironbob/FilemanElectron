@@ -245,6 +245,7 @@
           :device-id="deviceId"
           :collection-key="collectionKey ?? ''"
           :orientation="orientation"
+          :file-ops="fileOps ?? null"
           @go="onCollectionGo"
           @collapse="toggleFiles"
           @toggle-orientation="toggleOrientation"
@@ -302,6 +303,7 @@ import type { ImageFitMode, QuickLookControls } from '@/types/preview'
 import { needsNativeDecode } from '@/utils/fileTypes'
 import { displayedToSourceRect, type ImageLayout, type Rect } from '@/utils/cropGeometry'
 import type { ImageEditController } from '@/composables/useImageEdit'
+import type { CollectionFileOps } from '@/composables/useCollectionFileOps'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import { ANNO_COLORS, ANNO_WIDTHS, type AnnoTool } from '@/utils/annotationShapes'
 import ImageEditTopToolbar from './ImageEditTopToolbar.vue'
@@ -334,6 +336,8 @@ const props = defineProps<{
   goTo?: (index: number) => void
   /** 集合去重键（文件夹分组标题） */
   collectionKey?: string
+  /** 集合面板文件管理控制器（多选拷贝/剪切/删除/重命名/定位；PreviewView 下传） */
+  fileOps?: CollectionFileOps | null
   /** Quick Look 浮层模式：单行合并工具栏（编辑工具栏/状态栏退场） */
   quickLook?: boolean
   /** Quick Look 步进/关闭（经 Router 下传；仅 quickLook 模式消费） */

@@ -84,6 +84,8 @@ export interface Pane {
   gridSize?: 'xlarge' | 'large' | 'medium' | 'small'
   /** 目录加载错误状态；null/undefined = 正常。瞬态字段，持久化时剥离。 */
   loadError?: PaneLoadError | null
+  /** 新 tab 定位揭示目标（图片集合「定位」）：FilePane 挂载即消费并清除，不持久化。 */
+  revealPath?: string | null
 }
 
 export interface AppConfig {

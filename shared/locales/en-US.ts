@@ -1018,7 +1018,11 @@ const enUS: MessageSchema = {
       expandPreview: 'Expand preview',
       layoutVertical: 'Stacked layout',
       layoutHorizontal: 'Side-by-side layout',
-      resizeHint: 'Drag to resize'
+      resizeHint: 'Drag to resize',
+      selectedCount: '{n} selected',
+      clearSelection: 'Clear selection',
+      locate: 'Reveal in New Tab',
+      deletePermanently: 'Delete Immediately'
     },
     hex: {
       offset: 'Offset',

@@ -19,6 +19,7 @@
         :files="isCollection ? session.files : null"
         :go-to="goTo"
         :collection-key="session.collectionKey ?? ''"
+        :file-ops="session.type === 'image' ? fileOps : null"
       />
     </div>
 
@@ -41,6 +42,23 @@
       @close="edit.closeRename()"
       @confirm="queueBatchRename"
     />
+
+    <!-- 集合面板单文件重命名（右键菜单；完成事件由 fileOps 统一同步会话） -->
+    <RenameDialog
+      v-if="fileOps.renameDialog.visible"
+      :file-path="fileOps.renameDialog.filePath"
+      @close="fileOps.closeRename()"
+      @confirm="fileOps.confirmRename"
+    />
+
+    <!-- 集合面板删除确认（移到废纸篓 / 立即删除；可恢复性由请求方决定） -->
+    <DeleteConfirmSheet
+      v-if="fileOps.deleteDialog.visible"
+      :names="fileOps.deleteDialog.names"
+      :recoverable="fileOps.deleteDialog.recoverable"
+      @close="fileOps.closeDelete()"
+      @confirm="fileOps.confirmDelete()"
+    />
   </div>
 </template>
 
@@ -53,10 +71,13 @@ import { usePreviewStore } from '@/stores/preview'
 import { useTabsStore } from '@/stores/tabs'
 import { useFileOperationsStore } from '@/stores/fileOperations'
 import { useImageEdit } from '@/composables/useImageEdit'
+import { useCollectionFileOps } from '@/composables/useCollectionFileOps'
 import { useKeyInterceptor } from '@/composables/useKeyInterceptor'
 import PreviewContentRouter from './PreviewContentRouter.vue'
 import BatchCompressDialog from '../dialogs/BatchCompressDialog.vue'
 import BatchRenameDialog from '../dialogs/BatchRenameDialog.vue'
+import RenameDialog from '../dialogs/RenameDialog.vue'
+import DeleteConfirmSheet from '../dialogs/DeleteConfirmSheet.vue'
 
 const props = defineProps<{
   session: PreviewTab
@@ -79,6 +100,9 @@ const isCollection = computed(() => (props.session.files?.length ?? 0) > 1)
 const index = computed(() => props.session.index ?? 0)
 const total = computed(() => props.session.files?.length ?? 1)
 const collectionCount = computed(() => props.session.files?.length ?? 0)
+
+// 集合面板文件管理（多选操作 + 任务完成同步）；非集合会话内部自动 no-op
+const fileOps = useCollectionFileOps(props.session)
 
 const renameTargets = computed(() =>
   (props.session.files ?? []).map(f => ({ path: f.path, name: f.name, isDirectory: false }))
@@ -168,31 +192,13 @@ onUnmounted(() => {
   unregisterProbe()
 })
 
-/** 批量改名：入既有任务队列；完成后（成功）按映射同步会话 files/index（IFC-7）。 */
+/** 批量改名：入既有任务队列；完成事件由 useCollectionFileOps 统一按映射同步会话（IFC-7）。 */
 async function queueBatchRename(items: BatchRenameItem[]) {
   edit.closeRename()
   try {
-    const task = await fileOpsStore.createBatchRenameTask(props.session.deviceId, items)
-    trackRenameTask(task.id, items)
+    await fileOpsStore.createBatchRenameTask(props.session.deviceId, items)
   } catch (error) {
     console.error('[PreviewView] batch rename queue failed:', error)
   }
-}
-
-// 改名任务订阅清理（不能在 async 回调里调 onUnmounted——无活跃实例）
-const renameStops: Array<() => void> = []
-onUnmounted(() => renameStops.forEach(stop => stop()))
-
-function trackRenameTask(taskId: string, items: BatchRenameItem[]) {
-  const stop = window.fileman.onFileOperationUpdated(task => {
-    if (task.id !== taskId) return
-    if (task.status === 'completed') {
-      previewStore.applyRenameMapping(props.session.id, items)
-    }
-    if (['completed', 'failed', 'cancelled'].includes(task.status)) {
-      stop()
-    }
-  })
-  renameStops.push(stop)
 }
 </script>

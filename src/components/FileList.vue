@@ -394,7 +394,8 @@ import {
   resolveDropAction
 } from '@/utils/dragTransfer'
 import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHint'
-import { extensionCategories, extensionIconMap, isThumbnailable, isImageFile, IMAGE_EXTENSIONS_WITH_DOT } from '@/utils/fileTypes'
+import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
+import { scanFolderImages } from '@/utils/imageCollection'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
 import { resolveFileKind, isEditableImageExt, normalizeExt, BROWSER_OPEN_EXTS } from '@shared/fileKinds'
@@ -2983,15 +2984,7 @@ defineExpose({ reloadSilently })
  */
 async function openFolderImagePreview(folderPath: string, recursive: boolean) {
   try {
-    const entries = recursive
-      ? await window.fileman.search(props.deviceId, folderPath, {
-          pattern: '',
-          fileTypes: IMAGE_EXTENSIONS_WITH_DOT
-        })
-      : await window.fileman.listFiles(props.deviceId, folderPath)
-    const images = entries
-      .filter(entry => !entry.isDirectory && isImageFile(entry.extension || ''))
-      .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+    const images = await scanFolderImages(props.deviceId, folderPath, recursive)
 
     if (images.length === 0) {
       log.info('[FileList] no images found for collection preview', { folderPath, recursive })

@@ -1030,7 +1030,11 @@ const zhCN = {
       expandPreview: '展开预览',
       layoutVertical: '上下布局',
       layoutHorizontal: '左右布局',
-      resizeHint: '拖动调整比例'
+      resizeHint: '拖动调整比例',
+      selectedCount: '已选 {n} 张',
+      clearSelection: '取消选择',
+      locate: '定位',
+      deletePermanently: '立即删除'
     },
     hex: {
       /** 列头/状态栏/行标题共用（e2e 断言「偏移」）。 */

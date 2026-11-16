@@ -34,6 +34,7 @@ async function setup(page: Page, viewMode: 'list' | 'grid' = 'list') {
         { id: 'local', type: 'local', name: '本机', status: 'connected', rootPath: '/' }
       ],
       listFiles: async (_d: string, dir: string) => {
+        ;(window as any).__listCalls++
         if (dir === '/') return [file('a.txt'), file('b.md'), file('c.png')]
         return []
       },
@@ -52,7 +53,14 @@ async function setup(page: Page, viewMode: 'list' | 'grid' = 'list') {
           sourcePaths: params.sourcePaths || [], progress: { itemResults: [] }
         }
       },
-      onFileOperationUpdated: () => () => undefined,
+      // 多订阅者语义（fileOpsStore 与 FilePane 都订阅；单槽 mock 会互相覆盖，
+      // 同 watch-autorefresh.spec 的 __watchListeners 先例）
+      onFileOperationUpdated: (cb: any) => {
+        ;(window as any).__opUpdateListeners = ((window as any).__opUpdateListeners ?? []).concat([cb])
+        return () => {
+          ;(window as any).__opUpdateListeners = ((window as any).__opUpdateListeners ?? []).filter((x: unknown) => x !== cb)
+        }
+      },
       canTransferBetween: async () => true,
       volumes: { list: async () => [], onChanged: () => () => undefined },
       thumbnail: { get: async () => '', clearCache: async () => {}, getCacheSize: async () => 0 }
@@ -65,6 +73,10 @@ async function setup(page: Page, viewMode: 'list' | 'grid' = 'list') {
       }
     })
     ;(window as any).__fileOps = operations
+    ;(window as any).__listCalls = 0
+    ;(window as any).__emitOpUpdate = (task: any) => {
+      for (const cb of (window as any).__opUpdateListeners ?? []) cb(task)
+    }
     localStorage.setItem('fileman-tabs-state', JSON.stringify({
       tabs: [{
         id: 't1', title: '本机',
@@ -151,4 +163,30 @@ test('grid view: centered editor inside the icon cell', async ({ page }) => {
   expect(await input.evaluate(el => getComputedStyle(el).textAlign)).toBe('center')
   // 单行输入（原 line-clamp-2 标签换 nowrap 输入框）
   expect(await input.evaluate(el => getComputedStyle(el).webkitLineClamp || 'none')).toBe('none')
+})
+
+test('rename completion reloads in place — no remount, no spinner flash', async ({ page }) => {
+  await setup(page)
+  const input = await startEditing(page)
+  await input.fill('renamed.txt')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => page.evaluate(() => (window as any).__fileOps.length)).toBe(1)
+
+  // 标记当前滚动容器：directoryLoadKey++ 的整挂刷新会重建 DOM 丢标记；
+  // 静默重载不重挂、不亮 spinner（闪一下回归项）
+  await page.evaluate(() => {
+    (document.querySelector('.vue-recycle-scroller') as HTMLElement).dataset.probe = 'survivor'
+  })
+  const callsBefore = await page.evaluate(() => (window as any).__listCalls)
+
+  await page.evaluate(task => (window as any).__emitOpUpdate(task), {
+    id: 't1', type: 'rename', status: 'completed', sourceDeviceId: 'local',
+    sourcePaths: ['/a.txt'], progress: { itemResults: [] }
+  })
+
+  // 重载确实发生（listFiles 再拉取）……
+  await expect.poll(() => page.evaluate(() => (window as any).__listCalls)).toBeGreaterThan(callsBefore)
+  // ……且滚动容器仍是同一个 DOM 节点（未重挂），列表内容保持可见
+  expect(await page.evaluate(() => document.querySelector('.vue-recycle-scroller')?.dataset.probe)).toBe('survivor')
+  await expect(page.locator('.file-item', { hasText: 'a.txt' }).first()).toBeVisible()
 })
