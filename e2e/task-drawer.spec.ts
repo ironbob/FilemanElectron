@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 // 1. titlebar 按钮开关抽屉、默认宽 340、选中态
 // 2. Badge 三态：进度环 / 数字 / 失败红数字
 // 3. 首次失败自动展开一次；再次失败仅红 Badge（会话旗标）
-// 4. 运行行副行（% + 速度）与取消
+// 4. 运行行副行（% + 速度）与取消；取消不做乐观删除；重新执行不产生幽灵行
 // 5. 完成迁移历史 + toast「已复制 1 个项目」+ 4s 淡出
 // 6. toast 撤销：同设备 move 反向 move / 远程 recycle restore
 // 7. toast「显示」→ 打开抽屉定位历史
@@ -108,8 +108,15 @@ test.beforeEach(async ({ page }) => {
       },
       retryFileOperation: async (taskId: string) => {
         retries.push(taskId)
+        const source = store.history.find((t: any) => t.id === taskId)
         store.history = store.history.filter((t: any) => t.id !== taskId)
-        return null
+        if (!source) return null
+        // 与主进程一致：重试生成新任务，既推 added 又作为 invoke 返回值（渲染层双到达）
+        const retried = { ...source, id: `r${retries.length}`, status: 'pending', completedAt: undefined, error: undefined, progress: { ...source.progress, itemResults: [] } }
+        const copy = () => JSON.parse(JSON.stringify(retried))
+        store.queue.push(copy())
+        listeners.added.forEach(cb => cb(copy()))
+        return copy()
       },
       clearFileOperationHistory: async () => {
         historyCleared += 1
@@ -236,6 +243,44 @@ test('运行行显示进度与速度副行，取消调用 cancelFileOperation', 
   await page.locator('[data-testid="task-cancel"]').first().click()
   const cancels = await page.evaluate(() => (window as any).__cancels)
   expect(cancels).toContain('t1')
+})
+
+test('取消不做乐观删除：行保留到主进程推 cancelled 后迁入历史，带取消标记与「重新执行」', async ({ page }) => {
+  await pushTask(page, mkTask())
+  await page.locator(TITLEBAR_BTN).click()
+  await page.locator('[data-testid="task-cancel"]').first().click()
+  // 点击后行仍在进行中（等主进程确认取消），不会凭空消失
+  await expect(page.locator('[data-testid="task-cancel"]').first()).toBeVisible()
+
+  await updateTask(page, mkTask({ status: 'cancelled', completedAt: Date.now() }))
+  await expect(page.locator('[data-testid="task-cancel"]')).toHaveCount(0)
+  await page.locator('[data-testid="task-tab-history"]').click()
+  // 取消的任务无 itemResults，句式按数量成句（不含文件名）
+  const row = page.locator(DRAWER).getByRole('button', { name: /已取消复制 1 个项目/ })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('已取消 · 已传输 620 B')
+  await expect(page.locator(DRAWER).locator('.task-row-mark.is-cancelled').first()).toBeVisible()
+
+  await page.locator('[data-testid="task-reexecute"]').first().click({ force: true })
+  expect(await page.evaluate(() => (window as any).__retries)).toEqual(['t1'])
+})
+
+test('重新执行：added 推送与 invoke 返回双到达只留一行，终态后「进行中」清空无幽灵行', async ({ page }) => {
+  await pushTask(page, mkTask())
+  await updateTask(page, mkTask({ status: 'cancelled', completedAt: Date.now() }))
+  // mock 侧重试从主进程历史里取源任务
+  await page.evaluate(t => { (window as any).__taskStore.history.push(t) }, mkTask({ status: 'cancelled' }))
+  await page.locator(TITLEBAR_BTN).click()
+  await page.locator('[data-testid="task-tab-history"]').click()
+  await page.locator('[data-testid="task-reexecute"]').first().click({ force: true })
+
+  await updateTask(page, mkTask({ id: 'r1', status: 'running' }))
+  await page.locator('[data-testid="task-tab-active"]').click()
+  await expect(page.locator('[data-testid="task-cancel"]')).toHaveCount(1)
+
+  await updateTask(page, mkTask({ id: 'r1', status: 'cancelled', completedAt: Date.now() }))
+  await expect(page.locator('[data-testid="task-cancel"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="task-tab-active"]')).toHaveText('进行中')
 })
 
 // ── 5. 完成 → 历史 + toast ──────────────────────────────────────

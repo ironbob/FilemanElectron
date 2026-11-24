@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { ConflictStrategy, FileOperationTask } from '@/types/fileOperation'
-import type { ImageConvertSpec } from '@shared/types'
+import type { ImageConvertSpec, VideoConvertSpec } from '@shared/types'
 import { computeGlobalProgress, groupHistoryByDate } from '@/utils/taskMetrics'
 import { taskVerbKey, dirname } from '@/utils/taskDisplay'
 
@@ -139,7 +139,13 @@ export const useFileOperationsStore = defineStore('fileOperations', {
         // 新任务入队：接管抽屉归属（取消待收起计时，视作用户在场）
         cancelAutoCloseTimer()
         this.autoOpenedBySystem = false
-        this.tasks.push(task)
+        // 重试任务的 added 推送与 retryTask 的本地入列会双到达，按 id 去重防同 id 双行
+        const index = this.tasks.findIndex(t => t.id === task.id)
+        if (index > -1) {
+          this.tasks[index] = task
+        } else {
+          this.tasks.push(task)
+        }
         this.updateActiveTaskCount()
       })
 
@@ -322,6 +328,15 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       return window.fileman.createImageConvert(deviceId, [...sourcePaths], { ...convert })
     },
 
+    /** 视频转换（仅本地；spec 必须是普通对象——Proxy 不能跨 IPC）。 */
+    async createVideoConvertTask(
+      deviceId: string,
+      sourcePaths: string[],
+      videoConvert: VideoConvertSpec
+    ): Promise<FileOperationTask> {
+      return window.fileman.createVideoConvert(deviceId, [...sourcePaths], { ...videoConvert })
+    },
+
     async createMkdirTask(
       deviceId: string,
       path: string
@@ -347,12 +362,9 @@ export const useFileOperationsStore = defineStore('fileOperations', {
     },
 
     cancelTask(taskId: string): void {
+      // 不做乐观删除：主进程对进行中 / 排队中的任务都会推 cancelled，由
+      // onFileOperationUpdated 迁入历史——先删会让该推送找不到行而丢失「已取消」态
       window.fileman.cancelFileOperation(taskId)
-      const index = this.tasks.findIndex(t => t.id === taskId)
-      if (index > -1) {
-        this.tasks.splice(index, 1)
-      }
-      this.updateActiveTaskCount()
     },
 
     /** 取消全部进行中/排队任务（UI 侧已做二次确认）。 */
@@ -367,8 +379,10 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       if (task) {
         // Remove from history
         this.history = this.history.filter(t => t.id !== taskId)
-        // Add new task
-        this.tasks.push(task)
+        // 主进程同时会推 added；若已先行入列则不再追加
+        if (!this.tasks.some(t => t.id === task.id)) {
+          this.tasks.push(task)
+        }
         this.updateActiveTaskCount()
       }
       return task
