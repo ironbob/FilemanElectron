@@ -11,7 +11,7 @@ import { t } from '../../i18n'
  */
 
 /** 输出格式 → 扩展名（不带点，小写）。keep 由调用方先解析成具体格式。 */
-export function extensionForFormat(format: 'jpeg' | 'webp' | 'png'): string {
+export function extensionForFormat(format: 'jpeg' | 'webp' | 'png' | 'mp4'): string {
   return format === 'jpeg' ? 'jpg' : format
 }
 
@@ -19,7 +19,7 @@ export interface ResolveOutputPathOptions {
   sourcePath: string
   mode: 'overwrite' | 'copy'
   /** 解析后的具体输出格式（'keep' 已在上游映射）。 */
-  format: 'jpeg' | 'webp' | 'png'
+  format: 'jpeg' | 'webp' | 'png' | 'mp4'
   /** copy 模式后缀，默认 '_edited'。 */
   suffix?: string
   /** copy 模式完整文件名（不含扩展名）；设置后忽略 suffix。 */

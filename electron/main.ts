@@ -24,11 +24,12 @@ import { WatchService } from './src/services/WatchService'
 import { GitStatusService } from './src/services/GitStatusService'
 import { ChecksumService } from './src/services/ChecksumService'
 import { ImageEditService } from './src/services/ImageEditService'
+import { VideoConvertService } from './src/services/VideoConvertService'
 import { DuplicateFinderService } from './src/services/DuplicateFinderService'
 import { GrepService } from './src/services/GrepService'
 import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
-import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ImageConvertSpec, XattrEntry, ClipboardProbe, ClipboardData } from '@shared/types'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ImageConvertSpec, VideoConvertSpec, XattrEntry, ClipboardProbe, ClipboardData } from '@shared/types'
 import { CH } from './src/ipc/channels'
 import { setMainLocale, t } from './src/i18n'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
@@ -57,6 +58,7 @@ const fileOperationManager = new FileOperationManager()
 const thumbnailService = new ThumbnailService()
 const imageDecodeService = new ImageDecodeService(deviceManager)
 const imageEditService = new ImageEditService(imageDecodeService)
+const videoConvertService = new VideoConvertService()
 const zipService = new ZipService()
 const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
 const hostShellService = new HostShellService()
@@ -67,6 +69,9 @@ fileOperationManager.setArchiveService(archiveService)
 const sevenZipService = new SevenZipService()
 fileOperationManager.setSevenZipService(sevenZipService)
 fileOperationManager.setImageEditService(imageEditService)
+fileOperationManager.setVideoConvertService(videoConvertService)
+// 退出时终止在跑的 ffmpeg（否则孤儿进程会继续转码数分钟并残留 .tmp）
+app.on('before-quit', () => videoConvertService.dispose())
 const xattrService = new XattrService()
 const mobileScreenshotService = new MobileScreenshotService(deviceManager)
 const contentVerificationService = new ContentVerificationService(deviceManager)
@@ -780,6 +785,16 @@ ipcMain.handle(CH.invoke.imageConvert, (_, deviceId: string, sourcePaths: string
     sourceDeviceId: deviceId,
     sourcePaths,
     convert
+  })
+)
+
+// 视频转换走任务队列（引擎 = VideoConvertService；仅本地，主进程侧再校验兜底）。
+ipcMain.handle(CH.invoke.videoConvert, (_, deviceId: string, sourcePaths: string[], videoConvert: VideoConvertSpec) =>
+  fileOperationManager.addTask({
+    type: 'video-convert',
+    sourceDeviceId: deviceId,
+    sourcePaths,
+    videoConvert
   })
 )
 

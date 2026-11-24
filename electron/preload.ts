@@ -42,6 +42,7 @@ import type {
   ImageEditBatchRequest,
   ImageEditBatchProgress,
   ImageConvertSpec,
+  VideoConvertSpec,
   XattrEntry,
   ClipboardProbe,
   ClipboardData,
@@ -324,6 +325,9 @@ const filemanAPI = {
     ipcRenderer.invoke(CH.invoke.archiveToolInfo),
   createImageConvert: (deviceId: string, sourcePaths: string[], convert: ImageConvertSpec): Promise<FileOperationTask> =>
     ipcRenderer.invoke(CH.invoke.imageConvert, deviceId, sourcePaths, convert),
+  /** 视频转换（video-convert 任务，仅本地；引擎 = VideoConvertService）。 */
+  createVideoConvert: (deviceId: string, sourcePaths: string[], videoConvert: VideoConvertSpec): Promise<FileOperationTask> =>
+    ipcRenderer.invoke(CH.invoke.videoConvert, deviceId, sourcePaths, videoConvert),
   captureMobileScreenshot: (deviceId: string, targetDirectory: string) =>
     ipcRenderer.invoke(CH.invoke.mobileCaptureScreenshot, deviceId, targetDirectory),
   // 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。

@@ -4,7 +4,9 @@ import { StreamTransfer, CancelledError } from './StreamTransfer'
 import { ArchiveService } from './ArchiveService'
 import type { SevenZipService } from './SevenZipService'
 import type { ImageEditService } from './ImageEditService'
-import type { ImageConvertSpec } from '@shared/types'
+import type { VideoConvertService } from './VideoConvertService'
+import type { ImageConvertSpec, VideoConvertSpec } from '@shared/types'
+import { toTaskBytes } from './support/videoConvert'
 import { CH } from '../ipc/channels'
 import { t } from '../i18n'
 const log = console
@@ -25,7 +27,7 @@ const log = console
  */
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert' | 'video-convert'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -58,6 +60,7 @@ export interface FileOperationTask {
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
+  videoConvert?: VideoConvertSpec
   /** archive 任务：输出格式（zip 流式 fflate / 7z 走捆绑 7zz，仅本地）。 */
   format?: 'zip' | '7z'
   /** 7z 加密口令（连同文件名加密 -mhe=on）。 */
@@ -81,6 +84,7 @@ export interface CreateTaskParams {
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
+  videoConvert?: VideoConvertSpec
   format?: 'zip' | '7z'
   password?: string
 }
@@ -115,6 +119,7 @@ class TransferTask implements FileOperationTask {
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
+  videoConvert?: VideoConvertSpec
   format?: 'zip' | '7z'
   password?: string
 
@@ -130,6 +135,7 @@ class TransferTask implements FileOperationTask {
     this.renameItems = params.renameItems
     this.restoreItems = params.restoreItems
     this.convert = params.convert
+    this.videoConvert = params.videoConvert
     this.format = params.format
     this.password = params.password
     this.status = 'pending'
@@ -204,6 +210,10 @@ export class FileOperationManager {
   private sevenZipService: SevenZipService | null = null
   /** 图片转换执行器（组合根注入；image-convert 任务的编解码逻辑在 ImageEditService）。 */
   private imageEditService: ImageEditService | null = null
+  /** 视频转换执行器（组合根注入；video-convert 任务的 ffmpeg 转码在 VideoConvertService）。 */
+  private videoConvertService: VideoConvertService | null = null
+  /** 当前任务的中止信号：cancel() 之外把取消即时送到子进程执行器（kill ffmpeg）。 */
+  private cancelController: AbortController = new AbortController()
 
   registerAdapter(deviceId: string, adapter: IFileSystemAdapter): void {
     this.adapters.set(deviceId, adapter)
@@ -227,6 +237,10 @@ export class FileOperationManager {
 
   setImageEditService(imageEditService: ImageEditService): void {
     this.imageEditService = imageEditService
+  }
+
+  setVideoConvertService(videoConvertService: VideoConvertService): void {
+    this.videoConvertService = videoConvertService
   }
 
   private notifyTaskUpdate(task: TransferTask): void {
@@ -285,6 +299,7 @@ export class FileOperationManager {
     task.markRunning()
     this.notifyTaskUpdate(task)
     this.cancelled = false
+    this.cancelController = new AbortController()
 
     try {
       switch (task.type) {
@@ -320,6 +335,9 @@ export class FileOperationManager {
           break
         case 'image-convert':
           await this.executeImageConvert(task)
+          break
+        case 'video-convert':
+          await this.executeVideoConvert(task)
           break
       }
 
@@ -822,6 +840,69 @@ export class FileOperationManager {
     }
   }
 
+  // ============ 视频转换 ============
+
+  /**
+   * video-convert 任务：本地视频逐个转 MP4（H.264 + AAC + faststart）。引擎 =
+   * VideoConvertService（ffmpeg-static + 目标目录内临时文件原子落盘）。
+   * 进度按源文件字节加权：ffmpeg out_time / 时长 → 当前文件比例，换算成
+   * 「已完成文件字节 + 当前文件字节 × 比例」的任务字节进度，抽屉进度条连续推进；
+   * 单项失败记录后继续；取消经 cancelController 即时 kill ffmpeg 后 return。
+   */
+  private async executeVideoConvert(task: TransferTask): Promise<void> {
+    if (!this.videoConvertService) throw new Error('VideoConvertService not configured')
+    if (task.sourceDeviceId !== 'local') throw new Error(t('errors.main.videoConvertLocalOnly'))
+    const spec = task.videoConvert
+    if (!spec) throw new Error('Invalid video-convert parameters')
+
+    const local = this.adapters.get('local')
+    const sizes = await Promise.all(task.sourcePaths.map(async sourcePath => {
+      try {
+        return (await local?.stat(sourcePath))?.size ?? 0
+      } catch {
+        return 0
+      }
+    }))
+    task.setTotals(sizes.reduce((sum, size) => sum + size, 0), task.sourcePaths.length)
+
+    let doneBytes = 0
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      if (this.cancelled) return
+      const sourcePath = task.sourcePaths[index]
+      task.setCurrentFile(posixBaseName(sourcePath), index)
+      this.notifyTaskUpdate(task)
+
+      const fileStart = doneBytes
+      let lastTaskBytes = fileStart
+      const onProgress = (fraction: number) => {
+        const current = toTaskBytes(fileStart, sizes[index], fraction)
+        if (current <= lastTaskBytes) return
+        task.addBytes(current - lastTaskBytes)
+        lastTaskBytes = current
+        this.updateSpeed(task, 0, task.startedAt ?? task.createdAt)
+        this.notifyProgress(task)
+      }
+
+      const result: FileOperationItemResult = { sourcePath, status: 'success' }
+      try {
+        const applied = await this.videoConvertService.convert(sourcePath, spec, {
+          onProgress,
+          signal: this.cancelController.signal
+        })
+        onProgress(1)
+        result.targetPath = applied.writtenPath
+        result.bytesProcessed = applied.bytes
+      } catch (error) {
+        if (this.cancelled) return
+        result.status = 'failed'
+        result.error = error instanceof Error ? error.message : String(error)
+      }
+      doneBytes += sizes[index]
+      task.recordItem(result)
+      this.notifyTaskUpdate(task)
+    }
+  }
+
   /** Local uses the platform trash; remote/mobile adapters use a same-parent hidden bin. */
   private async executeRecycle(task: TransferTask): Promise<void> {
     const adapter = this.adapters.get(task.sourceDeviceId)
@@ -930,6 +1011,7 @@ export class FileOperationManager {
   cancelTask(taskId: string): void {
     if (this.currentTask?.id === taskId) {
       this.cancelled = true
+      this.cancelController.abort()
     } else {
       const queuedTask = this.queue.find(t => t.id === taskId)
       this.queue = this.queue.filter(t => t.id !== taskId)
@@ -962,6 +1044,7 @@ export class FileOperationManager {
       renameItems: historyTask.renameItems,
       restoreItems: historyTask.restoreItems,
       convert: historyTask.convert,
+      videoConvert: historyTask.videoConvert,
       format: historyTask.format,
       password: historyTask.password
     })

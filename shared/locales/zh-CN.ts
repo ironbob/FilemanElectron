@@ -328,6 +328,7 @@ const zhCN = {
       openAsHex: '以十六进制查看',
       batchRename: '批量重命名…',
       imageConvert: '转换为…',
+      videoConvert: '转换为 MP4…',
       archiveItem: '压缩“{name}”',
       archiveMulti: '压缩 {count} 个项目',
       compressZip: '压缩为 ZIP',
@@ -408,6 +409,26 @@ const zhCN = {
       choose: '选取…',
       cancel: '取消',
       confirm: '转换 {count} 张'
+    },
+    videoConvert: {
+      title: '转换视频',
+      subtitle: '转为 MP4（H.264），兼容微信与 Windows。共 {count} 个视频，{size}。',
+      quality: '质量',
+      quality_high: '高',
+      quality_standard: '标准',
+      quality_small: '小体积',
+      resolution: '分辨率',
+      resolution_keep: '保持',
+      resolution_1080p: '1080p',
+      resolution_720p: '720p',
+      suffix: '后缀',
+      suffixPlaceholder: '例如 _mp4',
+      outputDir: '位置',
+      sameFolder: '原视频所在文件夹',
+      choose: '选取…',
+      note: '存为副本，原视频不会被修改；重名时自动递增序号。',
+      cancel: '取消',
+      confirm: '转换 {count} 个'
     },
     archive7z: {
       title: '压缩为 7Z',
@@ -886,7 +907,8 @@ const zhCN = {
       recycle: '移入废纸篓',
       restore: '恢复',
       archive: '压缩',
-      imageConvert: '转换图片'
+      imageConvert: '转换图片',
+      videoConvert: '转换视频'
     },
     /** 冲突重命名后缀词（Finder 副本命名：a.txt → a 副本.txt → a 副本 2.txt）。 */
     duplicateWord: '副本',
@@ -1565,6 +1587,9 @@ const zhCN = {
       imageEditInvalidName: '文件名「{name}」非法：不能为空，也不能包含 / 或 \\',
       imageEditTargetDirMissing: '目标文件夹不存在或不可用：{dir}',
       imageConvertLocalOnly: '图片批量转换仅支持本机设备',
+      videoConvertLocalOnly: '视频转换仅支持本机设备',
+      videoConvertUnavailable: 'ffmpeg 不可用（未捆绑或当前平台不支持）',
+      videoConvertFailed: '视频转码失败（退出码 {code}）：{detail}',
       xattrLocalOnly: '扩展属性仅支持本机设备',
       xattrZipEntryUnsupported: 'ZIP 内条目不支持扩展属性',
       xattrFailed: 'xattr 操作失败：{detail}',

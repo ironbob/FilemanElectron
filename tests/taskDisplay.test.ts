@@ -48,6 +48,8 @@ function mkTask(type: FileOperationType, over: Partial<FileOperationTask> = {}):
 assert.equal(taskVerbKey('copy'), 'tasks.verb.copy')
 assert.equal(taskVerbKey('batch-rename'), 'tasks.verb.batchRename')
 assert.equal(taskVerbKey('recycle'), 'tasks.verb.recycle')
+assert.equal(taskVerbKey('image-convert'), 'tasks.verb.imageConvert')
+assert.equal(taskVerbKey('video-convert'), 'tasks.verb.videoConvert')
 
 assert.equal(taskIconGroup('copy'), 'transfer')
 assert.equal(taskIconGroup('move'), 'transfer')
@@ -58,6 +60,8 @@ assert.equal(taskIconGroup('rename'), 'create')
 assert.equal(taskIconGroup('batch-rename'), 'create')
 assert.equal(taskIconGroup('mkdir'), 'create')
 assert.equal(taskIconGroup('touch'), 'create')
+assert.equal(taskIconGroup('image-convert'), 'create')
+assert.equal(taskIconGroup('video-convert'), 'create')
 
 // ============ actionSentenceParts ============
 
@@ -142,5 +146,21 @@ assert.deepEqual(pathSummary(mkTask('copy', { sourcePaths: ['/a.txt'], targetPat
   source: 'a.txt',
   target: 'wtb'
 })
+
+// image-convert / video-convert：默认副本与源同目录，不显示目标侧；自定义输出目录才显示
+const VOLUME_CONVERT_CASES: [FileOperationType, 'convert' | 'videoConvert'][] = [
+  ['image-convert', 'convert'],
+  ['video-convert', 'videoConvert']
+]
+for (const [type, specKey] of VOLUME_CONVERT_CASES) {
+  const spec = specKey === 'convert'
+    ? { format: 'jpeg' as const, mode: 'copy' as const }
+    : { format: 'mp4' as const, quality: 'standard' as const, resolution: 'keep' as const }
+  assert.deepEqual(pathSummary(mkTask(type, { [specKey]: spec }), VOLUMES, {}), { source: 'Downloads', target: null })
+  assert.deepEqual(
+    pathSummary(mkTask(type, { [specKey]: { ...spec, dir: '/Volumes/Backup/Converts' } }), VOLUMES, {}),
+    { source: 'Downloads', target: 'Backup' }
+  )
+}
 
 console.log('[taskDisplay] all assertions passed ✓')

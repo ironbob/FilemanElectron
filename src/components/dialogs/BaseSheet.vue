@@ -15,7 +15,7 @@ const props = withDefaults(
   defineProps<{
     title: string
     subtitle?: string
-    /** 内置线性字形键（doc/folder/trash/network/gear/shield/image/info/link/archive/edit/copy）。 */
+    /** 内置线性字形键（doc/folder/trash/network/gear/shield/image/video/info/link/archive/edit/copy）。 */
     glyph?: string
     /** 芯片主体色（CSS 颜色，默认系统蓝）。 */
     tone?: string
@@ -64,6 +64,7 @@ const GLYPHS: Record<string, string> = {
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
   shield: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-7 7"/>',
+  video: '<path d="M22 8l-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.1"/>',
   link: '<path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1"/><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/>',
   archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8"/><path d="M10 12h4"/>',

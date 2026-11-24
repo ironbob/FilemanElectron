@@ -140,6 +140,7 @@ export const CH = {
     imageEditBatchStart: 'image:editBatchStart',
     imageEditBatchCancel: 'image:editBatchCancel',
     imageConvert: 'image:convert',
+    videoConvert: 'video:convert',
     // volumes:
     volumesList: 'volumes:list',
     volumesEject: 'volumes:eject',

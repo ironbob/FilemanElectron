@@ -322,6 +322,7 @@ const enUS: MessageSchema = {
       openAsHex: 'View as Hex',
       batchRename: 'Batch Rename…',
       imageConvert: 'Convert To…',
+      videoConvert: 'Convert to MP4…',
       archiveItem: 'Compress “{name}”',
       archiveMulti: 'Compress {count} Items',
       compressZip: 'Compress to ZIP',
@@ -402,6 +403,26 @@ const enUS: MessageSchema = {
       choose: 'Choose…',
       cancel: 'Cancel',
       confirm: 'Convert {count} image | Convert {count} images'
+    },
+    videoConvert: {
+      title: 'Convert Videos',
+      subtitle: 'Convert to MP4 (H.264) for WeChat and Windows. {count} video, {size} in total. | Convert to MP4 (H.264) for WeChat and Windows. {count} videos, {size} in total.',
+      quality: 'Quality',
+      quality_high: 'High',
+      quality_standard: 'Standard',
+      quality_small: 'Small',
+      resolution: 'Resolution',
+      resolution_keep: 'Keep',
+      resolution_1080p: '1080p',
+      resolution_720p: '720p',
+      suffix: 'Suffix',
+      suffixPlaceholder: 'e.g. _mp4',
+      outputDir: 'Location',
+      sameFolder: 'Same folder as the originals',
+      choose: 'Choose…',
+      note: 'Saves as a copy; the original videos are never modified. Colliding names get an incrementing number.',
+      cancel: 'Cancel',
+      confirm: 'Convert {count} video | Convert {count} videos'
     },
     archive7z: {
       title: 'Compress to 7Z',
@@ -875,7 +896,8 @@ const enUS: MessageSchema = {
       recycle: 'Moving to Trash',
       restore: 'Restoring',
       archive: 'Compressing',
-      imageConvert: 'Converting Images'
+      imageConvert: 'Converting Images',
+      videoConvert: 'Converting Videos'
     },
     /** Conflict-rename suffix word (Finder duplicate naming: a.txt → a copy.txt → a copy 2.txt). */
     duplicateWord: 'copy',
@@ -1549,6 +1571,9 @@ const enUS: MessageSchema = {
       imageEditInvalidName: 'File name "{name}" is invalid: it cannot be empty or contain / or \\',
       imageEditTargetDirMissing: 'Target folder is missing or unavailable: {dir}',
       imageConvertLocalOnly: 'Batch image conversion is only available on this Mac',
+      videoConvertLocalOnly: 'Video conversion is only available on this Mac',
+      videoConvertUnavailable: 'ffmpeg is unavailable (not bundled or unsupported on this platform)',
+      videoConvertFailed: 'Video transcoding failed (exit code {code}): {detail}',
       xattrLocalOnly: 'Extended attributes are only available on this Mac',
       xattrZipEntryUnsupported: 'Extended attributes are not supported inside ZIP entries',
       xattrFailed: 'xattr operation failed: {detail}',

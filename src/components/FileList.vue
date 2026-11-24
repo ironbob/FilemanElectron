@@ -394,7 +394,7 @@ import {
   resolveDropAction
 } from '@/utils/dragTransfer'
 import { showDropHint, hideDropHint, type DropHintAction } from '@/utils/dropHint'
-import { extensionCategories, extensionIconMap, isThumbnailable } from '@/utils/fileTypes'
+import { extensionCategories, extensionIconMap, isThumbnailable, isVideoFile } from '@/utils/fileTypes'
 import { scanFolderImages } from '@/utils/imageCollection'
 import { useTypeaheadLocator } from '@/composables/useTypeaheadLocator'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath } from '@shared/zipPath'
@@ -2583,6 +2583,19 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
         imageInfos.every(f => !f.isDirectory && isEditableImageExt((f.extension ?? '').replace('.', '')))
       ) {
         items.push({ label: t('fileList.menu.imageConvert'), action: 'image-convert', icon: 'convert' })
+      }
+    }
+
+    // 视频转换：仅本地（ffmpeg 直读本地 fs），选中须全为视频（VIDEO_EXTS 派生，.ts/.mts 不会误入）
+    if (props.deviceId === 'local' && !isZipVirtualPath(props.path) && selectedAtMenuOpen.length > 0) {
+      const videoInfos = selectedAtMenuOpen
+        .map(p => files.value.find(f => f.path === p))
+        .filter(Boolean) as FileInfo[]
+      if (
+        videoInfos.length === selectedAtMenuOpen.length &&
+        videoInfos.every(f => !f.isDirectory && isVideoFile(f.extension ?? ''))
+      ) {
+        items.push({ label: t('fileList.menu.videoConvert'), action: 'video-convert', icon: 'convert' })
       }
     }
 

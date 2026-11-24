@@ -214,6 +214,8 @@ interface Window {
     getArchiveToolInfo: () => Promise<{ sevenZip: boolean }>
     /** 图片批量转换（image-convert 任务，仅本地；引擎 = ImageEditService）。 */
     createImageConvert: (deviceId: string, sourcePaths: string[], convert: import('@shared/types').ImageConvertSpec) => Promise<FileOperationTask>
+    /** 视频转换（video-convert 任务，仅本地；引擎 = VideoConvertService）。 */
+    createVideoConvert: (deviceId: string, sourcePaths: string[], videoConvert: import('@shared/types').VideoConvertSpec) => Promise<FileOperationTask>
     captureMobileScreenshot: (deviceId: string, targetDirectory: string) => Promise<{ path: string }>
     /** 截屏到内存(先展示、后保存):返回 base64 + mime,不落盘。 */
     captureMobileScreen: (deviceId: string) => Promise<{ base64: string; mime: 'image/png' | 'image/jpeg' }>

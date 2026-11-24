@@ -416,6 +416,12 @@
       @close="imageConvertDialog.visible = false"
       @confirm="confirmImageConvert"
     />
+    <VideoConvertDialog
+      v-if="videoConvertDialog.visible"
+      :files="videoConvertDialog.files"
+      @close="videoConvertDialog.visible = false"
+      @confirm="confirmVideoConvert"
+    />
     <Archive7zDialog
       v-if="archive7zDialog.visible"
       :default-name="archive7zDialog.defaultName"
@@ -480,6 +486,7 @@ import RenameDialog from './dialogs/RenameDialog.vue'
 import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import ChecksumDialog from './dialogs/ChecksumDialog.vue'
 import ImageConvertDialog from './dialogs/ImageConvertDialog.vue'
+import VideoConvertDialog from './dialogs/VideoConvertDialog.vue'
 import Archive7zDialog from './dialogs/Archive7zDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
 import CreateItemSheet from './dialogs/CreateItemSheet.vue'
@@ -491,7 +498,7 @@ import { useClipboardContentStore } from '@/stores/clipboardContent'
 import { t } from '@/i18n'
 import { isZipVirtualPath, parseZipVirtualPath, joinZipPath, zipBreadcrumbSegments } from '@shared/zipPath'
 import type { FileInfo } from '@/types'
-import type { ChecksumAlgo, ChecksumItem, ImageConvertSpec } from '@shared/types'
+import type { ChecksumAlgo, ChecksumItem, ImageConvertSpec, VideoConvertSpec } from '@shared/types'
 import type { BatchRenameItem } from '@/types/fileBrowser'
 import type { FileOperationTask } from '@/types/fileOperation'
 
@@ -684,6 +691,7 @@ const renameDialog = reactive({
 })
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 const imageConvertDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
+const videoConvertDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean; size?: number }> }>({ visible: false, files: [] })
 const archive7zDialog = reactive<{ visible: boolean; defaultName: string }>({ visible: false, defaultName: 'Archive' })
 /** 7Z 对话框打开瞬间的选中快照（confirm 时使用，避免弹窗期间选择变化）。 */
 let lastArchive7zFiles: string[] = []
@@ -1929,6 +1937,12 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         .filter((file): file is FileInfo => !!file)
       imageConvertDialog.visible = imageConvertDialog.files.length > 0
       break
+    case 'video-convert':
+      videoConvertDialog.files = op.files
+        .map(path => loadedFiles.value.find(file => file.path === path))
+        .filter((file): file is FileInfo => !!file)
+      videoConvertDialog.visible = videoConvertDialog.files.length > 0
+      break
     case 'new-symlink':
       symlinkDialog.visible = true
       break
@@ -2059,6 +2073,21 @@ async function confirmImageConvert(spec: ImageConvertSpec) {
     trackDirectoryRefresh(task)
   } catch (error) {
     log.error('[FilePane] image convert task failed to queue', { error })
+  }
+}
+
+async function confirmVideoConvert(spec: VideoConvertSpec) {
+  const deviceId = pane.value?.deviceId || 'local'
+  try {
+    const task = await fileOpsStore.createVideoConvertTask(
+      deviceId,
+      videoConvertDialog.files.map(file => file.path),
+      spec
+    )
+    videoConvertDialog.visible = false
+    trackDirectoryRefresh(task)
+  } catch (error) {
+    log.error('[FilePane] video convert task failed to queue', { error })
   }
 }
 

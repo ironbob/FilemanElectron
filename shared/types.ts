@@ -197,7 +197,7 @@ export interface MediaInfoSummary {
 // ============ File Operation Types ============
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert' | 'video-convert'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -230,6 +230,7 @@ export interface FileOperationTask {
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
+  videoConvert?: VideoConvertSpec
   /** archive 任务：输出格式（zip 流式 fflate / 7z 走捆绑 7zz，仅本地）。 */
   format?: 'zip' | '7z'
   /** 7z 加密口令（连同文件名加密 -mhe=on）。 */
@@ -253,6 +254,7 @@ export interface CreateTaskParams {
   renameItems?: Array<{ sourcePath: string; newName: string }>
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
+  videoConvert?: VideoConvertSpec
   format?: 'zip' | '7z'
   password?: string
 }
@@ -597,6 +599,23 @@ export interface ImageConvertSpec {
   /** copy 模式输出目录（绝对路径；缺省 = 原图所在目录） */
   dir?: string
   /** copy 模式文件名后缀 */
+  suffix?: string
+}
+
+/**
+ * 视频转换任务参数（video-convert 任务；引擎 = VideoConvertService 的
+ * ffmpeg-static libx264 转码 + 目标目录内临时文件原子落盘）。仅本地设备。
+ */
+export interface VideoConvertSpec {
+  /** 输出容器（P0 仅 mp4：H.264 + AAC + faststart，微信 / Windows 通吃）。 */
+  format: 'mp4'
+  /** 质量三档 → libx264 CRF 20 / 23 / 28。 */
+  quality: 'high' | 'standard' | 'small'
+  /** 长边上限：keep 不缩放；1080p / 720p 等比仅缩小不放大。 */
+  resolution: 'keep' | '1080p' | '720p'
+  /** 输出目录（绝对路径；缺省 = 原视频所在目录） */
+  dir?: string
+  /** 文件名后缀（缺省空串：a.mov → a.mp4） */
   suffix?: string
 }
 
