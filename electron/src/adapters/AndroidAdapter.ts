@@ -5,6 +5,7 @@ import type { FileInfo, FileStats, IFileSystemAdapter, SearchQuery } from './typ
 import { ANDROID_CAPABILITIES, type DeviceCapabilities } from './capabilities'
 import { loadOptional } from './optionalDeps'
 import { shellQuote } from './shellQuote'
+import { androidSerialOf, findAndroidDevice } from './androidTarget'
 import { ToolPathResolver } from '../services/ToolPathResolver'
 import { t } from '../i18n'
 
@@ -79,8 +80,10 @@ export class AndroidAdapter implements IFileSystemAdapter {
         throw new Error(t('errors.main.androidNoDevice'))
       }
 
-      const serial = this.config.deviceId ?? devices[0].id
-      const target = devices.find(d => d.id === serial) ?? devices[0]
+      const target = findAndroidDevice(devices, this.config.deviceId)
+      if (!target) {
+        throw new Error(t('errors.main.androidDeviceNotFound', { serial: androidSerialOf(this.config.deviceId ?? '') }))
+      }
 
       // 运行时状态校验:offline / unauthorized 给明确引导。
       if (target.type !== 'device') {

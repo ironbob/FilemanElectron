@@ -1527,6 +1527,7 @@ const enUS: MessageSchema = {
 
       // ── AndroidAdapter ──────────────────────────────────────────────────
       androidNoDevice: 'No Android device detected. Connect a device and enable USB debugging.',
+      androidDeviceNotFound: 'The selected Android device is not connected ({serial}).',
       androidUnauthorized: 'USB debugging is not authorized on the device. Tap "Allow USB debugging" on the phone and try again.',
       androidOffline: 'Device is offline. Unplug and replug the USB cable, then try again.',
       androidUnavailable: 'Device is currently unavailable (status: {status}).',

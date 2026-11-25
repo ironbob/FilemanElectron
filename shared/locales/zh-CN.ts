@@ -1543,6 +1543,7 @@ const zhCN = {
 
       // ── AndroidAdapter ──────────────────────────────────────────────────
       androidNoDevice: '未检测到 Android 设备。请连接设备并开启 USB 调试。',
+      androidDeviceNotFound: '所选 Android 设备未连接({serial})。',
       androidUnauthorized: '设备未授权 USB 调试。请在手机上点击"允许 USB 调试"后重试。',
       androidOffline: '设备离线。请重新插拔数据线后重试。',
       androidUnavailable: '设备当前不可用(状态:{status})。',
