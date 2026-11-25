@@ -329,6 +329,8 @@ const zhCN = {
       batchRename: '批量重命名…',
       imageConvert: '转换为…',
       videoConvert: '转换为 MP4…',
+      apkInstall: '安装到 Android 设备…',
+      apkInstallOnDevice: '安装到此设备…',
       archiveItem: '压缩“{name}”',
       archiveMulti: '压缩 {count} 个项目',
       compressZip: '压缩为 ZIP',
@@ -429,6 +431,21 @@ const zhCN = {
       note: '存为副本，原视频不会被修改；重名时自动递增序号。',
       cancel: '取消',
       confirm: '转换 {count} 个'
+    },
+    apkInstall: {
+      title: '安装应用',
+      subtitle: '{count} 个安装包，{size}',
+      versionWithCode: '版本 {name} ({code})',
+      versionCodeOnly: '版本 {code}',
+      targetLabel: '安装到',
+      unauthorized: '未授权',
+      unauthorizedHint: '请在手机上允许 USB 调试',
+      loading: '正在检测 Android 设备…',
+      noDevices: '未检测到 Android 设备',
+      fixedTarget: '将安装到 {device}',
+      note: '将覆盖已安装的同名应用并保留其数据；原安装包不会被修改。',
+      cancel: '取消',
+      confirm: '安装 | 安装 {count} 个'
     },
     archive7z: {
       title: '压缩为 7Z',
@@ -537,6 +554,15 @@ const zhCN = {
       mediaFocalLength: '焦距',
       videoCodecBitDepth: '{codec}（{bits}-bit）',
       channelsValue: '{count} 声道',
+      apk: '安装包',
+      apkAppName: '应用名称',
+      apkPackage: '包名',
+      apkVersion: '版本',
+      apkMinSdk: '最低 Android 版本',
+      apkTargetSdk: '目标 Android 版本',
+      apkApiLevel: 'Android {name}（API {level}）',
+      apkApiLevelOnly: 'API {level}',
+      apkParseFailed: '无法解析安装包信息',
       dimensionsValue: '{width} × {height}（{mp} MP）'
     },
     device: {
@@ -908,7 +934,8 @@ const zhCN = {
       restore: '恢复',
       archive: '压缩',
       imageConvert: '转换图片',
-      videoConvert: '转换视频'
+      videoConvert: '转换视频',
+      appInstall: '安装应用'
     },
     /** 冲突重命名后缀词（Finder 副本命名：a.txt → a 副本.txt → a 副本 2.txt）。 */
     duplicateWord: '副本',
@@ -1591,6 +1618,20 @@ const zhCN = {
       videoConvertLocalOnly: '视频转换仅支持本机设备',
       videoConvertUnavailable: 'ffmpeg 不可用（未捆绑或当前平台不支持）',
       videoConvertFailed: '视频转码失败（退出码 {code}）：{detail}',
+
+      // ── APK 安装（app-install 任务） ─────────────────────────────────────
+      apkInstallSignatureMismatch: '与已安装版本签名不一致，请先卸载旧版',
+      apkInstallDowngrade: '版本低于已安装版本，不支持降级安装',
+      apkInstallStorage: '设备存储空间不足',
+      apkInstallAbi: '安装包不包含该设备 CPU 架构的库',
+      apkInstallOlderSdk: '设备系统版本过低',
+      apkInstallNewerSdk: '设备系统版本高于安装包支持范围',
+      apkInstallInvalid: '不是有效的 APK 安装包',
+      apkInstallTestOnly: '安装包为测试专用（testOnly），无法安装',
+      apkInstallFailed: '安装失败（{code}）',
+      apkInstallDeviceUnavailable: '目标 Android 设备不可用或已断开',
+      apkInstallCrossDevice: '不支持把一台设备上的安装包装到另一台设备',
+      apkInstallReadFailed: '无法读取安装包：{path}',
       xattrLocalOnly: '扩展属性仅支持本机设备',
       xattrZipEntryUnsupported: 'ZIP 内条目不支持扩展属性',
       xattrFailed: 'xattr 操作失败：{detail}',

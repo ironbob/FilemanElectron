@@ -378,6 +378,7 @@ import { ref, onMounted, watch, computed, reactive, h, type Component, onUnmount
 import type { FileInfo, Column } from '@/types'
 import type { FileSortDescriptor } from '@/types/fileBrowser'
 import type { DeviceCapabilities, InternalFileDragPayload } from '@/types/fileOperation'
+import type { AndroidInstallTarget } from '@shared/types'
 import { useDevicesStore } from '@/stores/devices'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { useTabsStore } from '@/stores/tabs'
@@ -1637,6 +1638,10 @@ function handleDoubleClick(file: FileInfo) {
     }
     // Navigate INTO the ZIP as a virtual filesystem
     emit('navigate', joinZipPath(file.path, ''))
+  } else if (isInstallableApk(file)) {
+    // APK：本机有在线 Android 设备 → 安装 Sheet；无 → 退回「浏览 ZIP」（与右键
+    // 「浏览」同一动作）；Android 设备上的 APK → 装到该设备。插在本地 zip 族之前。
+    void openApkInstall(file)
   } else if (
     props.deviceId === 'local'
     && !isZipVirtualPath(file.path)
@@ -1663,6 +1668,50 @@ function handleDoubleClick(file: FileInfo) {
   } else {
     emit('preview', file)
   }
+}
+
+// ── APK 安装入口（本机 → 选设备安装；Android 设备上 → 直接装到该设备） ──────
+
+/** 可安装的 APK：本机实体文件或 Android 设备上的文件；ZIP 内条目与其它远程设备维持 ZIP 预览（PRD R9）。 */
+function isInstallableApk(file: FileInfo): boolean {
+  if (file.isDirectory || normalizeExt(file.extension ?? '') !== 'apk' || isZipVirtualPath(file.path)) return false
+  const type = devicesStore.devices.find(d => d.id === props.deviceId)?.type
+  return type === 'local' || type === 'android'
+}
+
+/** 菜单打开瞬间的选中集全为可安装 APK（右键「安装…」门控）。 */
+function selectionIsAllApk(): boolean {
+  const selected = contextMenuSelectedFiles.value
+  if (selected.length === 0 || isZipVirtualPath(props.path)) return false
+  const infos = selected.map(p => files.value.find(f => f.path === p)).filter(Boolean) as FileInfo[]
+  return infos.length === selected.length && infos.every(isInstallableApk)
+}
+
+/** 右键门控用：扫描器看到的 Android 设备（含未授权，与安装 Sheet 的目标列表同口径）。 */
+const hasAndroidTargets = computed(() => devicesStore.detectedMobileDevices.some(d => d.type === 'android'))
+
+async function openApkInstall(file: FileInfo) {
+  if (props.deviceId !== 'local') {
+    emit('operation', { action: 'app-install', files: [file.path] })
+    return
+  }
+  let targets: AndroidInstallTarget[] = []
+  try {
+    targets = await window.fileman.apkInstallTargets()
+  } catch (error) {
+    log.warn('[FileList] apk install targets unavailable', error)
+  }
+  if (targets.length === 0) {
+    browseZipInNewTab(file)
+    return
+  }
+  emit('operation', { action: 'app-install', files: [file.path] })
+}
+
+/** 「浏览 ZIP」= 在新标签页进入虚拟目录（右键子菜单与 APK 无设备回退共用）。 */
+function browseZipInNewTab(file: FileInfo) {
+  if (isZipVirtualPath(file.path)) return
+  tabsStore.openPathInNewTab(props.deviceId, joinZipPath(file.path, ''))
 }
 
 // ── 方向键文件导航（Finder 语义） ────────────────────────────────────────────
@@ -2523,8 +2572,16 @@ function buildContextMenuItems(isBackground: boolean): FinderMenuItem[] {
           { label: t('fileList.menu.openAsHex'), action: 'zip-hex', icon: 'hex' },
         ],
       })
+      // 安装到 Android 设备：与「浏览/解压」并列；本机 APK 且存在目标设备（含未授权）时出现
+      if (selectionIsAllApk() && hasAndroidTargets.value) {
+        items.push({ label: t('fileList.menu.apkInstall'), action: 'app-install', icon: 'smartphone' })
+      }
     } else {
       items.push({ label: t('fileList.menu.open'), action: 'open', shortcut: '⌘O', icon: 'open' })
+      // Android 设备上的 APK：直接装到该设备（目标固定）
+      if (props.deviceId !== 'local' && selectionIsAllApk()) {
+        items.push({ label: t('fileList.menu.apkInstallOnDevice'), action: 'app-install', icon: 'smartphone' })
+      }
     }
 
     // 目录：新标签页 / 并列双面板标签页打开
@@ -3171,9 +3228,7 @@ function handleContextMenuAction(action: string) {
   // 树形/hex = 打开对应预览 tab
   if (action === 'zip-browse') {
     const file = contextMenuTargetFile.value
-    if (file && !isZipVirtualPath(file.path)) {
-      tabsStore.openPathInNewTab(props.deviceId, joinZipPath(file.path, ''))
-    }
+    if (file && !file.isDirectory) browseZipInNewTab(file)
     return
   }
   if (action === 'zip-tree-preview' || action === 'zip-hex') {

@@ -5,7 +5,8 @@ import { ArchiveService } from './ArchiveService'
 import type { SevenZipService } from './SevenZipService'
 import type { ImageEditService } from './ImageEditService'
 import type { VideoConvertService } from './VideoConvertService'
-import type { ImageConvertSpec, VideoConvertSpec } from '@shared/types'
+import type { ApkInstallService } from './ApkInstallService'
+import type { AppInstallSpec, ImageConvertSpec, VideoConvertSpec } from '@shared/types'
 import { toTaskBytes } from './support/videoConvert'
 import { CH } from '../ipc/channels'
 import { t } from '../i18n'
@@ -27,7 +28,7 @@ const log = console
  */
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert' | 'video-convert'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert' | 'video-convert' | 'app-install'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -61,6 +62,7 @@ export interface FileOperationTask {
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
   videoConvert?: VideoConvertSpec
+  appInstall?: AppInstallSpec
   /** archive 任务：输出格式（zip 流式 fflate / 7z 走捆绑 7zz，仅本地）。 */
   format?: 'zip' | '7z'
   /** 7z 加密口令（连同文件名加密 -mhe=on）。 */
@@ -85,6 +87,7 @@ export interface CreateTaskParams {
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
   videoConvert?: VideoConvertSpec
+  appInstall?: AppInstallSpec
   format?: 'zip' | '7z'
   password?: string
 }
@@ -120,6 +123,7 @@ class TransferTask implements FileOperationTask {
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
   videoConvert?: VideoConvertSpec
+  appInstall?: AppInstallSpec
   format?: 'zip' | '7z'
   password?: string
 
@@ -136,6 +140,7 @@ class TransferTask implements FileOperationTask {
     this.restoreItems = params.restoreItems
     this.convert = params.convert
     this.videoConvert = params.videoConvert
+    this.appInstall = params.appInstall
     this.format = params.format
     this.password = params.password
     this.status = 'pending'
@@ -212,6 +217,8 @@ export class FileOperationManager {
   private imageEditService: ImageEditService | null = null
   /** 视频转换执行器（组合根注入；video-convert 任务的 ffmpeg 转码在 VideoConvertService）。 */
   private videoConvertService: VideoConvertService | null = null
+  /** APK 安装执行器（组合根注入；app-install 任务的 adb 推送与 pm install 在 ApkInstallService）。 */
+  private apkInstallService: ApkInstallService | null = null
   /** 当前任务的中止信号：cancel() 之外把取消即时送到子进程执行器（kill ffmpeg）。 */
   private cancelController: AbortController = new AbortController()
 
@@ -241,6 +248,10 @@ export class FileOperationManager {
 
   setVideoConvertService(videoConvertService: VideoConvertService): void {
     this.videoConvertService = videoConvertService
+  }
+
+  setApkInstallService(apkInstallService: ApkInstallService): void {
+    this.apkInstallService = apkInstallService
   }
 
   private notifyTaskUpdate(task: TransferTask): void {
@@ -338,6 +349,9 @@ export class FileOperationManager {
           break
         case 'video-convert':
           await this.executeVideoConvert(task)
+          break
+        case 'app-install':
+          await this.executeAppInstall(task)
           break
       }
 
@@ -903,6 +917,80 @@ export class FileOperationManager {
     }
   }
 
+  // ============ 安装应用（APK → Android 设备） ============
+
+  /**
+   * app-install 任务：把 APK 装到用户选定的 Android 设备（引擎 = ApkInstallService，
+   * 目标只认 task.targetDeviceId）。本机 APK 的推送阶段按字节推进进度；设备端
+   * pm install 与手机上的 APK 无字节进度，进度只在完成时跳变。串行逐文件、单项
+   * 失败记录后继续（R6）；取消经 cancelController 终止推送后 return；源 APK 只读（R7）。
+   */
+  private async executeAppInstall(task: TransferTask): Promise<void> {
+    if (!this.apkInstallService) throw new Error('ApkInstallService not configured')
+    if (!task.appInstall || !task.targetDeviceId) throw new Error('Invalid app-install parameters')
+    const source = this.adapters.get(task.sourceDeviceId)
+    if (!source) throw new Error(`Adapter not found: ${task.sourceDeviceId}`)
+
+    const sizes = await Promise.all(task.sourcePaths.map(async sourcePath => {
+      try {
+        return (await source.stat(sourcePath)).size
+      } catch {
+        return 0
+      }
+    }))
+    task.setTotals(sizes.reduce((sum, size) => sum + size, 0), task.sourcePaths.length)
+
+    let doneBytes = 0
+    for (let index = 0; index < task.sourcePaths.length; index++) {
+      if (this.cancelled) return
+      const sourcePath = task.sourcePaths[index]
+      task.setCurrentFile(posixBaseName(sourcePath), index)
+      this.notifyTaskUpdate(task)
+
+      const fileStart = doneBytes
+      let lastTaskBytes = fileStart
+      const emit = (fraction: number) => {
+        const current = toTaskBytes(fileStart, sizes[index], fraction)
+        if (current <= lastTaskBytes) return
+        task.addBytes(current - lastTaskBytes)
+        lastTaskBytes = current
+        this.updateSpeed(task, 0, task.startedAt ?? task.createdAt)
+        // 满格是推送阶段的最后一个进度点，其后设备端安装不再产生进度：节流会吞掉这次
+        // 更新且无人补推，界面就会卡在半截直到安装结束，故满格时立即推送
+        this.notifyProgress(task, fraction >= 1)
+      }
+
+      const result: FileOperationItemResult = { sourcePath, status: 'success' }
+      try {
+        await this.apkInstallService.install(
+          { sourceDeviceId: task.sourceDeviceId, sourcePath, targetDeviceId: task.targetDeviceId },
+          {
+            onProgress: (bytes, total) => emit(total > 0 ? bytes / total : 0),
+            signal: this.cancelController.signal
+          }
+        )
+        emit(1)
+        result.bytesProcessed = sizes[index]
+      } catch (error) {
+        if (this.cancelled) return
+        result.status = 'failed'
+        result.error = error instanceof Error ? error.message : String(error)
+      }
+      doneBytes += sizes[index]
+      task.recordItem(result)
+      this.notifyTaskUpdate(task)
+    }
+    // 设备端 pm install 不可中断：取消恰好落在最后一个文件的设备端安装期间且它已装成时，
+    // 设备状态确已改变，任务如实记为完成，不能显示成「已取消」
+    if (
+      this.cancelled &&
+      task.progress.itemResults.length === task.sourcePaths.length &&
+      task.progress.itemResults.every(item => item.status === 'success')
+    ) {
+      this.cancelled = false
+    }
+  }
+
   /** Local uses the platform trash; remote/mobile adapters use a same-parent hidden bin. */
   private async executeRecycle(task: TransferTask): Promise<void> {
     const adapter = this.adapters.get(task.sourceDeviceId)
@@ -1045,6 +1133,7 @@ export class FileOperationManager {
       restoreItems: historyTask.restoreItems,
       convert: historyTask.convert,
       videoConvert: historyTask.videoConvert,
+      appInstall: historyTask.appInstall,
       format: historyTask.format,
       password: historyTask.password
     })

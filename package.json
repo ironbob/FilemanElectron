@@ -30,6 +30,8 @@
     "test:batch-rename-pattern": "esbuild tests/batchRenamePattern.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/batchRenamePattern.test.cjs --log-level=warning && node node_modules/.tmp/batchRenamePattern.test.cjs",
     "test:image-edit-naming": "esbuild tests/imageEditNaming.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/imageEditNaming.test.cjs --log-level=warning && node node_modules/.tmp/imageEditNaming.test.cjs",
     "test:video-convert": "esbuild tests/videoConvert.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/videoConvert.test.cjs --log-level=warning --alias:@shared=./shared && node node_modules/.tmp/videoConvert.test.cjs",
+    "test:apk-install": "esbuild tests/apkInstall.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/apkInstall.test.cjs --log-level=warning --alias:@shared=./shared && node node_modules/.tmp/apkInstall.test.cjs",
+    "test:arsc": "esbuild tests/arscResources.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/arscResources.test.cjs --log-level=warning --alias:@shared=./shared && node node_modules/.tmp/arscResources.test.cjs",
     "test:annotation-shapes": "esbuild tests/annotationShapes.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/annotationShapes.test.cjs --log-level=warning && node node_modules/.tmp/annotationShapes.test.cjs",
     "test:ohos-parse": "esbuild tests/ohosParsing.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/ohosParsing.test.cjs --log-level=warning && node node_modules/.tmp/ohosParsing.test.cjs",
     "test:android-symlink": "esbuild tests/androidSymlink.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.tmp/androidSymlink.test.cjs --log-level=warning --alias:@shared=./shared --external:electron && node node_modules/.tmp/androidSymlink.test.cjs",
@@ -51,6 +53,7 @@
   "dependencies": {
     "@alenaksu/json-viewer": "^2.1.2",
     "@devicefarmer/adbkit": "^3.3.9",
+    "@devicefarmer/adbkit-apkreader": "^4.0.0",
     "@marsaud/smb2": "^0.18.0",
     "dompurify": "^3.3.3",
     "electron-store": "^8.1.0",

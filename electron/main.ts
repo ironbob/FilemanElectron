@@ -25,13 +25,16 @@ import { GitStatusService } from './src/services/GitStatusService'
 import { ChecksumService } from './src/services/ChecksumService'
 import { ImageEditService } from './src/services/ImageEditService'
 import { VideoConvertService } from './src/services/VideoConvertService'
+import { ApkInstallService } from './src/services/ApkInstallService'
+import { ApkInfoService } from './src/services/ApkInfoService'
 import { DuplicateFinderService } from './src/services/DuplicateFinderService'
 import { GrepService } from './src/services/GrepService'
 import { SpaceAnalyzerService } from './src/services/SpaceAnalyzerService'
+import { ToolPathResolver } from './src/services/ToolPathResolver'
 import { DirectoryWalker } from './src/services/support/DirectoryWalker'
-import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ImageConvertSpec, VideoConvertSpec, XattrEntry, ClipboardProbe, ClipboardData } from '@shared/types'
+import type { ChecksumRequest, DuplicateScanRequest, GrepRequest, SpaceAnalysisRequest, ReadChunkResult, HexSavePiece, SaveHexFileResult, FileInfoWindowContext, EditCompressParams, EditOps, EditSaveSpec, ImageEditBatchRequest, ImageConvertSpec, VideoConvertSpec, AppInstallSpec, XattrEntry, ClipboardProbe, ClipboardData } from '@shared/types'
 import { CH } from './src/ipc/channels'
-import { setMainLocale, t } from './src/i18n'
+import { setMainLocale, t, getMainLocale } from './src/i18n'
 import { isZipVirtualPath, parseZipVirtualPath } from '@shared/zipPath'
 import type { DirectoryStatsRequest, OpenWithApp } from '@shared/types'
 
@@ -59,6 +62,12 @@ const thumbnailService = new ThumbnailService()
 const imageDecodeService = new ImageDecodeService(deviceManager)
 const imageEditService = new ImageEditService(imageDecodeService)
 const videoConvertService = new VideoConvertService()
+// APK 安装：adb 路径与设备名在组合根接上，服务本身不依赖 ToolPathResolver / DeviceManager
+const apkInstallService = new ApkInstallService({
+  adbPath: () => ToolPathResolver.getAdbPath(),
+  deviceNameOf: deviceId => deviceManager.getDevice(deviceId)?.name
+})
+const apkInfoService = new ApkInfoService()
 const zipService = new ZipService()
 const volumeScanner = new VolumeScanner({ scanInterval: 4000 })
 const hostShellService = new HostShellService()
@@ -70,6 +79,7 @@ const sevenZipService = new SevenZipService()
 fileOperationManager.setSevenZipService(sevenZipService)
 fileOperationManager.setImageEditService(imageEditService)
 fileOperationManager.setVideoConvertService(videoConvertService)
+fileOperationManager.setApkInstallService(apkInstallService)
 // 退出时终止在跑的 ffmpeg（否则孤儿进程会继续转码数分钟并残留 .tmp）
 app.on('before-quit', () => videoConvertService.dispose())
 const xattrService = new XattrService()
@@ -797,6 +807,29 @@ ipcMain.handle(CH.invoke.videoConvert, (_, deviceId: string, sourcePaths: string
     videoConvert
   })
 )
+
+// ============ APK 安装（app-install 任务；引擎 = ApkInstallService） ============
+
+// 可安装目标：adb listDevices 中的 device / unauthorized（未授权列出但 Sheet 置灰）。
+ipcMain.handle(CH.invoke.apkInstallTargets, () => apkInstallService.listTargets())
+
+// 安装走任务队列（进度 / 取消 / 历史）。源为本机或目标 Android 设备自身，服务端再校验。
+ipcMain.handle(CH.invoke.apkInstall, (_, sourceDeviceId: string, sourcePaths: string[], targetDeviceId: string, appInstall: AppInstallSpec) =>
+  fileOperationManager.addTask({
+    type: 'app-install',
+    sourceDeviceId,
+    sourcePaths,
+    targetDeviceId,
+    appInstall
+  })
+)
+
+// 包信息：仅本机 APK（远程不拉取整包，PRD R8）；解析失败抛错由调用方降级。
+// 应用名按主进程当前语言从资源表取（config:save 切换语言后即时跟随）。
+ipcMain.handle(CH.invoke.apkInfo, (_, deviceId: string, filePath: string) => {
+  if (deviceId !== 'local') return null
+  return apkInfoService.inspect(filePath, getMainLocale())
+})
 
 ipcMain.handle(CH.invoke.mobileCaptureScreenshot, (_, deviceId: string, targetDirectory: string) =>
   mobileScreenshotService.captureToDirectory(deviceId, targetDirectory)

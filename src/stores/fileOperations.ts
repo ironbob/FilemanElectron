@@ -337,6 +337,15 @@ export const useFileOperationsStore = defineStore('fileOperations', {
       return window.fileman.createVideoConvert(deviceId, [...sourcePaths], { ...videoConvert })
     },
 
+    /** 安装应用（APK → 目标 Android 设备；源为本机或该设备自身）。 */
+    async createAppInstallTask(
+      sourceDeviceId: string,
+      sourcePaths: string[],
+      targetDeviceId: string
+    ): Promise<FileOperationTask> {
+      return window.fileman.createAppInstall(sourceDeviceId, [...sourcePaths], targetDeviceId)
+    },
+
     async createMkdirTask(
       deviceId: string,
       path: string

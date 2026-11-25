@@ -323,6 +323,8 @@ const enUS: MessageSchema = {
       batchRename: 'Batch Rename…',
       imageConvert: 'Convert To…',
       videoConvert: 'Convert to MP4…',
+      apkInstall: 'Install on Android Device…',
+      apkInstallOnDevice: 'Install on This Device…',
       archiveItem: 'Compress “{name}”',
       archiveMulti: 'Compress {count} Items',
       compressZip: 'Compress to ZIP',
@@ -423,6 +425,21 @@ const enUS: MessageSchema = {
       note: 'Saves as a copy; the original videos are never modified. Colliding names get an incrementing number.',
       cancel: 'Cancel',
       confirm: 'Convert {count} video | Convert {count} videos'
+    },
+    apkInstall: {
+      title: 'Install App',
+      subtitle: '{count} package, {size} | {count} packages, {size}',
+      versionWithCode: 'Version {name} ({code})',
+      versionCodeOnly: 'Version {code}',
+      targetLabel: 'Install on',
+      unauthorized: 'Unauthorized',
+      unauthorizedHint: 'Allow USB debugging on the phone',
+      loading: 'Looking for Android devices…',
+      noDevices: 'No Android device detected',
+      fixedTarget: 'Will be installed on {device}',
+      note: 'Replaces an installed app with the same package name and keeps its data. The package file is never modified.',
+      cancel: 'Cancel',
+      confirm: 'Install | Install {count}'
     },
     archive7z: {
       title: 'Compress to 7Z',
@@ -531,6 +548,15 @@ const enUS: MessageSchema = {
       mediaFocalLength: 'Focal Length',
       videoCodecBitDepth: '{codec} ({bits}-bit)',
       channelsValue: '{count} channel | {count} channels',
+      apk: 'Package',
+      apkAppName: 'App Name',
+      apkPackage: 'Package Name',
+      apkVersion: 'Version',
+      apkMinSdk: 'Minimum Android',
+      apkTargetSdk: 'Target Android',
+      apkApiLevel: 'Android {name} (API {level})',
+      apkApiLevelOnly: 'API {level}',
+      apkParseFailed: 'Could not read the package info',
       dimensionsValue: '{width} × {height} ({mp} MP)'
     },
     device: {
@@ -897,7 +923,8 @@ const enUS: MessageSchema = {
       restore: 'Restoring',
       archive: 'Compressing',
       imageConvert: 'Converting Images',
-      videoConvert: 'Converting Videos'
+      videoConvert: 'Converting Videos',
+      appInstall: 'Installing App'
     },
     /** Conflict-rename suffix word (Finder duplicate naming: a.txt → a copy.txt → a copy 2.txt). */
     duplicateWord: 'copy',
@@ -1575,6 +1602,20 @@ const enUS: MessageSchema = {
       videoConvertLocalOnly: 'Video conversion is only available on this Mac',
       videoConvertUnavailable: 'ffmpeg is unavailable (not bundled or unsupported on this platform)',
       videoConvertFailed: 'Video transcoding failed (exit code {code}): {detail}',
+
+      // ── APK install (app-install task) ───────────────────────────────────
+      apkInstallSignatureMismatch: 'Signature does not match the installed version. Uninstall the old version first',
+      apkInstallDowngrade: 'Version is lower than the installed one; downgrades are not supported',
+      apkInstallStorage: 'Not enough storage space on the device',
+      apkInstallAbi: 'The package has no libraries for this device CPU architecture',
+      apkInstallOlderSdk: 'The device Android version is too old',
+      apkInstallNewerSdk: 'The device Android version is above the range supported by the package',
+      apkInstallInvalid: 'Not a valid APK package',
+      apkInstallTestOnly: 'The package is test-only and cannot be installed',
+      apkInstallFailed: 'Install failed ({code})',
+      apkInstallDeviceUnavailable: 'The target Android device is unavailable or disconnected',
+      apkInstallCrossDevice: 'Installing a package from one device onto another is not supported',
+      apkInstallReadFailed: 'Could not read the package: {path}',
       xattrLocalOnly: 'Extended attributes are only available on this Mac',
       xattrZipEntryUnsupported: 'Extended attributes are not supported inside ZIP entries',
       xattrFailed: 'xattr operation failed: {detail}',

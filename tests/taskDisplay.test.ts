@@ -50,10 +50,12 @@ assert.equal(taskVerbKey('batch-rename'), 'tasks.verb.batchRename')
 assert.equal(taskVerbKey('recycle'), 'tasks.verb.recycle')
 assert.equal(taskVerbKey('image-convert'), 'tasks.verb.imageConvert')
 assert.equal(taskVerbKey('video-convert'), 'tasks.verb.videoConvert')
+assert.equal(taskVerbKey('app-install'), 'tasks.verb.appInstall')
 
 assert.equal(taskIconGroup('copy'), 'transfer')
 assert.equal(taskIconGroup('move'), 'transfer')
 assert.equal(taskIconGroup('restore'), 'transfer')
+assert.equal(taskIconGroup('app-install'), 'transfer')
 assert.equal(taskIconGroup('delete'), 'delete')
 assert.equal(taskIconGroup('recycle'), 'delete')
 assert.equal(taskIconGroup('rename'), 'create')
@@ -162,5 +164,25 @@ for (const [type, specKey] of VOLUME_CONVERT_CASES) {
     { source: 'Downloads', target: 'Backup' }
   )
 }
+
+// app-install：来源取源父目录（本机）或源设备名（手机上的 APK），目标取目标设备名；无目标设备 id 时回退 id 本身
+assert.deepEqual(
+  pathSummary(mkTask('app-install', { targetDeviceId: 'android-pixel', appInstall: { kind: 'apk' } }), VOLUMES, { 'android-pixel': 'Pixel 8' }),
+  { source: 'Downloads', target: 'Pixel 8' }
+)
+assert.deepEqual(
+  pathSummary(mkTask('app-install', { sourceDeviceId: 'android-one', targetDeviceId: 'android-one', appInstall: { kind: 'apk' } }), VOLUMES, { 'android-one': 'OnePlus 7T' }),
+  { source: 'OnePlus 7T', target: 'OnePlus 7T' }
+)
+assert.deepEqual(
+  pathSummary(mkTask('app-install', { targetDeviceId: 'android-x', appInstall: { kind: 'apk' } }), VOLUMES, {}),
+  { source: 'Downloads', target: 'android-x' }
+)
+// 动作句式：单文件显示文件名，多文件显示计数
+assert.deepEqual(actionSentenceParts(mkTask('app-install')), { verbKey: 'tasks.verb.appInstall', name: 'a.pdf', count: 1 })
+assert.deepEqual(
+  actionSentenceParts(mkTask('app-install', { sourcePaths: ['/a/1.apk', '/a/2.apk'] })),
+  { verbKey: 'tasks.verb.appInstall', name: null, count: 2 }
+)
 
 console.log('[taskDisplay] all assertions passed ✓')

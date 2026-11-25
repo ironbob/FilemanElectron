@@ -43,6 +43,8 @@ import type {
   ImageEditBatchProgress,
   ImageConvertSpec,
   VideoConvertSpec,
+  AndroidInstallTarget,
+  ApkInfo,
   XattrEntry,
   ClipboardProbe,
   ClipboardData,
@@ -132,6 +134,15 @@ const filemanAPI = {
   // ============ Media Info (属性弹窗多媒体元数据) ============
   getMediaInfo: (deviceId: string, filePath: string): Promise<MediaInfoSummary | null> =>
     ipcRenderer.invoke(CH.invoke.fsMediaInfo, deviceId, filePath),
+
+  // ============ APK 安装（安装 Sheet 目标列表 / app-install 任务 / 包信息） ============
+  apkInstallTargets: (): Promise<AndroidInstallTarget[]> =>
+    ipcRenderer.invoke(CH.invoke.apkInstallTargets),
+  createAppInstall: (sourceDeviceId: string, sourcePaths: string[], targetDeviceId: string): Promise<FileOperationTask> =>
+    ipcRenderer.invoke(CH.invoke.apkInstall, sourceDeviceId, [...sourcePaths], targetDeviceId, { kind: 'apk' }),
+  /** 本机 APK 的包信息；非本机返回 null。 */
+  getApkInfo: (filePath: string): Promise<ApkInfo | null> =>
+    ipcRenderer.invoke(CH.invoke.apkInfo, 'local', filePath),
 
   // ============ Cross-Device Operations ============
   copyBetweenDevices: (

@@ -197,7 +197,7 @@ export interface MediaInfoSummary {
 // ============ File Operation Types ============
 
 export type ConflictStrategy = 'skip' | 'overwrite' | 'rename'
-export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert' | 'video-convert'
+export type FileOperationType = 'copy' | 'move' | 'delete' | 'rename' | 'mkdir' | 'touch' | 'batch-rename' | 'recycle' | 'restore' | 'archive' | 'image-convert' | 'video-convert' | 'app-install'
 export type FileOperationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface FileOperationItemResult {
@@ -231,6 +231,7 @@ export interface FileOperationTask {
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
   videoConvert?: VideoConvertSpec
+  appInstall?: AppInstallSpec
   /** archive 任务：输出格式（zip 流式 fflate / 7z 走捆绑 7zz，仅本地）。 */
   format?: 'zip' | '7z'
   /** 7z 加密口令（连同文件名加密 -mhe=on）。 */
@@ -255,6 +256,7 @@ export interface CreateTaskParams {
   restoreItems?: Array<{ trashPath: string; originalPath: string }>
   convert?: ImageConvertSpec
   videoConvert?: VideoConvertSpec
+  appInstall?: AppInstallSpec
   format?: 'zip' | '7z'
   password?: string
 }
@@ -617,6 +619,38 @@ export interface VideoConvertSpec {
   dir?: string
   /** 文件名后缀（缺省空串：a.mov → a.mp4） */
   suffix?: string
+}
+
+/**
+ * 安装包安装任务参数（app-install 任务；引擎 = ApkInstallService 的
+ * adb push + 设备端 `pm install -r -t`）。目标设备复用 targetDeviceId。
+ */
+export interface AppInstallSpec {
+  /** 安装包类型（P0 仅 apk；hap 为 HAP 安装预留）。 */
+  kind: 'apk'
+}
+
+/** 安装 Sheet 的目标设备条目（adb listDevices 中 device / unauthorized 两类）。 */
+export interface AndroidInstallTarget {
+  deviceId: string
+  serial: string
+  name: string
+  /** false = 手机尚未允许 USB 调试：列出但不可选。 */
+  authorized: boolean
+}
+
+/** 本地 APK 的 Manifest 摘要（ApkInfoService.inspect 产物；简介区块与安装 Sheet 共用）。 */
+export interface ApkInfo {
+  packageName: string
+  appName?: string
+  versionName?: string
+  versionCode?: number
+  minSdk?: number
+  targetSdk?: number
+  /** 图片 base64（无 data: 前缀；mime 见 iconMime）；资源表引用 / 自适应图标都取不到则省略。 */
+  iconBase64?: string
+  /** 图标格式；缺省按 image/png。 */
+  iconMime?: 'image/png' | 'image/webp'
 }
 
 /** macOS 扩展属性条目（「显示简介 ▸ 扩展属性」；仅本机设备）。 */

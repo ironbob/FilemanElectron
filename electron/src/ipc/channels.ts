@@ -141,6 +141,10 @@ export const CH = {
     imageEditBatchCancel: 'image:editBatchCancel',
     imageConvert: 'image:convert',
     videoConvert: 'video:convert',
+    // apk（APK 安装 / 包信息）:
+    apkInstallTargets: 'apk:installTargets',
+    apkInstall: 'apk:install',
+    apkInfo: 'apk:info',
     // volumes:
     volumesList: 'volumes:list',
     volumesEject: 'volumes:eject',

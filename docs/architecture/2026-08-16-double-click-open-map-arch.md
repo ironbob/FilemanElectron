@@ -4,6 +4,8 @@
 > 增补（2026-08-23）：网页族（html/htm/xhtml/shtml，清单 `BROWSER_OPEN_EXTS`）本机
 > 实体双击改交系统默认应用（浏览器）渲染——与 §6 决策④同类语义；应用内文本预览
 > 入口保留（空格 QuickLook / 右键「打开」→ 预览 tab）。
+> 增补（2026-11-24）：`apk` 专用分支（§6 决策⑥）——本机双击进安装 Sheet（无在线
+> Android 设备退回「浏览 ZIP」），Android 设备上进安装确认；其它远程维持 TAB_ZIP。
 > 目标：穷举所有文件类型，为每种类型确定"最适合的双击默认打开方式"，
 > 并消灭 `Cannot preview this file type` 占位符。
 > 触发案例：`*.cmake` 双击无法预览。
@@ -211,6 +213,10 @@ pdf ✅
    nupkg sar kmz
 说明: docx/pptx 等进 zip 后看到的是原始 XML——能用但体验一般；
      远期可做 Office 渲染，不在本轮。
+     apk（2026-11-24 起有专用分支，见 §6 ⑥）：本机双击 → 安装 Sheet（无在线
+     Android 设备时退回「浏览 ZIP」同款导航）；Android 设备上 → 安装确认
+     Sheet；其它远程设备（SMB/SSH/iOS/OHOS）与 ZIP 内条目维持 TAB_ZIP。
+     仍是 zip 族：右键保留「浏览/解压」子菜单。
 ```
 
 ### 3.7 压缩（非 zip）→ TAB_HEX（现状 ❌；远期可接系统 tar/unar 只读浏览）
@@ -298,7 +304,8 @@ P6 终极兜底                          → TAB_HEX（本地文件附"系统打
 | `wav` | 🐛 在 `extensionCategories.video`（fileTypes.ts:11），分类/图标判成视频 | 图标映射侥幸正确，分类错 | ➕移入 audio |
 | `m3u` | 🐛 在 audio 分类集，但预览集没有 → unknown | ❌ | ➕text（A10） |
 | `dat` | 通用数据 | ✅ hex | 嗅探可翻案成 text |
-| `jar/apk/ipa/docx` | zip 包 | ✅ TAB_ZIP | 维持 |
+| `jar/ipa/docx` | zip 包 | ✅ TAB_ZIP | 维持 |
+| `apk` | zip 包 vs Android 安装包 | 本机双击交系统默认应用（macOS 无默认应用，死路） | **安装 Sheet**（本机 → 选 Android 设备安装，无设备退回浏览 ZIP；Android 设备上 → 装到该设备；其它远程维持 TAB_ZIP），见 §6 ⑥ |
 | `1..9`（man page，如 `ls.1`） | 数字扩展名 | ❌ | 嗅探 → 多为 roff 文本 |
 | `sub` | 字幕文本 vs 图形字幕 | ❌ | 嗅探 |
 
@@ -313,6 +320,7 @@ P6 终极兜底                          → TAB_HEX（本地文件附"系统打
 | ③ | `.ts` 冲突 | **TypeScript 优先** |
 | ④ | 是否本轮新增"用系统默认应用打开"（`shell.openPath`，右键 + 兜底按钮，仅本地设备） | **加**：office/字体/dmg 等没有应用内渲染器的类型尤其需要；远程设备该菜单项隐藏 |
 | ⑤ | Markdown 双击默认视图 | 维持 source（QuickLook 场景可考虑默认 rendered，本轮不动） |
+| ⑥ | `.apk` 双击（2026-11-24，需求见 `prd/2026-11-24-apk-install-requirements.md`） | **安装**：专用分支插在「本地 zip 族 → 系统打开」之前（与网页族同一插入方式）。本机：`apk:installTargets` 有目标 → 安装 Sheet（单选设备，未授权置灰）；无目标 → 退回「浏览 ZIP」（与右键「浏览」同一动作：新标签页进虚拟目录）。Android 设备上的 APK → 确认 Sheet，目标固定为该设备。其它远程设备与 ZIP 内条目不变。右键：本机 APK 在 ZIP 子菜单旁并列「安装到 Android 设备…」（选中全为 apk 且扫描器看到 Android 设备），Android 设备上为「安装到此设备…」；「浏览/解压」保留。安装走 app-install 任务队列（adb push + `pm install -r -t`，源 APK 只读） |
 
 ---
 

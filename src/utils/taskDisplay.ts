@@ -25,6 +25,7 @@ export type TaskVerbKey =
   | 'tasks.verb.archive'
   | 'tasks.verb.imageConvert'
   | 'tasks.verb.videoConvert'
+  | 'tasks.verb.appInstall'
 
 const VERB_KEYS: Record<FileOperationType, TaskVerbKey> = {
   copy: 'tasks.verb.copy',
@@ -38,7 +39,8 @@ const VERB_KEYS: Record<FileOperationType, TaskVerbKey> = {
   restore: 'tasks.verb.restore',
   archive: 'tasks.verb.archive',
   'image-convert': 'tasks.verb.imageConvert',
-  'video-convert': 'tasks.verb.videoConvert'
+  'video-convert': 'tasks.verb.videoConvert',
+  'app-install': 'tasks.verb.appInstall'
 }
 
 export function taskVerbKey(type: FileOperationType): TaskVerbKey {
@@ -155,6 +157,13 @@ export function pathSummary(
   // copy/move/restore 有双向；mkdir/touch/archive 只有目标侧（新建/输出位置）；
   // delete/recycle/rename 无目标侧。image-convert / video-convert 仅在自定义输出目录时
   // 显示目标侧（默认副本与源同目录，双侧显示会重复同一目录名）。
+  // app-install（APK → Android 设备）：来源取源父目录（手机上的 APK 取源设备名），目标取设备名。
+  if (task.type === 'app-install') {
+    return {
+      source: label(task.sourceDeviceId, task.sourcePaths[0], 'parent'),
+      target: task.targetDeviceId ? (deviceNames[task.targetDeviceId] ?? task.targetDeviceId) : null
+    }
+  }
   if (task.type === 'image-convert' || task.type === 'video-convert') {
     const customDir = task.type === 'image-convert' ? task.convert?.dir : task.videoConvert?.dir
     return {

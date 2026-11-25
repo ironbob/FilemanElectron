@@ -247,6 +247,23 @@
           </div>
         </section>
 
+        <!-- ── 安装包（单选本机 .apk；门控同媒体区，解析失败只显示一行提示） ── -->
+        <section v-if="showApkInfo">
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.apk') }}</h4>
+          <div class="flex items-start gap-3 rounded-lg bg-bg-tertiary p-3">
+            <img
+              v-if="apkInfo?.iconBase64"
+              :src="`data:${apkInfo.iconMime ?? 'image/png'};base64,${apkInfo.iconBase64}`"
+              class="h-11 w-11 flex-shrink-0 rounded-[10px] object-contain"
+              alt=""
+            />
+            <dl v-if="apkRows.length > 0" class="min-w-0 flex-1 grid grid-cols-[92px_1fr] gap-y-2 text-sm">
+              <InfoRow v-for="row in apkRows" :key="row.label" :label="row.label" :value="row.value" :copy-value="row.copyValue" />
+            </dl>
+            <p v-else-if="apkStatus === 'failed'" class="flex-1 text-xs text-text-tertiary">{{ $t('dialogs.fileInfo.apkParseFailed') }}</p>
+          </div>
+        </section>
+
         <!-- ── 标签（仅单选） ────────────────────────────────── -->
         <section v-if="isSingle && !isZipEntry">
           <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ $t('dialogs.fileInfo.tags') }}</h4>
@@ -303,7 +320,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import exifr from 'exifr'
 import type { FileInfo } from '@/types'
 import { getMimeType } from '@/types/preview'
-import type { FileStats, MediaInfoSummary, XattrEntry } from '@shared/types'
+import type { FileStats, MediaInfoSummary, XattrEntry, ApkInfo } from '@shared/types'
 import { useThumbnailStore } from '@/stores/thumbnail'
 import { formatSize } from '@/utils/path'
 import { formatDateTime } from '@/utils/formatDate'
@@ -672,6 +689,17 @@ onMounted(async () => {
     }
   }
 
+  // ── 安装包信息（单选本机 .apk；解析失败降级为一行提示，不弹错） ──────────
+  if (showApkInfo.value) {
+    try {
+      apkInfo.value = await window.fileman.getApkInfo(file.value.path)
+      apkStatus.value = apkInfo.value ? 'loaded' : 'failed'
+    } catch (e) {
+      console.warn('[FileInfoDialog] apk info failed', e)
+      apkStatus.value = 'failed'
+    }
+  }
+
   // 选中含目录即启动递归统计（ZIP 内目录在主进程走中央目录求和，瞬时完成）
   const folderPaths = props.files.filter(f => f.isDirectory).map(f => f.path)
   if (folderPaths.length > 0) {
@@ -765,6 +793,41 @@ const mediaRows = computed(() => {
   return rows
 })
 
+// ── 安装包信息（本机单选 .apk；ApkInfoService 只读 Manifest 与 resources.arsc） ──────
+const showApkInfo = computed(() =>
+  isSingle.value && !file.value.isDirectory && !isZipEntry.value && props.deviceType === 'local' &&
+  (file.value.extension ?? '').toLowerCase() === '.apk'
+)
+const apkInfo = ref<ApkInfo | null>(null)
+const apkStatus = ref<'loading' | 'loaded' | 'failed'>('loading')
+
+/** 常见 API level → Android 版本名（未知级别只显示 API 级别）。 */
+const ANDROID_VERSION_NAMES: Record<number, string> = {
+  21: '5.0', 22: '5.1', 23: '6.0', 24: '7.0', 25: '7.1.1', 26: '8.0', 27: '8.1', 28: '9', 29: '10',
+  30: '11', 31: '12', 32: '12L', 33: '13', 34: '14', 35: '15', 36: '16'
+}
+
+function androidVersionLabel(level: number): string {
+  const name = ANDROID_VERSION_NAMES[level]
+  return name ? t('dialogs.fileInfo.apkApiLevel', { name, level }) : t('dialogs.fileInfo.apkApiLevelOnly', { level })
+}
+
+/** 安装包区行（与媒体区同构，复制全部共用）。 */
+const apkRows = computed(() => {
+  const rows: Array<{ label: string; value: string; copyValue?: string }> = []
+  const apk = apkInfo.value
+  if (!apk) return rows
+  if (apk.appName) rows.push({ label: t('dialogs.fileInfo.apkAppName'), value: apk.appName })
+  rows.push({ label: t('dialogs.fileInfo.apkPackage'), value: apk.packageName, copyValue: apk.packageName })
+  const version = apk.versionName != null && apk.versionCode != null
+    ? `${apk.versionName} (${apk.versionCode})`
+    : apk.versionName ?? (apk.versionCode != null ? String(apk.versionCode) : null)
+  if (version) rows.push({ label: t('dialogs.fileInfo.apkVersion'), value: version })
+  if (apk.minSdk != null) rows.push({ label: t('dialogs.fileInfo.apkMinSdk'), value: androidVersionLabel(apk.minSdk) })
+  if (apk.targetSdk != null) rows.push({ label: t('dialogs.fileInfo.apkTargetSdk'), value: androidVersionLabel(apk.targetSdk) })
+  return rows
+})
+
 /** 图片元数据：Image 元素取尺寸 + exifr 解析拍摄参数 */
 async function loadImageMeta(): Promise<void> {
   const f = file.value
@@ -847,6 +910,7 @@ function buildSummaryText(): string {
     if (multiLocationLabel.value) lines.push(`${t('dialogs.fileInfo.location')}: ${multiLocationLabel.value}`)
   }
   for (const row of mediaRows.value) lines.push(`${row.label}: ${row.value}`)
+  for (const row of apkRows.value) lines.push(`${row.label}: ${row.value}`)
   if (isSingle.value && !isZipEntry.value && tagText.value.trim()) lines.push(`${t('dialogs.fileInfo.tags')}: ${tagText.value}`)
   return lines.join('\n')
 }

@@ -54,6 +54,8 @@ type ReadChunkResult = import('@shared/types').ReadChunkResult
 type HexSavePiece = import('@shared/types').HexSavePiece
 type SaveHexFileResult = import('@shared/types').SaveHexFileResult
 type MediaInfoSummary = import('@shared/types').MediaInfoSummary
+type AndroidInstallTarget = import('@shared/types').AndroidInstallTarget
+type ApkInfo = import('@shared/types').ApkInfo
 type DeviceConfig = import('@shared/types').DeviceConfig
 type Credentials = import('@shared/types').Credentials
 type Device = import('@shared/types').Device
@@ -168,6 +170,11 @@ interface Window {
 
     // Media info (属性弹窗多媒体元数据；非媒体或远程文件返回 null)
     getMediaInfo: (deviceId: string, filePath: string) => Promise<MediaInfoSummary | null>
+
+    // APK 安装（安装 Sheet 目标列表 / app-install 任务 / 本机包信息）
+    apkInstallTargets: () => Promise<AndroidInstallTarget[]>
+    createAppInstall: (sourceDeviceId: string, sourcePaths: string[], targetDeviceId: string) => Promise<FileOperationTask>
+    getApkInfo: (filePath: string) => Promise<ApkInfo | null>
 
     // Cross-Device Operations
     copyBetweenDevices: (

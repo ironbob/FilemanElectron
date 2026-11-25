@@ -422,6 +422,14 @@
       @close="videoConvertDialog.visible = false"
       @confirm="confirmVideoConvert"
     />
+    <ApkInstallDialog
+      v-if="apkInstallDialog.visible"
+      :files="apkInstallDialog.files"
+      :source-device-id="apkInstallDialog.sourceDeviceId"
+      :source-device-name="currentDeviceName"
+      @close="apkInstallDialog.visible = false"
+      @confirm="confirmApkInstall"
+    />
     <Archive7zDialog
       v-if="archive7zDialog.visible"
       :default-name="archive7zDialog.defaultName"
@@ -487,6 +495,7 @@ import BatchRenameDialog from './dialogs/BatchRenameDialog.vue'
 import ChecksumDialog from './dialogs/ChecksumDialog.vue'
 import ImageConvertDialog from './dialogs/ImageConvertDialog.vue'
 import VideoConvertDialog from './dialogs/VideoConvertDialog.vue'
+import ApkInstallDialog from './dialogs/ApkInstallDialog.vue'
 import Archive7zDialog from './dialogs/Archive7zDialog.vue'
 import SymlinkDialog from './dialogs/SymlinkDialog.vue'
 import CreateItemSheet from './dialogs/CreateItemSheet.vue'
@@ -692,6 +701,8 @@ const renameDialog = reactive({
 const batchRenameDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 const imageConvertDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean }> }>({ visible: false, files: [] })
 const videoConvertDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean; size?: number }> }>({ visible: false, files: [] })
+/** APK 安装 Sheet：sourceDeviceId = 本机（选目标设备）或 APK 所在的 Android 设备（目标固定）。 */
+const apkInstallDialog = reactive<{ visible: boolean; files: Array<{ path: string; name: string; isDirectory: boolean; size?: number }>; sourceDeviceId: string }>({ visible: false, files: [], sourceDeviceId: 'local' })
 const archive7zDialog = reactive<{ visible: boolean; defaultName: string }>({ visible: false, defaultName: 'Archive' })
 /** 7Z 对话框打开瞬间的选中快照（confirm 时使用，避免弹窗期间选择变化）。 */
 let lastArchive7zFiles: string[] = []
@@ -1943,6 +1954,13 @@ async function handleOperation(op: { action: string; files: string[]; target?: s
         .filter((file): file is FileInfo => !!file)
       videoConvertDialog.visible = videoConvertDialog.files.length > 0
       break
+    case 'app-install':
+      apkInstallDialog.files = op.files
+        .map(path => loadedFiles.value.find(file => file.path === path))
+        .filter((file): file is FileInfo => !!file)
+      apkInstallDialog.sourceDeviceId = deviceId
+      apkInstallDialog.visible = apkInstallDialog.files.length > 0
+      break
     case 'new-symlink':
       symlinkDialog.visible = true
       break
@@ -2088,6 +2106,21 @@ async function confirmVideoConvert(spec: VideoConvertSpec) {
     trackDirectoryRefresh(task)
   } catch (error) {
     log.error('[FilePane] video convert task failed to queue', { error })
+  }
+}
+
+async function confirmApkInstall(targetDeviceId: string) {
+  const sourceDeviceId = apkInstallDialog.sourceDeviceId
+  try {
+    // 安装不改写源 APK，两侧目录都不会变化，无需跟踪刷新
+    await fileOpsStore.createAppInstallTask(
+      sourceDeviceId,
+      apkInstallDialog.files.map(file => file.path),
+      targetDeviceId
+    )
+    apkInstallDialog.visible = false
+  } catch (error) {
+    log.error('[FilePane] app install task failed to queue', { error })
   }
 }
 
